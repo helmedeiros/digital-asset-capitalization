@@ -1,6 +1,6 @@
 # Jira Time Allocation Calculator
 
-A tool that calculates the time allocation percentage for tasks in a Jira sprint.
+A tool to calculate time allocation for Jira issues based on their status changes and manual adjustments.
 
 ## What is this?
 
@@ -11,33 +11,83 @@ Simply copy-paste the output to the Google Spreadsheet with the split per column
 
 ## Setup
 
-1. Set up your Jira credentials as environment variables in your shell:
-
+1. Clone the repository
+2. Install dependencies:
    ```bash
-   # For bash/zsh
+   go mod download
+   ```
+3. Create a `teams.json` file with your team structure:
+   ```json
+   {
+     "PROJECT_KEY": {
+       "Members": ["Team Member 1", "Team Member 2"]
+     }
+   }
+   ```
+4. Set up your Jira credentials as environment variables:
+   ```bash
    export JIRA_BASE_URL="https://your-domain.atlassian.net"
    export JIRA_EMAIL="your.email@company.com"
    export JIRA_TOKEN="your-api-token"
-
-   # For fish shell
-   set -x JIRA_BASE_URL "https://your-domain.atlassian.net"
-   set -x JIRA_EMAIL "your.email@company.com"
-   set -x JIRA_TOKEN "your-api-token"
    ```
 
-   You can get your Jira API token from https://id.atlassian.com/manage-profile/security/api-tokens
+## Testing
 
-2. Copy `teams.json.template` to `teams.json` and add your team members:
-   ```bash
-   cp teams.json.template teams.json
-   ```
-   > NB! You have to include names with their diacritics as they are in Jira, with ć, á or others depending on the contributor's name, otherwise the tool won't be able to match issues and contributors together.
+This project uses `gotestsum` for better test output and organization. To run tests, you have several options:
 
-## How to use it? Example
+### Basic Test Run
 
 ```bash
-./assetcap-calc timeallocation-calc --project "YOUR_PROJECT" --sprint "YOUR_SPRINT" [--override '{"PROJECT-123": 1}']
+make test
 ```
+
+### Test with Coverage Report
+
+```bash
+make test-cover
+```
+
+### Test with Race Detector
+
+```bash
+make test-race
+```
+
+### Test in Watch Mode (useful during development)
+
+```bash
+make test-watch
+```
+
+### Test with Verbose Output
+
+```bash
+make test-v
+```
+
+### Run All Tests (with race detector and coverage)
+
+```bash
+make test-all
+```
+
+### Test Coverage Report
+
+The current test coverage is:
+
+- `assetcap/action`: 88.2%
+- `assetcap/config`: 96.0%
+- `assetcap`: 18.4%
+
+## Usage
+
+Run the tool with:
+
+```bash
+go run cmd/main.go -project PROJECT_KEY -sprint "Sprint Name" [-override '{"ISSUE-KEY": hours}']
+```
+
+The tool will generate a CSV file with time allocation percentages for each team member.
 
 ## Security Note
 
