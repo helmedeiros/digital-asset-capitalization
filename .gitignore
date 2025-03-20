@@ -1,0 +1,6 @@
+.vscode
+.idea
+cover.out
+teams.json
+*.csv
+.env

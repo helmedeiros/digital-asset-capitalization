@@ -1,0 +1,16 @@
+{
+  "JIRA-PROJECT-1": {
+    "team": [
+      "Team Member 1",
+      "Team Member 2",
+      "Team Member 3"
+    ]
+  },
+  "JIRA-PROJECT-2": {
+    "team": [
+      "Team Member 1",
+      "Team Member 2",
+      "Team Member 3"
+    ]
+  }
+}
