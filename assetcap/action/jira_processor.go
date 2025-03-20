@@ -25,14 +25,14 @@ func JiraDoer(project string, sprint string, override string) (string, error) {
 		return "", fmt.Errorf("error reading JSON file: %v", err)
 	}
 
-	var teams assetcap.T
+	var teams assetcap.TeamMap
 	err = json.Unmarshal(data, &teams)
 	if err != nil {
 		return "", fmt.Errorf("error unmarshaling JSON: %v", err)
 	}
 
-	people, ok := teams[project]
-	if !ok {
+	team, exists := teams.GetTeam(project)
+	if !exists {
 		return "", fmt.Errorf("project %s not found in teams.json", project)
 	}
 
@@ -68,25 +68,25 @@ func JiraDoer(project string, sprint string, override string) (string, error) {
 
 	// Initialize hours tracking
 	totalHoursByPerson := make(map[string]float64)
-	for _, person := range people.Team {
+	for _, person := range team.Members {
 		totalHoursByPerson[person] = 0
 	}
 
 	// Calculate the total hours for each assignee
 	for _, issue := range issues {
 		assignee := issue.Fields.Assignee.DisplayName
-		if assetcap.Contains(people.Team, assignee) {
+		if team.IsTeamMember(assignee) {
 			var startTime, endTime time.Time
 			var inProgress, done bool
 
 			for i := len(issue.Changelog.Histories) - 1; i >= 0; i-- {
 				history := issue.Changelog.Histories[i]
 				for _, item := range history.Items {
-					if item.Field == "status" {
-						if (item.ToString == "Done" || item.ToString == "Won't Do") && !done {
+					if item.IsStatusChange() {
+						if (item.ToString == assetcap.StatusDone || item.ToString == assetcap.StatusWontDo) && !done {
 							endTime, _ = time.Parse("2006-01-02T15:04:05.000-0700", history.Created)
 							done = true
-						} else if item.ToString == "In Progress" && !inProgress {
+						} else if item.ToString == assetcap.StatusInProgress && !inProgress {
 							startTime, _ = time.Parse("2006-01-02T15:04:05.000-0700", history.Created)
 							inProgress = true
 						}
@@ -109,18 +109,18 @@ func JiraDoer(project string, sprint string, override string) (string, error) {
 	var results []map[string]interface{}
 	for _, issue := range issues {
 		assignee := issue.Fields.Assignee.DisplayName
-		if assetcap.Contains(people.Team, assignee) {
+		if team.IsTeamMember(assignee) {
 			var startTime, endTime time.Time
 			var inProgress, done bool
 
 			for i := len(issue.Changelog.Histories) - 1; i >= 0; i-- {
 				history := issue.Changelog.Histories[i]
 				for _, item := range history.Items {
-					if item.Field == "status" {
-						if (item.ToString == "Done" || item.ToString == "Won't Do") && !done {
+					if item.IsStatusChange() {
+						if (item.ToString == assetcap.StatusDone || item.ToString == assetcap.StatusWontDo) && !done {
 							endTime, _ = time.Parse("2006-01-02T15:04:05.000-0700", history.Created)
 							done = true
-						} else if item.ToString == "In Progress" && !inProgress {
+						} else if item.ToString == assetcap.StatusInProgress && !inProgress {
 							startTime, _ = time.Parse("2006-01-02T15:04:05.000-0700", history.Created)
 							inProgress = true
 						}
@@ -145,7 +145,7 @@ func JiraDoer(project string, sprint string, override string) (string, error) {
 				result["issueKey"] = issue.Key
 				result["title"] = issue.Fields.Summary
 
-				for _, person := range people.Team {
+				for _, person := range team.Members {
 					result[person] = ""
 				}
 
@@ -158,7 +158,7 @@ func JiraDoer(project string, sprint string, override string) (string, error) {
 
 	// Prepare CSV headers and data
 	headers := []string{"sprint", "issueKey", "title"}
-	headers = append(headers, people.Team...)
+	headers = append(headers, team.Members...)
 
 	csvData, err := assetcap.StructArrayToCSVOrdered(results, headers)
 	if err != nil {

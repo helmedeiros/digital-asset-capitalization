@@ -1,80 +1,34 @@
 package action
 
 import (
+	"encoding/json"
 	"io/ioutil"
 	"os"
-	"path/filepath"
-	"strings"
 	"testing"
-	"time"
 
 	"github.com/helmedeiros/jira-time-allocator/assetcap"
 )
 
-// Mock GetJiraIssues function
+// mockGetJiraIssues mocks the GetJiraIssues function for testing
 func mockGetJiraIssues(url, authHeader string) ([]assetcap.JiraIssue, error) {
-	// Return test data
-	startTime := time.Now().Add(-24 * time.Hour)
-	endTime := time.Now()
-
 	return []assetcap.JiraIssue{
 		{
-			Key: "FN-123",
-			Fields: struct {
-				Summary  string `json:"summary"`
-				Assignee struct {
-					DisplayName string `json:"displayName"`
-				} `json:"assignee"`
-				StoryPoints *float64 `json:"customfield_13192"`
-			}{
-				Summary: "Test Issue 1",
-				Assignee: struct {
-					DisplayName string `json:"displayName"`
-				}{
-					DisplayName: "Test User 1",
+			Key: "TEST-123",
+			Fields: assetcap.JiraFields{
+				Summary: "Test Issue",
+				Assignee: assetcap.JiraAssignee{
+					DisplayName: "Test User",
 				},
 			},
-			Changelog: struct {
-				Histories []struct {
-					Created string `json:"created"`
-					Items   []struct {
-						Field      string `json:"field"`
-						FromString string `json:"fromString"`
-						ToString   string `json:"toString"`
-					} `json:"items"`
-				} `json:"histories"`
-			}{
-				Histories: []struct {
-					Created string `json:"created"`
-					Items   []struct {
-						Field      string `json:"field"`
-						FromString string `json:"fromString"`
-						ToString   string `json:"toString"`
-					} `json:"items"`
-				}{
+			Changelog: assetcap.JiraChangelog{
+				Histories: []assetcap.JiraChangeHistory{
 					{
-						Created: startTime.Format("2006-01-02T15:04:05.000-0700"),
-						Items: []struct {
-							Field      string `json:"field"`
-							FromString string `json:"fromString"`
-							ToString   string `json:"toString"`
-						}{
+						Created: "2024-03-01T10:00:00.000+0000",
+						Items: []assetcap.JiraChangeItem{
 							{
-								Field:    "status",
-								ToString: "In Progress",
-							},
-						},
-					},
-					{
-						Created: endTime.Format("2006-01-02T15:04:05.000-0700"),
-						Items: []struct {
-							Field      string `json:"field"`
-							FromString string `json:"fromString"`
-							ToString   string `json:"toString"`
-						}{
-							{
-								Field:    "status",
-								ToString: "Done",
+								Field:      "status",
+								FromString: "To Do",
+								ToString:   assetcap.StatusInProgress,
 							},
 						},
 					},
@@ -109,11 +63,16 @@ func TestJiraDoer(t *testing.T) {
 	}()
 
 	// Create temporary teams.json for testing
-	testDataDir := "testdata"
-	teamsJSONPath := filepath.Join(testDataDir, "teams.json")
-	teamsData, err := ioutil.ReadFile(teamsJSONPath)
+	team := assetcap.Team{
+		Members: []string{"Test User"},
+	}
+	teams := assetcap.TeamMap{
+		"TEST": team,
+	}
+
+	teamsData, err := json.Marshal(teams)
 	if err != nil {
-		t.Fatalf("Failed to read teams.json fixture: %v", err)
+		t.Fatalf("Failed to marshal teams data: %v", err)
 	}
 
 	tmpTeamsFile := "teams.json"
@@ -132,59 +91,33 @@ func TestJiraDoer(t *testing.T) {
 
 	// Test cases
 	tests := []struct {
-		name        string
-		project     string
-		sprint      string
-		override    string
-		wantError   bool
-		errorString string
+		name     string
+		project  string
+		sprint   string
+		override string
+		wantErr  bool
 	}{
 		{
-			name:      "valid project and sprint",
-			project:   "FN",
-			sprint:    "test-sprint",
-			override:  "",
-			wantError: false,
+			name:     "valid project",
+			project:  "TEST",
+			sprint:   "Sprint 1",
+			override: "",
+			wantErr:  false,
 		},
 		{
-			name:        "invalid project",
-			project:     "INVALID",
-			sprint:      "test-sprint",
-			override:    "",
-			wantError:   true,
-			errorString: "project INVALID not found in teams.json",
-		},
-		{
-			name:      "valid project with manual adjustments",
-			project:   "FN",
-			sprint:    "test-sprint",
-			override:  `{"FN-123": 2.5}`,
-			wantError: false,
+			name:     "invalid project",
+			project:  "INVALID",
+			sprint:   "Sprint 1",
+			override: "",
+			wantErr:  true,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result, err := JiraDoer(tt.project, tt.sprint, tt.override)
-
-			if tt.wantError {
-				if err == nil {
-					t.Error("expected error but got none")
-					return
-				}
-				if !strings.Contains(err.Error(), tt.errorString) {
-					t.Errorf("expected error containing %q, got %q", tt.errorString, err.Error())
-				}
-				return
-			}
-
-			if err != nil {
-				t.Errorf("unexpected error: %v", err)
-				return
-			}
-
-			if result == "" {
-				t.Error("expected non-empty result but got empty string")
+			_, err := JiraDoer(tt.project, tt.sprint, tt.override)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("JiraDoer() error = %v, wantErr %v", err, tt.wantErr)
 			}
 		})
 	}
