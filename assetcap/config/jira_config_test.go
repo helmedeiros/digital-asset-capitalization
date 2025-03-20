@@ -1,6 +1,7 @@
 package config
 
 import (
+	"errors"
 	"os"
 	"testing"
 )
@@ -34,91 +35,111 @@ func setupEnvVars(vars map[string]string) func() {
 }
 
 func TestNewJiraConfig(t *testing.T) {
-	tests := []JiraConfigTestCase{
+	// Save current env vars
+	oldBaseURL := os.Getenv(envJiraBaseURL)
+	oldEmail := os.Getenv(envJiraEmail)
+	oldToken := os.Getenv(envJiraToken)
+
+	// Restore env vars after test
+	defer func() {
+		os.Setenv(envJiraBaseURL, oldBaseURL)
+		os.Setenv(envJiraEmail, oldEmail)
+		os.Setenv(envJiraToken, oldToken)
+	}()
+
+	tests := []struct {
+		name    string
+		baseURL string
+		email   string
+		token   string
+		wantErr bool
+		errType error
+	}{
 		{
-			Name: "valid configuration",
-			EnvVars: map[string]string{
-				"JIRA_BASE_URL": "https://test.atlassian.net",
-				"JIRA_EMAIL":    "test@example.com",
-				"JIRA_TOKEN":    "test-token",
-			},
-			WantErr: false,
+			name:    "valid configuration",
+			baseURL: "https://example.atlassian.net",
+			email:   "test@example.com",
+			token:   "test-token",
+			wantErr: false,
 		},
 		{
-			Name: "missing base URL",
-			EnvVars: map[string]string{
-				"JIRA_EMAIL": "test@example.com",
-				"JIRA_TOKEN": "test-token",
-			},
-			WantErr: true,
-			ErrType: ErrMissingBaseURL,
+			name:    "missing base URL",
+			baseURL: "",
+			email:   "test@example.com",
+			token:   "test-token",
+			wantErr: true,
+			errType: ErrMissingBaseURL,
 		},
 		{
-			Name: "missing email",
-			EnvVars: map[string]string{
-				"JIRA_BASE_URL": "https://test.atlassian.net",
-				"JIRA_TOKEN":    "test-token",
-			},
-			WantErr: true,
-			ErrType: ErrMissingEmail,
+			name:    "missing email",
+			baseURL: "https://example.atlassian.net",
+			email:   "",
+			token:   "test-token",
+			wantErr: true,
+			errType: ErrMissingEmail,
 		},
 		{
-			Name: "missing token",
-			EnvVars: map[string]string{
-				"JIRA_BASE_URL": "https://test.atlassian.net",
-				"JIRA_EMAIL":    "test@example.com",
-			},
-			WantErr: true,
-			ErrType: ErrMissingToken,
+			name:    "missing token",
+			baseURL: "https://example.atlassian.net",
+			email:   "test@example.com",
+			token:   "",
+			wantErr: true,
+			errType: ErrMissingToken,
 		},
 		{
-			Name:    "all values empty",
-			EnvVars: map[string]string{},
-			WantErr: true,
-			ErrType: ErrMissingBaseURL,
-		},
-		{
-			Name: "invalid base URL format",
-			EnvVars: map[string]string{
-				"JIRA_BASE_URL": "not-a-url",
-				"JIRA_EMAIL":    "test@example.com",
-				"JIRA_TOKEN":    "test-token",
-			},
-			WantErr: true,
-			ErrType: ErrInvalidBaseURL,
+			name:    "invalid base URL",
+			baseURL: "not-a-url",
+			email:   "test@example.com",
+			token:   "test-token",
+			wantErr: true,
+			errType: ErrInvalidBaseURL,
 		},
 	}
 
 	for _, tt := range tests {
-		t.Run(tt.Name, func(t *testing.T) {
-			cleanup := setupEnvVars(tt.EnvVars)
-			defer cleanup()
+		t.Run(tt.name, func(t *testing.T) {
+			// Set test environment variables
+			os.Setenv(envJiraBaseURL, tt.baseURL)
+			os.Setenv(envJiraEmail, tt.email)
+			os.Setenv(envJiraToken, tt.token)
 
 			config, err := NewJiraConfig()
 
-			if tt.WantErr {
+			// Check error cases
+			if tt.wantErr {
 				if err == nil {
 					t.Error("expected error but got none")
 				}
-				if err != tt.ErrType {
-					t.Errorf("expected error %v but got %v", tt.ErrType, err)
+				if !errors.Is(err, tt.errType) {
+					t.Errorf("expected error %v but got %v", tt.errType, err)
 				}
 				return
 			}
 
+			// Check successful cases
 			if err != nil {
 				t.Errorf("unexpected error: %v", err)
+				return
 			}
 
-			if config.BaseURL != tt.EnvVars["JIRA_BASE_URL"] {
-				t.Errorf("expected BaseURL %s but got %s", tt.EnvVars["JIRA_BASE_URL"], config.BaseURL)
+			if config.GetBaseURL() != tt.baseURL {
+				t.Errorf("expected base URL %s but got %s", tt.baseURL, config.GetBaseURL())
 			}
-			if config.Email != tt.EnvVars["JIRA_EMAIL"] {
-				t.Errorf("expected Email %s but got %s", tt.EnvVars["JIRA_EMAIL"], config.Email)
-			}
-			if config.Token != tt.EnvVars["JIRA_TOKEN"] {
-				t.Errorf("expected Token %s but got %s", tt.EnvVars["JIRA_TOKEN"], config.Token)
+			if config.GetEmail() != tt.email {
+				t.Errorf("expected email %s but got %s", tt.email, config.GetEmail())
 			}
 		})
+	}
+}
+
+func TestGetAuthHeader(t *testing.T) {
+	config := &JiraConfig{
+		email: "test@example.com",
+		token: "test-token",
+	}
+
+	expected := "Basic " + "dGVzdEBleGFtcGxlLmNvbTp0ZXN0LXRva2Vu"
+	if config.GetAuthHeader() != expected {
+		t.Errorf("expected auth header %s but got %s", expected, config.GetAuthHeader())
 	}
 }

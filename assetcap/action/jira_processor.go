@@ -1,10 +1,10 @@
 package action
 
 import (
-	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
+	"net/http"
 	"net/url"
 	"time"
 
@@ -16,7 +16,7 @@ func JiraDoer(project string, sprint string, override string) (string, error) {
 	// Load Jira configuration
 	jiraConfig, err := config.NewJiraConfig()
 	if err != nil {
-		return "", fmt.Errorf("failed to load Jira configuration: %v", err)
+		return "", fmt.Errorf("failed to load Jira configuration: %w", err)
 	}
 
 	// Load teams data
@@ -36,19 +36,23 @@ func JiraDoer(project string, sprint string, override string) (string, error) {
 		return "", fmt.Errorf("project %s not found in teams.json", project)
 	}
 
-	// Build and encode JQL query
-	query := "Project = " + project + " AND Sprint = " + assetcap.CheckAndWrap(sprint) + " ORDER BY resolved ASC, created DESC&fields=key,summary,assignee,changelog,sprint,customfield_13192&expand=changelog"
-	encodedQuery := url.PathEscape(query)
-
 	// Build Jira API URL
-	jiraUrl := fmt.Sprintf("%s/rest/api/3/search?jql=%s", jiraConfig.BaseURL, encodedQuery)
+	query := fmt.Sprintf("project = %s AND sprint in openSprints()", project)
+	encodedQuery := url.QueryEscape(query)
+	jiraURL := fmt.Sprintf("%s/rest/api/3/search?jql=%s", jiraConfig.GetBaseURL(), encodedQuery)
 
-	// Create authentication header
-	authString := jiraConfig.Email + ":" + jiraConfig.Token
-	encodedAuth := "Basic " + base64.StdEncoding.EncodeToString([]byte(authString))
+	// Create HTTP request
+	req, err := http.NewRequest("GET", jiraURL, nil)
+	if err != nil {
+		return "", fmt.Errorf("failed to create request: %w", err)
+	}
+
+	// Set authentication header
+	req.Header.Set("Authorization", jiraConfig.GetAuthHeader())
+	req.Header.Set("Accept", "application/json")
 
 	// Fetch issues from Jira
-	issues, err := assetcap.GetJiraIssues(jiraUrl, encodedAuth)
+	issues, err := assetcap.GetJiraIssues(jiraURL, jiraConfig.GetAuthHeader())
 	if err != nil {
 		return "", fmt.Errorf("failed to fetch Jira issues: %v", err)
 	}
