@@ -8,9 +8,10 @@ import (
 )
 
 const testAssetsFile = "test_assets.json"
+const testAssetsDir = "testdata"
 
 func cleanupTestAssets() {
-	os.Remove(filepath.Join(assetsDir, testAssetsFile))
+	os.Remove(filepath.Join(testAssetsDir, testAssetsFile))
 }
 
 func TestAssetManager(t *testing.T) {
@@ -18,12 +19,7 @@ func TestAssetManager(t *testing.T) {
 	cleanupTestAssets()
 	defer cleanupTestAssets()
 
-	// Override the default assets file for testing
-	origAssetsFile := assetsFile
-	assetsFile = testAssetsFile
-	defer func() { assetsFile = origAssetsFile }()
-
-	am := NewAssetManager()
+	am := NewAssetManager(testAssetsDir, testAssetsFile)
 
 	t.Run("CreateAsset", func(t *testing.T) {
 		// Test successful creation
@@ -218,12 +214,7 @@ func TestAssetManagerConcurrent(t *testing.T) {
 	cleanupTestAssets()
 	defer cleanupTestAssets()
 
-	// Override the default assets file for testing
-	origAssetsFile := assetsFile
-	assetsFile = testAssetsFile
-	defer func() { assetsFile = origAssetsFile }()
-
-	am := NewAssetManager()
+	am := NewAssetManager(testAssetsDir, testAssetsFile)
 
 	// Create a test asset
 	err := am.CreateAsset("concurrent-asset", "Test description")
