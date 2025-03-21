@@ -2,6 +2,9 @@ package assetcap
 
 import (
 	"testing"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestStructArrayToCSV(t *testing.T) {
@@ -75,13 +78,12 @@ func TestStructArrayToCSV(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			got, err := StructArrayToCSVOrdered(tt.data, tt.headers)
-			if (err != nil) != tt.wantErr {
-				t.Errorf("StructArrayToCSV() error = %v, wantErr %v", err, tt.wantErr)
+			if tt.wantErr {
+				assert.Error(t, err, "Expected error but got none")
 				return
 			}
-			if got != tt.want {
-				t.Errorf("StructArrayToCSV() = %v, want %v", got, tt.want)
-			}
+			require.NoError(t, err, "Unexpected error")
+			assert.Equal(t, tt.want, got, "CSV output mismatch")
 		})
 	}
 }

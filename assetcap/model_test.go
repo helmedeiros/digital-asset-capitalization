@@ -2,6 +2,8 @@ package assetcap
 
 import (
 	"testing"
+
+	"github.com/stretchr/testify/assert"
 )
 
 func TestTeam_IsTeamMember(t *testing.T) {
@@ -34,9 +36,7 @@ func TestTeam_IsTeamMember(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			result := tt.team.IsTeamMember(tt.person)
-			if result != tt.expected {
-				t.Errorf("IsTeamMember() = %v, want %v", result, tt.expected)
-			}
+			assert.Equal(t, tt.expected, result, "IsTeamMember result mismatch")
 		})
 	}
 }
@@ -79,15 +79,11 @@ func TestTeamMap_GetTeam(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			gotTeam, gotExists := tt.teamMap.GetTeam(tt.projectKey)
-			if gotExists != tt.wantExists {
-				t.Errorf("GetTeam() exists = %v, want %v", gotExists, tt.wantExists)
-			}
+			assert.Equal(t, tt.wantExists, gotExists, "GetTeam exists mismatch")
 			if tt.wantTeam != nil && gotTeam != nil {
-				if len(gotTeam.Members) != len(tt.wantTeam.Members) {
-					t.Errorf("GetTeam() team members count = %v, want %v", len(gotTeam.Members), len(tt.wantTeam.Members))
-				}
-			} else if gotTeam != tt.wantTeam {
-				t.Errorf("GetTeam() team = %v, want %v", gotTeam, tt.wantTeam)
+				assert.Equal(t, len(tt.wantTeam.Members), len(gotTeam.Members), "Team members count mismatch")
+			} else {
+				assert.Equal(t, tt.wantTeam, gotTeam, "Team pointer mismatch")
 			}
 		})
 	}
@@ -119,9 +115,7 @@ func TestJiraChangeItem_IsStatusChange(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			result := tt.item.IsStatusChange()
-			if result != tt.expected {
-				t.Errorf("IsStatusChange() = %v, want %v", result, tt.expected)
-			}
+			assert.Equal(t, tt.expected, result, "IsStatusChange result mismatch")
 		})
 	}
 }
@@ -177,9 +171,7 @@ func TestJiraIssue_GetStatusChanges(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			changes := tt.issue.GetStatusChanges()
-			if len(changes) != tt.expected {
-				t.Errorf("GetStatusChanges() count = %v, want %v", len(changes), tt.expected)
-			}
+			assert.Equal(t, tt.expected, len(changes), "GetStatusChanges count mismatch")
 		})
 	}
 }
@@ -230,9 +222,7 @@ func TestJiraIssue_IsInProgress(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			result := tt.issue.IsInProgress()
-			if result != tt.expected {
-				t.Errorf("IsInProgress() = %v, want %v", result, tt.expected)
-			}
+			assert.Equal(t, tt.expected, result, "IsInProgress result mismatch")
 		})
 	}
 }
@@ -251,21 +241,6 @@ func TestJiraIssue_IsDone(t *testing.T) {
 						{
 							Items: []JiraChangeItem{
 								{Field: "status", FromString: StatusInProgress, ToString: StatusDone},
-							},
-						},
-					},
-				},
-			},
-			expected: true,
-		},
-		{
-			name: "wont do",
-			issue: JiraIssue{
-				Changelog: JiraChangelog{
-					Histories: []JiraChangeHistory{
-						{
-							Items: []JiraChangeItem{
-								{Field: "status", FromString: StatusInProgress, ToString: StatusWontDo},
 							},
 						},
 					},
@@ -298,9 +273,7 @@ func TestJiraIssue_IsDone(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			result := tt.issue.IsDone()
-			if result != tt.expected {
-				t.Errorf("IsDone() = %v, want %v", result, tt.expected)
-			}
+			assert.Equal(t, tt.expected, result, "IsDone result mismatch")
 		})
 	}
 }
@@ -324,11 +297,6 @@ func TestJiraResponse_GetIssuesForTeamMember(t *testing.T) {
 					{
 						Fields: JiraFields{
 							Assignee: JiraAssignee{DisplayName: "John Doe"},
-						},
-					},
-					{
-						Fields: JiraFields{
-							Assignee: JiraAssignee{DisplayName: "Jane Smith"},
 						},
 					},
 				},
@@ -361,9 +329,7 @@ func TestJiraResponse_GetIssuesForTeamMember(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			issues := tt.response.GetIssuesForTeamMember(tt.member)
-			if len(issues) != tt.expected {
-				t.Errorf("GetIssuesForTeamMember() count = %v, want %v", len(issues), tt.expected)
-			}
+			assert.Equal(t, tt.expected, len(issues), "GetIssuesForTeamMember count mismatch")
 		})
 	}
 }

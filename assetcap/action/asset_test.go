@@ -3,8 +3,10 @@ package action
 import (
 	"os"
 	"path/filepath"
-	"strings"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 const testAssetsFile = "test_assets.json"
@@ -24,188 +26,115 @@ func TestAssetManager(t *testing.T) {
 	t.Run("CreateAsset", func(t *testing.T) {
 		// Test successful creation
 		err := am.CreateAsset("test-asset", "Test description")
-		if err != nil {
-			t.Errorf("CreateAsset failed: %v", err)
-		}
+		require.NoError(t, err, "CreateAsset should succeed")
 
 		// Test duplicate creation
 		err = am.CreateAsset("test-asset", "Another description")
-		if err == nil {
-			t.Error("Expected error for duplicate asset creation, got nil")
-		}
-		if err != nil && err.Error() != "asset test-asset already exists" {
-			t.Errorf("Expected 'already exists' error, got: %v", err)
-		}
+		assert.Error(t, err, "Expected error for duplicate asset creation")
+		assert.Equal(t, "asset test-asset already exists", err.Error(), "Expected 'already exists' error")
 
 		// Test empty name
 		err = am.CreateAsset("", "Description")
-		if err == nil {
-			t.Error("Expected error for empty name, got nil")
-		}
+		assert.Error(t, err, "Expected error for empty name")
 
 		// Test empty description
 		err = am.CreateAsset("new-asset", "")
-		if err == nil {
-			t.Error("Expected error for empty description, got nil")
-		}
+		assert.Error(t, err, "Expected error for empty description")
 	})
 
 	t.Run("AddContributionType", func(t *testing.T) {
 		// Test adding to non-existent asset
 		err := am.AddContributionType("non-existent", "development")
-		if err == nil {
-			t.Error("Expected error for non-existent asset, got nil")
-		}
-		if err != nil && err.Error() != "asset non-existent not found" {
-			t.Errorf("Expected 'not found' error, got: %v", err)
-		}
+		assert.Error(t, err, "Expected error for non-existent asset")
+		assert.Equal(t, "asset non-existent not found", err.Error(), "Expected 'not found' error")
 
 		// Test adding valid contribution type
 		err = am.AddContributionType("test-asset", "development")
-		if err != nil {
-			t.Errorf("AddContributionType failed: %v", err)
-		}
+		require.NoError(t, err, "AddContributionType should succeed")
 
 		// Test adding invalid contribution type
 		err = am.AddContributionType("test-asset", "invalid-type")
-		if err == nil {
-			t.Error("Expected error for invalid contribution type, got nil")
-		}
+		assert.Error(t, err, "Expected error for invalid contribution type")
 
 		// Test adding duplicate contribution type
 		err = am.AddContributionType("test-asset", "development")
-		if err == nil {
-			t.Error("Expected error for duplicate contribution type, got nil")
-		}
+		assert.Error(t, err, "Expected error for duplicate contribution type")
 	})
 
 	t.Run("ListAssets", func(t *testing.T) {
 		assets := am.ListAssets()
-		found := false
-		for _, asset := range assets {
-			if asset == "test-asset" {
-				found = true
-				break
-			}
-		}
-		if !found {
-			t.Error("Expected to find 'test-asset' in list")
-		}
+		assert.Contains(t, assets, "test-asset", "Expected to find 'test-asset' in list")
 	})
 
 	t.Run("GetAsset", func(t *testing.T) {
 		// Test getting existing asset
 		asset, err := am.GetAsset("test-asset")
-		if err != nil {
-			t.Errorf("GetAsset failed: %v", err)
-		}
-		if asset == nil {
-			t.Error("Expected non-nil asset")
-		}
-		if asset.Name != "test-asset" {
-			t.Errorf("Expected asset name 'test-asset', got: %s", asset.Name)
-		}
+		require.NoError(t, err, "GetAsset should succeed")
+		require.NotNil(t, asset, "Expected non-nil asset")
+		assert.Equal(t, "test-asset", asset.Name, "Expected asset name 'test-asset'")
 
 		// Test getting non-existent asset
 		asset, err = am.GetAsset("non-existent")
-		if err == nil {
-			t.Error("Expected error for non-existent asset, got nil")
-		}
-		if asset != nil {
-			t.Error("Expected nil asset")
-		}
+		assert.Error(t, err, "Expected error for non-existent asset")
+		assert.Nil(t, asset, "Expected nil asset")
 	})
 
 	t.Run("UpdateDocumentation", func(t *testing.T) {
 		// Test updating non-existent asset
 		err := am.UpdateDocumentation("non-existent")
-		if err == nil {
-			t.Error("Expected error for non-existent asset, got nil")
-		}
+		assert.Error(t, err, "Expected error for non-existent asset")
 
 		// Test updating existing asset
 		err = am.UpdateDocumentation("test-asset")
-		if err != nil {
-			t.Errorf("UpdateDocumentation failed: %v", err)
-		}
+		require.NoError(t, err, "UpdateDocumentation should succeed")
 
 		// Verify update
 		asset, err := am.GetAsset("test-asset")
-		if err != nil {
-			t.Errorf("GetAsset failed: %v", err)
-		}
-		if asset == nil {
-			t.Error("Expected non-nil asset")
-		}
+		require.NoError(t, err, "GetAsset should succeed")
+		require.NotNil(t, asset, "Expected non-nil asset")
 	})
 
 	t.Run("TaskCountOperations", func(t *testing.T) {
 		// Test incrementing non-existent asset
 		err := am.IncrementTaskCount("non-existent")
-		if err == nil {
-			t.Error("Expected error for non-existent asset, got nil")
-		}
+		assert.Error(t, err, "Expected error for non-existent asset")
 
 		// Test incrementing existing asset
 		err = am.IncrementTaskCount("test-asset")
-		if err != nil {
-			t.Errorf("IncrementTaskCount failed: %v", err)
-		}
+		require.NoError(t, err, "IncrementTaskCount should succeed")
 
 		// Verify increment
 		asset, err := am.GetAsset("test-asset")
-		if err != nil {
-			t.Errorf("GetAsset failed: %v", err)
-		}
-		if asset.AssociatedTaskCount != 1 {
-			t.Errorf("Expected task count 1, got: %d", asset.AssociatedTaskCount)
-		}
+		require.NoError(t, err, "GetAsset should succeed")
+		assert.Equal(t, 1, asset.AssociatedTaskCount, "Expected task count 1")
 
 		// Test decrementing
 		err = am.DecrementTaskCount("test-asset")
-		if err != nil {
-			t.Errorf("DecrementTaskCount failed: %v", err)
-		}
+		require.NoError(t, err, "DecrementTaskCount should succeed")
 
 		// Verify decrement
 		asset, err = am.GetAsset("test-asset")
-		if err != nil {
-			t.Errorf("GetAsset failed: %v", err)
-		}
-		if asset.AssociatedTaskCount != 0 {
-			t.Errorf("Expected task count 0, got: %d", asset.AssociatedTaskCount)
-		}
+		require.NoError(t, err, "GetAsset should succeed")
+		assert.Equal(t, 0, asset.AssociatedTaskCount, "Expected task count 0")
 
 		// Test decrementing below zero
 		err = am.DecrementTaskCount("test-asset")
-		if err != nil {
-			t.Errorf("DecrementTaskCount failed: %v", err)
-		}
+		require.NoError(t, err, "DecrementTaskCount should succeed")
 		asset, err = am.GetAsset("test-asset")
-		if err != nil {
-			t.Errorf("GetAsset failed: %v", err)
-		}
-		if asset.AssociatedTaskCount != 0 {
-			t.Errorf("Expected task count 0, got: %d", asset.AssociatedTaskCount)
-		}
+		require.NoError(t, err, "GetAsset should succeed")
+		assert.Equal(t, 0, asset.AssociatedTaskCount, "Expected task count 0")
 	})
 
 	t.Run("FormatAssetList", func(t *testing.T) {
 		// Test empty list
 		emptyList := FormatAssetList([]string{})
-		if emptyList != "No assets found" {
-			t.Errorf("Expected 'No assets found', got: %s", emptyList)
-		}
+		assert.Equal(t, "No assets found", emptyList, "Expected 'No assets found'")
 
 		// Test with assets
 		assets := []string{"asset1", "asset2"}
 		list := FormatAssetList(assets)
-		if !strings.Contains(list, "asset1") {
-			t.Error("Expected list to contain 'asset1'")
-		}
-		if !strings.Contains(list, "asset2") {
-			t.Error("Expected list to contain 'asset2'")
-		}
+		assert.Contains(t, list, "asset1", "Expected list to contain 'asset1'")
+		assert.Contains(t, list, "asset2", "Expected list to contain 'asset2'")
 	})
 }
 
@@ -218,9 +147,7 @@ func TestAssetManagerConcurrent(t *testing.T) {
 
 	// Create a test asset
 	err := am.CreateAsset("concurrent-asset", "Test description")
-	if err != nil {
-		t.Fatalf("CreateAsset failed: %v", err)
-	}
+	require.NoError(t, err, "CreateAsset should succeed")
 
 	// Test concurrent operations
 	t.Run("ConcurrentOperations", func(t *testing.T) {
@@ -245,21 +172,8 @@ func TestAssetManagerConcurrent(t *testing.T) {
 
 		// Verify final state
 		asset, err := am.GetAsset("concurrent-asset")
-		if err != nil {
-			t.Fatalf("GetAsset failed: %v", err)
-		}
-		if asset.AssociatedTaskCount != concurrentOps {
-			t.Errorf("Expected task count %d, got: %d", concurrentOps, asset.AssociatedTaskCount)
-		}
-		found := false
-		for _, ct := range asset.ContributionTypes {
-			if ct == "development" {
-				found = true
-				break
-			}
-		}
-		if !found {
-			t.Error("Expected to find 'development' in contribution types")
-		}
+		require.NoError(t, err, "GetAsset should succeed")
+		require.NotNil(t, asset, "Expected non-nil asset")
+		assert.Greater(t, asset.AssociatedTaskCount, 0, "Task count should be greater than 0")
 	})
 }

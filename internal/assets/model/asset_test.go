@@ -3,6 +3,9 @@ package model
 import (
 	"testing"
 	"time"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestAsset(t *testing.T) {
@@ -11,65 +14,28 @@ func TestAsset(t *testing.T) {
 	t.Run("should create a valid asset", func(t *testing.T) {
 		asset := mother.CreateValidAsset()
 
-		if asset.Name != "Test Asset" {
-			t.Errorf("expected name to be 'Test Asset', got %s", asset.Name)
-		}
-
-		if asset.Description != "Test Description" {
-			t.Errorf("expected description to be 'Test Description', got %s", asset.Description)
-		}
-
-		if asset.ID == "" {
-			t.Error("expected ID to be set")
-		}
-
-		if len(asset.ID) != 16 {
-			t.Errorf("expected ID to be 16 characters long, got %d", len(asset.ID))
-		}
-
-		if asset.CreatedAt.IsZero() {
-			t.Error("expected CreatedAt to be set")
-		}
-
-		if asset.UpdatedAt.IsZero() {
-			t.Error("expected UpdatedAt to be set")
-		}
-
-		if asset.LastDocUpdateAt.IsZero() {
-			t.Error("expected LastDocUpdateAt to be set")
-		}
-
-		if len(asset.ContributionTypes) != 0 {
-			t.Error("expected ContributionTypes to be empty")
-		}
-
-		if asset.AssociatedTaskCount != 0 {
-			t.Error("expected AssociatedTaskCount to be 0")
-		}
-
-		if asset.Version != 1 {
-			t.Errorf("expected Version to be 1, got %d", asset.Version)
-		}
+		assert.Equal(t, "Test Asset", asset.Name, "expected name to be 'Test Asset'")
+		assert.Equal(t, "Test Description", asset.Description, "expected description to be 'Test Description'")
+		assert.NotEmpty(t, asset.ID, "expected ID to be set")
+		assert.Len(t, asset.ID, 16, "expected ID to be 16 characters long")
+		assert.False(t, asset.CreatedAt.IsZero(), "expected CreatedAt to be set")
+		assert.False(t, asset.UpdatedAt.IsZero(), "expected UpdatedAt to be set")
+		assert.False(t, asset.LastDocUpdateAt.IsZero(), "expected LastDocUpdateAt to be set")
+		assert.Empty(t, asset.ContributionTypes, "expected ContributionTypes to be empty")
+		assert.Equal(t, 0, asset.AssociatedTaskCount, "expected AssociatedTaskCount to be 0")
+		assert.Equal(t, 1, asset.Version, "expected Version to be 1")
 	})
 
 	t.Run("should not create asset with empty name", func(t *testing.T) {
 		asset, err := NewAsset("", "description")
-		if err != ErrEmptyName {
-			t.Errorf("expected error to be %v, got %v", ErrEmptyName, err)
-		}
-		if asset != nil {
-			t.Error("expected asset to be nil")
-		}
+		assert.ErrorIs(t, err, ErrEmptyName, "expected error to be ErrEmptyName")
+		assert.Nil(t, asset, "expected asset to be nil")
 	})
 
 	t.Run("should not create asset with empty description", func(t *testing.T) {
 		asset, err := NewAsset("name", "")
-		if err != ErrEmptyDescription {
-			t.Errorf("expected error to be %v, got %v", ErrEmptyDescription, err)
-		}
-		if asset != nil {
-			t.Error("expected asset to be nil")
-		}
+		assert.ErrorIs(t, err, ErrEmptyDescription, "expected error to be ErrEmptyDescription")
+		assert.Nil(t, asset, "expected asset to be nil")
 	})
 
 	t.Run("should track creation and update timestamps", func(t *testing.T) {
@@ -82,21 +48,11 @@ func TestAsset(t *testing.T) {
 		time.Sleep(time.Millisecond)
 
 		err := asset.UpdateDescription("new description")
-		if err != nil {
-			t.Fatalf("unexpected error updating description: %v", err)
-		}
+		require.NoError(t, err, "unexpected error updating description")
 
-		if asset.CreatedAt != createdAt {
-			t.Error("CreatedAt should not change")
-		}
-
-		if asset.UpdatedAt == updatedAt {
-			t.Error("UpdatedAt should change")
-		}
-
-		if asset.Version != version+1 {
-			t.Errorf("expected Version to be %d, got %d", version+1, asset.Version)
-		}
+		assert.Equal(t, createdAt, asset.CreatedAt, "CreatedAt should not change")
+		assert.NotEqual(t, updatedAt, asset.UpdatedAt, "UpdatedAt should change")
+		assert.Equal(t, version+1, asset.Version, "Version should increment")
 	})
 
 	t.Run("should track last documentation update", func(t *testing.T) {
@@ -109,13 +65,8 @@ func TestAsset(t *testing.T) {
 
 		asset.UpdateDocumentation()
 
-		if asset.LastDocUpdateAt == lastDocUpdateAt {
-			t.Error("LastDocUpdateAt should change")
-		}
-
-		if asset.Version != version+1 {
-			t.Errorf("expected Version to be %d, got %d", version+1, asset.Version)
-		}
+		assert.NotEqual(t, lastDocUpdateAt, asset.LastDocUpdateAt, "LastDocUpdateAt should change")
+		assert.Equal(t, version+1, asset.Version, "Version should increment")
 	})
 
 	t.Run("should validate contribution types", func(t *testing.T) {
@@ -151,11 +102,9 @@ func TestAsset(t *testing.T) {
 		for _, tt := range tests {
 			t.Run(tt.name, func(t *testing.T) {
 				err := asset.AddContributionType(tt.contributionType)
-				if err != tt.expectedError {
-					t.Errorf("expected error to be %v, got %v", tt.expectedError, err)
-				}
-				if err == nil && len(asset.ContributionTypes) == 0 {
-					t.Error("expected contribution type to be added")
+				assert.ErrorIs(t, err, tt.expectedError, "unexpected error")
+				if err == nil {
+					assert.NotEmpty(t, asset.ContributionTypes, "expected contribution type to be added")
 				}
 			})
 		}
@@ -165,36 +114,24 @@ func TestAsset(t *testing.T) {
 		asset := mother.CreateAssetWithTaskCount(3)
 		version := asset.Version
 
-		if asset.AssociatedTaskCount != 3 {
-			t.Errorf("expected task count to be 3, got %d", asset.AssociatedTaskCount)
-		}
+		assert.Equal(t, 3, asset.AssociatedTaskCount, "expected task count to be 3")
 
 		asset.DecrementTaskCount()
-		if asset.AssociatedTaskCount != 2 {
-			t.Errorf("expected task count to be 2, got %d", asset.AssociatedTaskCount)
-		}
-		if asset.Version != version+1 {
-			t.Errorf("expected Version to be %d, got %d", version+1, asset.Version)
-		}
+		assert.Equal(t, 2, asset.AssociatedTaskCount, "expected task count to be 2")
+		assert.Equal(t, version+1, asset.Version, "Version should increment")
 
 		asset.DecrementTaskCount()
 		asset.DecrementTaskCount()
 		asset.DecrementTaskCount() // Should not go below 0
 
-		if asset.AssociatedTaskCount != 0 {
-			t.Errorf("expected task count to be 0, got %d", asset.AssociatedTaskCount)
-		}
-		if asset.Version != version+3 {
-			t.Errorf("expected Version to be %d, got %d", version+3, asset.Version)
-		}
+		assert.Equal(t, 0, asset.AssociatedTaskCount, "expected task count to be 0")
+		assert.Equal(t, version+3, asset.Version, "Version should increment")
 	})
 
 	t.Run("should generate unique IDs", func(t *testing.T) {
 		asset1 := mother.CreateValidAsset()
 		asset2 := mother.CreateValidAsset()
 
-		if asset1.ID == asset2.ID {
-			t.Error("expected different IDs for different assets")
-		}
+		assert.NotEqual(t, asset1.ID, asset2.ID, "expected different IDs for different assets")
 	})
 }

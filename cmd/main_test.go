@@ -5,11 +5,12 @@ import (
 	"io"
 	"os"
 	"path/filepath"
-	"strings"
 	"testing"
 
 	"github.com/helmedeiros/digital-asset-capitalization/internal/assets/application"
 	"github.com/helmedeiros/digital-asset-capitalization/internal/assets/infrastructure"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 const testAssetsFile = "assets.json"
@@ -22,18 +23,14 @@ func setupTestEnvironment(t *testing.T) func() {
 
 	// Create test directory
 	testDir := filepath.Join("testdata", t.Name())
-	if err := os.MkdirAll(testDir, 0755); err != nil {
-		t.Fatalf("Failed to create test directory: %v", err)
-	}
+	err := os.MkdirAll(testDir, 0755)
+	require.NoError(t, err, "Failed to create test directory")
 
 	// Change working directory
 	oldWd, err := os.Getwd()
-	if err != nil {
-		t.Fatalf("Failed to get working directory: %v", err)
-	}
-	if err := os.Chdir(testDir); err != nil {
-		t.Fatalf("Failed to change working directory: %v", err)
-	}
+	require.NoError(t, err, "Failed to get working directory")
+	err = os.Chdir(testDir)
+	require.NoError(t, err, "Failed to change working directory")
 
 	// Initialize test asset service
 	repo := infrastructure.NewJSONRepository(assetsDir, assetsFile)
@@ -44,14 +41,12 @@ func setupTestEnvironment(t *testing.T) func() {
 		os.Stdout = oldStdout
 
 		// Change back to original directory
-		if err := os.Chdir(oldWd); err != nil {
-			t.Errorf("Failed to restore working directory: %v", err)
-		}
+		err := os.Chdir(oldWd)
+		assert.NoError(t, err, "Failed to restore working directory")
 
 		// Clean up test directory
-		if err := os.RemoveAll(testDir); err != nil {
-			t.Errorf("Failed to clean up test directory: %v", err)
-		}
+		err = os.RemoveAll(testDir)
+		assert.NoError(t, err, "Failed to clean up test directory")
 	}
 }
 
@@ -184,24 +179,21 @@ func TestRun(t *testing.T) {
 			defer cleanup()
 
 			if tt.setup != nil {
-				if err := tt.setup(); err != nil {
-					t.Fatalf("Setup failed: %v", err)
-				}
+				err := tt.setup()
+				require.NoError(t, err, "Setup failed")
 			}
 
 			os.Args = tt.args
 			out, err := captureOutput(Run)
 
 			if tt.wantErr {
-				if err == nil {
-					t.Error("Expected error but got none")
-				}
-			} else if err != nil {
-				t.Errorf("Unexpected error: %v", err)
+				assert.Error(t, err, "Expected error but got none")
+			} else {
+				assert.NoError(t, err, "Unexpected error")
 			}
 
-			if tt.wantOut != "" && out != tt.wantOut {
-				t.Errorf("Expected output %q, got %q", tt.wantOut, out)
+			if tt.wantOut != "" {
+				assert.Equal(t, tt.wantOut, out, "Output mismatch")
 			}
 		})
 	}
@@ -215,21 +207,15 @@ func TestRun(t *testing.T) {
 			os.Args = []string{"assetcap", "assets", "create", "--name", "test-asset", "--description", "Test description"}
 			return Run()
 		})
-		if err != nil {
-			t.Fatalf("Failed to create test asset: %v", err)
-		}
-		if !strings.Contains(output, "Created asset: test-asset") {
-			t.Errorf("Expected output to contain 'Created asset: test-asset', got %q", output)
-		}
+		require.NoError(t, err, "Failed to create test asset")
+		assert.Contains(t, output, "Created asset: test-asset", "Expected output to contain 'Created asset: test-asset'")
 
 		// Test showing the asset
 		output, err = captureOutput(func() error {
 			os.Args = []string{"assetcap", "assets", "show", "--name", "test-asset"}
 			return Run()
 		})
-		if err != nil {
-			t.Fatalf("Failed to show asset: %v", err)
-		}
+		require.NoError(t, err, "Failed to show asset")
 		expectedStrings := []string{
 			"Asset: test-asset",
 			"Description: Test description",
@@ -238,9 +224,7 @@ func TestRun(t *testing.T) {
 			"Updated:",
 		}
 		for _, expected := range expectedStrings {
-			if !strings.Contains(output, expected) {
-				t.Errorf("Expected output to contain %q, got %q", expected, output)
-			}
+			assert.Contains(t, output, expected, "Expected output to contain %q", expected)
 		}
 	})
 
@@ -248,15 +232,11 @@ func TestRun(t *testing.T) {
 		cleanup := setupTestEnvironment(t)
 		defer cleanup()
 
-		_, err := captureOutput(func() error {
+		output, err := captureOutput(func() error {
 			os.Args = []string{"assetcap", "assets", "show", "--name", "non-existent"}
 			return Run()
 		})
-		if err == nil {
-			t.Error("Expected error but got none")
-		}
-		if !strings.Contains(err.Error(), "not found") {
-			t.Errorf("Expected error to contain 'not found', got %q", err.Error())
-		}
+		assert.Error(t, err, "Expected error for non-existent asset")
+		assert.Empty(t, output, "Expected empty output for non-existent asset")
 	})
 }

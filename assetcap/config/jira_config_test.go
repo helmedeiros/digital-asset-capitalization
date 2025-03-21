@@ -4,6 +4,9 @@ import (
 	"errors"
 	"os"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 // JiraConfigTestCase represents a test case for Jira configuration
@@ -107,27 +110,15 @@ func TestNewJiraConfig(t *testing.T) {
 
 			// Check error cases
 			if tt.wantErr {
-				if err == nil {
-					t.Error("expected error but got none")
-				}
-				if !errors.Is(err, tt.errType) {
-					t.Errorf("expected error %v but got %v", tt.errType, err)
-				}
+				assert.Error(t, err, "Expected error but got none")
+				assert.True(t, errors.Is(err, tt.errType), "Expected error type %v but got %v", tt.errType, err)
 				return
 			}
 
 			// Check successful cases
-			if err != nil {
-				t.Errorf("unexpected error: %v", err)
-				return
-			}
-
-			if config.GetBaseURL() != tt.baseURL {
-				t.Errorf("expected base URL %s but got %s", tt.baseURL, config.GetBaseURL())
-			}
-			if config.GetEmail() != tt.email {
-				t.Errorf("expected email %s but got %s", tt.email, config.GetEmail())
-			}
+			require.NoError(t, err, "Unexpected error")
+			assert.Equal(t, tt.baseURL, config.GetBaseURL(), "Base URL mismatch")
+			assert.Equal(t, tt.email, config.GetEmail(), "Email mismatch")
 		})
 	}
 }
@@ -139,7 +130,5 @@ func TestGetAuthHeader(t *testing.T) {
 	}
 
 	expected := "Basic " + "dGVzdEBleGFtcGxlLmNvbTp0ZXN0LXRva2Vu"
-	if config.GetAuthHeader() != expected {
-		t.Errorf("expected auth header %s but got %s", expected, config.GetAuthHeader())
-	}
+	assert.Equal(t, expected, config.GetAuthHeader(), "Auth header mismatch")
 }

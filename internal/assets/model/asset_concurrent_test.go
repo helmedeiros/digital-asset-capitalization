@@ -4,6 +4,8 @@ import (
 	"sync"
 	"testing"
 	"time"
+
+	"github.com/stretchr/testify/assert"
 )
 
 func TestAssetConcurrentOperations(t *testing.T) {
@@ -23,9 +25,7 @@ func TestAssetConcurrentOperations(t *testing.T) {
 		}
 		wg.Wait()
 
-		if asset.AssociatedTaskCount != 0 {
-			t.Errorf("expected task count to be 0 after concurrent operations, got %d", asset.AssociatedTaskCount)
-		}
+		assert.Equal(t, 0, asset.AssociatedTaskCount, "expected task count to be 0 after concurrent operations")
 	})
 
 	// Test concurrent contribution type additions
@@ -39,9 +39,7 @@ func TestAssetConcurrentOperations(t *testing.T) {
 		}
 		wg.Wait()
 
-		if len(asset.ContributionTypes) != 1 {
-			t.Errorf("expected 1 contribution type after concurrent operations, got %d", len(asset.ContributionTypes))
-		}
+		assert.Equal(t, 1, len(asset.ContributionTypes), "expected 1 contribution type after concurrent operations")
 	})
 
 	// Test concurrent description updates
@@ -55,9 +53,7 @@ func TestAssetConcurrentOperations(t *testing.T) {
 		}
 		wg.Wait()
 
-		if asset.Description != "New Description" {
-			t.Errorf("expected description to be 'New Description', got %s", asset.Description)
-		}
+		assert.Equal(t, "New Description", asset.Description, "expected description to be 'New Description'")
 	})
 
 	// Test concurrent documentation updates
@@ -71,9 +67,7 @@ func TestAssetConcurrentOperations(t *testing.T) {
 		}
 		wg.Wait()
 
-		if asset.LastDocUpdateAt.IsZero() {
-			t.Error("expected LastDocUpdateAt to be set after concurrent operations")
-		}
+		assert.False(t, asset.LastDocUpdateAt.IsZero(), "expected LastDocUpdateAt to be set after concurrent operations")
 	})
 }
 

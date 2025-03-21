@@ -8,6 +8,8 @@ import (
 	"time"
 
 	"github.com/helmedeiros/digital-asset-capitalization/assetcap"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 // mockGetJiraIssues mocks the GetJiraIssues function for testing
@@ -95,15 +97,11 @@ func setupTestEnv(t *testing.T) func() {
 	}
 
 	teamsData, err := json.Marshal(teams)
-	if err != nil {
-		t.Fatalf("Failed to marshal teams data: %v", err)
-	}
+	require.NoError(t, err, "Failed to marshal teams data")
 
 	tmpTeamsFile := "teams.json"
 	err = ioutil.WriteFile(tmpTeamsFile, teamsData, 0644)
-	if err != nil {
-		t.Fatalf("Failed to create temporary teams.json: %v", err)
-	}
+	require.NoError(t, err, "Failed to create temporary teams.json")
 
 	// Save original GetJiraIssues function
 	originalGetJiraIssues := assetcap.GetJiraIssues
@@ -133,12 +131,8 @@ func TestJiraDoer_ValidProject(t *testing.T) {
 	defer cleanup()
 
 	result, err := JiraDoer("TEST", "Sprint 1", "")
-	if err != nil {
-		t.Errorf("JiraDoer() error = %v, wantErr false", err)
-	}
-	if result == "" {
-		t.Error("JiraDoer() returned empty result")
-	}
+	require.NoError(t, err, "JiraDoer should not return error for valid project")
+	assert.NotEmpty(t, result, "JiraDoer should return non-empty result")
 }
 
 func TestJiraDoer_InvalidProject(t *testing.T) {
@@ -146,9 +140,7 @@ func TestJiraDoer_InvalidProject(t *testing.T) {
 	defer cleanup()
 
 	_, err := JiraDoer("INVALID", "Sprint 1", "")
-	if err == nil {
-		t.Error("JiraDoer() error = nil, wantErr true")
-	}
+	assert.Error(t, err, "JiraDoer should return error for invalid project")
 }
 
 func TestJiraDoer_WithManualAdjustments(t *testing.T) {
@@ -157,12 +149,8 @@ func TestJiraDoer_WithManualAdjustments(t *testing.T) {
 
 	override := `{"TEST-123": 2.5}`
 	result, err := JiraDoer("TEST", "Sprint 1", override)
-	if err != nil {
-		t.Errorf("JiraDoer() error = %v, wantErr false", err)
-	}
-	if result == "" {
-		t.Error("JiraDoer() returned empty result")
-	}
+	require.NoError(t, err, "JiraDoer should not return error with valid manual adjustments")
+	assert.NotEmpty(t, result, "JiraDoer should return non-empty result with manual adjustments")
 }
 
 func TestJiraDoer_InvalidManualAdjustments(t *testing.T) {
@@ -171,9 +159,7 @@ func TestJiraDoer_InvalidManualAdjustments(t *testing.T) {
 
 	override := `invalid json`
 	_, err := JiraDoer("TEST", "Sprint 1", override)
-	if err == nil {
-		t.Error("JiraDoer() error = nil, wantErr true")
-	}
+	assert.Error(t, err, "JiraDoer should return error with invalid manual adjustments")
 }
 
 func TestJiraProcessor_CalculateTotalHours(t *testing.T) {
@@ -181,22 +167,21 @@ func TestJiraProcessor_CalculateTotalHours(t *testing.T) {
 	defer cleanup()
 
 	processor, err := NewJiraProcessor("TEST", "Sprint 1", "")
-	if err != nil {
-		t.Fatalf("NewJiraProcessor() error = %v", err)
-	}
+	require.NoError(t, err, "NewJiraProcessor should not return error")
 
-	team, _ := processor.teams.GetTeam("TEST")
-	issues, _ := processor.fetchIssues()
+	team, exists := processor.teams.GetTeam("TEST")
+	require.True(t, exists, "Team should exist")
+	require.NotNil(t, team, "Team should not be nil")
+
+	issues, err := processor.fetchIssues()
+	require.NoError(t, err, "fetchIssues should not return error")
+	require.NotEmpty(t, issues, "Issues should not be empty")
+
 	manualAdjustments := map[string]float64{"TEST-123": 2.5}
-
 	totalHours := processor.calculateTotalHours(*team, issues, manualAdjustments)
 
-	if totalHours["Test User 1"] == 0 {
-		t.Error("Expected non-zero hours for Test User 1")
-	}
-	if totalHours["Test User 2"] == 0 {
-		t.Error("Expected non-zero hours for Test User 2")
-	}
+	assert.NotZero(t, totalHours["Test User 1"], "Test User 1 should have non-zero hours")
+	assert.NotZero(t, totalHours["Test User 2"], "Test User 2 should have non-zero hours")
 }
 
 func TestJiraProcessor_GetIssueTimeRange(t *testing.T) {
@@ -204,20 +189,19 @@ func TestJiraProcessor_GetIssueTimeRange(t *testing.T) {
 	defer cleanup()
 
 	processor, err := NewJiraProcessor("TEST", "Sprint 1", "")
-	if err != nil {
-		t.Fatalf("NewJiraProcessor() error = %v", err)
-	}
+	require.NoError(t, err, "NewJiraProcessor should not return error")
 
-	issues, _ := processor.fetchIssues()
+	issues, err := processor.fetchIssues()
+	require.NoError(t, err, "fetchIssues should not return error")
+	require.NotEmpty(t, issues, "Issues should not be empty")
+
 	startTime, endTime := processor.getIssueTimeRange(issues[0])
 
-	expectedStart, _ := time.Parse("2006-01-02T15:04:05.000-0700", "2024-03-01T10:00:00.000+0000")
-	expectedEnd, _ := time.Parse("2006-01-02T15:04:05.000-0700", "2024-03-02T15:00:00.000+0000")
+	expectedStart, err := time.Parse("2006-01-02T15:04:05.000-0700", "2024-03-01T10:00:00.000+0000")
+	require.NoError(t, err, "Failed to parse expected start time")
+	expectedEnd, err := time.Parse("2006-01-02T15:04:05.000-0700", "2024-03-02T15:00:00.000+0000")
+	require.NoError(t, err, "Failed to parse expected end time")
 
-	if !startTime.Equal(expectedStart) {
-		t.Errorf("getIssueTimeRange() startTime = %v, want %v", startTime, expectedStart)
-	}
-	if !endTime.Equal(expectedEnd) {
-		t.Errorf("getIssueTimeRange() endTime = %v, want %v", endTime, expectedEnd)
-	}
+	assert.True(t, startTime.Equal(expectedStart), "Start time mismatch")
+	assert.True(t, endTime.Equal(expectedEnd), "End time mismatch")
 }
