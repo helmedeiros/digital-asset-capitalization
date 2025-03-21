@@ -70,7 +70,7 @@ func TestClient_FetchTasks(t *testing.T) {
 			// Verify request
 			assert.Equal(t, http.MethodGet, r.Method, "Method should be GET")
 			assert.Equal(t, "/rest/api/3/search", r.URL.Path, "Path should match")
-			assert.Equal(t, "project = TEST AND sprint in (\"Sprint 1\") ORDER BY updated DESC", r.URL.Query().Get("jql"), "JQL should match")
+			assert.Equal(t, "project = TEST AND sprint in (\"Sprint 1\") ORDER BY key ASC", r.URL.Query().Get("jql"), "JQL should match")
 			assert.Equal(t, "*all", r.URL.Query().Get("fields"), "Fields should match")
 			assert.Equal(t, "changelog", r.URL.Query().Get("expand"), "Expand should match")
 

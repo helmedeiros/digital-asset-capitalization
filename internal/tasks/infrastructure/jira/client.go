@@ -249,7 +249,7 @@ func (c *client) FetchTasks(ctx context.Context, project, sprint string) ([]*dom
 	if sprint != "" {
 		jql += fmt.Sprintf(" AND sprint in (\"%s\")", sprint)
 	}
-	jql += " ORDER BY updated DESC"
+	jql += " ORDER BY key ASC"
 
 	// Build request URL with fields and expand parameters
 	url := fmt.Sprintf("%s/rest/api/3/search?jql=%s&fields=*all&expand=changelog",
