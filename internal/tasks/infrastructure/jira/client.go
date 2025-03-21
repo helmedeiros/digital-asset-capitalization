@@ -1,6 +1,7 @@
 package jira
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -86,56 +87,83 @@ func parseTime(timeStr string) (time.Time, error) {
 	return time.Time{}, fmt.Errorf("failed to parse time %q: %w", timeStr, lastErr)
 }
 
-// FetchTasks retrieves tasks from Jira for a given project and sprint
-func (c *client) FetchTasks(ctx context.Context, project, sprint string) ([]*domain.Task, error) {
-	if project == "" {
-		return nil, fmt.Errorf("project is required")
+// wasWorkedOnDuringSprint checks if an issue was worked on during the specific sprint period
+func wasWorkedOnDuringSprint(issue model.Issue, sprintStart, sprintEnd time.Time) bool {
+	if sprintStart.IsZero() || sprintEnd.IsZero() {
+		return false
 	}
 
-	// Build JQL query
-	jql := fmt.Sprintf("project = \"%s\"", project)
-	if sprint != "" {
-		jql += fmt.Sprintf(" AND sprint = \"%s\"", sprint)
-	}
-	jql += " ORDER BY resolved ASC, created DESC"
+	// Check changelog history for any activity during the sprint period
+	for _, history := range issue.Fields.Changelog.Histories {
+		historyTime, err := parseTime(history.Created)
+		if err != nil {
+			continue
+		}
 
-	// Build request URL with fields and expand parameters
-	url := fmt.Sprintf("%s/rest/api/3/search?jql=%s&fields=*all&expand=changelog",
-		c.config.GetBaseURL(),
-		url.QueryEscape(jql))
-
-	// Create request
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create request: %w", err)
-	}
-
-	// Add authentication headers
-	req.Header.Set("Authorization", c.config.GetAuthHeader())
-	req.Header.Set("Accept", "application/json")
-
-	// Execute request
-	resp, err := c.httpClient.Do(req)
-	if err != nil {
-		return nil, fmt.Errorf("failed to execute request: %w", err)
-	}
-	defer resp.Body.Close()
-
-	// Check response status
-	if resp.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(resp.Body)
-		return nil, fmt.Errorf("unexpected status code: %d, body: %s", resp.StatusCode, string(body))
+		// Check if the changelog entry is within the sprint period (inclusive)
+		if !historyTime.Before(sprintStart) && !historyTime.After(sprintEnd) {
+			// Check if any of the changes indicate work was done
+			for _, item := range history.Items {
+				// Look for meaningful changes that indicate work
+				if item.Field == "status" || item.Field == "assignee" || item.Field == "description" ||
+					item.Field == "comment" || item.Field == "resolution" {
+					return true
+				}
+			}
+		}
 	}
 
-	// Parse response
-	var searchResp model.SearchResult
-	if err := json.NewDecoder(resp.Body).Decode(&searchResp); err != nil {
-		return nil, fmt.Errorf("failed to decode response: %w", err)
-	}
+	return false
+}
 
-	// Convert to domain tasks
+// convertToDomainTasks converts Jira issues to domain tasks
+func (c *client) convertToDomainTasks(searchResp model.SearchResult, sprint string) ([]*domain.Task, error) {
 	tasks := make([]*domain.Task, 0, len(searchResp.Issues))
 	for _, issue := range searchResp.Issues {
+		// Get sprint dates if available
+		var sprintStart, sprintEnd time.Time
+		if len(issue.Fields.Sprint) > 0 {
+			fmt.Printf("Issue %s has %d sprints\n", issue.Key, len(issue.Fields.Sprint))
+			for _, s := range issue.Fields.Sprint {
+				fmt.Printf("Sprint: %s (Start: %s, End: %s)\n", s.Name, s.StartDate, s.EndDate)
+				if s.Name == sprint {
+					var err error
+					if s.StartDate != "" {
+						sprintStart, err = parseTime(s.StartDate)
+						if err != nil {
+							fmt.Printf("Failed to parse sprint start date '%s': %v\n", s.StartDate, err)
+						} else {
+							fmt.Printf("Parsed sprint start date: %s\n", sprintStart)
+						}
+					}
+					if s.EndDate != "" {
+						sprintEnd, err = parseTime(s.EndDate)
+						if err != nil {
+							fmt.Printf("Failed to parse sprint end date '%s': %v\n", s.EndDate, err)
+						} else {
+							fmt.Printf("Parsed sprint end date: %s\n", sprintEnd)
+						}
+					}
+					break
+				}
+			}
+		}
+
+		// Skip if we couldn't get valid sprint dates
+		if sprintStart.IsZero() || sprintEnd.IsZero() {
+			fmt.Printf("Skipping issue %s: invalid sprint dates (Start: %s, End: %s)\n", issue.Key, sprintStart, sprintEnd)
+			continue
+		}
+
+		// For issues with multiple sprints, check if there was any work done during this sprint
+		if len(issue.Fields.Sprint) > 1 {
+			if !wasWorkedOnDuringSprint(issue, sprintStart, sprintEnd) {
+				fmt.Printf("Skipping issue %s: no work done during sprint period\n", issue.Key)
+				continue
+			}
+			fmt.Printf("Including issue %s: work was done during sprint period\n", issue.Key)
+		}
+
 		// Handle empty timestamps
 		created := time.Now()
 		updated := time.Now()
@@ -160,9 +188,9 @@ func (c *client) FetchTasks(ctx context.Context, project, sprint string) ([]*dom
 		sprintName := ""
 		if len(issue.Fields.Sprint) > 0 {
 			var sprintNames []string
-			for _, sprint := range issue.Fields.Sprint {
-				if sprint.Name != "" {
-					sprintNames = append(sprintNames, sprint.Name)
+			for _, s := range issue.Fields.Sprint {
+				if s.Name != "" {
+					sprintNames = append(sprintNames, s.Name)
 				}
 			}
 			if len(sprintNames) > 0 {
@@ -217,6 +245,65 @@ func (c *client) FetchTasks(ctx context.Context, project, sprint string) ([]*dom
 	}
 
 	return tasks, nil
+}
+
+// FetchTasks retrieves tasks from Jira for a given project and sprint
+func (c *client) FetchTasks(ctx context.Context, project, sprint string) ([]*domain.Task, error) {
+	if project == "" {
+		return nil, fmt.Errorf("project is required")
+	}
+
+	// Build JQL query - include issues in the sprint
+	jql := fmt.Sprintf("project = %s", project)
+	if sprint != "" {
+		jql += fmt.Sprintf(" AND sprint in (\"%s\")", sprint)
+	}
+	jql += " ORDER BY updated DESC"
+
+	fmt.Printf("Fetching tasks with JQL: %s\n", jql)
+	fmt.Printf("Using base URL: %s\n", c.config.GetBaseURL())
+
+	// Build request URL with fields and expand parameters
+	url := fmt.Sprintf("%s/rest/api/3/search?jql=%s&fields=*all&expand=changelog",
+		c.config.GetBaseURL(),
+		url.QueryEscape(jql))
+
+	fmt.Printf("Full URL: %s\n", url)
+
+	// Create request
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create request: %w", err)
+	}
+
+	// Add authentication headers
+	req.Header.Set("Authorization", c.config.GetAuthHeader())
+	req.Header.Set("Accept", "application/json")
+
+	// Execute request
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("failed to execute request: %w", err)
+	}
+	defer resp.Body.Close()
+
+	// Check response status and body
+	body, _ := io.ReadAll(resp.Body)
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("unexpected status code: %d, body: %s", resp.StatusCode, string(body))
+	}
+
+	fmt.Printf("Response body: %s\n", string(body))
+
+	// Parse response
+	var searchResp model.SearchResult
+	if err := json.NewDecoder(bytes.NewReader(body)).Decode(&searchResp); err != nil {
+		return nil, fmt.Errorf("failed to decode response: %w", err)
+	}
+
+	fmt.Printf("Found %d issues in total\n", len(searchResp.Issues))
+
+	return c.convertToDomainTasks(searchResp, sprint)
 }
 
 type JiraClient struct {

@@ -27,36 +27,16 @@ type Issue struct {
 
 // Fields represents the fields of a Jira issue
 type Fields struct {
-	Summary   string      `json:"summary"`
-	Status    Status      `json:"status"`
-	Project   Project     `json:"project"`
-	Sprint    []Sprint    `json:"-"`
-	RawFields interface{} `json:"-"`
-	Created   string      `json:"created,omitempty"`
-	Updated   string      `json:"updated,omitempty"`
-	Assignee  struct {
-		DisplayName string `json:"displayName,omitempty"`
-	} `json:"assignee"`
-	Description struct {
-		Type    string `json:"type,omitempty"`
-		Version int    `json:"version,omitempty"`
-		Content []struct {
-			Type    string `json:"type,omitempty"`
-			Content []struct {
-				Type string `json:"type,omitempty"`
-				Text string `json:"text,omitempty"`
-			} `json:"content"`
-		} `json:"content"`
-	} `json:"description"`
-	Changelog struct {
-		Histories []struct {
-			Created string `json:"created,omitempty"`
-			Items   []struct {
-				Field    string `json:"field,omitempty"`
-				ToString string `json:"toString,omitempty"`
-			} `json:"items"`
-		} `json:"histories"`
-	} `json:"changelog"`
+	Summary     string                 `json:"summary"`
+	Description Description            `json:"description"`
+	Status      Status                 `json:"status"`
+	Project     Project                `json:"project"`
+	Sprint      []Sprint               `json:"sprint"`
+	Changelog   Changelog              `json:"changelog"`
+	Created     string                 `json:"created"`
+	Updated     string                 `json:"updated"`
+	Assignee    Assignee               `json:"assignee"`
+	RawFields   map[string]interface{} `json:"-"`
 }
 
 // UnmarshalJSON implements custom JSON unmarshaling for Fields
@@ -127,4 +107,40 @@ type Sprint struct {
 	CompleteDate string `json:"completeDate,omitempty"`
 	BoardID      int    `json:"boardId"`
 	Goal         string `json:"goal,omitempty"`
+}
+
+// ChangelogItem represents a single change in a Jira issue's history
+type ChangelogItem struct {
+	Field      string `json:"field"`
+	FromString string `json:"fromString"`
+	ToString   string `json:"toString"`
+}
+
+// ChangelogHistory represents a historical change in a Jira issue
+type ChangelogHistory struct {
+	Created string          `json:"created"`
+	Items   []ChangelogItem `json:"items"`
+}
+
+// Changelog represents the changelog of a Jira issue
+type Changelog struct {
+	Histories []ChangelogHistory `json:"histories"`
+}
+
+// Description represents the description content of a Jira issue
+type Description struct {
+	Type    string `json:"type"`
+	Version int    `json:"version"`
+	Content []struct {
+		Type    string `json:"type"`
+		Content []struct {
+			Type string `json:"type"`
+			Text string `json:"text"`
+		} `json:"content"`
+	} `json:"content"`
+}
+
+// Assignee represents the assignee of a Jira issue
+type Assignee struct {
+	DisplayName string `json:"displayName"`
 }

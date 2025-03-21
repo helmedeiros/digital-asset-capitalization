@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/helmedeiros/digital-asset-capitalization/internal/tasks/domain"
+	"github.com/helmedeiros/digital-asset-capitalization/internal/tasks/infrastructure/jira/model"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -69,7 +70,7 @@ func TestClient_FetchTasks(t *testing.T) {
 			// Verify request
 			assert.Equal(t, http.MethodGet, r.Method, "Method should be GET")
 			assert.Equal(t, "/rest/api/3/search", r.URL.Path, "Path should match")
-			assert.Equal(t, "project = \"TEST\" AND sprint = \"Sprint 1\" ORDER BY resolved ASC, created DESC", r.URL.Query().Get("jql"), "JQL should match")
+			assert.Equal(t, "project = TEST AND sprint in (\"Sprint 1\") ORDER BY updated DESC", r.URL.Query().Get("jql"), "JQL should match")
 			assert.Equal(t, "*all", r.URL.Query().Get("fields"), "Fields should match")
 			assert.Equal(t, "changelog", r.URL.Query().Get("expand"), "Expand should match")
 
@@ -257,6 +258,283 @@ func Test_mapJiraStatus(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			result := mapJiraStatus(tt.status)
 			assert.Equal(t, tt.expected, result, "Status mapping should match")
+		})
+	}
+}
+
+func TestWasWorkedOnDuringSprint(t *testing.T) {
+	// Create a base time for testing
+	baseTime := time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC)
+	sprintStart := baseTime
+	sprintEnd := baseTime.Add(14 * 24 * time.Hour) // 2 weeks sprint
+
+	tests := []struct {
+		name     string
+		issue    model.Issue
+		expected bool
+	}{
+		{
+			name: "work done during sprint",
+			issue: model.Issue{
+				Fields: model.Fields{
+					Changelog: model.Changelog{
+						Histories: []model.ChangelogHistory{
+							{
+								Created: baseTime.Add(5 * 24 * time.Hour).Format(time.RFC3339),
+								Items: []model.ChangelogItem{
+									{Field: "status", FromString: "To Do", ToString: "In Progress"},
+								},
+							},
+						},
+					},
+				},
+			},
+			expected: true,
+		},
+		{
+			name: "work done before sprint",
+			issue: model.Issue{
+				Fields: model.Fields{
+					Changelog: model.Changelog{
+						Histories: []model.ChangelogHistory{
+							{
+								Created: baseTime.Add(-1 * 24 * time.Hour).Format(time.RFC3339),
+								Items: []model.ChangelogItem{
+									{Field: "status", FromString: "To Do", ToString: "In Progress"},
+								},
+							},
+						},
+					},
+				},
+			},
+			expected: false,
+		},
+		{
+			name: "work done after sprint",
+			issue: model.Issue{
+				Fields: model.Fields{
+					Changelog: model.Changelog{
+						Histories: []model.ChangelogHistory{
+							{
+								Created: baseTime.Add(15 * 24 * time.Hour).Format(time.RFC3339),
+								Items: []model.ChangelogItem{
+									{Field: "status", FromString: "To Do", ToString: "In Progress"},
+								},
+							},
+						},
+					},
+				},
+			},
+			expected: false,
+		},
+		{
+			name: "multiple changes during sprint",
+			issue: model.Issue{
+				Fields: model.Fields{
+					Changelog: model.Changelog{
+						Histories: []model.ChangelogHistory{
+							{
+								Created: baseTime.Add(5 * 24 * time.Hour).Format(time.RFC3339),
+								Items: []model.ChangelogItem{
+									{Field: "status", FromString: "To Do", ToString: "In Progress"},
+								},
+							},
+							{
+								Created: baseTime.Add(7 * 24 * time.Hour).Format(time.RFC3339),
+								Items: []model.ChangelogItem{
+									{Field: "description", FromString: "Old", ToString: "New"},
+								},
+							},
+						},
+					},
+				},
+			},
+			expected: true,
+		},
+		{
+			name: "work done at sprint boundaries",
+			issue: model.Issue{
+				Fields: model.Fields{
+					Changelog: model.Changelog{
+						Histories: []model.ChangelogHistory{
+							{
+								Created: sprintStart.Format(time.RFC3339),
+								Items: []model.ChangelogItem{
+									{Field: "status", FromString: "To Do", ToString: "In Progress"},
+								},
+							},
+							{
+								Created: sprintEnd.Format(time.RFC3339),
+								Items: []model.ChangelogItem{
+									{Field: "status", FromString: "In Progress", ToString: "Done"},
+								},
+							},
+						},
+					},
+				},
+			},
+			expected: true,
+		},
+		{
+			name: "no relevant changes during sprint",
+			issue: model.Issue{
+				Fields: model.Fields{
+					Changelog: model.Changelog{
+						Histories: []model.ChangelogHistory{
+							{
+								Created: baseTime.Add(5 * 24 * time.Hour).Format(time.RFC3339),
+								Items: []model.ChangelogItem{
+									{Field: "labels", FromString: "", ToString: "bug"},
+								},
+							},
+						},
+					},
+				},
+			},
+			expected: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := wasWorkedOnDuringSprint(tt.issue, sprintStart, sprintEnd)
+			assert.Equal(t, tt.expected, result)
+		})
+	}
+}
+
+func TestFetchTasksWithMultipleSprints(t *testing.T) {
+	// Create a mock client for testing
+	mockClient := &client{
+		httpClient: &mockHTTPClient{},
+		config: &Config{
+			baseURL: "https://test.atlassian.net",
+			email:   "test@example.com",
+			token:   "test-token",
+		},
+	}
+
+	// Create test data
+	baseTime := time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC)
+	sprintStart := baseTime
+	sprintEnd := baseTime.Add(14 * 24 * time.Hour)
+
+	tests := []struct {
+		name     string
+		issue    model.Issue
+		sprint   string
+		expected bool
+	}{
+		{
+			name: "single sprint issue",
+			issue: model.Issue{
+				Key: "TEST-1",
+				Fields: model.Fields{
+					Summary: "Test Issue 1",
+					Status:  model.Status{Name: "In Progress"},
+					Project: model.Project{Key: "TEST"},
+					Sprint: []model.Sprint{
+						{
+							Name:      "Sprint 1",
+							StartDate: sprintStart.Format(time.RFC3339),
+							EndDate:   sprintEnd.Format(time.RFC3339),
+						},
+					},
+				},
+			},
+			sprint:   "Sprint 1",
+			expected: true,
+		},
+		{
+			name: "multiple sprints with work in requested sprint",
+			issue: model.Issue{
+				Key: "TEST-2",
+				Fields: model.Fields{
+					Summary: "Test Issue 2",
+					Status:  model.Status{Name: "In Progress"},
+					Project: model.Project{Key: "TEST"},
+					Sprint: []model.Sprint{
+						{
+							Name:      "Sprint 1",
+							StartDate: sprintStart.Format(time.RFC3339),
+							EndDate:   sprintEnd.Format(time.RFC3339),
+						},
+						{
+							Name:      "Sprint 2",
+							StartDate: sprintEnd.Add(24 * time.Hour).Format(time.RFC3339),
+							EndDate:   sprintEnd.Add(15 * 24 * time.Hour).Format(time.RFC3339),
+						},
+					},
+					Changelog: model.Changelog{
+						Histories: []model.ChangelogHistory{
+							{
+								Created: baseTime.Add(5 * 24 * time.Hour).Format(time.RFC3339),
+								Items: []model.ChangelogItem{
+									{Field: "status", FromString: "To Do", ToString: "In Progress"},
+								},
+							},
+						},
+					},
+				},
+			},
+			sprint:   "Sprint 1",
+			expected: true,
+		},
+		{
+			name: "multiple sprints without work in requested sprint",
+			issue: model.Issue{
+				Key: "TEST-3",
+				Fields: model.Fields{
+					Summary: "Test Issue 3",
+					Status:  model.Status{Name: "In Progress"},
+					Project: model.Project{Key: "TEST"},
+					Sprint: []model.Sprint{
+						{
+							Name:      "Sprint 1",
+							StartDate: sprintStart.Format(time.RFC3339),
+							EndDate:   sprintEnd.Format(time.RFC3339),
+						},
+						{
+							Name:      "Sprint 2",
+							StartDate: sprintEnd.Add(24 * time.Hour).Format(time.RFC3339),
+							EndDate:   sprintEnd.Add(15 * 24 * time.Hour).Format(time.RFC3339),
+						},
+					},
+					Changelog: model.Changelog{
+						Histories: []model.ChangelogHistory{
+							{
+								Created: sprintEnd.Add(2 * 24 * time.Hour).Format(time.RFC3339),
+								Items: []model.ChangelogItem{
+									{Field: "status", FromString: "To Do", ToString: "In Progress"},
+								},
+							},
+						},
+					},
+				},
+			},
+			sprint:   "Sprint 1",
+			expected: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Create a search result with the test issue
+			searchResp := model.SearchResult{
+				Issues: []model.Issue{tt.issue},
+			}
+
+			// Convert to domain tasks
+			tasks, err := mockClient.convertToDomainTasks(searchResp, tt.sprint)
+			require.NoError(t, err)
+
+			// Check if the issue was included in the results
+			if tt.expected {
+				assert.Equal(t, 1, len(tasks), "Expected one task in results")
+				assert.Equal(t, tt.issue.Key, tasks[0].Key, "Expected task key to match")
+			} else {
+				assert.Equal(t, 0, len(tasks), "Expected no tasks in results")
+			}
 		})
 	}
 }
