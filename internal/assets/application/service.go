@@ -28,46 +28,68 @@ func (s *assetService) CreateAsset(name, description string) error {
 
 	asset, err := domain.NewAsset(name, description)
 	if err != nil {
-		return fmt.Errorf("failed to create asset: %w", err)
+		return err
 	}
-
-	return s.repo.Save(asset)
-}
-
-// AddContributionType adds a contribution type to an asset
-func (s *assetService) AddContributionType(assetName, contributionType string) error {
-	asset, err := s.repo.FindByName(assetName)
-	if err != nil {
-		return fmt.Errorf("asset not found")
-	}
-
-	if err := asset.AddContributionType(contributionType); err != nil {
-		if err == domain.ErrInvalidContributionType {
-			return fmt.Errorf("invalid contribution type")
-		}
-		return fmt.Errorf("failed to add contribution type: %w", err)
-	}
-
 	return s.repo.Save(asset)
 }
 
 // ListAssets returns a list of all assets
-func (s *assetService) ListAssets() []string {
-	assets, err := s.repo.FindAll()
-	if err != nil {
-		return nil
-	}
-
-	var names []string
-	for _, asset := range assets {
-		names = append(names, asset.Name)
-	}
-	return names
+func (s *assetService) ListAssets() ([]*domain.Asset, error) {
+	return s.repo.FindAll()
 }
 
 // GetAsset returns an asset by name
 func (s *assetService) GetAsset(name string) (*domain.Asset, error) {
-	return s.repo.FindByName(name)
+	asset, err := s.repo.FindByName(name)
+	if err != nil {
+		return nil, fmt.Errorf("asset not found")
+	}
+	return asset, nil
+}
+
+// DeleteAsset deletes an asset by name
+func (s *assetService) DeleteAsset(name string) error {
+	return s.repo.Delete(name)
+}
+
+// UpdateAsset updates an asset's description
+func (s *assetService) UpdateAsset(name, description string) error {
+	if description == "" {
+		return fmt.Errorf("asset description cannot be empty")
+	}
+
+	asset, err := s.repo.FindByName(name)
+	if err != nil {
+		return fmt.Errorf("asset not found")
+	}
+
+	if err := asset.UpdateDescription(description); err != nil {
+		return err
+	}
+	return s.repo.Save(asset)
+}
+
+// IncrementTaskCount increments the task count for an asset
+func (s *assetService) IncrementTaskCount(name string) error {
+	asset, err := s.repo.FindByName(name)
+	if err != nil {
+		return fmt.Errorf("asset not found")
+	}
+	asset.IncrementTaskCount()
+	return s.repo.Save(asset)
+}
+
+// DecrementTaskCount decrements the task count for an asset
+func (s *assetService) DecrementTaskCount(name string) error {
+	asset, err := s.repo.FindByName(name)
+	if err != nil {
+		return fmt.Errorf("asset not found")
+	}
+	if asset.AssociatedTaskCount == 0 {
+		return fmt.Errorf("task count cannot be negative")
+	}
+	asset.DecrementTaskCount()
+	return s.repo.Save(asset)
 }
 
 // UpdateDocumentation marks the documentation for an asset as updated
@@ -79,59 +101,4 @@ func (s *assetService) UpdateDocumentation(assetName string) error {
 
 	asset.UpdateDocumentation()
 	return s.repo.Save(asset)
-}
-
-// IncrementTaskCount increments the task count for an asset
-func (s *assetService) IncrementTaskCount(assetName string) error {
-	asset, err := s.repo.FindByName(assetName)
-	if err != nil {
-		return fmt.Errorf("asset not found")
-	}
-
-	asset.IncrementTaskCount()
-	return s.repo.Save(asset)
-}
-
-// DecrementTaskCount decrements the task count for an asset
-func (s *assetService) DecrementTaskCount(assetName string) error {
-	asset, err := s.repo.FindByName(assetName)
-	if err != nil {
-		return fmt.Errorf("asset not found")
-	}
-
-	if asset.AssociatedTaskCount == 0 {
-		return fmt.Errorf("task count cannot be negative")
-	}
-
-	asset.DecrementTaskCount()
-	return s.repo.Save(asset)
-}
-
-// UpdateAsset updates an asset's name and description
-func (s *assetService) UpdateAsset(oldName, newName, description string) error {
-	// Find the asset
-	asset, err := s.repo.FindByName(oldName)
-	if err != nil {
-		return fmt.Errorf("asset not found")
-	}
-
-	// Update the asset
-	if err := asset.UpdateDescription(description); err != nil {
-		return err
-	}
-
-	// If the name is changing, delete the old one and save with new name
-	if oldName != newName {
-		if err := s.repo.Delete(oldName); err != nil {
-			return fmt.Errorf("failed to update asset name: %w", err)
-		}
-		asset.Name = newName
-	}
-
-	// Save the updated asset
-	if err := s.repo.Save(asset); err != nil {
-		return fmt.Errorf("failed to save updated asset: %w", err)
-	}
-
-	return nil
 }

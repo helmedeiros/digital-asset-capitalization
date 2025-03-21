@@ -37,8 +37,6 @@ COMMANDS:
    assets              Manage digital assets
      create           Create a new asset
      list            List all assets
-     contribution-type  Manage contribution types
-       add           Add a contribution type to an asset
      documentation   Manage asset documentation
        update        Mark asset documentation as updated
      tasks           Manage asset tasks
@@ -138,45 +136,43 @@ For more information about a command:
 						Name:  "list",
 						Usage: "List all assets",
 						Action: func(ctx *cli.Context) error {
-							assets := assetService.ListAssets()
+							assets, err := assetService.ListAssets()
+							if err != nil {
+								return err
+							}
 							if len(assets) == 0 {
 								fmt.Println("No assets found")
 								return nil
 							}
 							fmt.Println("Assets:")
-							for _, name := range assets {
-								fmt.Printf("- %s\n", name)
+							for _, asset := range assets {
+								fmt.Printf("- %s: %s\n", asset.Name, asset.Description)
 							}
 							return nil
 						},
 					},
 					{
 						Name:  "update",
-						Usage: "Update an asset's name and description",
+						Usage: "Update an asset's description",
 						Action: func(ctx *cli.Context) error {
-							oldName := ctx.Value("name").(string)
-							newName := ctx.Value("new-name").(string)
+							name := ctx.Value("name").(string)
 							description := ctx.Value("description").(string)
-							if err := assetService.UpdateAsset(oldName, newName, description); err != nil {
+							if err := assetService.UpdateAsset(name, description); err != nil {
 								return err
 							}
-							fmt.Printf("Updated asset: %s -> %s\n", oldName, newName)
+							fmt.Printf("Updated asset: %s\n", name)
 							return nil
 						},
 						Flags: []cli.Flag{
 							&cli.StringFlag{
 								Name:     "name",
-								Usage:    "Current asset name",
+								Usage:    "Asset name",
 								Required: true,
 							},
 							&cli.StringFlag{
-								Name:     "new-name",
-								Usage:    "New asset name",
+								Name:     "description",
+								Usage:    "New asset description",
 								Required: true,
-							},
-							&cli.StringFlag{
-								Name:  "description",
-								Usage: "New asset description",
 							},
 						},
 					},
@@ -194,12 +190,6 @@ For more information about a command:
 							fmt.Printf("Created: %s\n", asset.CreatedAt.Format("2006-01-02 15:04:05"))
 							fmt.Printf("Updated: %s\n", asset.UpdatedAt.Format("2006-01-02 15:04:05"))
 							fmt.Printf("Task Count: %d\n", asset.AssociatedTaskCount)
-							if len(asset.ContributionTypes) > 0 {
-								fmt.Println("\nContribution Types:")
-								for _, ct := range asset.ContributionTypes {
-									fmt.Printf("- %s\n", ct)
-								}
-							}
 							return nil
 						},
 						Flags: []cli.Flag{
@@ -207,37 +197,6 @@ For more information about a command:
 								Name:     "name",
 								Usage:    "Asset name",
 								Required: true,
-							},
-						},
-					},
-					{
-						Name:  "contribution-type",
-						Usage: "Manage contribution types",
-						Subcommands: []*cli.Command{
-							{
-								Name:  "add",
-								Usage: "Add a contribution type to an asset",
-								Action: func(ctx *cli.Context) error {
-									assetName := ctx.Value("asset").(string)
-									contributionType := ctx.Value("type").(string)
-									if err := assetService.AddContributionType(assetName, contributionType); err != nil {
-										return err
-									}
-									fmt.Printf("Added contribution type %s to asset %s\n", contributionType, assetName)
-									return nil
-								},
-								Flags: []cli.Flag{
-									&cli.StringFlag{
-										Name:     "asset",
-										Usage:    "Asset name",
-										Required: true,
-									},
-									&cli.StringFlag{
-										Name:     "type",
-										Usage:    "Contribution type (discovery, development, or maintenance)",
-										Required: true,
-									},
-								},
 							},
 						},
 					},

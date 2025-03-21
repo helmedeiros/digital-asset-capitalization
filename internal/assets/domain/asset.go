@@ -10,19 +10,9 @@ import (
 
 // Common errors that can occur when working with assets
 var (
-	ErrEmptyName                 = errors.New("asset name cannot be empty")
-	ErrEmptyDescription          = errors.New("asset description cannot be empty")
-	ErrInvalidContributionType   = errors.New("invalid contribution type")
-	ErrDuplicateContributionType = errors.New("contribution type already exists")
-	ErrEmptyContributionType     = errors.New("contribution type cannot be empty")
+	ErrEmptyName        = errors.New("asset name cannot be empty")
+	ErrEmptyDescription = errors.New("asset description cannot be empty")
 )
-
-// ValidContributionTypes defines the allowed contribution types for assets
-var ValidContributionTypes = map[string]bool{
-	"discovery":   true,
-	"development": true,
-	"maintenance": true,
-}
 
 // Asset represents a digital asset in the system
 type Asset struct {
@@ -40,8 +30,6 @@ type Asset struct {
 	UpdatedAt time.Time `json:"updated_at"`
 	// LastDocUpdateAt is when the asset's documentation was last updated
 	LastDocUpdateAt time.Time `json:"last_doc_update_at"`
-	// ContributionTypes tracks the types of work done on this asset
-	ContributionTypes []string `json:"contribution_types"`
 	// AssociatedTaskCount tracks how many tasks are linked to this asset
 	AssociatedTaskCount int `json:"associated_task_count"`
 	// Version is used for optimistic locking
@@ -59,14 +47,14 @@ func NewAsset(name, description string) (*Asset, error) {
 
 	now := time.Now()
 	return &Asset{
-		ID:                generateID(name),
-		Name:              name,
-		Description:       description,
-		CreatedAt:         now,
-		UpdatedAt:         now,
-		LastDocUpdateAt:   now,
-		ContributionTypes: make([]string, 0),
-		Version:           1,
+		ID:                  generateID(name),
+		Name:                name,
+		Description:         description,
+		CreatedAt:           now,
+		UpdatedAt:           now,
+		LastDocUpdateAt:     now,
+		AssociatedTaskCount: 0,
+		Version:             1,
 	}, nil
 }
 
@@ -89,27 +77,6 @@ func (a *Asset) UpdateDocumentation() {
 	defer a.mu.Unlock()
 	a.LastDocUpdateAt = time.Now()
 	a.Version++
-}
-
-// AddContributionType adds a new contribution type to the asset
-func (a *Asset) AddContributionType(contributionType string) error {
-	if contributionType == "" {
-		return ErrEmptyContributionType
-	}
-	if !ValidContributionTypes[contributionType] {
-		return ErrInvalidContributionType
-	}
-	a.mu.Lock()
-	defer a.mu.Unlock()
-	for _, t := range a.ContributionTypes {
-		if t == contributionType {
-			return ErrDuplicateContributionType
-		}
-	}
-	a.ContributionTypes = append(a.ContributionTypes, contributionType)
-	a.UpdatedAt = time.Now()
-	a.Version++
-	return nil
 }
 
 // IncrementTaskCount increases the count of tasks associated with this asset

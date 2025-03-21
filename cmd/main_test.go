@@ -110,16 +110,7 @@ func TestRun(t *testing.T) {
 			name:    "list assets after creation",
 			args:    []string{"assetcap", "assets", "list"},
 			wantErr: false,
-			wantOut: "Assets:\n- test-asset\n",
-			setup: func() error {
-				return assetService.CreateAsset("test-asset", "Test description")
-			},
-		},
-		{
-			name:    "add contribution type",
-			args:    []string{"assetcap", "assets", "contribution-type", "add", "--asset", "test-asset", "--type", "development"},
-			wantErr: false,
-			wantOut: "Added contribution type development to asset test-asset\n",
+			wantOut: "Assets:\n- test-asset: Test description\n",
 			setup: func() error {
 				return assetService.CreateAsset("test-asset", "Test description")
 			},
@@ -164,15 +155,6 @@ func TestRun(t *testing.T) {
 			args:    []string{"assetcap", "assets", "create", "--name", "test-asset"},
 			wantErr: true,
 			wantOut: "",
-		},
-		{
-			name:    "invalid contribution type",
-			args:    []string{"assetcap", "assets", "contribution-type", "add", "--asset", "test-asset", "--type", "invalid"},
-			wantErr: true,
-			wantOut: "",
-			setup: func() error {
-				return assetService.CreateAsset("test-asset", "Test description")
-			},
 		},
 		{
 			name:    "timeallocation-calc with required flags",
@@ -275,47 +257,6 @@ func TestRun(t *testing.T) {
 		}
 		if !strings.Contains(err.Error(), "not found") {
 			t.Errorf("Expected error to contain 'not found', got %q", err.Error())
-		}
-	})
-
-	t.Run("show asset with contribution types", func(t *testing.T) {
-		cleanup := setupTestEnvironment(t)
-		defer cleanup()
-
-		// Create a test asset
-		os.Args = []string{"assetcap", "assets", "create", "--name", "test-asset", "--description", "Test description"}
-		if err := Run(); err != nil {
-			t.Fatalf("Failed to create test asset: %v", err)
-		}
-
-		// Add contribution types
-		os.Args = []string{"assetcap", "assets", "contribution-type", "add", "--asset", "test-asset", "--type", "discovery"}
-		if err := Run(); err != nil {
-			t.Fatalf("Failed to add contribution type: %v", err)
-		}
-		os.Args = []string{"assetcap", "assets", "contribution-type", "add", "--asset", "test-asset", "--type", "development"}
-		if err := Run(); err != nil {
-			t.Fatalf("Failed to add contribution type: %v", err)
-		}
-
-		// Show the asset
-		output, err := captureOutput(func() error {
-			os.Args = []string{"assetcap", "assets", "show", "--name", "test-asset"}
-			return Run()
-		})
-		if err != nil {
-			t.Fatalf("Failed to show asset: %v", err)
-		}
-		expectedStrings := []string{
-			"Asset: test-asset",
-			"Contribution Types:",
-			"- discovery",
-			"- development",
-		}
-		for _, expected := range expectedStrings {
-			if !strings.Contains(output, expected) {
-				t.Errorf("Expected output to contain %q, got %q", expected, output)
-			}
 		}
 	})
 }

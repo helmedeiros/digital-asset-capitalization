@@ -20,18 +20,18 @@ type AssetRepository interface {
 type AssetService interface {
 	// CreateAsset creates a new asset
 	CreateAsset(name, description string) error
-	// AddContributionType adds a contribution type to an asset
-	AddContributionType(assetName, contributionType string) error
 	// ListAssets returns a list of all assets
-	ListAssets() []string
+	ListAssets() ([]*domain.Asset, error)
 	// GetAsset returns an asset by name
 	GetAsset(name string) (*domain.Asset, error)
+	// DeleteAsset deletes an asset by name
+	DeleteAsset(name string) error
+	// UpdateAsset updates an asset's name and description
+	UpdateAsset(name, description string) error
 	// UpdateDocumentation marks the documentation for an asset as updated
 	UpdateDocumentation(assetName string) error
 	// IncrementTaskCount increments the task count for an asset
-	IncrementTaskCount(assetName string) error
+	IncrementTaskCount(name string) error
 	// DecrementTaskCount decrements the task count for an asset
-	DecrementTaskCount(assetName string) error
-	// UpdateAsset updates an asset's name and description
-	UpdateAsset(oldName, newName, description string) error
+	DecrementTaskCount(name string) error
 }

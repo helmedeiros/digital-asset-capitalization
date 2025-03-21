@@ -11,16 +11,14 @@ import (
 func TestUpdateAsset(t *testing.T) {
 	tests := []struct {
 		name          string
-		oldName       string
-		newName       string
+		assetName     string
 		description   string
 		setupMock     func(*MockRepository)
 		expectedError string
 	}{
 		{
-			name:        "successful update without name change",
-			oldName:     "test-asset",
-			newName:     "test-asset",
+			name:        "successful update",
+			assetName:   "test-asset",
 			description: "Updated description",
 			setupMock: func(m *MockRepository) {
 				m.findResult = &domain.Asset{
@@ -30,21 +28,8 @@ func TestUpdateAsset(t *testing.T) {
 			},
 		},
 		{
-			name:        "successful update with name change",
-			oldName:     "old-name",
-			newName:     "new-name",
-			description: "Updated description",
-			setupMock: func(m *MockRepository) {
-				m.findResult = &domain.Asset{
-					Name:        "old-name",
-					Description: "Original description",
-				}
-			},
-		},
-		{
 			name:        "asset not found",
-			oldName:     "non-existent",
-			newName:     "new-name",
+			assetName:   "non-existent",
 			description: "Updated description",
 			setupMock: func(m *MockRepository) {
 				m.findError = fmt.Errorf("not found")
@@ -53,8 +38,7 @@ func TestUpdateAsset(t *testing.T) {
 		},
 		{
 			name:        "empty description",
-			oldName:     "test-asset",
-			newName:     "test-asset",
+			assetName:   "test-asset",
 			description: "",
 			setupMock: func(m *MockRepository) {
 				m.findResult = &domain.Asset{
@@ -72,7 +56,7 @@ func TestUpdateAsset(t *testing.T) {
 			tt.setupMock(mockRepo)
 			service := NewAssetService(mockRepo)
 
-			err := service.UpdateAsset(tt.oldName, tt.newName, tt.description)
+			err := service.UpdateAsset(tt.assetName, tt.description)
 			if tt.expectedError != "" {
 				if err == nil {
 					t.Errorf("expected error containing %q, got nil", tt.expectedError)
@@ -89,22 +73,14 @@ func TestUpdateAsset(t *testing.T) {
 			if !mockRepo.findCalled {
 				t.Error("FindByName was not called")
 			}
-			if mockRepo.findName != tt.oldName {
-				t.Errorf("FindByName called with %q, expected %q", mockRepo.findName, tt.oldName)
-			}
-			if tt.oldName != tt.newName {
-				if !mockRepo.deleteCalled {
-					t.Error("Delete was not called when name changed")
-				}
-				if mockRepo.deleteName != tt.oldName {
-					t.Errorf("Delete called with %q, expected %q", mockRepo.deleteName, tt.oldName)
-				}
+			if mockRepo.findName != tt.assetName {
+				t.Errorf("FindByName called with %q, expected %q", mockRepo.findName, tt.assetName)
 			}
 			if !mockRepo.saveCalled {
 				t.Error("Save was not called")
 			}
-			if mockRepo.saveAsset != nil && mockRepo.saveAsset.Name != tt.newName {
-				t.Errorf("Save called with name %q, expected %q", mockRepo.saveAsset.Name, tt.newName)
+			if mockRepo.saveAsset != nil && mockRepo.saveAsset.Description != tt.description {
+				t.Errorf("Save called with description %q, expected %q", mockRepo.saveAsset.Description, tt.description)
 			}
 		})
 	}

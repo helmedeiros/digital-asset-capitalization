@@ -9,7 +9,6 @@ This tool helps track and manage digital assets in your organization, including:
 1. Asset lifecycle management
 2. Time allocation tracking for tasks
 3. Documentation management
-4. Contribution type tracking
 
 The tool automatically calculates the time allocation for tasks in each sprint and helps manage the capitalization of digital assets.
 
@@ -71,38 +70,28 @@ cp completions/assetcap.fish ~/.config/fish/completions/
 
 ### Asset Management
 
-The tool provides comprehensive asset management capabilities:
+The tool provides comprehensive asset management capabilities through the CLI:
 
-- **Asset Creation and Tracking**
+```bash
+# Create a new asset
+assetcap assets create --name "Frontend App" --description "Main web application"
 
-  ```go
-  asset, err := NewAsset("Frontend App", "Main web application")
-  ```
+# List all assets
+assetcap assets list
 
-- **Contribution Types**
-  Assets support three types of contributions:
+# Show detailed information about an asset
+assetcap assets show --name "Frontend App"
 
-  - `discovery`: Initial research and requirements gathering
-  - `development`: Implementation of new features
-  - `maintenance`: Bug fixes and improvements
+# Update an asset's description
+assetcap assets update --name "Frontend App" --description "Updated description"
 
-  ```go
-  asset.AddContributionType("development")
-  ```
+# Mark asset documentation as updated
+assetcap assets documentation update --asset "Frontend App"
 
-- **Task Association**
-  Track tasks associated with each asset:
-
-  ```go
-  asset.IncrementTaskCount() // When adding a task
-  asset.DecrementTaskCount() // When removing a task
-  ```
-
-- **Documentation Updates**
-  Track documentation changes:
-  ```go
-  asset.UpdateDocumentation()
-  ```
+# Manage task counts
+assetcap assets tasks increment --asset "Frontend App"
+assetcap assets tasks decrement --asset "Frontend App"
+```
 
 ### Time Allocation
 
@@ -249,83 +238,17 @@ make test-all
 Run benchmarks to measure performance:
 
 ```bash
-go test -bench=. -benchmem ./internal/assets/model/...
+make bench
 ```
 
-Current benchmark results on M1 Pro:
+## Contributing
 
-- Asset creation: ~623 ns/op
-- Description updates: ~59 ns/op
-- Contribution type additions: ~25 ns/op
-- Task count operations: ~134 ns/op
-- ID generation: ~505 ns/op
-- Concurrent operations: ~366 ns/op
+1. Fork the repository
+2. Create your feature branch (`git checkout -b feature/amazing-feature`)
+3. Commit your changes (`git commit -m 'Add some amazing feature'`)
+4. Push to the branch (`git push origin feature/amazing-feature`)
+5. Open a Pull Request
 
-### Test Coverage Report
+## License
 
-The current test coverage is:
-
-- `assetcap/action`: 88.2%
-- `assetcap/config`: 96.0%
-- `assetcap`: 18.4%
-- `internal/assets/model`: 100%
-
-## Usage
-
-### Asset Management
-
-1. Create a new asset:
-
-```bash
-assetcap assets create --name "Frontend" --description "Main web application"
-```
-
-2. List all assets:
-
-```bash
-assetcap assets list
-```
-
-3. Add contribution types:
-
-```bash
-assetcap assets contribution-type add --asset "Frontend" --type "development"
-```
-
-4. Update documentation:
-
-```bash
-assetcap assets documentation update --asset "Frontend"
-```
-
-5. Manage task counts:
-
-```bash
-# Increment task count
-assetcap assets tasks increment --asset "Frontend"
-
-# Decrement task count
-assetcap assets tasks decrement --asset "Frontend"
-```
-
-### Time Allocation
-
-Run the time allocation calculation:
-
-```bash
-assetcap timeallocation-calc --project PROJECT_KEY --sprint "Sprint Name" [-override '{"ISSUE-KEY": hours}']
-```
-
-The tool will:
-
-1. Calculate time allocation for each task
-2. Update task metadata with allocation percentages
-3. Generate a report showing allocation per story and engineer
-
-## Security Note
-
-For better security, you can add these environment variables to your shell's configuration file (e.g., `~/.bashrc`, `~/.zshrc`, or `~/.config/fish/config.fish`). This way, they'll be available in your shell sessions without being stored in any files in the project directory.
-
-## Thread Safety
-
-All operations in the Asset model are thread-safe and can be used concurrently. The implementation uses proper synchronization to ensure data consistency in multi-threaded environments.
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.

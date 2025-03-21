@@ -105,46 +105,42 @@ func TestCreateAsset(t *testing.T) {
 	}
 }
 
-func TestAddContributionType(t *testing.T) {
+func TestListAssets(t *testing.T) {
 	tests := []struct {
-		name             string
-		assetName        string
-		contributionType string
-		setupMock        func(*MockRepository)
-		expectedError    error
+		name           string
+		setupMock      func(*MockRepository)
+		expectedError  error
+		expectedAssets []*domain.Asset
 	}{
 		{
-			name:             "successful addition",
-			assetName:        "test-asset",
-			contributionType: "discovery",
+			name: "successful listing",
 			setupMock: func(m *MockRepository) {
-				m.findResult = &domain.Asset{
-					Name:        "test-asset",
-					Description: "Test description",
+				m.findAllResult = []*domain.Asset{
+					{Name: "asset1", Description: "Description 1"},
+					{Name: "asset2", Description: "Description 2"},
 				}
 			},
 			expectedError: nil,
+			expectedAssets: []*domain.Asset{
+				{Name: "asset1", Description: "Description 1"},
+				{Name: "asset2", Description: "Description 2"},
+			},
 		},
 		{
-			name:             "asset not found",
-			assetName:        "non-existent",
-			contributionType: "discovery",
+			name: "empty list",
 			setupMock: func(m *MockRepository) {
-				m.findError = errors.New("not found")
+				m.findAllResult = []*domain.Asset{}
 			},
-			expectedError: errors.New("asset not found"),
+			expectedError:  nil,
+			expectedAssets: []*domain.Asset{},
 		},
 		{
-			name:             "invalid contribution type",
-			assetName:        "test-asset",
-			contributionType: "invalid",
+			name: "repository error",
 			setupMock: func(m *MockRepository) {
-				m.findResult = &domain.Asset{
-					Name:        "test-asset",
-					Description: "Test description",
-				}
+				m.findAllError = errors.New("repository error")
 			},
-			expectedError: errors.New("invalid contribution type"),
+			expectedError:  errors.New("repository error"),
+			expectedAssets: nil,
 		},
 	}
 
@@ -154,7 +150,7 @@ func TestAddContributionType(t *testing.T) {
 			tt.setupMock(mockRepo)
 			service := NewAssetService(mockRepo)
 
-			err := service.AddContributionType(tt.assetName, tt.contributionType)
+			assets, err := service.ListAssets()
 			if tt.expectedError != nil {
 				if err == nil {
 					t.Errorf("expected error %v, got nil", tt.expectedError)
@@ -166,11 +162,19 @@ func TestAddContributionType(t *testing.T) {
 			if err != nil {
 				t.Errorf("unexpected error: %v", err)
 			}
-			if !mockRepo.findCalled {
-				t.Error("FindByName was not called")
+			if !mockRepo.findAllCalled {
+				t.Error("FindAll was not called")
 			}
-			if tt.expectedError == nil && !mockRepo.saveCalled {
-				t.Error("Save was not called")
+			if len(assets) != len(tt.expectedAssets) {
+				t.Errorf("expected %d assets, got %d", len(tt.expectedAssets), len(assets))
+			}
+			for i, asset := range assets {
+				if asset.Name != tt.expectedAssets[i].Name {
+					t.Errorf("expected asset name %s, got %s", tt.expectedAssets[i].Name, asset.Name)
+				}
+				if asset.Description != tt.expectedAssets[i].Description {
+					t.Errorf("expected asset description %s, got %s", tt.expectedAssets[i].Description, asset.Description)
+				}
 			}
 		})
 	}
@@ -323,70 +327,6 @@ func TestTaskCountOperations(t *testing.T) {
 			}
 			if tt.expectedError == nil && !mockRepo.saveCalled {
 				t.Error("Save was not called")
-			}
-		})
-	}
-}
-
-func TestListAssets(t *testing.T) {
-	tests := []struct {
-		name           string
-		setupMock      func(*MockRepository)
-		expectedAssets []string
-		expectedError  error
-	}{
-		{
-			name: "successful listing",
-			setupMock: func(m *MockRepository) {
-				m.findAllResult = []*domain.Asset{
-					{Name: "asset1", Description: "First asset"},
-					{Name: "asset2", Description: "Second asset"},
-				}
-			},
-			expectedAssets: []string{"asset1", "asset2"},
-			expectedError:  nil,
-		},
-		{
-			name: "empty list",
-			setupMock: func(m *MockRepository) {
-				m.findAllResult = []*domain.Asset{}
-			},
-			expectedAssets: []string{},
-			expectedError:  nil,
-		},
-		{
-			name: "repository error",
-			setupMock: func(m *MockRepository) {
-				m.findAllError = errors.New("repository error")
-			},
-			expectedAssets: nil,
-			expectedError:  errors.New("repository error"),
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			mockRepo := new(MockRepository)
-			tt.setupMock(mockRepo)
-			service := NewAssetService(mockRepo)
-
-			assets := service.ListAssets()
-			if tt.expectedError != nil {
-				if assets != nil {
-					t.Errorf("expected nil assets, got %v", assets)
-				}
-				return
-			}
-			if !mockRepo.findAllCalled {
-				t.Error("FindAll was not called")
-			}
-			if len(assets) != len(tt.expectedAssets) {
-				t.Errorf("expected %d assets, got %d", len(tt.expectedAssets), len(assets))
-			}
-			for i, asset := range assets {
-				if asset != tt.expectedAssets[i] {
-					t.Errorf("expected asset %s, got %s", tt.expectedAssets[i], asset)
-				}
 			}
 		})
 	}

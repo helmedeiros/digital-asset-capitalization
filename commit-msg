@@ -1,16 +1,11 @@
-feat(assets): add show command for detailed asset information
+refactor(assets): remove contribution types from assets
 
-This commit adds a new command to show detailed information about assets:
+This commit removes contribution types from assets as they belong to tasks:
 
-- Add 'show' command under assets to display asset details
-- Show asset name, description, creation/update times, and task count
-- Display contribution types if present
-- Add comprehensive tests for the show functionality
-- Handle error cases for non-existent assets
+- Remove ContributionTypes field from Asset model
+- Remove contribution type related errors and constants
+- Remove contribution type command from CLI
+- Remove contribution type related tests
+- Update show command to not display contribution types
 
-The show command allows users to:
-
-1. View detailed information about a specific asset
-2. See when the asset was created and last updated
-3. Check the current task count
-4. View all contribution types assigned to the asset
+The changes reflect that contribution types are a property of tasks, not assets.
