@@ -3,6 +3,7 @@ package model
 import (
 	"crypto/sha256"
 	"encoding/hex"
+	"encoding/json"
 	"errors"
 	"sync"
 	"time"
@@ -156,4 +157,37 @@ func generateID(name string) string {
 	hash.Write([]byte(name))
 	hash.Write([]byte(time.Now().String()))
 	return hex.EncodeToString(hash.Sum(nil))[:16]
+}
+
+// MarshalJSON implements the json.Marshaler interface.
+// It ensures thread-safe marshaling of the Asset struct.
+func (a *Asset) MarshalJSON() ([]byte, error) {
+	a.mu.RLock()
+	defer a.mu.RUnlock()
+
+	type Alias Asset
+	return json.Marshal(&struct {
+		*Alias
+	}{
+		Alias: (*Alias)(a),
+	})
+}
+
+// UnmarshalJSON implements the json.Unmarshaler interface.
+// It ensures thread-safe unmarshaling of the Asset struct.
+func (a *Asset) UnmarshalJSON(data []byte) error {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+
+	type Alias Asset
+	aux := &struct {
+		*Alias
+	}{
+		Alias: (*Alias)(a),
+	}
+
+	if err := json.Unmarshal(data, &aux); err != nil {
+		return err
+	}
+	return nil
 }
