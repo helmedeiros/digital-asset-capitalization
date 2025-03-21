@@ -151,6 +151,37 @@ For more information about a command:
 						},
 					},
 					{
+						Name:  "update",
+						Usage: "Update an asset's name and description",
+						Action: func(ctx *cli.Context) error {
+							oldName := ctx.Value("name").(string)
+							newName := ctx.Value("new-name").(string)
+							description := ctx.Value("description").(string)
+							if err := assetService.UpdateAsset(oldName, newName, description); err != nil {
+								return err
+							}
+							fmt.Printf("Updated asset: %s -> %s\n", oldName, newName)
+							return nil
+						},
+						Flags: []cli.Flag{
+							&cli.StringFlag{
+								Name:     "name",
+								Usage:    "Current asset name",
+								Required: true,
+							},
+							&cli.StringFlag{
+								Name:     "new-name",
+								Usage:    "New asset name",
+								Required: true,
+							},
+							&cli.StringFlag{
+								Name:     "description",
+								Usage:    "New asset description",
+								Required: true,
+							},
+						},
+					},
+					{
 						Name:  "contribution-type",
 						Usage: "Manage contribution types",
 						Subcommands: []*cli.Command{

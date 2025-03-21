@@ -1,0 +1,13 @@
+feat(assets): add update command for assets
+
+This commit adds a new command to update asset properties:
+- Add 'update' command under assets to modify asset name and description
+- Implement proper validation for required flags (name and new-name)
+- Add comprehensive tests for the update functionality
+- Ensure backward compatibility with existing assets
+- Add clear success messages for user feedback
+
+The update command allows users to:
+1. Update only the description while keeping the same name
+2. Update both name and description
+3. Maintain data integrity with proper validation
