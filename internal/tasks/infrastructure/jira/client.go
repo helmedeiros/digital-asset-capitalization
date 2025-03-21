@@ -4,7 +4,9 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
+	"net/url"
 	"strings"
 	"time"
 
@@ -23,24 +25,30 @@ type HTTPClient interface {
 	Do(req *http.Request) (*http.Response, error)
 }
 
+// ClientFactory is a function type for creating new Jira clients
+type ClientFactory func(config *Config) (Client, error)
+
+// NewClient is the default implementation of ClientFactory
+var NewClient ClientFactory = newClient
+
 // client implements the Client interface
 type client struct {
 	httpClient HTTPClient
-	baseURL    string
-	email      string
-	token      string
+	config     *Config
 }
 
 // NewClient creates a new Jira client instance
-func NewClient(baseURL, email, token string) Client {
+func newClient(config *Config) (Client, error) {
+	if err := config.Validate(); err != nil {
+		return nil, err
+	}
+
 	return &client{
 		httpClient: &http.Client{
 			Timeout: 30 * time.Second,
 		},
-		baseURL: baseURL,
-		email:   email,
-		token:   token,
-	}
+		config: config,
+	}, nil
 }
 
 // mapJiraStatus converts a Jira status to our domain TaskStatus
@@ -59,6 +67,25 @@ func mapJiraStatus(status string) domain.TaskStatus {
 	}
 }
 
+// parseTime attempts to parse a time string in various Jira formats
+func parseTime(timeStr string) (time.Time, error) {
+	formats := []string{
+		"2006-01-02T15:04:05.000-0700",
+		time.RFC3339,
+	}
+
+	var lastErr error
+	for _, format := range formats {
+		t, err := time.Parse(format, timeStr)
+		if err == nil {
+			return t, nil
+		}
+		lastErr = err
+	}
+
+	return time.Time{}, fmt.Errorf("failed to parse time %q: %w", timeStr, lastErr)
+}
+
 // FetchTasks retrieves tasks from Jira for a given project and sprint
 func (c *client) FetchTasks(ctx context.Context, project, sprint string) ([]*domain.Task, error) {
 	if project == "" {
@@ -66,13 +93,16 @@ func (c *client) FetchTasks(ctx context.Context, project, sprint string) ([]*dom
 	}
 
 	// Build JQL query
-	jql := fmt.Sprintf("project = %q", project)
+	jql := fmt.Sprintf("project = \"%s\"", project)
 	if sprint != "" {
-		jql += fmt.Sprintf(" AND sprint = %q", sprint)
+		jql += fmt.Sprintf(" AND sprint = \"%s\"", sprint)
 	}
+	jql += " ORDER BY resolved ASC, created DESC"
 
-	// Build request URL
-	url := fmt.Sprintf("%s/rest/api/2/search", c.baseURL)
+	// Build request URL with fields and expand parameters
+	url := fmt.Sprintf("%s/rest/api/3/search?jql=%s&fields=*all&expand=changelog",
+		c.config.GetBaseURL(),
+		url.QueryEscape(jql))
 
 	// Create request
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
@@ -81,14 +111,8 @@ func (c *client) FetchTasks(ctx context.Context, project, sprint string) ([]*dom
 	}
 
 	// Add authentication headers
-	req.SetBasicAuth(c.email, c.token)
+	req.Header.Set("Authorization", c.config.GetAuthHeader())
 	req.Header.Set("Accept", "application/json")
-
-	// Add query parameters
-	q := req.URL.Query()
-	q.Add("jql", jql)
-	q.Add("fields", "summary,status,project,sprint,created,updated,description")
-	req.URL.RawQuery = q.Encode()
 
 	// Execute request
 	resp, err := c.httpClient.Do(req)
@@ -99,11 +123,12 @@ func (c *client) FetchTasks(ctx context.Context, project, sprint string) ([]*dom
 
 	// Check response status
 	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("unexpected status code: %d", resp.StatusCode)
+		body, _ := io.ReadAll(resp.Body)
+		return nil, fmt.Errorf("unexpected status code: %d, body: %s", resp.StatusCode, string(body))
 	}
 
 	// Parse response
-	var searchResp model.SearchResponse
+	var searchResp model.SearchResult
 	if err := json.NewDecoder(resp.Body).Decode(&searchResp); err != nil {
 		return nil, fmt.Errorf("failed to decode response: %w", err)
 	}
@@ -111,28 +136,75 @@ func (c *client) FetchTasks(ctx context.Context, project, sprint string) ([]*dom
 	// Convert to domain tasks
 	tasks := make([]*domain.Task, 0, len(searchResp.Issues))
 	for _, issue := range searchResp.Issues {
-		created, err := time.Parse(time.RFC3339, issue.Fields.Created)
-		if err != nil {
-			return nil, fmt.Errorf("failed to parse created time: %w", err)
+		// Handle empty timestamps
+		created := time.Now()
+		updated := time.Now()
+
+		if issue.Fields.Created != "" {
+			var err error
+			created, err = parseTime(issue.Fields.Created)
+			if err != nil {
+				return nil, fmt.Errorf("failed to parse created time: %w", err)
+			}
 		}
 
-		updated, err := time.Parse(time.RFC3339, issue.Fields.Updated)
-		if err != nil {
-			return nil, fmt.Errorf("failed to parse updated time: %w", err)
+		if issue.Fields.Updated != "" {
+			var err error
+			updated, err = parseTime(issue.Fields.Updated)
+			if err != nil {
+				return nil, fmt.Errorf("failed to parse updated time: %w", err)
+			}
+		}
+
+		// Handle empty sprint
+		sprintName := ""
+		if len(issue.Fields.Sprint) > 0 {
+			var sprintNames []string
+			for _, sprint := range issue.Fields.Sprint {
+				if sprint.Name != "" {
+					sprintNames = append(sprintNames, sprint.Name)
+				}
+			}
+			if len(sprintNames) > 0 {
+				sprintName = strings.Join(sprintNames, ", ")
+			}
+		}
+
+		// Use the project key from the issue key if not available in fields
+		projectKey := issue.Fields.Project.Key
+		if projectKey == "" {
+			parts := strings.Split(issue.Key, "-")
+			if len(parts) > 0 {
+				projectKey = parts[0]
+			}
 		}
 
 		task, err := domain.NewTask(
 			issue.Key,
 			issue.Fields.Summary,
-			issue.Fields.Project.Key,
-			issue.Fields.Sprint.Name,
+			projectKey,
+			sprintName,
 			"JIRA",
 		)
 		if err != nil {
 			return nil, fmt.Errorf("failed to create task: %w", err)
 		}
 
-		task.UpdateDescription(issue.Fields.Description)
+		// Extract description text
+		var description string
+		if len(issue.Fields.Description.Content) > 0 {
+			for _, content := range issue.Fields.Description.Content {
+				if content.Type == "paragraph" {
+					for _, text := range content.Content {
+						if text.Type == "text" {
+							description += text.Text
+						}
+					}
+				}
+			}
+		}
+		task.UpdateDescription(strings.TrimSpace(description))
+
 		if err := task.UpdateStatus(mapJiraStatus(issue.Fields.Status.Name)); err != nil {
 			return nil, fmt.Errorf("failed to update task status: %w", err)
 		}
@@ -141,6 +213,105 @@ func (c *client) FetchTasks(ctx context.Context, project, sprint string) ([]*dom
 		task.CreatedAt = created
 		task.UpdatedAt = updated
 
+		tasks = append(tasks, task)
+	}
+
+	return tasks, nil
+}
+
+type JiraClient struct {
+	client  *http.Client
+	baseURL string
+	auth    string
+}
+
+type Field struct {
+	ID     string `json:"id"`
+	Name   string `json:"name"`
+	Schema struct {
+		Type   string `json:"type"`
+		Custom string `json:"custom"`
+	} `json:"schema"`
+}
+
+func (c *JiraClient) getSprintFieldID() (string, error) {
+	url := fmt.Sprintf("%s/rest/api/2/field", c.baseURL)
+	req, err := http.NewRequest("GET", url, nil)
+	if err != nil {
+		return "", fmt.Errorf("error creating request: %v", err)
+	}
+
+	req.Header.Set("Authorization", c.auth)
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := c.client.Do(req)
+	if err != nil {
+		return "", fmt.Errorf("error making request: %v", err)
+	}
+	defer resp.Body.Close()
+
+	var fields []Field
+	if err := json.NewDecoder(resp.Body).Decode(&fields); err != nil {
+		return "", fmt.Errorf("error decoding response: %v", err)
+	}
+
+	for _, field := range fields {
+		if field.Schema.Custom == "com.pyxis.greenhopper.jira:gh-sprint" {
+			return field.ID, nil
+		}
+	}
+
+	return "", fmt.Errorf("sprint field not found")
+}
+
+func (c *JiraClient) GetTasks(project string, sprint string) ([]model.Task, error) {
+	jql := fmt.Sprintf("project = %s", project)
+	if sprint != "" {
+		jql = fmt.Sprintf("%s AND sprint in ('%s')", jql, sprint)
+	}
+
+	url := fmt.Sprintf("%s/rest/api/3/search?jql=%s&fields=*all", c.baseURL, url.QueryEscape(jql))
+	req, err := http.NewRequest("GET", url, nil)
+	if err != nil {
+		return nil, fmt.Errorf("error creating request: %v", err)
+	}
+
+	req.Header.Set("Authorization", c.auth)
+	req.Header.Set("Accept", "application/json")
+
+	resp, err := c.client.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("error making request: %v", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(resp.Body)
+		return nil, fmt.Errorf("error response from Jira: %s - %s", resp.Status, string(body))
+	}
+
+	var result model.SearchResult
+	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+		return nil, fmt.Errorf("error decoding response: %v", err)
+	}
+
+	var tasks []model.Task
+	for _, issue := range result.Issues {
+		task := model.Task{
+			Key:     issue.Key,
+			Summary: issue.Fields.Summary,
+			Status:  issue.Fields.Status.Name,
+		}
+		if issue.Fields.Assignee.DisplayName != "" {
+			task.Assignee = issue.Fields.Assignee.DisplayName
+		}
+		if len(issue.Fields.Sprint) > 0 {
+			var sprintNames []string
+			for _, sprint := range issue.Fields.Sprint {
+				sprintNames = append(sprintNames, fmt.Sprintf("%s (%s)", sprint.Name, sprint.State))
+			}
+			task.Sprint = sprintNames
+		}
 		tasks = append(tasks, task)
 	}
 

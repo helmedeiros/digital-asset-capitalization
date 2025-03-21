@@ -1,5 +1,7 @@
 package domain
 
+import "context"
+
 // TaskRepository defines the interface for task storage operations
 type TaskRepository interface {
 	// Save saves or updates a task
@@ -28,4 +30,7 @@ type TaskRepository interface {
 
 	// DeleteByProjectAndSprint deletes all tasks for a given project and sprint
 	DeleteByProjectAndSprint(project, sprint string) error
+
+	// FetchTasks retrieves tasks from the repository
+	FetchTasks(ctx context.Context, project, sprint string) ([]*Task, error)
 }

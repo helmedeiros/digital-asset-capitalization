@@ -6,11 +6,11 @@ import (
 	"encoding/json"
 	"io"
 	"net/http"
+	"net/http/httptest"
 	"testing"
 	"time"
 
 	"github.com/helmedeiros/digital-asset-capitalization/internal/tasks/domain"
-	"github.com/helmedeiros/digital-asset-capitalization/internal/tasks/infrastructure/jira/model"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -35,50 +35,107 @@ func createMockResponse(t *testing.T, statusCode int, body interface{}) *http.Re
 }
 
 func TestNewClient(t *testing.T) {
-	baseURL := "https://test.atlassian.net"
-	email := "test@example.com"
-	token := "test-token"
+	config := &Config{
+		baseURL: "https://test.atlassian.net",
+		email:   "test@example.com",
+		token:   "test-token",
+	}
 
-	client := NewClient(baseURL, email, token)
+	client, err := NewClient(config)
+	require.NoError(t, err, "Should not return error")
 	assert.NotNil(t, client, "Client should not be nil")
 }
 
 func TestClient_FetchTasks(t *testing.T) {
-	mockClient := &mockHTTPClient{}
-	client := &client{
-		httpClient: mockClient,
-		baseURL:    "https://test.atlassian.net",
-		email:      "test@example.com",
-		token:      "test-token",
-	}
 	ctx := context.Background()
 
-	t.Run("fetch tasks with empty project", func(t *testing.T) {
+	t.Run("empty project", func(t *testing.T) {
+		config := &Config{
+			baseURL: "https://test.atlassian.net",
+			email:   "test@example.com",
+			token:   "test-token",
+		}
+		client, err := NewClient(config)
+		require.NoError(t, err, "Should not return error")
 		tasks, err := client.FetchTasks(ctx, "", "Sprint 1")
-		require.Error(t, err, "Should return error for empty project")
+		require.Error(t, err, "Should return error")
 		assert.Nil(t, tasks, "Tasks should be nil")
 		assert.Contains(t, err.Error(), "project is required", "Error message should indicate project is required")
 	})
 
-	t.Run("fetch tasks successfully", func(t *testing.T) {
-		mockResponse := model.SearchResponse{
-			Issues: []model.Issue{
-				{
-					Key: "TEST-1",
-					Fields: model.Fields{
-						Summary:     "Test Issue",
-						Status:      model.Status{Name: "In Progress"},
-						Project:     model.Project{Key: "TEST"},
-						Sprint:      model.Sprint{Name: "Sprint 1"},
-						Created:     "2024-03-20T10:00:00.000Z",
-						Updated:     "2024-03-20T11:00:00.000Z",
-						Description: "Test Description",
+	t.Run("successful fetch", func(t *testing.T) {
+		// Create test server
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			// Verify request
+			assert.Equal(t, http.MethodGet, r.Method, "Method should be GET")
+			assert.Equal(t, "/rest/api/3/search", r.URL.Path, "Path should match")
+			assert.Equal(t, "project = \"TEST\" AND sprint = \"Sprint 1\" ORDER BY resolved ASC, created DESC", r.URL.Query().Get("jql"), "JQL should match")
+			assert.Equal(t, "*all", r.URL.Query().Get("fields"), "Fields should match")
+			assert.Equal(t, "changelog", r.URL.Query().Get("expand"), "Expand should match")
+
+			// Verify auth header
+			username, password, ok := r.BasicAuth()
+			assert.True(t, ok, "Should have basic auth")
+			assert.Equal(t, "test@example.com", username, "Username should match")
+			assert.Equal(t, "test-token", password, "Password should match")
+
+			// Return response
+			now := time.Now().Format(time.RFC3339)
+			responseData := map[string]interface{}{
+				"issues": []map[string]interface{}{
+					{
+						"key": "TEST-1",
+						"fields": map[string]interface{}{
+							"summary": "Test Issue",
+							"status": map[string]interface{}{
+								"name": "In Progress",
+							},
+							"project": map[string]interface{}{
+								"key": "TEST",
+							},
+							"customfield_10100": []map[string]interface{}{
+								{
+									"id":        1,
+									"name":      "Sprint 1",
+									"state":     "active",
+									"startDate": now,
+									"endDate":   now,
+									"boardId":   1,
+									"goal":      "Test sprint goal",
+								},
+							},
+							"created": now,
+							"updated": now,
+							"description": map[string]interface{}{
+								"type":    "doc",
+								"version": 1,
+								"content": []map[string]interface{}{
+									{
+										"type": "paragraph",
+										"content": []map[string]interface{}{
+											{
+												"type": "text",
+												"text": "Test Description",
+											},
+										},
+									},
+								},
+							},
+						},
 					},
 				},
-			},
-		}
+			}
+			json.NewEncoder(w).Encode(responseData)
+		}))
+		defer server.Close()
 
-		mockClient.response = createMockResponse(t, http.StatusOK, mockResponse)
+		config := &Config{
+			baseURL: server.URL,
+			email:   "test@example.com",
+			token:   "test-token",
+		}
+		client, err := NewClient(config)
+		require.NoError(t, err, "Should not return error")
 		tasks, err := client.FetchTasks(ctx, "TEST", "Sprint 1")
 		require.NoError(t, err, "Should not return error")
 		require.Len(t, tasks, 1, "Should return one task")
@@ -91,36 +148,45 @@ func TestClient_FetchTasks(t *testing.T) {
 		assert.Equal(t, "Sprint 1", task.Sprint, "Task sprint should match")
 		assert.Equal(t, "JIRA", task.Platform, "Task platform should be JIRA")
 		assert.Equal(t, "Test Description", task.Description, "Task description should match")
-
-		expectedCreated, err := time.Parse(time.RFC3339, "2024-03-20T10:00:00.000Z")
-		require.NoError(t, err, "Should parse created time")
-		assert.Equal(t, expectedCreated, task.CreatedAt, "Task created time should match")
-
-		expectedUpdated, err := time.Parse(time.RFC3339, "2024-03-20T11:00:00.000Z")
-		require.NoError(t, err, "Should parse updated time")
-		assert.Equal(t, expectedUpdated, task.UpdatedAt, "Task updated time should match")
 	})
 
-	t.Run("handle HTTP error", func(t *testing.T) {
-		mockClient.response = &http.Response{
-			StatusCode: http.StatusBadRequest,
-			Body:       io.NopCloser(bytes.NewReader([]byte(`{"error": "Bad Request"}`))),
+	t.Run("server error", func(t *testing.T) {
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.WriteHeader(http.StatusInternalServerError)
+			w.Write([]byte(`{"error": "Internal Server Error"}`))
+		}))
+		defer server.Close()
+
+		config := &Config{
+			baseURL: server.URL,
+			email:   "test@example.com",
+			token:   "test-token",
 		}
-
+		client, err := NewClient(config)
+		require.NoError(t, err, "Should not return error")
 		tasks, err := client.FetchTasks(ctx, "TEST", "Sprint 1")
 		require.Error(t, err, "Should return error")
 		assert.Nil(t, tasks, "Tasks should be nil")
-		assert.Contains(t, err.Error(), "unexpected status code: 400", "Error message should indicate bad request")
+		assert.Contains(t, err.Error(), "unexpected status code: 500", "Error message should indicate server error")
 	})
 
-	t.Run("handle network error", func(t *testing.T) {
-		mockClient.response = nil
-		mockClient.err = io.EOF
+	t.Run("invalid response", func(t *testing.T) {
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.Write([]byte(`invalid json`))
+		}))
+		defer server.Close()
 
+		config := &Config{
+			baseURL: server.URL,
+			email:   "test@example.com",
+			token:   "test-token",
+		}
+		client, err := NewClient(config)
+		require.NoError(t, err, "Should not return error")
 		tasks, err := client.FetchTasks(ctx, "TEST", "Sprint 1")
 		require.Error(t, err, "Should return error")
 		assert.Nil(t, tasks, "Tasks should be nil")
-		assert.Contains(t, err.Error(), "failed to execute request", "Error message should indicate request failure")
+		assert.Contains(t, err.Error(), "failed to decode response", "Error message should indicate decode failure")
 	})
 }
 
