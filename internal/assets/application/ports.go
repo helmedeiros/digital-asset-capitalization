@@ -32,4 +32,6 @@ type AssetService interface {
 	IncrementTaskCount(assetName string) error
 	// DecrementTaskCount decrements the task count for an asset
 	DecrementTaskCount(assetName string) error
+	// UpdateAsset updates an asset's name and description
+	UpdateAsset(oldName, newName, description string) error
 }

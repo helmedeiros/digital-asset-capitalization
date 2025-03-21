@@ -106,3 +106,32 @@ func (s *assetService) DecrementTaskCount(assetName string) error {
 	asset.DecrementTaskCount()
 	return s.repo.Save(asset)
 }
+
+// UpdateAsset updates an asset's name and description
+func (s *assetService) UpdateAsset(oldName, newName, description string) error {
+	// Find the asset
+	asset, err := s.repo.FindByName(oldName)
+	if err != nil {
+		return fmt.Errorf("asset not found")
+	}
+
+	// Update the asset
+	if err := asset.UpdateDescription(description); err != nil {
+		return err
+	}
+
+	// If the name is changing, delete the old one and save with new name
+	if oldName != newName {
+		if err := s.repo.Delete(oldName); err != nil {
+			return fmt.Errorf("failed to update asset name: %w", err)
+		}
+		asset.Name = newName
+	}
+
+	// Save the updated asset
+	if err := s.repo.Save(asset); err != nil {
+		return fmt.Errorf("failed to save updated asset: %w", err)
+	}
+
+	return nil
+}
