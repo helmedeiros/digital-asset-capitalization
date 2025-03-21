@@ -9,9 +9,9 @@ import (
 	"github.com/urfave/cli/v2"
 )
 
-func main() {
-	assetManager := action.NewAssetManager()
+var assetManager = action.NewAssetManager()
 
+func Run() error {
 	app := &cli.App{
 		Name:  "AssetCap TimeAllocation calculator",
 		Usage: "Process JIRA issues for a specific project and sprint",
@@ -186,8 +186,11 @@ func main() {
 		},
 	}
 
-	err := app.Run(os.Args)
-	if err != nil {
+	return app.Run(os.Args)
+}
+
+func main() {
+	if err := Run(); err != nil {
 		log.Fatal(err)
 	}
 }
