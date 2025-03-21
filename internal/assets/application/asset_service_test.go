@@ -5,6 +5,8 @@ import (
 	"testing"
 
 	"github.com/helmedeiros/digital-asset-capitalization/internal/assets/domain"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 // MockRepository is a mock implementation of AssetRepository
@@ -84,23 +86,16 @@ func TestCreateAsset(t *testing.T) {
 			service := NewAssetService(mockRepo)
 
 			err := service.CreateAsset(tt.assetName, tt.description)
+
 			if tt.expectedError != nil {
-				if err == nil {
-					t.Errorf("expected error %v, got nil", tt.expectedError)
-				} else if err.Error() != tt.expectedError.Error() {
-					t.Errorf("expected error %v, got %v", tt.expectedError, err)
-				}
+				require.Error(t, err)
+				assert.Equal(t, tt.expectedError.Error(), err.Error())
 				return
 			}
-			if err != nil {
-				t.Errorf("unexpected error: %v", err)
-			}
-			if !mockRepo.findCalled {
-				t.Error("FindByName was not called")
-			}
-			if tt.expectedError == nil && !mockRepo.saveCalled {
-				t.Error("Save was not called")
-			}
+
+			require.NoError(t, err)
+			assert.True(t, mockRepo.findCalled, "FindByName was not called")
+			assert.True(t, mockRepo.saveCalled, "Save was not called")
 		})
 	}
 }
@@ -151,30 +146,20 @@ func TestListAssets(t *testing.T) {
 			service := NewAssetService(mockRepo)
 
 			assets, err := service.ListAssets()
+
 			if tt.expectedError != nil {
-				if err == nil {
-					t.Errorf("expected error %v, got nil", tt.expectedError)
-				} else if err.Error() != tt.expectedError.Error() {
-					t.Errorf("expected error %v, got %v", tt.expectedError, err)
-				}
+				require.Error(t, err)
+				assert.Equal(t, tt.expectedError.Error(), err.Error())
 				return
 			}
-			if err != nil {
-				t.Errorf("unexpected error: %v", err)
-			}
-			if !mockRepo.findAllCalled {
-				t.Error("FindAll was not called")
-			}
-			if len(assets) != len(tt.expectedAssets) {
-				t.Errorf("expected %d assets, got %d", len(tt.expectedAssets), len(assets))
-			}
+
+			require.NoError(t, err)
+			assert.True(t, mockRepo.findAllCalled, "FindAll was not called")
+			assert.Len(t, assets, len(tt.expectedAssets), "unexpected number of assets")
+
 			for i, asset := range assets {
-				if asset.Name != tt.expectedAssets[i].Name {
-					t.Errorf("expected asset name %s, got %s", tt.expectedAssets[i].Name, asset.Name)
-				}
-				if asset.Description != tt.expectedAssets[i].Description {
-					t.Errorf("expected asset description %s, got %s", tt.expectedAssets[i].Description, asset.Description)
-				}
+				assert.Equal(t, tt.expectedAssets[i].Name, asset.Name, "unexpected asset name")
+				assert.Equal(t, tt.expectedAssets[i].Description, asset.Description, "unexpected asset description")
 			}
 		})
 	}
@@ -215,23 +200,16 @@ func TestUpdateDocumentation(t *testing.T) {
 			service := NewAssetService(mockRepo)
 
 			err := service.UpdateDocumentation(tt.assetName)
+
 			if tt.expectedError != nil {
-				if err == nil {
-					t.Errorf("expected error %v, got nil", tt.expectedError)
-				} else if err.Error() != tt.expectedError.Error() {
-					t.Errorf("expected error %v, got %v", tt.expectedError, err)
-				}
+				require.Error(t, err)
+				assert.Equal(t, tt.expectedError.Error(), err.Error())
 				return
 			}
-			if err != nil {
-				t.Errorf("unexpected error: %v", err)
-			}
-			if !mockRepo.findCalled {
-				t.Error("FindByName was not called")
-			}
-			if tt.expectedError == nil && !mockRepo.saveCalled {
-				t.Error("Save was not called")
-			}
+
+			require.NoError(t, err)
+			assert.True(t, mockRepo.findCalled, "FindByName was not called")
+			assert.True(t, mockRepo.saveCalled, "Save was not called")
 		})
 	}
 }
@@ -311,23 +289,16 @@ func TestTaskCountOperations(t *testing.T) {
 			tt.setupMock(mockRepo)
 
 			err := tt.operation(mockRepo, tt.assetName)
+
 			if tt.expectedError != nil {
-				if err == nil {
-					t.Errorf("expected error %v, got nil", tt.expectedError)
-				} else if err.Error() != tt.expectedError.Error() {
-					t.Errorf("expected error %v, got %v", tt.expectedError, err)
-				}
+				require.Error(t, err)
+				assert.Equal(t, tt.expectedError.Error(), err.Error())
 				return
 			}
-			if err != nil {
-				t.Errorf("unexpected error: %v", err)
-			}
-			if !mockRepo.findCalled {
-				t.Error("FindByName was not called")
-			}
-			if tt.expectedError == nil && !mockRepo.saveCalled {
-				t.Error("Save was not called")
-			}
+
+			require.NoError(t, err)
+			assert.True(t, mockRepo.findCalled, "FindByName was not called")
+			assert.True(t, mockRepo.saveCalled, "Save was not called")
 		})
 	}
 }

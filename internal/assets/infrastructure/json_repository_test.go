@@ -6,6 +6,8 @@ import (
 	"testing"
 
 	"github.com/helmedeiros/digital-asset-capitalization/internal/assets/domain"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 // testDir is a temporary directory for test files
@@ -27,9 +29,8 @@ func setupTest(t *testing.T) *testHelper {
 	_ = os.RemoveAll(dir)
 
 	// Create test directory
-	if err := os.MkdirAll(dir, 0755); err != nil {
-		t.Fatalf("Failed to create test directory: %v", err)
-	}
+	err := os.MkdirAll(dir, 0755)
+	require.NoError(t, err, "Failed to create test directory")
 
 	repo := NewJSONRepository(dir, testFile).(*JSONRepository)
 
@@ -41,9 +42,8 @@ func setupTest(t *testing.T) *testHelper {
 
 func (h *testHelper) cleanup(t *testing.T) {
 	t.Helper()
-	if err := os.RemoveAll(h.dir); err != nil {
-		t.Errorf("Failed to cleanup test directory: %v", err)
-	}
+	err := os.RemoveAll(h.dir)
+	assert.NoError(t, err, "Failed to cleanup test directory")
 }
 
 func (h *testHelper) createTestAsset(name, description string) *domain.Asset {
@@ -62,48 +62,32 @@ func TestJSONRepository_Save(t *testing.T) {
 		// Create and save a test asset
 		asset := h.createTestAsset("test-asset", "Test Description")
 		err := h.repo.Save(asset)
-		if err != nil {
-			t.Fatalf("Failed to save asset: %v", err)
-		}
+		require.NoError(t, err, "Failed to save asset")
 
 		// Verify the asset was saved
 		saved, err := h.repo.FindByName("test-asset")
-		if err != nil {
-			t.Fatalf("Failed to find saved asset: %v", err)
-		}
+		require.NoError(t, err, "Failed to find saved asset")
 
-		if saved.Name != asset.Name {
-			t.Errorf("Expected asset name %s, got %s", asset.Name, saved.Name)
-		}
-		if saved.Description != asset.Description {
-			t.Errorf("Expected asset description %s, got %s", asset.Description, saved.Description)
-		}
+		assert.Equal(t, asset.Name, saved.Name, "Asset name mismatch")
+		assert.Equal(t, asset.Description, saved.Description, "Asset description mismatch")
 	})
 
 	t.Run("should update existing asset", func(t *testing.T) {
 		// Create and save initial asset
 		asset := h.createTestAsset("test-asset", "Initial Description")
 		err := h.repo.Save(asset)
-		if err != nil {
-			t.Fatalf("Failed to save initial asset: %v", err)
-		}
+		require.NoError(t, err, "Failed to save initial asset")
 
 		// Update the asset
 		asset.Description = "Updated Description"
 		err = h.repo.Save(asset)
-		if err != nil {
-			t.Fatalf("Failed to update asset: %v", err)
-		}
+		require.NoError(t, err, "Failed to update asset")
 
 		// Verify the update
 		updated, err := h.repo.FindByName("test-asset")
-		if err != nil {
-			t.Fatalf("Failed to find updated asset: %v", err)
-		}
+		require.NoError(t, err, "Failed to find updated asset")
 
-		if updated.Description != "Updated Description" {
-			t.Errorf("Expected updated description %s, got %s", "Updated Description", updated.Description)
-		}
+		assert.Equal(t, "Updated Description", updated.Description, "Asset description not updated")
 	})
 }
 
@@ -115,26 +99,21 @@ func TestJSONRepository_FindByName(t *testing.T) {
 		// Create and save a test asset
 		asset := h.createTestAsset("test-asset", "Test Description")
 		err := h.repo.Save(asset)
-		if err != nil {
-			t.Fatalf("Failed to save asset: %v", err)
-		}
+		require.NoError(t, err, "Failed to save asset")
 
 		// Find the asset
 		found, err := h.repo.FindByName("test-asset")
-		if err != nil {
-			t.Fatalf("Failed to find asset: %v", err)
-		}
+		require.NoError(t, err, "Failed to find asset")
 
-		if found.Name != asset.Name {
-			t.Errorf("Expected asset name %s, got %s", asset.Name, found.Name)
-		}
+		assert.Equal(t, asset.Name, found.Name, "Asset name mismatch")
+		assert.Equal(t, asset.Description, found.Description, "Asset description mismatch")
 	})
 
 	t.Run("should return error for non-existent asset", func(t *testing.T) {
-		_, err := h.repo.FindByName("non-existent")
-		if err == nil {
-			t.Error("Expected error for non-existent asset, got nil")
-		}
+		found, err := h.repo.FindByName("non-existent")
+		assert.Error(t, err, "Expected error for non-existent asset")
+		assert.Nil(t, found, "Expected nil asset for non-existent name")
+		assert.Contains(t, err.Error(), "asset non-existent not found", "Unexpected error message")
 	})
 }
 
@@ -144,13 +123,8 @@ func TestJSONRepository_FindAll(t *testing.T) {
 
 	t.Run("should return empty list when no assets exist", func(t *testing.T) {
 		assets, err := h.repo.FindAll()
-		if err != nil {
-			t.Fatalf("Failed to find assets: %v", err)
-		}
-
-		if len(assets) != 0 {
-			t.Errorf("Expected empty asset list, got %d assets", len(assets))
-		}
+		require.NoError(t, err, "Failed to find assets")
+		assert.Empty(t, assets, "Expected empty asset list")
 	})
 
 	t.Run("should return all saved assets", func(t *testing.T) {
@@ -159,24 +133,24 @@ func TestJSONRepository_FindAll(t *testing.T) {
 		asset2 := h.createTestAsset("asset2", "Description 2")
 
 		err := h.repo.Save(asset1)
-		if err != nil {
-			t.Fatalf("Failed to save asset1: %v", err)
-		}
+		require.NoError(t, err, "Failed to save asset1")
 
 		err = h.repo.Save(asset2)
-		if err != nil {
-			t.Fatalf("Failed to save asset2: %v", err)
-		}
+		require.NoError(t, err, "Failed to save asset2")
 
 		// Find all assets
 		assets, err := h.repo.FindAll()
-		if err != nil {
-			t.Fatalf("Failed to find all assets: %v", err)
+		require.NoError(t, err, "Failed to find all assets")
+		assert.Len(t, assets, 2, "Expected 2 assets")
+
+		// Verify asset details
+		foundAssets := make(map[string]*domain.Asset)
+		for _, asset := range assets {
+			foundAssets[asset.Name] = asset
 		}
 
-		if len(assets) != 2 {
-			t.Errorf("Expected 2 assets, got %d", len(assets))
-		}
+		assert.Equal(t, asset1.Description, foundAssets["asset1"].Description, "Asset1 description mismatch")
+		assert.Equal(t, asset2.Description, foundAssets["asset2"].Description, "Asset2 description mismatch")
 	})
 }
 
@@ -188,28 +162,23 @@ func TestJSONRepository_Delete(t *testing.T) {
 		// Create and save a test asset
 		asset := h.createTestAsset("test-asset", "Test Description")
 		err := h.repo.Save(asset)
-		if err != nil {
-			t.Fatalf("Failed to save asset: %v", err)
-		}
+		require.NoError(t, err, "Failed to save asset")
 
 		// Delete the asset
 		err = h.repo.Delete("test-asset")
-		if err != nil {
-			t.Fatalf("Failed to delete asset: %v", err)
-		}
+		require.NoError(t, err, "Failed to delete asset")
 
 		// Verify the asset was deleted
-		_, err = h.repo.FindByName("test-asset")
-		if err == nil {
-			t.Error("Expected error finding deleted asset, got nil")
-		}
+		found, err := h.repo.FindByName("test-asset")
+		assert.Error(t, err, "Expected error finding deleted asset")
+		assert.Nil(t, found, "Expected nil asset after deletion")
+		assert.Contains(t, err.Error(), "asset test-asset not found", "Unexpected error message")
 	})
 
 	t.Run("should return error when deleting non-existent asset", func(t *testing.T) {
 		err := h.repo.Delete("non-existent")
-		if err == nil {
-			t.Error("Expected error deleting non-existent asset, got nil")
-		}
+		assert.Error(t, err, "Expected error deleting non-existent asset")
+		assert.Contains(t, err.Error(), "asset non-existent not found", "Unexpected error message")
 	})
 }
 
@@ -221,15 +190,12 @@ func TestJSONRepository_FileOperations(t *testing.T) {
 		// Write invalid JSON to file
 		filePath := filepath.Join(h.dir, testFile)
 		err := os.WriteFile(filePath, []byte("invalid json"), 0644)
-		if err != nil {
-			t.Fatalf("Failed to write invalid JSON: %v", err)
-		}
+		require.NoError(t, err, "Failed to write invalid JSON")
 
 		// Try to load assets
 		_, err = h.repo.loadAssets()
-		if err == nil {
-			t.Error("Expected error loading invalid JSON, got nil")
-		}
+		assert.Error(t, err, "Expected error loading invalid JSON")
+		assert.Contains(t, err.Error(), "failed to unmarshal assets", "Unexpected error message")
 	})
 
 	t.Run("should create directory if it doesn't exist", func(t *testing.T) {
@@ -239,14 +205,11 @@ func TestJSONRepository_FileOperations(t *testing.T) {
 		// Try to save an asset (should create directory)
 		asset := h.createTestAsset("test-asset", "Test Description")
 		err := h.repo.Save(asset)
-		if err != nil {
-			t.Fatalf("Failed to save asset: %v", err)
-		}
+		require.NoError(t, err, "Failed to save asset")
 
 		// Verify directory was created
-		if _, err := os.Stat(h.dir); os.IsNotExist(err) {
-			t.Error("Expected directory to be created")
-		}
+		_, err = os.Stat(h.dir)
+		assert.False(t, os.IsNotExist(err), "Expected directory to be created")
 	})
 }
 
@@ -257,47 +220,41 @@ func TestJSONRepository_ErrorHandling(t *testing.T) {
 	t.Run("should handle file permission errors", func(t *testing.T) {
 		// Create a directory with no write permissions
 		noWriteDir := filepath.Join(h.dir, "no_write")
-		if err := os.MkdirAll(noWriteDir, 0444); err != nil {
-			t.Fatalf("Failed to create no-write directory: %v", err)
-		}
+		err := os.MkdirAll(noWriteDir, 0444)
+		require.NoError(t, err, "Failed to create no-write directory")
 
 		repo := NewJSONRepository(noWriteDir, testFile).(*JSONRepository)
 		asset := h.createTestAsset("test-asset", "Test Description")
 
 		// Try to save (should fail due to permissions)
-		err := repo.Save(asset)
-		if err == nil {
-			t.Error("Expected error saving to read-only directory")
-		}
+		err = repo.Save(asset)
+		assert.Error(t, err, "Expected error saving to read-only directory")
+		assert.Contains(t, err.Error(), "failed to load assets", "Unexpected error message")
 	})
 
 	t.Run("should handle marshal errors", func(t *testing.T) {
 		// Create a file with invalid JSON that will cause unmarshal errors
 		filePath := filepath.Join(h.dir, testFile)
 		invalidJSON := `{"name": "test", "created_at": "invalid-date"}`
-		if err := os.WriteFile(filePath, []byte(invalidJSON), 0644); err != nil {
-			t.Fatalf("Failed to write invalid JSON: %v", err)
-		}
+		err := os.WriteFile(filePath, []byte(invalidJSON), 0644)
+		require.NoError(t, err, "Failed to write invalid JSON")
 
 		// Try to load the assets (should fail due to invalid date format)
-		_, err := h.repo.FindAll()
-		if err == nil {
-			t.Error("Expected error loading invalid JSON")
-		}
+		_, err = h.repo.FindAll()
+		assert.Error(t, err, "Expected error loading invalid JSON")
+		assert.Contains(t, err.Error(), "failed to unmarshal assets", "Unexpected error message")
 	})
 
 	t.Run("should handle file read errors", func(t *testing.T) {
-		// Create a file that can't be read
+		// Create a file with invalid JSON
 		filePath := filepath.Join(h.dir, testFile)
-		if err := os.WriteFile(filePath, []byte("test"), 0000); err != nil {
-			t.Fatalf("Failed to create unreadable file: %v", err)
-		}
+		err := os.WriteFile(filePath, []byte("test"), 0644)
+		require.NoError(t, err, "Failed to create test file")
 
 		// Try to read the file
-		_, err := h.repo.FindAll()
-		if err == nil {
-			t.Error("Expected error reading unreadable file")
-		}
+		_, err = h.repo.FindAll()
+		assert.Error(t, err, "Expected error reading invalid file")
+		assert.Contains(t, err.Error(), "failed to unmarshal assets", "Unexpected error message")
 	})
 }
 
@@ -308,61 +265,52 @@ func TestJSONRepository_EdgeCases(t *testing.T) {
 	t.Run("should handle directory creation error", func(t *testing.T) {
 		// Create a file in a temporary location
 		tmpDir := filepath.Join(os.TempDir(), "json_repo_test")
-		if err := os.MkdirAll(tmpDir, 0755); err != nil {
-			t.Fatalf("Failed to create temp directory: %v", err)
-		}
+		err := os.MkdirAll(tmpDir, 0755)
+		require.NoError(t, err, "Failed to create temp directory")
 		defer os.RemoveAll(tmpDir)
 
 		// Create a file that will block directory creation
 		filePath := filepath.Join(tmpDir, "blocking_file")
-		if err := os.WriteFile(filePath, []byte("not a directory"), 0444); err != nil {
-			t.Fatalf("Failed to create blocking file: %v", err)
-		}
+		err = os.WriteFile(filePath, []byte("not a directory"), 0444)
+		require.NoError(t, err, "Failed to create blocking file")
 
 		// Try to use this location for the repository
 		repo := NewJSONRepository(filePath, testFile).(*JSONRepository)
 		asset := h.createTestAsset("test-asset", "Test Description")
 
 		// Try operations that require directory access
-		err := repo.Save(asset)
-		if err == nil {
-			t.Error("Expected error when directory can't be created")
-		}
+		err = repo.Save(asset)
+		assert.Error(t, err, "Expected error when directory can't be created")
+		assert.Contains(t, err.Error(), "failed to create directory", "Unexpected error message")
 
 		_, err = repo.FindByName("test-asset")
-		if err == nil {
-			t.Error("Expected error when directory can't be accessed")
-		}
+		assert.Error(t, err, "Expected error when directory can't be accessed")
+		assert.Contains(t, err.Error(), "failed to create directory", "Unexpected error message")
 
 		_, err = repo.FindAll()
-		if err == nil {
-			t.Error("Expected error when directory can't be accessed")
-		}
+		assert.Error(t, err, "Expected error when directory can't be accessed")
+		assert.Contains(t, err.Error(), "failed to create directory", "Unexpected error message")
 
 		err = repo.Delete("test-asset")
-		if err == nil {
-			t.Error("Expected error when directory can't be accessed")
-		}
+		assert.Error(t, err, "Expected error when directory can't be accessed")
+		assert.Contains(t, err.Error(), "failed to create directory", "Unexpected error message")
 	})
 
 	t.Run("should handle write errors", func(t *testing.T) {
 		// Create a read-only directory
 		readOnlyDir := filepath.Join(h.dir, "readonly")
-		if err := os.MkdirAll(readOnlyDir, 0444); err != nil {
-			t.Fatalf("Failed to create read-only directory: %v", err)
-		}
+		err := os.MkdirAll(readOnlyDir, 0444)
+		require.NoError(t, err, "Failed to create read-only directory")
 
 		repo := NewJSONRepository(readOnlyDir, testFile).(*JSONRepository)
 		asset := h.createTestAsset("test-asset", "Test Description")
 
-		err := repo.Save(asset)
-		if err == nil {
-			t.Error("Expected error when saving to read-only directory")
-		}
+		err = repo.Save(asset)
+		assert.Error(t, err, "Expected error when saving to read-only directory")
+		assert.Contains(t, err.Error(), "failed to load assets", "Unexpected error message")
 
 		err = repo.Delete("test-asset")
-		if err == nil {
-			t.Error("Expected error when deleting in read-only directory")
-		}
+		assert.Error(t, err, "Expected error when deleting in read-only directory")
+		assert.Contains(t, err.Error(), "failed to load assets", "Unexpected error message")
 	})
 }

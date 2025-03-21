@@ -2,10 +2,11 @@ package application
 
 import (
 	"fmt"
-	"strings"
 	"testing"
 
 	"github.com/helmedeiros/digital-asset-capitalization/internal/assets/domain"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestUpdateAsset(t *testing.T) {
@@ -57,30 +58,21 @@ func TestUpdateAsset(t *testing.T) {
 			service := NewAssetService(mockRepo)
 
 			err := service.UpdateAsset(tt.assetName, tt.description)
+
 			if tt.expectedError != "" {
-				if err == nil {
-					t.Errorf("expected error containing %q, got nil", tt.expectedError)
-				} else if !strings.Contains(err.Error(), tt.expectedError) {
-					t.Errorf("expected error containing %q, got %q", tt.expectedError, err.Error())
-				}
+				require.Error(t, err)
+				assert.Contains(t, err.Error(), tt.expectedError)
 				return
 			}
-			if err != nil {
-				t.Errorf("unexpected error: %v", err)
-			}
+
+			require.NoError(t, err)
 
 			// Verify the mock was called correctly
-			if !mockRepo.findCalled {
-				t.Error("FindByName was not called")
-			}
-			if mockRepo.findName != tt.assetName {
-				t.Errorf("FindByName called with %q, expected %q", mockRepo.findName, tt.assetName)
-			}
-			if !mockRepo.saveCalled {
-				t.Error("Save was not called")
-			}
-			if mockRepo.saveAsset != nil && mockRepo.saveAsset.Description != tt.description {
-				t.Errorf("Save called with description %q, expected %q", mockRepo.saveAsset.Description, tt.description)
+			assert.True(t, mockRepo.findCalled, "FindByName was not called")
+			assert.Equal(t, tt.assetName, mockRepo.findName, "FindByName called with wrong name")
+			assert.True(t, mockRepo.saveCalled, "Save was not called")
+			if mockRepo.saveAsset != nil {
+				assert.Equal(t, tt.description, mockRepo.saveAsset.Description, "Save called with wrong description")
 			}
 		})
 	}
