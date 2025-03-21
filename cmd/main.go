@@ -26,8 +26,25 @@ func init() {
 
 func Run() error {
 	app := &cli.App{
-		Name:  "AssetCap TimeAllocation calculator",
-		Usage: "Process JIRA issues for a specific project and sprint",
+		Name:  "AssetCap",
+		Usage: "Digital Asset Capitalization Management Tool",
+		UsageText: `assetcap [global options] command [command options] [arguments...]
+
+COMMANDS:
+   timeallocation-calc  Calculate time allocation for JIRA issues
+   assets              Manage digital assets
+     create           Create a new asset
+     list            List all assets
+     contribution-type  Manage contribution types
+       add           Add a contribution type to an asset
+     documentation   Manage asset documentation
+       update        Mark asset documentation as updated
+     tasks           Manage asset tasks
+       increment     Increment task count for an asset
+       decrement     Decrement task count for an asset
+
+For more information about a command:
+   assetcap [command] --help`,
 		Commands: []*cli.Command{
 			{
 				Name:  "timeallocation-calc",
