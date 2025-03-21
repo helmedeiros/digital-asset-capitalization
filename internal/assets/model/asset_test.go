@@ -23,6 +23,10 @@ func TestAsset(t *testing.T) {
 			t.Error("expected ID to be set")
 		}
 
+		if len(asset.ID) != 16 {
+			t.Errorf("expected ID to be 16 characters long, got %d", len(asset.ID))
+		}
+
 		if asset.CreatedAt.IsZero() {
 			t.Error("expected CreatedAt to be set")
 		}
@@ -41,6 +45,10 @@ func TestAsset(t *testing.T) {
 
 		if asset.AssociatedTaskCount != 0 {
 			t.Error("expected AssociatedTaskCount to be 0")
+		}
+
+		if asset.Version != 1 {
+			t.Errorf("expected Version to be 1, got %d", asset.Version)
 		}
 	})
 
@@ -68,6 +76,7 @@ func TestAsset(t *testing.T) {
 		asset := mother.CreateValidAsset()
 		createdAt := asset.CreatedAt
 		updatedAt := asset.UpdatedAt
+		version := asset.Version
 
 		// Wait a bit to ensure timestamps are different
 		time.Sleep(time.Millisecond)
@@ -84,11 +93,16 @@ func TestAsset(t *testing.T) {
 		if asset.UpdatedAt == updatedAt {
 			t.Error("UpdatedAt should change")
 		}
+
+		if asset.Version != version+1 {
+			t.Errorf("expected Version to be %d, got %d", version+1, asset.Version)
+		}
 	})
 
 	t.Run("should track last documentation update", func(t *testing.T) {
 		asset := mother.CreateValidAsset()
 		lastDocUpdateAt := asset.LastDocUpdateAt
+		version := asset.Version
 
 		// Wait a bit to ensure timestamps are different
 		time.Sleep(time.Millisecond)
@@ -98,26 +112,58 @@ func TestAsset(t *testing.T) {
 		if asset.LastDocUpdateAt == lastDocUpdateAt {
 			t.Error("LastDocUpdateAt should change")
 		}
-	})
 
-	t.Run("should track contribution types", func(t *testing.T) {
-		asset := mother.CreateAssetWithContributionTypes("development", "maintenance")
-
-		if len(asset.ContributionTypes) != 2 {
-			t.Errorf("expected 2 contribution types, got %d", len(asset.ContributionTypes))
-		}
-
-		if asset.ContributionTypes[0] != "development" {
-			t.Errorf("expected first type to be 'development', got %s", asset.ContributionTypes[0])
-		}
-
-		if asset.ContributionTypes[1] != "maintenance" {
-			t.Errorf("expected second type to be 'maintenance', got %s", asset.ContributionTypes[1])
+		if asset.Version != version+1 {
+			t.Errorf("expected Version to be %d, got %d", version+1, asset.Version)
 		}
 	})
 
-	t.Run("should track task count", func(t *testing.T) {
+	t.Run("should validate contribution types", func(t *testing.T) {
+		asset := mother.CreateValidAsset()
+
+		tests := []struct {
+			name             string
+			contributionType string
+			expectedError    error
+		}{
+			{
+				name:             "valid contribution type",
+				contributionType: "development",
+				expectedError:    nil,
+			},
+			{
+				name:             "empty contribution type",
+				contributionType: "",
+				expectedError:    ErrEmptyContributionType,
+			},
+			{
+				name:             "invalid contribution type",
+				contributionType: "invalid",
+				expectedError:    ErrInvalidContributionType,
+			},
+			{
+				name:             "duplicate contribution type",
+				contributionType: "development",
+				expectedError:    ErrDuplicateContributionType,
+			},
+		}
+
+		for _, tt := range tests {
+			t.Run(tt.name, func(t *testing.T) {
+				err := asset.AddContributionType(tt.contributionType)
+				if err != tt.expectedError {
+					t.Errorf("expected error to be %v, got %v", tt.expectedError, err)
+				}
+				if err == nil && len(asset.ContributionTypes) == 0 {
+					t.Error("expected contribution type to be added")
+				}
+			})
+		}
+	})
+
+	t.Run("should track task count and version", func(t *testing.T) {
 		asset := mother.CreateAssetWithTaskCount(3)
+		version := asset.Version
 
 		if asset.AssociatedTaskCount != 3 {
 			t.Errorf("expected task count to be 3, got %d", asset.AssociatedTaskCount)
@@ -127,6 +173,9 @@ func TestAsset(t *testing.T) {
 		if asset.AssociatedTaskCount != 2 {
 			t.Errorf("expected task count to be 2, got %d", asset.AssociatedTaskCount)
 		}
+		if asset.Version != version+1 {
+			t.Errorf("expected Version to be %d, got %d", version+1, asset.Version)
+		}
 
 		asset.DecrementTaskCount()
 		asset.DecrementTaskCount()
@@ -134,6 +183,18 @@ func TestAsset(t *testing.T) {
 
 		if asset.AssociatedTaskCount != 0 {
 			t.Errorf("expected task count to be 0, got %d", asset.AssociatedTaskCount)
+		}
+		if asset.Version != version+3 {
+			t.Errorf("expected Version to be %d, got %d", version+3, asset.Version)
+		}
+	})
+
+	t.Run("should generate unique IDs", func(t *testing.T) {
+		asset1 := mother.CreateValidAsset()
+		asset2 := mother.CreateValidAsset()
+
+		if asset1.ID == asset2.ID {
+			t.Error("expected different IDs for different assets")
 		}
 	})
 }

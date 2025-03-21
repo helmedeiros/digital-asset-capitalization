@@ -26,7 +26,7 @@ func (m *AssetMother) CreateAssetWithCustomValues(name, description string) *Ass
 func (m *AssetMother) CreateAssetWithContributionTypes(types ...string) *Asset {
 	asset := m.CreateValidAsset()
 	for _, t := range types {
-		asset.AddContributionType(t)
+		_ = asset.AddContributionType(t) // Ignore errors in test helper
 	}
 	return asset
 }
@@ -46,5 +46,12 @@ func (m *AssetMother) CreateAssetWithCustomTimestamps(createdAt, updatedAt, last
 	asset.CreatedAt = createdAt
 	asset.UpdatedAt = updatedAt
 	asset.LastDocUpdateAt = lastDocUpdateAt
+	return asset
+}
+
+// CreateAssetWithVersion creates an asset with a specific version
+func (m *AssetMother) CreateAssetWithVersion(version int) *Asset {
+	asset := m.CreateValidAsset()
+	asset.Version = version
 	return asset
 }
