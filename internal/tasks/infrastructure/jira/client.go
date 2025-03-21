@@ -93,7 +93,7 @@ func wasWorkedOnDuringSprint(issue model.Issue, sprintStart, sprintEnd time.Time
 		return false
 	}
 
-	// Check changelog history for any activity during the sprint period
+	// Check changelog history for any activity during the sprint period (inclusive)
 	for _, history := range issue.Fields.Changelog.Histories {
 		historyTime, err := parseTime(history.Created)
 		if err != nil {
@@ -123,25 +123,19 @@ func (c *client) convertToDomainTasks(searchResp model.SearchResult, sprint stri
 		// Get sprint dates if available
 		var sprintStart, sprintEnd time.Time
 		if len(issue.Fields.Sprint) > 0 {
-			fmt.Printf("Issue %s has %d sprints\n", issue.Key, len(issue.Fields.Sprint))
 			for _, s := range issue.Fields.Sprint {
-				fmt.Printf("Sprint: %s (Start: %s, End: %s)\n", s.Name, s.StartDate, s.EndDate)
 				if s.Name == sprint {
 					var err error
 					if s.StartDate != "" {
 						sprintStart, err = parseTime(s.StartDate)
 						if err != nil {
-							fmt.Printf("Failed to parse sprint start date '%s': %v\n", s.StartDate, err)
-						} else {
-							fmt.Printf("Parsed sprint start date: %s\n", sprintStart)
+							continue
 						}
 					}
 					if s.EndDate != "" {
 						sprintEnd, err = parseTime(s.EndDate)
 						if err != nil {
-							fmt.Printf("Failed to parse sprint end date '%s': %v\n", s.EndDate, err)
-						} else {
-							fmt.Printf("Parsed sprint end date: %s\n", sprintEnd)
+							continue
 						}
 					}
 					break
@@ -151,17 +145,14 @@ func (c *client) convertToDomainTasks(searchResp model.SearchResult, sprint stri
 
 		// Skip if we couldn't get valid sprint dates
 		if sprintStart.IsZero() || sprintEnd.IsZero() {
-			fmt.Printf("Skipping issue %s: invalid sprint dates (Start: %s, End: %s)\n", issue.Key, sprintStart, sprintEnd)
 			continue
 		}
 
 		// For issues with multiple sprints, check if there was any work done during this sprint
 		if len(issue.Fields.Sprint) > 1 {
 			if !wasWorkedOnDuringSprint(issue, sprintStart, sprintEnd) {
-				fmt.Printf("Skipping issue %s: no work done during sprint period\n", issue.Key)
 				continue
 			}
-			fmt.Printf("Including issue %s: work was done during sprint period\n", issue.Key)
 		}
 
 		// Handle empty timestamps
@@ -260,15 +251,10 @@ func (c *client) FetchTasks(ctx context.Context, project, sprint string) ([]*dom
 	}
 	jql += " ORDER BY updated DESC"
 
-	fmt.Printf("Fetching tasks with JQL: %s\n", jql)
-	fmt.Printf("Using base URL: %s\n", c.config.GetBaseURL())
-
 	// Build request URL with fields and expand parameters
 	url := fmt.Sprintf("%s/rest/api/3/search?jql=%s&fields=*all&expand=changelog",
 		c.config.GetBaseURL(),
 		url.QueryEscape(jql))
-
-	fmt.Printf("Full URL: %s\n", url)
 
 	// Create request
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
@@ -293,15 +279,11 @@ func (c *client) FetchTasks(ctx context.Context, project, sprint string) ([]*dom
 		return nil, fmt.Errorf("unexpected status code: %d, body: %s", resp.StatusCode, string(body))
 	}
 
-	fmt.Printf("Response body: %s\n", string(body))
-
 	// Parse response
 	var searchResp model.SearchResult
 	if err := json.NewDecoder(bytes.NewReader(body)).Decode(&searchResp); err != nil {
 		return nil, fmt.Errorf("failed to decode response: %w", err)
 	}
-
-	fmt.Printf("Found %d issues in total\n", len(searchResp.Issues))
 
 	return c.convertToDomainTasks(searchResp, sprint)
 }
