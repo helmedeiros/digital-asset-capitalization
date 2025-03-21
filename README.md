@@ -57,6 +57,77 @@ to complete the task in the sprint in % of the total sprint time, as later fill 
 
 Simply copy-paste the output to the Google Spreadsheet with the split per columns.
 
+## Architecture
+
+The project follows a hexagonal (ports and adapters) architecture pattern, which provides several benefits:
+
+### Hexagonal Architecture
+
+The codebase is organized into distinct layers:
+
+1. **Domain Layer** (`internal/assets/domain/`)
+
+   - Contains the core business logic and entities
+   - Defines the domain models and interfaces
+   - No dependencies on external frameworks or libraries
+
+2. **Application Layer** (`internal/assets/application/`)
+
+   - Implements use cases and business rules
+   - Orchestrates the flow of data and domain objects
+   - Defines ports (interfaces) for external dependencies
+
+3. **Infrastructure Layer** (`internal/assets/infrastructure/`)
+
+   - Implements the adapters for external dependencies
+   - Handles persistence, external services, and frameworks
+   - Conforms to the interfaces defined in the application layer
+
+4. **Interface Layer** (`assetcap/action/`)
+   - Handles user interface and command-line interactions
+   - Routes commands to appropriate application services
+   - Provides a clean API for external users
+
+### Persistent Ancillaries
+
+The tool uses persistent ancillaries to maintain state between runs:
+
+1. **Asset Storage**
+
+   - Assets are stored in `.assetcap/assets.json`
+   - JSON-based storage for easy inspection and backup
+   - Thread-safe operations with proper file locking
+
+2. **Configuration**
+
+   - Team configurations in `teams.json`
+   - Environment variables for sensitive data
+   - Template-based configuration for easy setup
+
+3. **Documentation**
+   - Generated documentation stored in `.assetcap/docs/`
+   - Supports multiple output formats (Confluence, Markdown)
+   - Version-controlled documentation templates
+
+### Benefits of the Architecture
+
+1. **Separation of Concerns**
+
+   - Clear boundaries between layers
+   - Easy to understand and maintain
+   - Independent testing of each layer
+
+2. **Dependency Inversion**
+
+   - Core business logic is independent of external concerns
+   - Easy to swap implementations (e.g., different storage backends)
+   - Better testability through interface-based design
+
+3. **Flexibility**
+   - Easy to add new features without modifying existing code
+   - Simple to integrate with new external services
+   - Clear upgrade paths for future enhancements
+
 ## Setup
 
 1. Clone the repository

@@ -33,25 +33,25 @@ var ValidContributionTypes = map[string]bool{
 // contribution types, and associated tasks.
 type Asset struct {
 	// mu protects all fields below
-	mu sync.RWMutex
+	mu sync.RWMutex `json:"-"`
 	// ID is a unique identifier for the asset
-	ID string
+	ID string `json:"id"`
 	// Name is the display name of the asset
-	Name string
+	Name string `json:"name"`
 	// Description provides detailed information about the asset
-	Description string
+	Description string `json:"description"`
 	// CreatedAt is when the asset was first created
-	CreatedAt time.Time
+	CreatedAt time.Time `json:"created_at"`
 	// UpdatedAt is when the asset was last modified
-	UpdatedAt time.Time
+	UpdatedAt time.Time `json:"updated_at"`
 	// LastDocUpdateAt is when the asset's documentation was last updated
-	LastDocUpdateAt time.Time
+	LastDocUpdateAt time.Time `json:"last_doc_update_at"`
 	// ContributionTypes tracks the types of work done on this asset
-	ContributionTypes []string
+	ContributionTypes []string `json:"contribution_types"`
 	// AssociatedTaskCount tracks how many tasks are linked to this asset
-	AssociatedTaskCount int
+	AssociatedTaskCount int `json:"associated_task_count"`
 	// Version is used for optimistic locking
-	Version int
+	Version int `json:"version"`
 }
 
 // NewAsset creates a new Asset instance with the given name and description.

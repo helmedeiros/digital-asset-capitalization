@@ -4,3 +4,4 @@ cover.out
 teams.json
 *.csv
 .env
+.assetcap/

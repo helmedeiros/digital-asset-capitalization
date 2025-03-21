@@ -5,18 +5,34 @@ import (
 	"strings"
 
 	"github.com/helmedeiros/jira-time-allocator/internal/assets/model"
+	"github.com/helmedeiros/jira-time-allocator/internal/assets/storage"
 )
+
+const assetsDir = ".assetcap"
+
+var assetsFile = "assets.json"
 
 // AssetManager handles asset-related operations
 type AssetManager struct {
-	assets map[string]*model.Asset
+	assets  map[string]*model.Asset
+	storage storage.Storage
 }
 
-// NewAssetManager creates a new asset manager
+// NewAssetManager creates a new asset manager and loads existing assets
 func NewAssetManager() *AssetManager {
-	return &AssetManager{
-		assets: make(map[string]*model.Asset),
+	am := &AssetManager{
+		storage: storage.NewJSONStorage(assetsDir, assetsFile),
 	}
+
+	// Load existing assets
+	assets, err := am.storage.Load()
+	if err != nil {
+		fmt.Printf("Warning: Failed to load assets: %v\n", err)
+		assets = make(map[string]*model.Asset)
+	}
+
+	am.assets = assets
+	return am
 }
 
 // CreateAsset creates a new asset
@@ -31,7 +47,7 @@ func (am *AssetManager) CreateAsset(name, description string) error {
 	}
 
 	am.assets[name] = asset
-	return nil
+	return am.storage.Save(am.assets)
 }
 
 // AddContributionType adds a contribution type to an asset
@@ -45,7 +61,7 @@ func (am *AssetManager) AddContributionType(assetName, contributionType string) 
 		return fmt.Errorf("failed to add contribution type: %w", err)
 	}
 
-	return nil
+	return am.storage.Save(am.assets)
 }
 
 // ListAssets returns a list of all assets
@@ -74,7 +90,7 @@ func (am *AssetManager) UpdateDocumentation(assetName string) error {
 	}
 
 	asset.UpdateDocumentation()
-	return nil
+	return am.storage.Save(am.assets)
 }
 
 // IncrementTaskCount increments the task count for an asset
@@ -85,7 +101,7 @@ func (am *AssetManager) IncrementTaskCount(assetName string) error {
 	}
 
 	asset.IncrementTaskCount()
-	return nil
+	return am.storage.Save(am.assets)
 }
 
 // DecrementTaskCount decrements the task count for an asset
@@ -96,7 +112,7 @@ func (am *AssetManager) DecrementTaskCount(assetName string) error {
 	}
 
 	asset.DecrementTaskCount()
-	return nil
+	return am.storage.Save(am.assets)
 }
 
 // FormatAssetList formats the list of assets for display

@@ -6,10 +6,23 @@ import (
 	"os"
 
 	"github.com/helmedeiros/jira-time-allocator/assetcap/action"
+	"github.com/helmedeiros/jira-time-allocator/internal/assets/application"
+	"github.com/helmedeiros/jira-time-allocator/internal/assets/infrastructure"
 	"github.com/urfave/cli/v2"
 )
 
-var assetManager = action.NewAssetManager()
+const (
+	assetsDir  = ".assetcap"
+	assetsFile = "assets.json"
+)
+
+var assetService application.AssetService
+
+func init() {
+	// Initialize the asset service with JSON repository
+	repo := infrastructure.NewJSONRepository(assetsDir, assetsFile)
+	assetService = application.NewAssetService(repo)
+}
 
 func Run() error {
 	app := &cli.App{
@@ -53,7 +66,7 @@ func Run() error {
 						Action: func(ctx *cli.Context) error {
 							name := ctx.Value("name").(string)
 							description := ctx.Value("description").(string)
-							if err := assetManager.CreateAsset(name, description); err != nil {
+							if err := assetService.CreateAsset(name, description); err != nil {
 								return err
 							}
 							fmt.Printf("Created asset: %s\n", name)
@@ -76,8 +89,15 @@ func Run() error {
 						Name:  "list",
 						Usage: "List all assets",
 						Action: func(ctx *cli.Context) error {
-							assets := assetManager.ListAssets()
-							fmt.Print(action.FormatAssetList(assets))
+							assets := assetService.ListAssets()
+							if len(assets) == 0 {
+								fmt.Println("No assets found")
+								return nil
+							}
+							fmt.Println("Assets:")
+							for _, name := range assets {
+								fmt.Printf("- %s\n", name)
+							}
 							return nil
 						},
 					},
@@ -91,7 +111,7 @@ func Run() error {
 								Action: func(ctx *cli.Context) error {
 									assetName := ctx.Value("asset").(string)
 									contributionType := ctx.Value("type").(string)
-									if err := assetManager.AddContributionType(assetName, contributionType); err != nil {
+									if err := assetService.AddContributionType(assetName, contributionType); err != nil {
 										return err
 									}
 									fmt.Printf("Added contribution type %s to asset %s\n", contributionType, assetName)
@@ -121,7 +141,7 @@ func Run() error {
 								Usage: "Mark asset documentation as updated",
 								Action: func(ctx *cli.Context) error {
 									assetName := ctx.Value("asset").(string)
-									if err := assetManager.UpdateDocumentation(assetName); err != nil {
+									if err := assetService.UpdateDocumentation(assetName); err != nil {
 										return err
 									}
 									fmt.Printf("Marked documentation as updated for asset %s\n", assetName)
@@ -146,7 +166,7 @@ func Run() error {
 								Usage: "Increment task count for an asset",
 								Action: func(ctx *cli.Context) error {
 									assetName := ctx.Value("asset").(string)
-									if err := assetManager.IncrementTaskCount(assetName); err != nil {
+									if err := assetService.IncrementTaskCount(assetName); err != nil {
 										return err
 									}
 									fmt.Printf("Incremented task count for asset %s\n", assetName)
@@ -165,7 +185,7 @@ func Run() error {
 								Usage: "Decrement task count for an asset",
 								Action: func(ctx *cli.Context) error {
 									assetName := ctx.Value("asset").(string)
-									if err := assetManager.DecrementTaskCount(assetName); err != nil {
+									if err := assetService.DecrementTaskCount(assetName); err != nil {
 										return err
 									}
 									fmt.Printf("Decremented task count for asset %s\n", assetName)

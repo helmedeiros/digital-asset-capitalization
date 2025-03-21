@@ -1,12 +1,28 @@
 package action
 
 import (
-	"testing"
-
+	"os"
+	"path/filepath"
 	"strings"
+	"testing"
 )
 
+const testAssetsFile = "test_assets.json"
+
+func cleanupTestAssets() {
+	os.Remove(filepath.Join(assetsDir, testAssetsFile))
+}
+
 func TestAssetManager(t *testing.T) {
+	// Clean up test assets before and after tests
+	cleanupTestAssets()
+	defer cleanupTestAssets()
+
+	// Override the default assets file for testing
+	origAssetsFile := assetsFile
+	assetsFile = testAssetsFile
+	defer func() { assetsFile = origAssetsFile }()
+
 	am := NewAssetManager()
 
 	t.Run("CreateAsset", func(t *testing.T) {
@@ -198,6 +214,15 @@ func TestAssetManager(t *testing.T) {
 }
 
 func TestAssetManagerConcurrent(t *testing.T) {
+	// Clean up test assets before and after tests
+	cleanupTestAssets()
+	defer cleanupTestAssets()
+
+	// Override the default assets file for testing
+	origAssetsFile := assetsFile
+	assetsFile = testAssetsFile
+	defer func() { assetsFile = origAssetsFile }()
+
 	am := NewAssetManager()
 
 	// Create a test asset

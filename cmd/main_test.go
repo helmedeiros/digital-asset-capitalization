@@ -4,11 +4,15 @@ import (
 	"bytes"
 	"io"
 	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
-	"github.com/helmedeiros/jira-time-allocator/assetcap/action"
+	"github.com/helmedeiros/jira-time-allocator/internal/assets/application"
+	"github.com/helmedeiros/jira-time-allocator/internal/assets/infrastructure"
 )
+
+const testAssetsFile = "test_assets.json"
 
 func captureOutput(f func() error) (string, error) {
 	old := os.Stdout
@@ -26,14 +30,22 @@ func captureOutput(f func() error) (string, error) {
 	return buf.String(), err
 }
 
+func cleanupTestAssets() {
+	os.Remove(filepath.Join(".assetcap", testAssetsFile))
+}
+
 func TestMain(t *testing.T) {
 	// Save original args and restore them after test
 	origArgs := os.Args
 	defer func() { os.Args = origArgs }()
 
-	// Save original assetManager and restore it after test
-	origAssetManager := assetManager
-	defer func() { assetManager = origAssetManager }()
+	// Save original assetService and restore it after test
+	origAssetService := assetService
+	defer func() { assetService = origAssetService }()
+
+	// Clean up test assets before and after tests
+	cleanupTestAssets()
+	defer cleanupTestAssets()
 
 	tests := []struct {
 		name       string
@@ -141,9 +153,11 @@ func TestMain(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			// Reset assetManager for each test
+			// Reset assetService for each test
 			if strings.HasPrefix(tt.name, "assets list empty") {
-				assetManager = action.NewAssetManager()
+				repo := infrastructure.NewJSONRepository(".assetcap", testAssetsFile)
+				assetService = application.NewAssetService(repo)
+				cleanupTestAssets()
 			}
 
 			// Set up test args
