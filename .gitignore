@@ -1,6 +1,8 @@
 .vscode
 .idea
 cover.out
+coverage.out
+testdata/
 teams.json
 *.csv
 .env
