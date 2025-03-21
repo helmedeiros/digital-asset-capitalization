@@ -26,4 +26,4 @@ test-all:
 
 # Install the assetcap command
 install:
-	go install github.com/helmedeiros/digital-asset-capitalization/cmd/main.go
+	go install ./cmd/main.go
