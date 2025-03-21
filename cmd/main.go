@@ -8,6 +8,7 @@ import (
 	"github.com/helmedeiros/digital-asset-capitalization/assetcap/action"
 	"github.com/helmedeiros/digital-asset-capitalization/internal/assets/application"
 	"github.com/helmedeiros/digital-asset-capitalization/internal/assets/infrastructure"
+	"github.com/helmedeiros/digital-asset-capitalization/internal/shell/completion"
 	"github.com/urfave/cli/v2"
 )
 
@@ -26,8 +27,9 @@ func init() {
 
 func Run() error {
 	app := &cli.App{
-		Name:  "AssetCap",
-		Usage: "Digital Asset Capitalization Management Tool",
+		Name:                 "AssetCap",
+		Usage:                "Digital Asset Capitalization Management Tool",
+		EnableBashCompletion: true,
 		UsageText: `assetcap [global options] command [command options] [arguments...]
 
 COMMANDS:
@@ -46,6 +48,36 @@ COMMANDS:
 For more information about a command:
    assetcap [command] --help`,
 		Commands: []*cli.Command{
+			{
+				Name:  "completion",
+				Usage: "Generate shell completion scripts",
+				Subcommands: []*cli.Command{
+					{
+						Name:  "bash",
+						Usage: "Generate bash completion script",
+						Action: func(c *cli.Context) error {
+							fmt.Println(completion.GetBashCompletion())
+							return nil
+						},
+					},
+					{
+						Name:  "zsh",
+						Usage: "Generate zsh completion script",
+						Action: func(c *cli.Context) error {
+							fmt.Println(completion.GetZshCompletion())
+							return nil
+						},
+					},
+					{
+						Name:  "fish",
+						Usage: "Generate fish completion script",
+						Action: func(c *cli.Context) error {
+							fmt.Println(completion.GetFishCompletion())
+							return nil
+						},
+					},
+				},
+			},
 			{
 				Name:  "timeallocation-calc",
 				Usage: "Process JIRA issues",

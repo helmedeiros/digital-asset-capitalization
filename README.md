@@ -34,6 +34,39 @@ You can verify the installation by running:
 assetcap --version
 ```
 
+## Shell Completion
+
+The tool supports shell completion for bash, zsh, and fish shells. To install completions:
+
+```bash
+make completion
+```
+
+### Zsh
+
+The completion script will be installed to `~/.zsh/completion/_assetcap`. Add these lines to your `~/.zshrc`:
+
+```bash
+fpath=(~/.zsh/completion $fpath)
+autoload -U compinit && compinit
+```
+
+### Bash
+
+The completion script will be saved to `completions/assetcap.bash`. Add this line to your `~/.bashrc`:
+
+```bash
+source /path/to/digital-asset-capitalization/completions/assetcap.bash
+```
+
+### Fish
+
+The completion script will be saved to `completions/assetcap.fish`. Copy it to the fish completions directory:
+
+```bash
+cp completions/assetcap.fish ~/.config/fish/completions/
+```
+
 ## Features
 
 ### Asset Management
