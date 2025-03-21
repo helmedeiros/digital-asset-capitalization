@@ -4,7 +4,7 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/helmedeiros/jira-time-allocator/internal/assets/domain"
+	"github.com/helmedeiros/digital-asset-capitalization/internal/assets/domain"
 )
 
 // MockRepository is a mock implementation of AssetRepository

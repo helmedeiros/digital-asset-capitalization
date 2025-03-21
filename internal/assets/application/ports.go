@@ -1,7 +1,7 @@
 package application
 
 import (
-	"github.com/helmedeiros/jira-time-allocator/internal/assets/domain"
+	"github.com/helmedeiros/digital-asset-capitalization/internal/assets/domain"
 )
 
 // AssetRepository defines the interface for asset persistence

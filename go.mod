@@ -1,4 +1,4 @@
-module github.com/helmedeiros/jira-time-allocator
+module github.com/helmedeiros/digital-asset-capitalization
 
 go 1.20
 

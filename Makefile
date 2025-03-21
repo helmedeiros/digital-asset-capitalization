@@ -1,4 +1,4 @@
-.PHONY: test test-cover test-race test-watch
+.PHONY: test test-cover test-race test-watch install
 
 # Run tests with gotestsum
 test:
@@ -23,3 +23,7 @@ test-v:
 # Run tests with race detector and coverage
 test-all:
 	gotestsum -- -race -cover ./...
+
+# Install the assetcap command
+install:
+	go install github.com/helmedeiros/digital-asset-capitalization/cmd/main.go

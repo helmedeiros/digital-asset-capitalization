@@ -13,6 +13,27 @@ This tool helps track and manage digital assets in your organization, including:
 
 The tool automatically calculates the time allocation for tasks in each sprint and helps manage the capitalization of digital assets.
 
+## Installation
+
+To install the `assetcap` command globally:
+
+```bash
+# Clone the repository
+git clone https://github.com/helmedeiros/digital-asset-capitalization.git
+cd digital-asset-capitalization
+
+# Install the command
+make install
+```
+
+This will install the `assetcap` command in your Go bin directory (`$GOPATH/bin`). Make sure this directory is in your PATH.
+
+You can verify the installation by running:
+
+```bash
+assetcap --version
+```
+
 ## Features
 
 ### Asset Management
@@ -226,16 +247,32 @@ The current test coverage is:
 assetcap assets create --name "Frontend" --description "Main web application"
 ```
 
-2. Add contribution types:
+2. List all assets:
+
+```bash
+assetcap assets list
+```
+
+3. Add contribution types:
 
 ```bash
 assetcap assets contribution-type add --asset "Frontend" --type "development"
 ```
 
-3. Generate documentation:
+4. Update documentation:
 
 ```bash
-assetcap docs generate --asset "Frontend" --platform confluence
+assetcap assets documentation update --asset "Frontend"
+```
+
+5. Manage task counts:
+
+```bash
+# Increment task count
+assetcap assets tasks increment --asset "Frontend"
+
+# Decrement task count
+assetcap assets tasks decrement --asset "Frontend"
 ```
 
 ### Time Allocation
@@ -243,7 +280,7 @@ assetcap docs generate --asset "Frontend" --platform confluence
 Run the time allocation calculation:
 
 ```bash
-assetcap tasks allocate --project PROJECT_KEY --sprint "Sprint Name" [-override '{"ISSUE-KEY": hours}']
+assetcap timeallocation-calc --project PROJECT_KEY --sprint "Sprint Name" [-override '{"ISSUE-KEY": hours}']
 ```
 
 The tool will:

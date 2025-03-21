@@ -6,7 +6,7 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/helmedeiros/jira-time-allocator/internal/assets/model"
+	"github.com/helmedeiros/digital-asset-capitalization/internal/assets/model"
 )
 
 // Storage defines the interface for asset persistence

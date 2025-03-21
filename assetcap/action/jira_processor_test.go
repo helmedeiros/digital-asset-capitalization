@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/helmedeiros/jira-time-allocator/assetcap"
+	"github.com/helmedeiros/digital-asset-capitalization/assetcap"
 )
 
 // mockGetJiraIssues mocks the GetJiraIssues function for testing

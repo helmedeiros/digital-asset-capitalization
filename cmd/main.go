@@ -5,9 +5,9 @@ import (
 	"log"
 	"os"
 
-	"github.com/helmedeiros/jira-time-allocator/assetcap/action"
-	"github.com/helmedeiros/jira-time-allocator/internal/assets/application"
-	"github.com/helmedeiros/jira-time-allocator/internal/assets/infrastructure"
+	"github.com/helmedeiros/digital-asset-capitalization/assetcap/action"
+	"github.com/helmedeiros/digital-asset-capitalization/internal/assets/application"
+	"github.com/helmedeiros/digital-asset-capitalization/internal/assets/infrastructure"
 	"github.com/urfave/cli/v2"
 )
 

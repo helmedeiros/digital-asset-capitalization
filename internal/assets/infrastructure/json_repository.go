@@ -6,8 +6,8 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/helmedeiros/jira-time-allocator/internal/assets/application"
-	"github.com/helmedeiros/jira-time-allocator/internal/assets/domain"
+	"github.com/helmedeiros/digital-asset-capitalization/internal/assets/application"
+	"github.com/helmedeiros/digital-asset-capitalization/internal/assets/domain"
 )
 
 // JSONRepository implements AssetRepository using JSON files

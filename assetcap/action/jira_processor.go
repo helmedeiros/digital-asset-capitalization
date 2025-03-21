@@ -7,8 +7,8 @@ import (
 	"net/url"
 	"time"
 
-	"github.com/helmedeiros/jira-time-allocator/assetcap"
-	"github.com/helmedeiros/jira-time-allocator/assetcap/config"
+	"github.com/helmedeiros/digital-asset-capitalization/assetcap"
+	"github.com/helmedeiros/digital-asset-capitalization/assetcap/config"
 )
 
 // JiraProcessor handles the processing of Jira issues and time calculations

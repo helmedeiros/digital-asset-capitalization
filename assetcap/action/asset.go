@@ -4,13 +4,9 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/helmedeiros/jira-time-allocator/internal/assets/model"
-	"github.com/helmedeiros/jira-time-allocator/internal/assets/storage"
+	"github.com/helmedeiros/digital-asset-capitalization/internal/assets/model"
+	"github.com/helmedeiros/digital-asset-capitalization/internal/assets/storage"
 )
-
-const assetsDir = ".assetcap"
-
-var assetsFile = "assets.json"
 
 // AssetManager handles asset-related operations
 type AssetManager struct {
@@ -19,7 +15,7 @@ type AssetManager struct {
 }
 
 // NewAssetManager creates a new asset manager and loads existing assets
-func NewAssetManager() *AssetManager {
+func NewAssetManager(assetsDir, assetsFile string) *AssetManager {
 	am := &AssetManager{
 		storage: storage.NewJSONStorage(assetsDir, assetsFile),
 	}

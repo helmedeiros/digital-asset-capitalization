@@ -3,7 +3,7 @@ package application
 import (
 	"fmt"
 
-	"github.com/helmedeiros/jira-time-allocator/internal/assets/domain"
+	"github.com/helmedeiros/digital-asset-capitalization/internal/assets/domain"
 )
 
 // assetService implements AssetService
