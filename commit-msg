@@ -1,13 +1,16 @@
-feat(assets): add update command for assets
+feat(assets): add show command for detailed asset information
 
-This commit adds a new command to update asset properties:
-- Add 'update' command under assets to modify asset name and description
-- Implement proper validation for required flags (name and new-name)
-- Add comprehensive tests for the update functionality
-- Ensure backward compatibility with existing assets
-- Add clear success messages for user feedback
+This commit adds a new command to show detailed information about assets:
 
-The update command allows users to:
-1. Update only the description while keeping the same name
-2. Update both name and description
-3. Maintain data integrity with proper validation
+- Add 'show' command under assets to display asset details
+- Show asset name, description, creation/update times, and task count
+- Display contribution types if present
+- Add comprehensive tests for the show functionality
+- Handle error cases for non-existent assets
+
+The show command allows users to:
+
+1. View detailed information about a specific asset
+2. See when the asset was created and last updated
+3. Check the current task count
+4. View all contribution types assigned to the asset

@@ -5,6 +5,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/helmedeiros/digital-asset-capitalization/internal/assets/application"
@@ -222,4 +223,99 @@ func TestRun(t *testing.T) {
 			}
 		})
 	}
+
+	t.Run("show asset", func(t *testing.T) {
+		cleanup := setupTestEnvironment(t)
+		defer cleanup()
+
+		// Create a test asset first
+		output, err := captureOutput(func() error {
+			os.Args = []string{"assetcap", "assets", "create", "--name", "test-asset", "--description", "Test description"}
+			return Run()
+		})
+		if err != nil {
+			t.Fatalf("Failed to create test asset: %v", err)
+		}
+		if !strings.Contains(output, "Created asset: test-asset") {
+			t.Errorf("Expected output to contain 'Created asset: test-asset', got %q", output)
+		}
+
+		// Test showing the asset
+		output, err = captureOutput(func() error {
+			os.Args = []string{"assetcap", "assets", "show", "--name", "test-asset"}
+			return Run()
+		})
+		if err != nil {
+			t.Fatalf("Failed to show asset: %v", err)
+		}
+		expectedStrings := []string{
+			"Asset: test-asset",
+			"Description: Test description",
+			"Task Count: 0",
+			"Created:",
+			"Updated:",
+		}
+		for _, expected := range expectedStrings {
+			if !strings.Contains(output, expected) {
+				t.Errorf("Expected output to contain %q, got %q", expected, output)
+			}
+		}
+	})
+
+	t.Run("show non-existent asset", func(t *testing.T) {
+		cleanup := setupTestEnvironment(t)
+		defer cleanup()
+
+		_, err := captureOutput(func() error {
+			os.Args = []string{"assetcap", "assets", "show", "--name", "non-existent"}
+			return Run()
+		})
+		if err == nil {
+			t.Error("Expected error but got none")
+		}
+		if !strings.Contains(err.Error(), "not found") {
+			t.Errorf("Expected error to contain 'not found', got %q", err.Error())
+		}
+	})
+
+	t.Run("show asset with contribution types", func(t *testing.T) {
+		cleanup := setupTestEnvironment(t)
+		defer cleanup()
+
+		// Create a test asset
+		os.Args = []string{"assetcap", "assets", "create", "--name", "test-asset", "--description", "Test description"}
+		if err := Run(); err != nil {
+			t.Fatalf("Failed to create test asset: %v", err)
+		}
+
+		// Add contribution types
+		os.Args = []string{"assetcap", "assets", "contribution-type", "add", "--asset", "test-asset", "--type", "discovery"}
+		if err := Run(); err != nil {
+			t.Fatalf("Failed to add contribution type: %v", err)
+		}
+		os.Args = []string{"assetcap", "assets", "contribution-type", "add", "--asset", "test-asset", "--type", "development"}
+		if err := Run(); err != nil {
+			t.Fatalf("Failed to add contribution type: %v", err)
+		}
+
+		// Show the asset
+		output, err := captureOutput(func() error {
+			os.Args = []string{"assetcap", "assets", "show", "--name", "test-asset"}
+			return Run()
+		})
+		if err != nil {
+			t.Fatalf("Failed to show asset: %v", err)
+		}
+		expectedStrings := []string{
+			"Asset: test-asset",
+			"Contribution Types:",
+			"- discovery",
+			"- development",
+		}
+		for _, expected := range expectedStrings {
+			if !strings.Contains(output, expected) {
+				t.Errorf("Expected output to contain %q, got %q", expected, output)
+			}
+		}
+	})
 }

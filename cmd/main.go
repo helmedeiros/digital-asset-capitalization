@@ -175,8 +175,37 @@ For more information about a command:
 								Required: true,
 							},
 							&cli.StringFlag{
-								Name:     "description",
-								Usage:    "New asset description",
+								Name:  "description",
+								Usage: "New asset description",
+							},
+						},
+					},
+					{
+						Name:  "show",
+						Usage: "Show detailed information about an asset",
+						Action: func(ctx *cli.Context) error {
+							name := ctx.Value("name").(string)
+							asset, err := assetService.GetAsset(name)
+							if err != nil {
+								return err
+							}
+							fmt.Printf("Asset: %s\n", asset.Name)
+							fmt.Printf("Description: %s\n", asset.Description)
+							fmt.Printf("Created: %s\n", asset.CreatedAt.Format("2006-01-02 15:04:05"))
+							fmt.Printf("Updated: %s\n", asset.UpdatedAt.Format("2006-01-02 15:04:05"))
+							fmt.Printf("Task Count: %d\n", asset.AssociatedTaskCount)
+							if len(asset.ContributionTypes) > 0 {
+								fmt.Println("\nContribution Types:")
+								for _, ct := range asset.ContributionTypes {
+									fmt.Printf("- %s\n", ct)
+								}
+							}
+							return nil
+						},
+						Flags: []cli.Flag{
+							&cli.StringFlag{
+								Name:     "name",
+								Usage:    "Asset name",
 								Required: true,
 							},
 						},
