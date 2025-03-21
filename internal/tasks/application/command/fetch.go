@@ -48,7 +48,7 @@ func (h *FetchTasksHandler) Handle(ctx context.Context, cmd FetchTasksCommand) e
 		if task.Sprint != "" {
 			sprintInfo = fmt.Sprintf(" [Sprints: %s]", task.Sprint)
 		}
-		fmt.Printf("- %s: %s (%s)%s\n", task.Key, task.Summary, task.Status, sprintInfo)
+		fmt.Printf("- %s: [%s] %s (%s)%s\n", task.Key, task.Type, task.Summary, task.Status, sprintInfo)
 	}
 
 	return nil

@@ -36,6 +36,7 @@ type Fields struct {
 	Created     string                 `json:"created"`
 	Updated     string                 `json:"updated"`
 	Assignee    Assignee               `json:"assignee"`
+	IssueType   IssueType              `json:"issuetype"`
 	RawFields   map[string]interface{} `json:"-"`
 }
 
@@ -143,4 +144,9 @@ type Description struct {
 // Assignee represents the assignee of a Jira issue
 type Assignee struct {
 	DisplayName string `json:"displayName"`
+}
+
+// Add IssueType struct
+type IssueType struct {
+	Name string `json:"name"`
 }

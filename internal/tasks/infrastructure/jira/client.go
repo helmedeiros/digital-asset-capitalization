@@ -68,6 +68,22 @@ func mapJiraStatus(status string) domain.TaskStatus {
 	}
 }
 
+// mapJiraType converts a Jira issue type to our domain TaskType
+func mapJiraType(issueType string) domain.TaskType {
+	switch strings.ToUpper(issueType) {
+	case "STORY":
+		return domain.TaskTypeStory
+	case "BUG":
+		return domain.TaskTypeBug
+	case "EPIC":
+		return domain.TaskTypeEpic
+	case "SUB-TASK":
+		return domain.TaskTypeSubtask
+	default:
+		return domain.TaskTypeTask
+	}
+}
+
 // parseTime attempts to parse a time string in various Jira formats
 func parseTime(timeStr string) (time.Time, error) {
 	formats := []string{
@@ -226,6 +242,10 @@ func (c *client) convertToDomainTasks(searchResp model.SearchResult, sprint stri
 
 		if err := task.UpdateStatus(mapJiraStatus(issue.Fields.Status.Name)); err != nil {
 			return nil, fmt.Errorf("failed to update task status: %w", err)
+		}
+
+		if err := task.UpdateType(mapJiraType(issue.Fields.IssueType.Name)); err != nil {
+			return nil, fmt.Errorf("failed to update task type: %w", err)
 		}
 
 		// Override timestamps from Jira
