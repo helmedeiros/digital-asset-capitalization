@@ -84,4 +84,4 @@ func (r *Repository) DeleteByProjectAndSprint(ctx context.Context, project, spri
 }
 
 // Ensure Repository implements ports.Repository
-var _ ports.Repository = (*Repository)(nil)
+var _ ports.TaskRepository = (*Repository)(nil)

@@ -16,11 +16,11 @@ type FetchTasksCommand struct {
 
 // FetchTasksHandler handles the fetch tasks command
 type FetchTasksHandler struct {
-	taskRepository ports.Repository
+	taskRepository ports.TaskRepository
 }
 
 // NewFetchTasksHandler creates a new fetch tasks handler
-func NewFetchTasksHandler(repo ports.Repository) *FetchTasksHandler {
+func NewFetchTasksHandler(repo ports.TaskRepository) *FetchTasksHandler {
 	return &FetchTasksHandler{
 		taskRepository: repo,
 	}

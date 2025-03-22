@@ -6,8 +6,8 @@ import (
 	"github.com/helmedeiros/digital-asset-capitalization/internal/tasks/domain"
 )
 
-// Repository defines the interface for task persistence operations
-type Repository interface {
+// TaskRepository defines the interface for task persistence operations
+type TaskRepository interface {
 	// Save persists a task
 	Save(ctx context.Context, task *domain.Task) error
 

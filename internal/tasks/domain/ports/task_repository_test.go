@@ -95,7 +95,7 @@ func (m *mockRepository) DeleteByProjectAndSprint(ctx context.Context, project, 
 }
 
 // Ensure mockRepository implements Repository
-var _ Repository = (*mockRepository)(nil)
+var _ TaskRepository = (*mockRepository)(nil)
 
 func TestRepositoryOperations(t *testing.T) {
 	ctx := context.Background()
