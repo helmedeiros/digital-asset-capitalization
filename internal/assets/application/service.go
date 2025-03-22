@@ -1,111 +1,73 @@
 package application
 
 import (
-	"fmt"
-
+	"github.com/helmedeiros/digital-asset-capitalization/internal/assets/application/usecase"
 	"github.com/helmedeiros/digital-asset-capitalization/internal/assets/domain"
 	"github.com/helmedeiros/digital-asset-capitalization/internal/assets/domain/ports"
 )
 
-// assetService implements AssetService
+// assetService implements AssetService by composing use cases
 type assetService struct {
-	repo ports.AssetRepository
+	createAsset         *usecase.CreateAssetUseCase
+	listAssets          *usecase.ListAssetsUseCase
+	getAsset            *usecase.GetAssetUseCase
+	deleteAsset         *usecase.DeleteAssetUseCase
+	updateAsset         *usecase.UpdateAssetUseCase
+	updateDocumentation *usecase.UpdateDocumentationUseCase
+	incrementTaskCount  *usecase.IncrementTaskCountUseCase
+	decrementTaskCount  *usecase.DecrementTaskCountUseCase
 }
 
-// NewAssetService creates a new asset service
+// NewAssetService creates a new asset service with all use cases
 func NewAssetService(repo ports.AssetRepository) ports.AssetService {
 	return &assetService{
-		repo: repo,
+		createAsset:         usecase.NewCreateAssetUseCase(repo),
+		listAssets:          usecase.NewListAssetsUseCase(repo),
+		getAsset:            usecase.NewGetAssetUseCase(repo),
+		deleteAsset:         usecase.NewDeleteAssetUseCase(repo),
+		updateAsset:         usecase.NewUpdateAssetUseCase(repo),
+		updateDocumentation: usecase.NewUpdateDocumentationUseCase(repo),
+		incrementTaskCount:  usecase.NewIncrementTaskCountUseCase(repo),
+		decrementTaskCount:  usecase.NewDecrementTaskCountUseCase(repo),
 	}
 }
 
 // CreateAsset creates a new asset
 func (s *assetService) CreateAsset(name, description string) error {
-	// Check if asset already exists
-	existing, err := s.repo.FindByName(name)
-	if err == nil && existing != nil {
-		return fmt.Errorf("asset already exists")
-	}
-
-	asset, err := domain.NewAsset(name, description)
-	if err != nil {
-		return err
-	}
-	return s.repo.Save(asset)
+	return s.createAsset.Execute(name, description)
 }
 
 // ListAssets returns a list of all assets
 func (s *assetService) ListAssets() ([]*domain.Asset, error) {
-	return s.repo.FindAll()
+	return s.listAssets.Execute()
 }
 
 // GetAsset returns an asset by name
 func (s *assetService) GetAsset(name string) (*domain.Asset, error) {
-	asset, err := s.repo.FindByName(name)
-	if err != nil {
-		return nil, fmt.Errorf("asset not found")
-	}
-	return asset, nil
+	return s.getAsset.Execute(name)
 }
 
 // DeleteAsset deletes an asset by name
 func (s *assetService) DeleteAsset(name string) error {
-	// Check if asset exists before deleting
-	_, err := s.repo.FindByName(name)
-	if err != nil {
-		return fmt.Errorf("asset not found")
-	}
-	return s.repo.Delete(name)
+	return s.deleteAsset.Execute(name)
 }
 
 // UpdateAsset updates an asset's description
 func (s *assetService) UpdateAsset(name, description string) error {
-	asset, err := s.repo.FindByName(name)
-	if err != nil {
-		return fmt.Errorf("asset not found")
-	}
-
-	if err := asset.UpdateDescription(description); err != nil {
-		return err
-	}
-	return s.repo.Save(asset)
+	return s.updateAsset.Execute(name, description)
 }
 
 // UpdateDocumentation marks the documentation for an asset as updated
 func (s *assetService) UpdateDocumentation(assetName string) error {
-	asset, err := s.repo.FindByName(assetName)
-	if err != nil {
-		return fmt.Errorf("asset not found")
-	}
-
-	if err := asset.UpdateDocumentation(); err != nil {
-		return err
-	}
-	return s.repo.Save(asset)
+	return s.updateDocumentation.Execute(assetName)
 }
 
 // IncrementTaskCount increments the task count for an asset
 func (s *assetService) IncrementTaskCount(name string) error {
-	asset, err := s.repo.FindByName(name)
-	if err != nil {
-		return fmt.Errorf("asset not found")
-	}
-
-	if err := asset.IncrementTaskCount(); err != nil {
-		return err
-	}
-	return s.repo.Save(asset)
+	return s.incrementTaskCount.Execute(name)
 }
 
 // DecrementTaskCount decrements the task count for an asset
 func (s *assetService) DecrementTaskCount(name string) error {
-	asset, err := s.repo.FindByName(name)
-	if err != nil {
-		return fmt.Errorf("asset not found")
-	}
-
-	if err := asset.DecrementTaskCount(); err != nil {
-		return err
-	}
-	return s.repo.Save(asset)
+	return s.decrementTaskCount.Execute(name)
 }
