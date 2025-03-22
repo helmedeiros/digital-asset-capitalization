@@ -353,7 +353,7 @@ func (c *JiraClient) getSprintFieldID() (string, error) {
 	return "", fmt.Errorf("sprint field not found")
 }
 
-func (c *JiraClient) GetTasks(project string, sprint string) ([]api.Task, error) {
+func (c *JiraClient) GetTasks(project string, sprint string) ([]api.JiraIssue, error) {
 	jql := fmt.Sprintf("project = %s", project)
 	if sprint != "" {
 		jql = fmt.Sprintf("%s AND sprint in ('%s')", jql, sprint)
@@ -384,9 +384,9 @@ func (c *JiraClient) GetTasks(project string, sprint string) ([]api.Task, error)
 		return nil, fmt.Errorf("error decoding response: %v", err)
 	}
 
-	var tasks []api.Task
+	var tasks []api.JiraIssue
 	for _, issue := range result.Issues {
-		task := api.Task{
+		task := api.JiraIssue{
 			Key:     issue.Key,
 			Summary: issue.Fields.Summary,
 			Status:  issue.Fields.Status.Name,

@@ -5,8 +5,8 @@ import (
 	"strings"
 )
 
-// Task represents a task in our domain
-type Task struct {
+// JiraIssue represents a task in our domain
+type JiraIssue struct {
 	Key      string
 	Summary  string
 	Status   string
