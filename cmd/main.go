@@ -10,7 +10,7 @@ import (
 	"github.com/helmedeiros/digital-asset-capitalization/internal/assets/domain/ports"
 	"github.com/helmedeiros/digital-asset-capitalization/internal/assets/infrastructure"
 	"github.com/helmedeiros/digital-asset-capitalization/internal/shell/completion"
-	"github.com/helmedeiros/digital-asset-capitalization/internal/tasks/application/command"
+	"github.com/helmedeiros/digital-asset-capitalization/internal/tasks/application/usecase"
 	"github.com/helmedeiros/digital-asset-capitalization/internal/tasks/infrastructure/jira"
 	"github.com/urfave/cli/v2"
 )
@@ -21,6 +21,7 @@ const (
 )
 
 var assetService ports.AssetService
+var taskService *usecase.FetchTasksUseCase
 
 func init() {
 	// Initialize repositories
@@ -32,6 +33,13 @@ func init() {
 	}
 	assetRepo := infrastructure.NewJSONRepository(config)
 	assetService = application.NewAssetService(assetRepo)
+
+	// Initialize task repositories
+	jiraRepo, err := jira.NewRepository()
+	if err != nil {
+		log.Fatalf("Failed to initialize Jira repository: %v", err)
+	}
+	taskService = usecase.NewFetchTasksUseCase(jiraRepo)
 }
 
 func Run() error {
@@ -293,38 +301,21 @@ For more information about a command:
 							project := ctx.Value("project").(string)
 							sprint := ctx.Value("sprint").(string)
 							platform := ctx.Value("platform").(string)
-
-							// Create repository
-							repo, err := jira.NewRepository()
-							if err != nil {
-								return fmt.Errorf("failed to create Jira repository: %w", err)
-							}
-
-							// Create handler
-							handler := command.NewFetchTasksHandler(repo)
-
-							// Execute command
-							return handler.Handle(ctx.Context, command.FetchTasksCommand{
-								Project:  project,
-								Sprint:   sprint,
-								Platform: platform,
-							})
+							return taskService.Execute(ctx.Context, project, sprint, platform)
 						},
 						Flags: []cli.Flag{
 							&cli.StringFlag{
 								Name:     "project",
-								Aliases:  []string{"p"},
 								Usage:    "Project key",
 								Required: true,
 							},
 							&cli.StringFlag{
-								Name:    "sprint",
-								Aliases: []string{"s"},
-								Usage:   "Sprint name",
+								Name:     "sprint",
+								Usage:    "Sprint name or ID",
+								Required: true,
 							},
 							&cli.StringFlag{
 								Name:     "platform",
-								Aliases:  []string{"l"},
 								Usage:    "Platform name (e.g., jira)",
 								Required: true,
 							},
