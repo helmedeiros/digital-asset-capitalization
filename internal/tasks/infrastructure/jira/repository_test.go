@@ -48,7 +48,7 @@ func TestNewRepository(t *testing.T) {
 	assert.NotNil(t, repo, "Repository should not be nil")
 }
 
-func TestRepository_FetchTasks(t *testing.T) {
+func TestRepository_FindByProjectAndSprint(t *testing.T) {
 	ctx := context.Background()
 
 	// Save the original functions and restore them after the test
@@ -82,7 +82,7 @@ func TestRepository_FetchTasks(t *testing.T) {
 		repo, err := NewRepository()
 		require.NoError(t, err, "Should not return error")
 
-		tasks, err := repo.FetchTasks(ctx, "TEST", "Sprint 1")
+		tasks, err := repo.FindByProjectAndSprint(ctx, "TEST", "Sprint 1")
 		require.Error(t, err, "Should return error")
 		assert.Nil(t, tasks, "Tasks should be nil")
 		assert.Contains(t, err.Error(), "client error", "Error message should be propagated")
@@ -128,13 +128,15 @@ func TestRepository_FetchTasks(t *testing.T) {
 		repo, err := NewRepository()
 		require.NoError(t, err, "Should not return error")
 
-		tasks, err := repo.FetchTasks(ctx, "TEST", "Sprint 1")
+		tasks, err := repo.FindByProjectAndSprint(ctx, "TEST", "Sprint 1")
 		require.NoError(t, err, "Should not return error")
 		assert.Equal(t, expectedTasks, tasks, "Tasks should match")
 	})
 }
 
 func TestRepository_NotImplementedMethods(t *testing.T) {
+	ctx := context.Background()
+
 	// Save the original functions and restore them after the test
 	originalNewClient := NewClient
 	originalNewConfig := NewConfig
@@ -162,61 +164,54 @@ func TestRepository_NotImplementedMethods(t *testing.T) {
 	require.NoError(t, err, "Should not return error")
 
 	t.Run("Save", func(t *testing.T) {
-		err := repo.Save(&domain.Task{})
+		err := repo.Save(ctx, &domain.Task{})
 		require.Error(t, err, "Should return error")
 		assert.Equal(t, "not implemented", err.Error(), "Error message should match")
 	})
 
 	t.Run("FindByKey", func(t *testing.T) {
-		task, err := repo.FindByKey("TEST-1")
+		task, err := repo.FindByKey(ctx, "TEST-1")
 		require.Error(t, err, "Should return error")
 		assert.Nil(t, task, "Task should be nil")
 		assert.Equal(t, "not implemented", err.Error(), "Error message should match")
 	})
 
-	t.Run("FindByProjectAndSprint", func(t *testing.T) {
-		tasks, err := repo.FindByProjectAndSprint("TEST", "Sprint 1")
-		require.Error(t, err, "Should return error")
-		assert.Nil(t, tasks, "Tasks should be nil")
-		assert.Equal(t, "not implemented", err.Error(), "Error message should match")
-	})
-
 	t.Run("FindByProject", func(t *testing.T) {
-		tasks, err := repo.FindByProject("TEST")
+		tasks, err := repo.FindByProject(ctx, "TEST")
 		require.Error(t, err, "Should return error")
 		assert.Nil(t, tasks, "Tasks should be nil")
 		assert.Equal(t, "not implemented", err.Error(), "Error message should match")
 	})
 
 	t.Run("FindBySprint", func(t *testing.T) {
-		tasks, err := repo.FindBySprint("Sprint 1")
+		tasks, err := repo.FindBySprint(ctx, "Sprint 1")
 		require.Error(t, err, "Should return error")
 		assert.Nil(t, tasks, "Tasks should be nil")
 		assert.Equal(t, "not implemented", err.Error(), "Error message should match")
 	})
 
 	t.Run("FindByPlatform", func(t *testing.T) {
-		tasks, err := repo.FindByPlatform("JIRA")
+		tasks, err := repo.FindByPlatform(ctx, "JIRA")
 		require.Error(t, err, "Should return error")
 		assert.Nil(t, tasks, "Tasks should be nil")
 		assert.Equal(t, "not implemented", err.Error(), "Error message should match")
 	})
 
 	t.Run("FindAll", func(t *testing.T) {
-		tasks, err := repo.FindAll()
+		tasks, err := repo.FindAll(ctx)
 		require.Error(t, err, "Should return error")
 		assert.Nil(t, tasks, "Tasks should be nil")
 		assert.Equal(t, "not implemented", err.Error(), "Error message should match")
 	})
 
 	t.Run("Delete", func(t *testing.T) {
-		err := repo.Delete("TEST-1")
+		err := repo.Delete(ctx, "TEST-1")
 		require.Error(t, err, "Should return error")
 		assert.Equal(t, "not implemented", err.Error(), "Error message should match")
 	})
 
 	t.Run("DeleteByProjectAndSprint", func(t *testing.T) {
-		err := repo.DeleteByProjectAndSprint("TEST", "Sprint 1")
+		err := repo.DeleteByProjectAndSprint(ctx, "TEST", "Sprint 1")
 		require.Error(t, err, "Should return error")
 		assert.Equal(t, "not implemented", err.Error(), "Error message should match")
 	})

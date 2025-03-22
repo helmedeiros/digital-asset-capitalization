@@ -12,46 +12,45 @@ import (
 )
 
 type mockTaskRepository struct {
-	fetchTasksFunc func(ctx context.Context, project, sprint string) ([]*domain.Task, error)
+	findByProjectAndSprintFunc func(ctx context.Context, project, sprint string) ([]*domain.Task, error)
 }
 
-func (m *mockTaskRepository) FetchTasks(ctx context.Context, project, sprint string) ([]*domain.Task, error) {
-	return m.fetchTasksFunc(ctx, project, sprint)
-}
-
-func (m *mockTaskRepository) Save(task *domain.Task) error {
+func (m *mockTaskRepository) Save(ctx context.Context, task *domain.Task) error {
 	return errors.New("not implemented")
 }
 
-func (m *mockTaskRepository) FindByKey(key string) (*domain.Task, error) {
+func (m *mockTaskRepository) FindByKey(ctx context.Context, key string) (*domain.Task, error) {
 	return nil, errors.New("not implemented")
 }
 
-func (m *mockTaskRepository) FindByProjectAndSprint(project, sprint string) ([]*domain.Task, error) {
+func (m *mockTaskRepository) FindByProjectAndSprint(ctx context.Context, project, sprint string) ([]*domain.Task, error) {
+	if m.findByProjectAndSprintFunc != nil {
+		return m.findByProjectAndSprintFunc(ctx, project, sprint)
+	}
 	return nil, errors.New("not implemented")
 }
 
-func (m *mockTaskRepository) FindByProject(project string) ([]*domain.Task, error) {
+func (m *mockTaskRepository) FindByProject(ctx context.Context, project string) ([]*domain.Task, error) {
 	return nil, errors.New("not implemented")
 }
 
-func (m *mockTaskRepository) FindBySprint(sprint string) ([]*domain.Task, error) {
+func (m *mockTaskRepository) FindBySprint(ctx context.Context, sprint string) ([]*domain.Task, error) {
 	return nil, errors.New("not implemented")
 }
 
-func (m *mockTaskRepository) FindByPlatform(platform string) ([]*domain.Task, error) {
+func (m *mockTaskRepository) FindByPlatform(ctx context.Context, platform string) ([]*domain.Task, error) {
 	return nil, errors.New("not implemented")
 }
 
-func (m *mockTaskRepository) FindAll() ([]*domain.Task, error) {
+func (m *mockTaskRepository) FindAll(ctx context.Context) ([]*domain.Task, error) {
 	return nil, errors.New("not implemented")
 }
 
-func (m *mockTaskRepository) Delete(key string) error {
+func (m *mockTaskRepository) Delete(ctx context.Context, key string) error {
 	return errors.New("not implemented")
 }
 
-func (m *mockTaskRepository) DeleteByProjectAndSprint(project, sprint string) error {
+func (m *mockTaskRepository) DeleteByProjectAndSprint(ctx context.Context, project, sprint string) error {
 	return errors.New("not implemented")
 }
 
@@ -89,7 +88,7 @@ func TestFetchTasksHandler_Handle(t *testing.T) {
 
 	t.Run("repository error", func(t *testing.T) {
 		repo := &mockTaskRepository{
-			fetchTasksFunc: func(ctx context.Context, project, sprint string) ([]*domain.Task, error) {
+			findByProjectAndSprintFunc: func(ctx context.Context, project, sprint string) ([]*domain.Task, error) {
 				return nil, errors.New("repository error")
 			},
 		}
@@ -120,7 +119,7 @@ func TestFetchTasksHandler_Handle(t *testing.T) {
 		}
 
 		repo := &mockTaskRepository{
-			fetchTasksFunc: func(ctx context.Context, project, sprint string) ([]*domain.Task, error) {
+			findByProjectAndSprintFunc: func(ctx context.Context, project, sprint string) ([]*domain.Task, error) {
 				assert.Equal(t, "TEST", project, "Project should match")
 				assert.Equal(t, "Sprint 1", sprint, "Sprint should match")
 				return tasks, nil

@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/helmedeiros/digital-asset-capitalization/internal/tasks/domain"
+	"github.com/helmedeiros/digital-asset-capitalization/internal/tasks/domain/ports"
 )
 
 // FetchTasksCommand represents the command to fetch tasks
@@ -16,11 +16,11 @@ type FetchTasksCommand struct {
 
 // FetchTasksHandler handles the fetch tasks command
 type FetchTasksHandler struct {
-	taskRepository domain.TaskRepository
+	taskRepository ports.Repository
 }
 
 // NewFetchTasksHandler creates a new fetch tasks handler
-func NewFetchTasksHandler(repo domain.TaskRepository) *FetchTasksHandler {
+func NewFetchTasksHandler(repo ports.Repository) *FetchTasksHandler {
 	return &FetchTasksHandler{
 		taskRepository: repo,
 	}
@@ -36,7 +36,7 @@ func (h *FetchTasksHandler) Handle(ctx context.Context, cmd FetchTasksCommand) e
 		return fmt.Errorf("platform is required")
 	}
 
-	tasks, err := h.taskRepository.FetchTasks(ctx, cmd.Project, cmd.Sprint)
+	tasks, err := h.taskRepository.FindByProjectAndSprint(ctx, cmd.Project, cmd.Sprint)
 	if err != nil {
 		return fmt.Errorf("failed to fetch tasks: %w", err)
 	}
