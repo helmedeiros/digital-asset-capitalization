@@ -4,15 +4,16 @@ import (
 	"fmt"
 
 	"github.com/helmedeiros/digital-asset-capitalization/internal/assets/domain"
+	"github.com/helmedeiros/digital-asset-capitalization/internal/assets/domain/ports"
 )
 
 // assetService implements AssetService
 type assetService struct {
-	repo AssetRepository
+	repo ports.AssetRepository
 }
 
 // NewAssetService creates a new asset service
-func NewAssetService(repo AssetRepository) AssetService {
+func NewAssetService(repo ports.AssetRepository) ports.AssetService {
 	return &assetService{
 		repo: repo,
 	}

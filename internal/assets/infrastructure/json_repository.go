@@ -6,8 +6,8 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/helmedeiros/digital-asset-capitalization/internal/assets/application"
 	"github.com/helmedeiros/digital-asset-capitalization/internal/assets/domain"
+	"github.com/helmedeiros/digital-asset-capitalization/internal/assets/domain/ports"
 )
 
 // JSONRepository implements AssetRepository using JSON files
@@ -17,7 +17,7 @@ type JSONRepository struct {
 }
 
 // NewJSONRepository creates a new JSON repository
-func NewJSONRepository(dir, file string) application.AssetRepository {
+func NewJSONRepository(dir, file string) ports.AssetRepository {
 	return &JSONRepository{
 		dir:  dir,
 		file: file,

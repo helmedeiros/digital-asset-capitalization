@@ -7,6 +7,7 @@ import (
 
 	"github.com/helmedeiros/digital-asset-capitalization/assetcap/action"
 	"github.com/helmedeiros/digital-asset-capitalization/internal/assets/application"
+	"github.com/helmedeiros/digital-asset-capitalization/internal/assets/domain/ports"
 	"github.com/helmedeiros/digital-asset-capitalization/internal/assets/infrastructure"
 	"github.com/helmedeiros/digital-asset-capitalization/internal/shell/completion"
 	"github.com/helmedeiros/digital-asset-capitalization/internal/tasks/application/command"
@@ -19,7 +20,7 @@ const (
 	assetsFile = "assets.json"
 )
 
-var assetService application.AssetService
+var assetService ports.AssetService
 
 func init() {
 	// Initialize the asset service with JSON repository
