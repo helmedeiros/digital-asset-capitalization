@@ -50,15 +50,16 @@ func (s *assetService) GetAsset(name string) (*domain.Asset, error) {
 
 // DeleteAsset deletes an asset by name
 func (s *assetService) DeleteAsset(name string) error {
+	// Check if asset exists before deleting
+	_, err := s.repo.FindByName(name)
+	if err != nil {
+		return fmt.Errorf("asset not found")
+	}
 	return s.repo.Delete(name)
 }
 
 // UpdateAsset updates an asset's description
 func (s *assetService) UpdateAsset(name, description string) error {
-	if description == "" {
-		return fmt.Errorf("asset description cannot be empty")
-	}
-
 	asset, err := s.repo.FindByName(name)
 	if err != nil {
 		return fmt.Errorf("asset not found")
@@ -70,13 +71,29 @@ func (s *assetService) UpdateAsset(name, description string) error {
 	return s.repo.Save(asset)
 }
 
+// UpdateDocumentation marks the documentation for an asset as updated
+func (s *assetService) UpdateDocumentation(assetName string) error {
+	asset, err := s.repo.FindByName(assetName)
+	if err != nil {
+		return fmt.Errorf("asset not found")
+	}
+
+	if err := asset.UpdateDocumentation(); err != nil {
+		return err
+	}
+	return s.repo.Save(asset)
+}
+
 // IncrementTaskCount increments the task count for an asset
 func (s *assetService) IncrementTaskCount(name string) error {
 	asset, err := s.repo.FindByName(name)
 	if err != nil {
 		return fmt.Errorf("asset not found")
 	}
-	asset.IncrementTaskCount()
+
+	if err := asset.IncrementTaskCount(); err != nil {
+		return err
+	}
 	return s.repo.Save(asset)
 }
 
@@ -86,20 +103,9 @@ func (s *assetService) DecrementTaskCount(name string) error {
 	if err != nil {
 		return fmt.Errorf("asset not found")
 	}
-	if asset.AssociatedTaskCount == 0 {
-		return fmt.Errorf("task count cannot be negative")
-	}
-	asset.DecrementTaskCount()
-	return s.repo.Save(asset)
-}
 
-// UpdateDocumentation marks the documentation for an asset as updated
-func (s *assetService) UpdateDocumentation(assetName string) error {
-	asset, err := s.repo.FindByName(assetName)
-	if err != nil {
-		return fmt.Errorf("asset not found")
+	if err := asset.DecrementTaskCount(); err != nil {
+		return err
 	}
-
-	asset.UpdateDocumentation()
 	return s.repo.Save(asset)
 }

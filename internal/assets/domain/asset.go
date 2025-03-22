@@ -8,10 +8,12 @@ import (
 	"time"
 )
 
-// Common errors that can occur when working with assets
+// Domain-specific errors
 var (
-	ErrEmptyName        = errors.New("asset name cannot be empty")
-	ErrEmptyDescription = errors.New("asset description cannot be empty")
+	ErrEmptyName         = errors.New("asset name cannot be empty")
+	ErrEmptyDescription  = errors.New("asset description cannot be empty")
+	ErrInvalidVersion    = errors.New("invalid version")
+	ErrNegativeTaskCount = errors.New("task count cannot be negative")
 )
 
 // Asset represents a digital asset in the system
@@ -72,34 +74,50 @@ func (a *Asset) UpdateDescription(description string) error {
 }
 
 // UpdateDocumentation marks the asset's documentation as updated
-func (a *Asset) UpdateDocumentation() {
+func (a *Asset) UpdateDocumentation() error {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 	a.LastDocUpdateAt = time.Now()
 	a.Version++
+	return nil
 }
 
-// IncrementTaskCount increases the count of tasks associated with this asset
-func (a *Asset) IncrementTaskCount() {
+// IncrementTaskCount increments the task count for this asset
+func (a *Asset) IncrementTaskCount() error {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 	a.AssociatedTaskCount++
-	a.UpdatedAt = time.Now()
 	a.Version++
+	return nil
 }
 
-// DecrementTaskCount decreases the count of tasks associated with this asset
-func (a *Asset) DecrementTaskCount() {
+// DecrementTaskCount decrements the task count for this asset
+func (a *Asset) DecrementTaskCount() error {
 	a.mu.Lock()
 	defer a.mu.Unlock()
-	if a.AssociatedTaskCount > 0 {
-		a.AssociatedTaskCount--
-		a.UpdatedAt = time.Now()
-		a.Version++
+	if a.AssociatedTaskCount == 0 {
+		return ErrNegativeTaskCount
 	}
+	a.AssociatedTaskCount--
+	a.Version++
+	return nil
 }
 
-// generateID creates a unique ID for the asset
+// GetTaskCount returns the current task count
+func (a *Asset) GetTaskCount() int {
+	a.mu.RLock()
+	defer a.mu.RUnlock()
+	return a.AssociatedTaskCount
+}
+
+// GetVersion returns the current version
+func (a *Asset) GetVersion() int {
+	a.mu.RLock()
+	defer a.mu.RUnlock()
+	return a.Version
+}
+
+// generateID creates a unique ID for an asset based on its name
 func generateID(name string) string {
 	hash := sha256.New()
 	hash.Write([]byte(name))

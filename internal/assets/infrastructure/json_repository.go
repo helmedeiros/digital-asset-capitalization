@@ -16,16 +16,42 @@ type JSONRepository struct {
 	file string
 }
 
-// NewJSONRepository creates a new JSON repository
-func NewJSONRepository(dir, file string) ports.AssetRepository {
+// RepositoryConfig holds configuration for the JSON repository
+type RepositoryConfig struct {
+	// Directory where assets will be stored
+	Directory string
+	// Filename for the assets JSON file
+	Filename string
+	// File permissions for the JSON file
+	FileMode os.FileMode
+	// Directory permissions for the storage directory
+	DirMode os.FileMode
+}
+
+// DefaultConfig returns a default configuration for the repository
+func DefaultConfig() RepositoryConfig {
+	return RepositoryConfig{
+		Directory: "data",
+		Filename:  "assets.json",
+		FileMode:  0644,
+		DirMode:   0755,
+	}
+}
+
+// NewJSONRepository creates a new JSON repository with the given configuration
+func NewJSONRepository(config RepositoryConfig) ports.AssetRepository {
 	return &JSONRepository{
-		dir:  dir,
-		file: file,
+		dir:  config.Directory,
+		file: config.Filename,
 	}
 }
 
 // Save saves an asset to the repository
 func (r *JSONRepository) Save(asset *domain.Asset) error {
+	if asset == nil {
+		return fmt.Errorf("cannot save nil asset")
+	}
+
 	// Load existing assets
 	assets, err := r.loadAssets()
 	if err != nil {
@@ -41,6 +67,10 @@ func (r *JSONRepository) Save(asset *domain.Asset) error {
 
 // FindByName finds an asset by its name
 func (r *JSONRepository) FindByName(name string) (*domain.Asset, error) {
+	if name == "" {
+		return nil, fmt.Errorf("asset name cannot be empty")
+	}
+
 	assets, err := r.loadAssets()
 	if err != nil {
 		return nil, fmt.Errorf("failed to load assets: %w", err)
@@ -71,6 +101,10 @@ func (r *JSONRepository) FindAll() ([]*domain.Asset, error) {
 
 // Delete deletes an asset by name
 func (r *JSONRepository) Delete(name string) error {
+	if name == "" {
+		return fmt.Errorf("asset name cannot be empty")
+	}
+
 	assets, err := r.loadAssets()
 	if err != nil {
 		return fmt.Errorf("failed to load assets: %w", err)
@@ -87,7 +121,7 @@ func (r *JSONRepository) Delete(name string) error {
 // loadAssets loads all assets from the JSON file
 func (r *JSONRepository) loadAssets() (map[string]*domain.Asset, error) {
 	// Create directory if it doesn't exist
-	if err := os.MkdirAll(r.dir, 0755); err != nil {
+	if err := os.MkdirAll(r.dir, DefaultConfig().DirMode); err != nil {
 		return nil, fmt.Errorf("failed to create directory: %w", err)
 	}
 
@@ -116,7 +150,7 @@ func (r *JSONRepository) saveAssets(assets map[string]*domain.Asset) error {
 	}
 
 	filePath := filepath.Join(r.dir, r.file)
-	if err := os.WriteFile(filePath, data, 0644); err != nil {
+	if err := os.WriteFile(filePath, data, DefaultConfig().FileMode); err != nil {
 		return fmt.Errorf("failed to write file: %w", err)
 	}
 

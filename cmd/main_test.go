@@ -32,9 +32,15 @@ func setupTestEnvironment(t *testing.T) func() {
 	err = os.Chdir(testDir)
 	require.NoError(t, err, "Failed to change working directory")
 
-	// Initialize test asset service
-	repo := infrastructure.NewJSONRepository(assetsDir, assetsFile)
-	assetService = application.NewAssetService(repo)
+	// Initialize repositories
+	config := infrastructure.RepositoryConfig{
+		Directory: assetsDir,
+		Filename:  assetsFile,
+		FileMode:  0644,
+		DirMode:   0755,
+	}
+	assetRepo := infrastructure.NewJSONRepository(config)
+	assetService = application.NewAssetService(assetRepo)
 
 	return func() {
 		// Restore original stdout

@@ -23,9 +23,15 @@ const (
 var assetService ports.AssetService
 
 func init() {
-	// Initialize the asset service with JSON repository
-	repo := infrastructure.NewJSONRepository(assetsDir, assetsFile)
-	assetService = application.NewAssetService(repo)
+	// Initialize repositories
+	config := infrastructure.RepositoryConfig{
+		Directory: assetsDir,
+		Filename:  assetsFile,
+		FileMode:  0644,
+		DirMode:   0755,
+	}
+	assetRepo := infrastructure.NewJSONRepository(config)
+	assetService = application.NewAssetService(assetRepo)
 }
 
 func Run() error {
