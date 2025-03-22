@@ -6,11 +6,11 @@ import (
 	"os"
 
 	"github.com/helmedeiros/digital-asset-capitalization/assetcap/action"
-	"github.com/helmedeiros/digital-asset-capitalization/internal/assets/application"
+	assetsapp "github.com/helmedeiros/digital-asset-capitalization/internal/assets/application"
 	"github.com/helmedeiros/digital-asset-capitalization/internal/assets/domain/ports"
 	"github.com/helmedeiros/digital-asset-capitalization/internal/assets/infrastructure"
 	"github.com/helmedeiros/digital-asset-capitalization/internal/shell/completion"
-	"github.com/helmedeiros/digital-asset-capitalization/internal/tasks/application/usecase"
+	tasksapp "github.com/helmedeiros/digital-asset-capitalization/internal/tasks/application"
 	"github.com/helmedeiros/digital-asset-capitalization/internal/tasks/infrastructure/jira"
 	"github.com/urfave/cli/v2"
 )
@@ -21,7 +21,7 @@ const (
 )
 
 var assetService ports.AssetService
-var taskService *usecase.FetchTasksUseCase
+var taskService *tasksapp.TaskService
 
 func init() {
 	// Initialize repositories
@@ -32,14 +32,14 @@ func init() {
 		DirMode:   0755,
 	}
 	assetRepo := infrastructure.NewJSONRepository(config)
-	assetService = application.NewAssetService(assetRepo)
+	assetService = assetsapp.NewAssetService(assetRepo)
 
 	// Initialize task repositories
 	jiraRepo, err := jira.NewRepository()
 	if err != nil {
 		log.Fatalf("Failed to initialize Jira repository: %v", err)
 	}
-	taskService = usecase.NewFetchTasksUseCase(jiraRepo)
+	taskService = tasksapp.NewTasksService(jiraRepo)
 }
 
 func Run() error {
@@ -301,7 +301,7 @@ For more information about a command:
 							project := ctx.Value("project").(string)
 							sprint := ctx.Value("sprint").(string)
 							platform := ctx.Value("platform").(string)
-							return taskService.Execute(ctx.Context, project, sprint, platform)
+							return taskService.FetchTasks(ctx.Context, project, sprint, platform)
 						},
 						Flags: []cli.Flag{
 							&cli.StringFlag{
