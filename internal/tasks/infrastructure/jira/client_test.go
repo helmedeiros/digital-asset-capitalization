@@ -122,6 +122,95 @@ func TestClient_FetchTasks(t *testing.T) {
 									},
 								},
 							},
+							"issuetype": map[string]interface{}{
+								"name": "Story",
+							},
+						},
+					},
+					{
+						"key": "TEST-2",
+						"fields": map[string]interface{}{
+							"summary": "Test Issue 2",
+							"status": map[string]interface{}{
+								"name": "To Do",
+							},
+							"project": map[string]interface{}{
+								"key": "TEST",
+							},
+							"customfield_10100": []map[string]interface{}{
+								{
+									"id":        1,
+									"name":      "Sprint 1",
+									"state":     "active",
+									"startDate": now,
+									"endDate":   now,
+									"boardId":   1,
+									"goal":      "Test sprint goal",
+								},
+							},
+							"created": now,
+							"updated": now,
+							"description": map[string]interface{}{
+								"type":    "doc",
+								"version": 1,
+								"content": []map[string]interface{}{
+									{
+										"type": "paragraph",
+										"content": []map[string]interface{}{
+											{
+												"type": "text",
+												"text": "Test Description",
+											},
+										},
+									},
+								},
+							},
+							"issuetype": map[string]interface{}{
+								"name": "Bug",
+							},
+						},
+					},
+					{
+						"key": "TEST-3",
+						"fields": map[string]interface{}{
+							"summary": "Test Issue 3",
+							"status": map[string]interface{}{
+								"name": "Done",
+							},
+							"project": map[string]interface{}{
+								"key": "TEST",
+							},
+							"customfield_10100": []map[string]interface{}{
+								{
+									"id":        1,
+									"name":      "Sprint 1",
+									"state":     "active",
+									"startDate": now,
+									"endDate":   now,
+									"boardId":   1,
+									"goal":      "Test sprint goal",
+								},
+							},
+							"created": now,
+							"updated": now,
+							"description": map[string]interface{}{
+								"type":    "doc",
+								"version": 1,
+								"content": []map[string]interface{}{
+									{
+										"type": "paragraph",
+										"content": []map[string]interface{}{
+											{
+												"type": "text",
+												"text": "Test Description",
+											},
+										},
+									},
+								},
+							},
+							"issuetype": map[string]interface{}{
+								"name": "Epic",
+							},
 						},
 					},
 				},
@@ -139,16 +228,37 @@ func TestClient_FetchTasks(t *testing.T) {
 		require.NoError(t, err, "Should not return error")
 		tasks, err := client.FetchTasks(ctx, "TEST", "Sprint 1")
 		require.NoError(t, err, "Should not return error")
-		require.Len(t, tasks, 1, "Should return one task")
+		require.Len(t, tasks, 3, "Should return three tasks")
 
-		task := tasks[0]
-		assert.Equal(t, "TEST-1", task.Key, "Task key should match")
-		assert.Equal(t, "Test Issue", task.Summary, "Task summary should match")
-		assert.Equal(t, domain.TaskStatusInProgress, task.Status, "Task status should match")
-		assert.Equal(t, "TEST", task.Project, "Task project should match")
-		assert.Equal(t, "Sprint 1", task.Sprint, "Task sprint should match")
-		assert.Equal(t, "JIRA", task.Platform, "Task platform should be JIRA")
-		assert.Equal(t, "Test Description", task.Description, "Task description should match")
+		task1 := tasks[0]
+		assert.Equal(t, "TEST-1", task1.Key, "Task key should match")
+		assert.Equal(t, "Test Issue", task1.Summary, "Task summary should match")
+		assert.Equal(t, domain.TaskStatusInProgress, task1.Status, "Task status should match")
+		assert.Equal(t, "TEST", task1.Project, "Task project should match")
+		assert.Equal(t, "Sprint 1", task1.Sprint, "Task sprint should match")
+		assert.Equal(t, "JIRA", task1.Platform, "Task platform should be JIRA")
+		assert.Equal(t, "Test Description", task1.Description, "Task description should match")
+		assert.Equal(t, domain.TaskTypeStory, task1.Type, "Task type should match")
+
+		task2 := tasks[1]
+		assert.Equal(t, "TEST-2", task2.Key, "Task key should match")
+		assert.Equal(t, "Test Issue 2", task2.Summary, "Task summary should match")
+		assert.Equal(t, domain.TaskStatusTodo, task2.Status, "Task status should match")
+		assert.Equal(t, "TEST", task2.Project, "Task project should match")
+		assert.Equal(t, "Sprint 1", task2.Sprint, "Task sprint should match")
+		assert.Equal(t, "JIRA", task2.Platform, "Task platform should be JIRA")
+		assert.Equal(t, "Test Description", task2.Description, "Task description should match")
+		assert.Equal(t, domain.TaskTypeBug, task2.Type, "Task type should match")
+
+		task3 := tasks[2]
+		assert.Equal(t, "TEST-3", task3.Key, "Task key should match")
+		assert.Equal(t, "Test Issue 3", task3.Summary, "Task summary should match")
+		assert.Equal(t, domain.TaskStatusDone, task3.Status, "Task status should match")
+		assert.Equal(t, "TEST", task3.Project, "Task project should match")
+		assert.Equal(t, "Sprint 1", task3.Sprint, "Task sprint should match")
+		assert.Equal(t, "JIRA", task3.Platform, "Task platform should be JIRA")
+		assert.Equal(t, "Test Description", task3.Description, "Task description should match")
+		assert.Equal(t, domain.TaskTypeEpic, task3.Type, "Task type should match")
 	})
 
 	t.Run("server error", func(t *testing.T) {
@@ -534,6 +644,59 @@ func TestFetchTasksWithMultipleSprints(t *testing.T) {
 				assert.Equal(t, tt.issue.Key, tasks[0].Key, "Expected task key to match")
 			} else {
 				assert.Equal(t, 0, len(tasks), "Expected no tasks in results")
+			}
+		})
+	}
+}
+
+func Test_mapJiraType(t *testing.T) {
+	tests := []struct {
+		name      string
+		issueType string
+		want      domain.TaskType
+	}{
+		{
+			name:      "should map story",
+			issueType: "Story",
+			want:      domain.TaskTypeStory,
+		},
+		{
+			name:      "should map bug",
+			issueType: "Bug",
+			want:      domain.TaskTypeBug,
+		},
+		{
+			name:      "should map epic",
+			issueType: "Epic",
+			want:      domain.TaskTypeEpic,
+		},
+		{
+			name:      "should map sub-task",
+			issueType: "Sub-task",
+			want:      domain.TaskTypeSubtask,
+		},
+		{
+			name:      "should map unknown type to task",
+			issueType: "Unknown",
+			want:      domain.TaskTypeTask,
+		},
+		{
+			name:      "should map empty type to task",
+			issueType: "",
+			want:      domain.TaskTypeTask,
+		},
+		{
+			name:      "should map case insensitive",
+			issueType: "STORY",
+			want:      domain.TaskTypeStory,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := mapJiraType(tt.issueType)
+			if got != tt.want {
+				t.Errorf("mapJiraType() = %v, want %v", got, tt.want)
 			}
 		})
 	}
