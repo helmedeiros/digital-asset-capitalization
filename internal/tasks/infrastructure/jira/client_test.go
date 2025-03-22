@@ -13,7 +13,7 @@ import (
 	"time"
 
 	"github.com/helmedeiros/digital-asset-capitalization/internal/tasks/domain"
-	"github.com/helmedeiros/digital-asset-capitalization/internal/tasks/infrastructure/jira/model"
+	"github.com/helmedeiros/digital-asset-capitalization/internal/tasks/infrastructure/jira/api"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -389,18 +389,18 @@ func TestWasWorkedOnDuringSprint(t *testing.T) {
 
 	tests := []struct {
 		name     string
-		issue    model.Issue
+		issue    api.Issue
 		expected bool
 	}{
 		{
 			name: "work done during sprint",
-			issue: model.Issue{
-				Fields: model.Fields{
-					Changelog: model.Changelog{
-						Histories: []model.ChangelogHistory{
+			issue: api.Issue{
+				Fields: api.Fields{
+					Changelog: api.Changelog{
+						Histories: []api.ChangelogHistory{
 							{
 								Created: baseTime.Add(5 * 24 * time.Hour).Format(time.RFC3339),
-								Items: []model.ChangelogItem{
+								Items: []api.ChangelogItem{
 									{Field: "status", FromString: "To Do", ToString: "In Progress"},
 								},
 							},
@@ -412,13 +412,13 @@ func TestWasWorkedOnDuringSprint(t *testing.T) {
 		},
 		{
 			name: "work done before sprint",
-			issue: model.Issue{
-				Fields: model.Fields{
-					Changelog: model.Changelog{
-						Histories: []model.ChangelogHistory{
+			issue: api.Issue{
+				Fields: api.Fields{
+					Changelog: api.Changelog{
+						Histories: []api.ChangelogHistory{
 							{
 								Created: baseTime.Add(-1 * 24 * time.Hour).Format(time.RFC3339),
-								Items: []model.ChangelogItem{
+								Items: []api.ChangelogItem{
 									{Field: "status", FromString: "To Do", ToString: "In Progress"},
 								},
 							},
@@ -430,13 +430,13 @@ func TestWasWorkedOnDuringSprint(t *testing.T) {
 		},
 		{
 			name: "work done after sprint",
-			issue: model.Issue{
-				Fields: model.Fields{
-					Changelog: model.Changelog{
-						Histories: []model.ChangelogHistory{
+			issue: api.Issue{
+				Fields: api.Fields{
+					Changelog: api.Changelog{
+						Histories: []api.ChangelogHistory{
 							{
 								Created: baseTime.Add(15 * 24 * time.Hour).Format(time.RFC3339),
-								Items: []model.ChangelogItem{
+								Items: []api.ChangelogItem{
 									{Field: "status", FromString: "To Do", ToString: "In Progress"},
 								},
 							},
@@ -448,19 +448,19 @@ func TestWasWorkedOnDuringSprint(t *testing.T) {
 		},
 		{
 			name: "multiple changes during sprint",
-			issue: model.Issue{
-				Fields: model.Fields{
-					Changelog: model.Changelog{
-						Histories: []model.ChangelogHistory{
+			issue: api.Issue{
+				Fields: api.Fields{
+					Changelog: api.Changelog{
+						Histories: []api.ChangelogHistory{
 							{
 								Created: baseTime.Add(5 * 24 * time.Hour).Format(time.RFC3339),
-								Items: []model.ChangelogItem{
+								Items: []api.ChangelogItem{
 									{Field: "status", FromString: "To Do", ToString: "In Progress"},
 								},
 							},
 							{
 								Created: baseTime.Add(7 * 24 * time.Hour).Format(time.RFC3339),
-								Items: []model.ChangelogItem{
+								Items: []api.ChangelogItem{
 									{Field: "description", FromString: "Old", ToString: "New"},
 								},
 							},
@@ -472,19 +472,19 @@ func TestWasWorkedOnDuringSprint(t *testing.T) {
 		},
 		{
 			name: "work done at sprint boundaries",
-			issue: model.Issue{
-				Fields: model.Fields{
-					Changelog: model.Changelog{
-						Histories: []model.ChangelogHistory{
+			issue: api.Issue{
+				Fields: api.Fields{
+					Changelog: api.Changelog{
+						Histories: []api.ChangelogHistory{
 							{
 								Created: sprintStart.Format(time.RFC3339),
-								Items: []model.ChangelogItem{
+								Items: []api.ChangelogItem{
 									{Field: "status", FromString: "To Do", ToString: "In Progress"},
 								},
 							},
 							{
 								Created: sprintEnd.Format(time.RFC3339),
-								Items: []model.ChangelogItem{
+								Items: []api.ChangelogItem{
 									{Field: "status", FromString: "In Progress", ToString: "Done"},
 								},
 							},
@@ -496,13 +496,13 @@ func TestWasWorkedOnDuringSprint(t *testing.T) {
 		},
 		{
 			name: "no relevant changes during sprint",
-			issue: model.Issue{
-				Fields: model.Fields{
-					Changelog: model.Changelog{
-						Histories: []model.ChangelogHistory{
+			issue: api.Issue{
+				Fields: api.Fields{
+					Changelog: api.Changelog{
+						Histories: []api.ChangelogHistory{
 							{
 								Created: baseTime.Add(5 * 24 * time.Hour).Format(time.RFC3339),
-								Items: []model.ChangelogItem{
+								Items: []api.ChangelogItem{
 									{Field: "labels", FromString: "", ToString: "bug"},
 								},
 							},
@@ -540,19 +540,19 @@ func TestFetchTasksWithMultipleSprints(t *testing.T) {
 
 	tests := []struct {
 		name     string
-		issue    model.Issue
+		issue    api.Issue
 		sprint   string
 		expected bool
 	}{
 		{
 			name: "single sprint issue",
-			issue: model.Issue{
+			issue: api.Issue{
 				Key: "TEST-1",
-				Fields: model.Fields{
+				Fields: api.Fields{
 					Summary: "Test Issue 1",
-					Status:  model.Status{Name: "In Progress"},
-					Project: model.Project{Key: "TEST"},
-					Sprint: []model.Sprint{
+					Status:  api.Status{Name: "In Progress"},
+					Project: api.Project{Key: "TEST"},
+					Sprint: []api.Sprint{
 						{
 							Name:      "Sprint 1",
 							StartDate: sprintStart.Format(time.RFC3339),
@@ -566,13 +566,13 @@ func TestFetchTasksWithMultipleSprints(t *testing.T) {
 		},
 		{
 			name: "multiple sprints with work in requested sprint",
-			issue: model.Issue{
+			issue: api.Issue{
 				Key: "TEST-2",
-				Fields: model.Fields{
+				Fields: api.Fields{
 					Summary: "Test Issue 2",
-					Status:  model.Status{Name: "In Progress"},
-					Project: model.Project{Key: "TEST"},
-					Sprint: []model.Sprint{
+					Status:  api.Status{Name: "In Progress"},
+					Project: api.Project{Key: "TEST"},
+					Sprint: []api.Sprint{
 						{
 							Name:      "Sprint 1",
 							StartDate: sprintStart.Format(time.RFC3339),
@@ -584,11 +584,11 @@ func TestFetchTasksWithMultipleSprints(t *testing.T) {
 							EndDate:   sprintEnd.Add(15 * 24 * time.Hour).Format(time.RFC3339),
 						},
 					},
-					Changelog: model.Changelog{
-						Histories: []model.ChangelogHistory{
+					Changelog: api.Changelog{
+						Histories: []api.ChangelogHistory{
 							{
 								Created: baseTime.Add(5 * 24 * time.Hour).Format(time.RFC3339),
-								Items: []model.ChangelogItem{
+								Items: []api.ChangelogItem{
 									{Field: "status", FromString: "To Do", ToString: "In Progress"},
 								},
 							},
@@ -601,13 +601,13 @@ func TestFetchTasksWithMultipleSprints(t *testing.T) {
 		},
 		{
 			name: "multiple sprints without work in requested sprint",
-			issue: model.Issue{
+			issue: api.Issue{
 				Key: "TEST-3",
-				Fields: model.Fields{
+				Fields: api.Fields{
 					Summary: "Test Issue 3",
-					Status:  model.Status{Name: "In Progress"},
-					Project: model.Project{Key: "TEST"},
-					Sprint: []model.Sprint{
+					Status:  api.Status{Name: "In Progress"},
+					Project: api.Project{Key: "TEST"},
+					Sprint: []api.Sprint{
 						{
 							Name:      "Sprint 1",
 							StartDate: sprintStart.Format(time.RFC3339),
@@ -619,11 +619,11 @@ func TestFetchTasksWithMultipleSprints(t *testing.T) {
 							EndDate:   sprintEnd.Add(15 * 24 * time.Hour).Format(time.RFC3339),
 						},
 					},
-					Changelog: model.Changelog{
-						Histories: []model.ChangelogHistory{
+					Changelog: api.Changelog{
+						Histories: []api.ChangelogHistory{
 							{
 								Created: sprintEnd.Add(2 * 24 * time.Hour).Format(time.RFC3339),
-								Items: []model.ChangelogItem{
+								Items: []api.ChangelogItem{
 									{Field: "status", FromString: "To Do", ToString: "In Progress"},
 								},
 							},
@@ -639,8 +639,8 @@ func TestFetchTasksWithMultipleSprints(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			// Create a search result with the test issue
-			searchResp := model.SearchResult{
-				Issues: []model.Issue{tt.issue},
+			searchResp := api.SearchResult{
+				Issues: []api.Issue{tt.issue},
 			}
 
 			// Convert to domain tasks

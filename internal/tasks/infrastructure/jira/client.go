@@ -12,7 +12,7 @@ import (
 	"time"
 
 	"github.com/helmedeiros/digital-asset-capitalization/internal/tasks/domain"
-	"github.com/helmedeiros/digital-asset-capitalization/internal/tasks/infrastructure/jira/model"
+	"github.com/helmedeiros/digital-asset-capitalization/internal/tasks/infrastructure/jira/api"
 )
 
 // Client defines the interface for Jira API interactions
@@ -104,7 +104,7 @@ func parseTime(timeStr string) (time.Time, error) {
 }
 
 // wasWorkedOnDuringSprint checks if an issue was worked on during the specific sprint period
-func wasWorkedOnDuringSprint(issue model.Issue, sprintStart, sprintEnd time.Time) bool {
+func wasWorkedOnDuringSprint(issue api.Issue, sprintStart, sprintEnd time.Time) bool {
 	if sprintStart.IsZero() || sprintEnd.IsZero() {
 		return false
 	}
@@ -133,7 +133,7 @@ func wasWorkedOnDuringSprint(issue model.Issue, sprintStart, sprintEnd time.Time
 }
 
 // convertToDomainTasks converts Jira issues to domain tasks
-func (c *client) convertToDomainTasks(searchResp model.SearchResult, sprint string) ([]*domain.Task, error) {
+func (c *client) convertToDomainTasks(searchResp api.SearchResult, sprint string) ([]*domain.Task, error) {
 	tasks := make([]*domain.Task, 0, len(searchResp.Issues))
 	for _, issue := range searchResp.Issues {
 		// Get sprint dates if available
@@ -300,7 +300,7 @@ func (c *client) FetchTasks(ctx context.Context, project, sprint string) ([]*dom
 	}
 
 	// Parse response
-	var searchResp model.SearchResult
+	var searchResp api.SearchResult
 	if err := json.NewDecoder(bytes.NewReader(body)).Decode(&searchResp); err != nil {
 		return nil, fmt.Errorf("failed to decode response: %w", err)
 	}
@@ -353,7 +353,7 @@ func (c *JiraClient) getSprintFieldID() (string, error) {
 	return "", fmt.Errorf("sprint field not found")
 }
 
-func (c *JiraClient) GetTasks(project string, sprint string) ([]model.Task, error) {
+func (c *JiraClient) GetTasks(project string, sprint string) ([]api.Task, error) {
 	jql := fmt.Sprintf("project = %s", project)
 	if sprint != "" {
 		jql = fmt.Sprintf("%s AND sprint in ('%s')", jql, sprint)
@@ -379,14 +379,14 @@ func (c *JiraClient) GetTasks(project string, sprint string) ([]model.Task, erro
 		return nil, fmt.Errorf("error response from Jira: %s - %s", resp.Status, string(body))
 	}
 
-	var result model.SearchResult
+	var result api.SearchResult
 	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
 		return nil, fmt.Errorf("error decoding response: %v", err)
 	}
 
-	var tasks []model.Task
+	var tasks []api.Task
 	for _, issue := range result.Issues {
-		task := model.Task{
+		task := api.Task{
 			Key:     issue.Key,
 			Summary: issue.Fields.Summary,
 			Status:  issue.Fields.Status.Name,
