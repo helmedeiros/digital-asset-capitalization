@@ -4,9 +4,11 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 
@@ -17,12 +19,19 @@ import (
 )
 
 type mockHTTPClient struct {
-	response *http.Response
-	err      error
+	responses map[string]*http.Response
+	errors    map[string]error
 }
 
 func (m *mockHTTPClient) Do(req *http.Request) (*http.Response, error) {
-	return m.response, m.err
+	url := req.URL.String()
+	if err, ok := m.errors[url]; ok {
+		return nil, err
+	}
+	if resp, ok := m.responses[url]; ok {
+		return resp, nil
+	}
+	return nil, fmt.Errorf("no mock response for URL: %s", url)
 }
 
 func createMockResponse(t *testing.T, statusCode int, body interface{}) *http.Response {
@@ -698,6 +707,167 @@ func Test_mapJiraType(t *testing.T) {
 			if got != tt.want {
 				t.Errorf("mapJiraType() = %v, want %v", got, tt.want)
 			}
+		})
+	}
+}
+
+type mockTransport struct {
+	responses map[string]*http.Response
+	errors    map[string]error
+}
+
+func (m *mockTransport) RoundTrip(req *http.Request) (*http.Response, error) {
+	url := req.URL.String()
+	if err, ok := m.errors[url]; ok {
+		return nil, err
+	}
+	if resp, ok := m.responses[url]; ok {
+		return resp, nil
+	}
+	return nil, fmt.Errorf("no mock response for URL: %s", url)
+}
+
+func TestGetSprintFieldID(t *testing.T) {
+	tests := []struct {
+		name    string
+		baseURL string
+		auth    string
+		mock    *mockTransport
+		wantErr bool
+	}{
+		{
+			name:    "successful fetch",
+			baseURL: "https://test.atlassian.net",
+			auth:    "Basic dGVzdEBleGFtcGxlLmNvbTp0ZXN0LXRva2Vu",
+			mock: &mockTransport{
+				responses: map[string]*http.Response{
+					"https://test.atlassian.net/rest/api/2/field": {
+						StatusCode: http.StatusOK,
+						Body: io.NopCloser(strings.NewReader(`[
+							{
+								"id": "customfield_10100",
+								"name": "Sprint",
+								"schema": {
+									"type": "array",
+									"custom": "com.pyxis.greenhopper.jira:gh-sprint"
+								}
+							}
+						]`)),
+					},
+				},
+			},
+			wantErr: false,
+		},
+		{
+			name:    "invalid base URL",
+			baseURL: "invalid-url",
+			auth:    "Basic dGVzdEBleGFtcGxlLmNvbTp0ZXN0LXRva2Vu",
+			mock: &mockTransport{
+				errors: map[string]error{
+					"invalid-url/rest/api/2/field": fmt.Errorf("invalid URL"),
+				},
+			},
+			wantErr: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			client := &JiraClient{
+				client:  &http.Client{Transport: tt.mock},
+				baseURL: tt.baseURL,
+				auth:    tt.auth,
+			}
+
+			fieldID, err := client.getSprintFieldID()
+			if tt.wantErr {
+				require.Error(t, err)
+				assert.Empty(t, fieldID)
+				return
+			}
+			require.NoError(t, err)
+			assert.NotEmpty(t, fieldID)
+			assert.Equal(t, "customfield_10100", fieldID)
+		})
+	}
+}
+
+func TestGetTasks(t *testing.T) {
+	tests := []struct {
+		name    string
+		baseURL string
+		auth    string
+		mock    *mockTransport
+		wantErr bool
+	}{
+		{
+			name:    "successful fetch",
+			baseURL: "https://test.atlassian.net",
+			auth:    "Basic dGVzdEBleGFtcGxlLmNvbTp0ZXN0LXRva2Vu",
+			mock: &mockTransport{
+				responses: map[string]*http.Response{
+					"https://test.atlassian.net/rest/api/3/search?jql=project+%3D+TEST+AND+sprint+in+%28%27Sprint+1%27%29&fields=*all": {
+						StatusCode: http.StatusOK,
+						Body: io.NopCloser(strings.NewReader(`{
+							"issues": [
+								{
+									"key": "TEST-1",
+									"fields": {
+										"summary": "Test Issue",
+										"status": {"name": "To Do"},
+										"issuetype": {"name": "Story"},
+										"sprint": [
+											{
+												"id": 1,
+												"name": "Sprint 1",
+												"state": "active",
+												"startDate": "2024-01-01T00:00:00.000Z",
+												"endDate": "2024-01-14T00:00:00.000Z"
+											}
+										]
+									}
+								}
+							]
+						}`)),
+					},
+				},
+			},
+			wantErr: false,
+		},
+		{
+			name:    "invalid base URL",
+			baseURL: "invalid-url",
+			auth:    "Basic dGVzdEBleGFtcGxlLmNvbTp0ZXN0LXRva2Vu",
+			mock: &mockTransport{
+				errors: map[string]error{
+					"invalid-url/rest/api/3/search?jql=project+%3D+TEST+AND+sprint+in+%28%27Sprint+1%27%29&fields=*all": fmt.Errorf("invalid URL"),
+				},
+			},
+			wantErr: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			client := &JiraClient{
+				client:  &http.Client{Transport: tt.mock},
+				baseURL: tt.baseURL,
+				auth:    tt.auth,
+			}
+
+			tasks, err := client.GetTasks("TEST", "Sprint 1")
+			if tt.wantErr {
+				require.Error(t, err)
+				assert.Nil(t, tasks)
+				return
+			}
+			require.NoError(t, err)
+			assert.NotNil(t, tasks)
+			assert.Len(t, tasks, 1)
+			assert.Equal(t, "TEST-1", tasks[0].Key)
+			assert.Equal(t, "Test Issue", tasks[0].Summary)
+			assert.Equal(t, "To Do", tasks[0].Status)
+			assert.Equal(t, []string{"Sprint 1 (active)"}, tasks[0].Sprint)
 		})
 	}
 }
