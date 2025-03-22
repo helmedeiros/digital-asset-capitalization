@@ -13,9 +13,10 @@ import (
 )
 
 func TestFetchTasksUseCase(t *testing.T) {
-	// Create a mock repository
-	mockRepo := testutil.NewMockTaskRepository()
-	useCase := NewFetchTasksUseCase(mockRepo)
+	// Create mock repositories
+	remoteRepo := testutil.NewMockTaskRepository()
+	localRepo := testutil.NewMockTaskRepository()
+	useCase := NewFetchTasksUseCase(remoteRepo, localRepo)
 
 	// Create test tasks
 	now := time.Now()
@@ -48,10 +49,14 @@ func TestFetchTasksUseCase(t *testing.T) {
 			sprint:   "Sprint 1",
 			platform: "jira",
 			setupMock: func() {
-				mockRepo.SetFindByProjectAndSprintFunc(func(ctx context.Context, project, sprint string) ([]*domain.Task, error) {
+				remoteRepo.SetFindByProjectAndSprintFunc(func(ctx context.Context, project, sprint string) ([]*domain.Task, error) {
 					assert.Equal(t, "TEST", project)
 					assert.Equal(t, "Sprint 1", sprint)
 					return testTasks, nil
+				})
+				localRepo.SetSaveFunc(func(ctx context.Context, task *domain.Task) error {
+					assert.Equal(t, testTasks[0].Key, task.Key)
+					return nil
 				})
 			},
 			wantErr: false,
@@ -73,24 +78,41 @@ func TestFetchTasksUseCase(t *testing.T) {
 			errMsg:   "platform is required",
 		},
 		{
-			name:     "repository error",
+			name:     "remote repository error",
 			project:  "TEST",
 			sprint:   "Sprint 1",
 			platform: "jira",
 			setupMock: func() {
-				mockRepo.SetFindByProjectAndSprintFunc(func(ctx context.Context, project, sprint string) ([]*domain.Task, error) {
+				remoteRepo.SetFindByProjectAndSprintFunc(func(ctx context.Context, project, sprint string) ([]*domain.Task, error) {
 					return nil, errors.New("repository error")
 				})
 			},
 			wantErr: true,
 			errMsg:  "failed to fetch tasks",
 		},
+		{
+			name:     "local repository error",
+			project:  "TEST",
+			sprint:   "Sprint 1",
+			platform: "jira",
+			setupMock: func() {
+				remoteRepo.SetFindByProjectAndSprintFunc(func(ctx context.Context, project, sprint string) ([]*domain.Task, error) {
+					return testTasks, nil
+				})
+				localRepo.SetSaveFunc(func(ctx context.Context, task *domain.Task) error {
+					return errors.New("save error")
+				})
+			},
+			wantErr: true,
+			errMsg:  "failed to save task",
+		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			// Reset mock before each test
-			mockRepo.Reset()
+			// Reset mocks before each test
+			remoteRepo.Reset()
+			localRepo.Reset()
 
 			// Setup mock if needed
 			if tt.setupMock != nil {

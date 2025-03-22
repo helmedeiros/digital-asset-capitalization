@@ -13,9 +13,9 @@ type TaskService struct {
 }
 
 // NewTasksService creates a new TasksService
-func NewTasksService(taskRepo ports.TaskRepository) *TaskService {
+func NewTasksService(remoteRepo, localRepo ports.TaskRepository) *TaskService {
 	return &TaskService{
-		fetchTasksUseCase: usecase.NewFetchTasksUseCase(taskRepo),
+		fetchTasksUseCase: usecase.NewFetchTasksUseCase(remoteRepo, localRepo),
 	}
 }
 

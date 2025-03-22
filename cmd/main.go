@@ -12,12 +12,15 @@ import (
 	"github.com/helmedeiros/digital-asset-capitalization/internal/shell/completion"
 	tasksapp "github.com/helmedeiros/digital-asset-capitalization/internal/tasks/application"
 	"github.com/helmedeiros/digital-asset-capitalization/internal/tasks/infrastructure/jira"
+	"github.com/helmedeiros/digital-asset-capitalization/internal/tasks/infrastructure/storage"
 	"github.com/urfave/cli/v2"
 )
 
 const (
 	assetsDir  = ".assetcap"
 	assetsFile = "assets.json"
+	tasksDir   = ".assetcap"
+	tasksFile  = "tasks.json"
 )
 
 var assetService ports.AssetService
@@ -39,7 +42,9 @@ func init() {
 	if err != nil {
 		log.Fatalf("Failed to initialize Jira repository: %v", err)
 	}
-	taskService = tasksapp.NewTasksService(jiraRepo)
+
+	localRepo := storage.NewJSONStorage(tasksDir, tasksFile)
+	taskService = tasksapp.NewTasksService(jiraRepo, localRepo)
 }
 
 func Run() error {

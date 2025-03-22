@@ -10,6 +10,7 @@ import (
 // MockTaskRepository is a mock implementation of TaskRepository for testing
 type MockTaskRepository struct {
 	findByProjectAndSprintFunc func(ctx context.Context, project, sprint string) ([]*domain.Task, error)
+	saveFunc                   func(ctx context.Context, task *domain.Task) error
 }
 
 // NewMockTaskRepository creates a new mock task repository
@@ -20,6 +21,7 @@ func NewMockTaskRepository() *MockTaskRepository {
 // Reset resets all mock functions
 func (m *MockTaskRepository) Reset() {
 	m.findByProjectAndSprintFunc = nil
+	m.saveFunc = nil
 }
 
 // SetFindByProjectAndSprintFunc sets the mock function for FindByProjectAndSprint
@@ -27,8 +29,16 @@ func (m *MockTaskRepository) SetFindByProjectAndSprintFunc(f func(ctx context.Co
 	m.findByProjectAndSprintFunc = f
 }
 
+// SetSaveFunc sets the mock function for Save
+func (m *MockTaskRepository) SetSaveFunc(f func(ctx context.Context, task *domain.Task) error) {
+	m.saveFunc = f
+}
+
 // Save saves a task to the repository
 func (m *MockTaskRepository) Save(ctx context.Context, task *domain.Task) error {
+	if m.saveFunc != nil {
+		return m.saveFunc(ctx, task)
+	}
 	return nil
 }
 

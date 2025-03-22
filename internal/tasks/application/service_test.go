@@ -11,8 +11,9 @@ import (
 )
 
 func TestTasksService_FetchTasks(t *testing.T) {
-	mockRepo := testutil.NewMockTaskRepository()
-	service := NewTasksService(mockRepo)
+	remoteRepo := testutil.NewMockTaskRepository()
+	localRepo := testutil.NewMockTaskRepository()
+	service := NewTasksService(remoteRepo, localRepo)
 
 	tests := []struct {
 		name     string
@@ -28,8 +29,9 @@ func TestTasksService_FetchTasks(t *testing.T) {
 			sprint:   "Sprint 1",
 			platform: "JIRA",
 			setup: func() {
-				mockRepo.Reset()
-				mockRepo.SetFindByProjectAndSprintFunc(func(ctx context.Context, project, sprint string) ([]*domain.Task, error) {
+				remoteRepo.Reset()
+				localRepo.Reset()
+				remoteRepo.SetFindByProjectAndSprintFunc(func(ctx context.Context, project, sprint string) ([]*domain.Task, error) {
 					return []*domain.Task{
 						{
 							Key:     "PROJ-1",
@@ -39,6 +41,10 @@ func TestTasksService_FetchTasks(t *testing.T) {
 							Sprint:  "Sprint 1",
 						},
 					}, nil
+				})
+				localRepo.SetSaveFunc(func(ctx context.Context, task *domain.Task) error {
+					assert.Equal(t, "PROJ-1", task.Key)
+					return nil
 				})
 			},
 			wantErr: false,
@@ -60,14 +66,39 @@ func TestTasksService_FetchTasks(t *testing.T) {
 			wantErr:  true,
 		},
 		{
-			name:     "repository error",
+			name:     "remote repository error",
 			project:  "PROJ",
 			sprint:   "Sprint 1",
 			platform: "JIRA",
 			setup: func() {
-				mockRepo.Reset()
-				mockRepo.SetFindByProjectAndSprintFunc(func(ctx context.Context, project, sprint string) ([]*domain.Task, error) {
+				remoteRepo.Reset()
+				remoteRepo.SetFindByProjectAndSprintFunc(func(ctx context.Context, project, sprint string) ([]*domain.Task, error) {
 					return nil, errors.New("repository error")
+				})
+			},
+			wantErr: true,
+		},
+		{
+			name:     "local repository error",
+			project:  "PROJ",
+			sprint:   "Sprint 1",
+			platform: "JIRA",
+			setup: func() {
+				remoteRepo.Reset()
+				localRepo.Reset()
+				remoteRepo.SetFindByProjectAndSprintFunc(func(ctx context.Context, project, sprint string) ([]*domain.Task, error) {
+					return []*domain.Task{
+						{
+							Key:     "PROJ-1",
+							Type:    "Story",
+							Summary: "Test Task",
+							Status:  "In Progress",
+							Sprint:  "Sprint 1",
+						},
+					}, nil
+				})
+				localRepo.SetSaveFunc(func(ctx context.Context, task *domain.Task) error {
+					return errors.New("save error")
 				})
 			},
 			wantErr: true,

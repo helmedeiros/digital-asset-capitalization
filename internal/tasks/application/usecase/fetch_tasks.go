@@ -9,13 +9,15 @@ import (
 
 // FetchTasksUseCase represents the use case for fetching tasks
 type FetchTasksUseCase struct {
-	repo ports.TaskRepository
+	remoteRepo ports.TaskRepository
+	localRepo  ports.TaskRepository
 }
 
 // NewFetchTasksUseCase creates a new fetch tasks use case
-func NewFetchTasksUseCase(repo ports.TaskRepository) *FetchTasksUseCase {
+func NewFetchTasksUseCase(remoteRepo, localRepo ports.TaskRepository) *FetchTasksUseCase {
 	return &FetchTasksUseCase{
-		repo: repo,
+		remoteRepo: remoteRepo,
+		localRepo:  localRepo,
 	}
 }
 
@@ -29,13 +31,21 @@ func (u *FetchTasksUseCase) Execute(ctx context.Context, project, sprint, platfo
 		return fmt.Errorf("platform is required")
 	}
 
-	tasks, err := u.repo.FindByProjectAndSprint(ctx, project, sprint)
+	// Fetch tasks from remote repository (e.g., Jira)
+	tasks, err := u.remoteRepo.FindByProjectAndSprint(ctx, project, sprint)
 	if err != nil {
 		return fmt.Errorf("failed to fetch tasks: %w", err)
 	}
 
-	// TODO: Implement task display logic
-	fmt.Printf("Found %d tasks\n", len(tasks))
+	// Save tasks to local storage
+	for _, task := range tasks {
+		if err := u.localRepo.Save(ctx, task); err != nil {
+			return fmt.Errorf("failed to save task %s: %w", task.Key, err)
+		}
+	}
+
+	// Display tasks
+	fmt.Printf("Found and saved %d tasks\n", len(tasks))
 	for _, task := range tasks {
 		sprintInfo := ""
 		if task.Sprint != "" {
