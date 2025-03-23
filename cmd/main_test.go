@@ -51,7 +51,6 @@ func setupTestEnvironment(t *testing.T) func() {
 	localRepo := testutil.NewMockTaskRepository()
 	classifier := testutil.NewMockTaskClassifier()
 	userInput := testutil.NewMockUserInput()
-	taskFetcher := testutil.NewMockTaskFetcher()
 
 	// Set up mock behavior for task classification
 	classifier.SetClassifyTasksFunc(func(tasks []*domain.Task) (map[string]domain.WorkType, error) {
@@ -67,29 +66,24 @@ func setupTestEnvironment(t *testing.T) func() {
 		return true, nil
 	})
 
-	// Set up mock behavior for task fetching
-	taskFetcher.SetFetchTasksFunc(func(project, sprint string) ([]*domain.Task, error) {
-		task, err := domain.NewTask("TEST-1", "Test task", project, sprint, "jira")
-		if err != nil {
-			return nil, err
-		}
-		return []*domain.Task{task}, nil
-	})
-
-	// Set up mock behavior for local repository
-	localRepo.SetFindByProjectAndSprintFunc(func(ctx context.Context, project, sprint string) ([]*domain.Task, error) {
-		task, err := domain.NewTask("TEST-1", "Test task", project, sprint, "jira")
-		if err != nil {
-			return nil, err
-		}
-		return []*domain.Task{task}, nil
+	// Set up mock behavior for repositories
+	jiraRepo.SetFindByProjectAndSprintFunc(func(ctx context.Context, project, sprint string) ([]*domain.Task, error) {
+		return []*domain.Task{
+			{
+				Key:     "TEST-1",
+				Type:    "Story",
+				Summary: "Test Task",
+				Status:  "In Progress",
+				Sprint:  "Sprint 1",
+			},
+		}, nil
 	})
 
 	localRepo.SetSaveFunc(func(ctx context.Context, task *domain.Task) error {
 		return nil
 	})
 
-	taskService = tasksapp.NewTasksService(jiraRepo, localRepo, classifier, userInput, taskFetcher)
+	taskService = tasksapp.NewTasksService(jiraRepo, localRepo, classifier, userInput)
 
 	return func() {
 		// Restore original stdout

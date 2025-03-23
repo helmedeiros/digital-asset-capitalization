@@ -158,31 +158,3 @@ func (m *MockUserInput) Confirm(prompt string, args ...interface{}) (bool, error
 	}
 	return false, nil
 }
-
-// MockTaskFetcher is a mock implementation of TaskFetcher
-type MockTaskFetcher struct {
-	fetchTasksFunc func(project, sprint string) ([]*domain.Task, error)
-}
-
-// NewMockTaskFetcher creates a new mock task fetcher
-func NewMockTaskFetcher() *MockTaskFetcher {
-	return &MockTaskFetcher{}
-}
-
-// Reset resets the mock task fetcher
-func (m *MockTaskFetcher) Reset() {
-	m.fetchTasksFunc = nil
-}
-
-// SetFetchTasksFunc sets the function to be called when FetchTasks is called
-func (m *MockTaskFetcher) SetFetchTasksFunc(f func(project, sprint string) ([]*domain.Task, error)) {
-	m.fetchTasksFunc = f
-}
-
-// FetchTasks implements TaskFetcher.FetchTasks
-func (m *MockTaskFetcher) FetchTasks(project, sprint string) ([]*domain.Task, error) {
-	if m.fetchTasksFunc != nil {
-		return m.fetchTasksFunc(project, sprint)
-	}
-	return nil, nil
-}

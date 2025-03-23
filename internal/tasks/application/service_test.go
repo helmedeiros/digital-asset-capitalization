@@ -14,7 +14,7 @@ import (
 func TestTasksService_FetchTasks(t *testing.T) {
 	remoteRepo := testutil.NewMockTaskRepository()
 	localRepo := testutil.NewMockTaskRepository()
-	service := NewTasksService(remoteRepo, localRepo, nil, nil, nil)
+	service := NewTasksService(remoteRepo, localRepo, nil, nil)
 
 	tests := []struct {
 		name     string
@@ -124,8 +124,7 @@ func TestTasksService_ClassifyTasks(t *testing.T) {
 	localRepo := testutil.NewMockTaskRepository()
 	classifier := testutil.NewMockTaskClassifier()
 	userInput := testutil.NewMockUserInput()
-	taskFetcher := testutil.NewMockTaskFetcher()
-	service := NewTasksService(remoteRepo, localRepo, classifier, userInput, taskFetcher)
+	service := NewTasksService(remoteRepo, localRepo, classifier, userInput)
 
 	tests := []struct {
 		name    string
@@ -143,7 +142,6 @@ func TestTasksService_ClassifyTasks(t *testing.T) {
 				localRepo.Reset()
 				classifier.Reset()
 				userInput.Reset()
-				taskFetcher.Reset()
 
 				// Setup local repo to return existing tasks
 				localRepo.SetFindByProjectAndSprintFunc(func(ctx context.Context, project, sprint string) ([]*domain.Task, error) {
@@ -184,7 +182,6 @@ func TestTasksService_ClassifyTasks(t *testing.T) {
 				localRepo.Reset()
 				classifier.Reset()
 				userInput.Reset()
-				taskFetcher.Reset()
 
 				// Setup local repo to return no tasks
 				localRepo.SetFindByProjectAndSprintFunc(func(ctx context.Context, project, sprint string) ([]*domain.Task, error) {
@@ -196,8 +193,8 @@ func TestTasksService_ClassifyTasks(t *testing.T) {
 					return true, nil
 				})
 
-				// Setup task fetcher to return tasks
-				taskFetcher.SetFetchTasksFunc(func(project, sprint string) ([]*domain.Task, error) {
+				// Setup remote repo to return tasks
+				remoteRepo.SetFindByProjectAndSprintFunc(func(ctx context.Context, project, sprint string) ([]*domain.Task, error) {
 					return []*domain.Task{
 						{
 							Key:     "PROJ-1",
@@ -234,7 +231,6 @@ func TestTasksService_ClassifyTasks(t *testing.T) {
 				localRepo.Reset()
 				classifier.Reset()
 				userInput.Reset()
-				taskFetcher.Reset()
 
 				// Setup local repo to return no tasks
 				localRepo.SetFindByProjectAndSprintFunc(func(ctx context.Context, project, sprint string) ([]*domain.Task, error) {
@@ -258,7 +254,6 @@ func TestTasksService_ClassifyTasks(t *testing.T) {
 				localRepo.Reset()
 				classifier.Reset()
 				userInput.Reset()
-				taskFetcher.Reset()
 
 				// Setup local repo to return existing tasks
 				localRepo.SetFindByProjectAndSprintFunc(func(ctx context.Context, project, sprint string) ([]*domain.Task, error) {
@@ -290,7 +285,6 @@ func TestTasksService_ClassifyTasks(t *testing.T) {
 				localRepo.Reset()
 				classifier.Reset()
 				userInput.Reset()
-				taskFetcher.Reset()
 
 				// Setup local repo to return error
 				localRepo.SetFindByProjectAndSprintFunc(func(ctx context.Context, project, sprint string) ([]*domain.Task, error) {

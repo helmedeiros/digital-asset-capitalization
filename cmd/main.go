@@ -13,7 +13,6 @@ import (
 	"github.com/helmedeiros/digital-asset-capitalization/internal/shell/completion"
 	tasksapp "github.com/helmedeiros/digital-asset-capitalization/internal/tasks/application"
 	"github.com/helmedeiros/digital-asset-capitalization/internal/tasks/application/usecase"
-	"github.com/helmedeiros/digital-asset-capitalization/internal/tasks/domain"
 	"github.com/helmedeiros/digital-asset-capitalization/internal/tasks/infrastructure/classifier"
 	cliui "github.com/helmedeiros/digital-asset-capitalization/internal/tasks/infrastructure/cli"
 	"github.com/helmedeiros/digital-asset-capitalization/internal/tasks/infrastructure/jira"
@@ -52,20 +51,7 @@ func init() {
 	taskClassifier := classifier.NewRandomClassifier()
 	userInput := cliui.NewCLIUserInput()
 
-	// Create a task fetcher that wraps the Jira repository
-	taskFetcher := &jiraTaskFetcher{repo: jiraRepo}
-
-	taskService = tasksapp.NewTasksService(jiraRepo, localRepo, taskClassifier, userInput, taskFetcher)
-}
-
-// jiraTaskFetcher wraps a JiraTaskRepository to implement the TaskFetcher interface
-type jiraTaskFetcher struct {
-	repo *jira.JiraTaskRepository
-}
-
-// FetchTasks implements the TaskFetcher interface
-func (f *jiraTaskFetcher) FetchTasks(project, sprint string) ([]*domain.Task, error) {
-	return f.repo.FindByProjectAndSprint(context.Background(), project, sprint)
+	taskService = tasksapp.NewTasksService(jiraRepo, localRepo, taskClassifier, userInput)
 }
 
 func Run() error {

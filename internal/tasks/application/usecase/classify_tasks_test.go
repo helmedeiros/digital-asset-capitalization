@@ -126,7 +126,7 @@ func TestClassifyTasksUseCase_Execute(t *testing.T) {
 		fetchedTasks  []*domain.Task
 		workTypes     map[string]domain.WorkType
 		expectedError bool
-		expectedCalls func(*MockTaskRepository, *MockTaskClassifier, *MockUserInput, *MockTaskFetcher)
+		expectedCalls func(*MockTaskRepository, *MockTaskRepository, *MockTaskClassifier, *MockUserInput)
 	}{
 		{
 			name: "successfully classify existing tasks",
@@ -144,8 +144,8 @@ func TestClassifyTasksUseCase_Execute(t *testing.T) {
 				"TEST-2": domain.WorkTypeMaintenance,
 			},
 			expectedError: false,
-			expectedCalls: func(repo *MockTaskRepository, classifier *MockTaskClassifier, userInput *MockUserInput, fetcher *MockTaskFetcher) {
-				repo.On("FindByProjectAndSprint", ctx, "TEST", "Sprint 1").Return([]*domain.Task{
+			expectedCalls: func(localRepo, remoteRepo *MockTaskRepository, classifier *MockTaskClassifier, userInput *MockUserInput) {
+				localRepo.On("FindByProjectAndSprint", ctx, "TEST", "Sprint 1").Return([]*domain.Task{
 					{Key: "TEST-1", Summary: "Task 1"},
 					{Key: "TEST-2", Summary: "Task 2"},
 				}, nil)
@@ -153,7 +153,7 @@ func TestClassifyTasksUseCase_Execute(t *testing.T) {
 					"TEST-1": domain.WorkTypeDevelopment,
 					"TEST-2": domain.WorkTypeMaintenance,
 				}, nil)
-				repo.On("Save", ctx, mock.Anything).Return(nil).Times(2)
+				localRepo.On("Save", ctx, mock.Anything).Return(nil).Times(2)
 			},
 		},
 		{
@@ -173,14 +173,14 @@ func TestClassifyTasksUseCase_Execute(t *testing.T) {
 				"TEST-4": domain.WorkTypeDevelopment,
 			},
 			expectedError: false,
-			expectedCalls: func(repo *MockTaskRepository, classifier *MockTaskClassifier, userInput *MockUserInput, fetcher *MockTaskFetcher) {
-				repo.On("FindByProjectAndSprint", ctx, "TEST", "Sprint 2").Return(nil, nil)
+			expectedCalls: func(localRepo, remoteRepo *MockTaskRepository, classifier *MockTaskClassifier, userInput *MockUserInput) {
+				localRepo.On("FindByProjectAndSprint", ctx, "TEST", "Sprint 2").Return(nil, nil)
 				userInput.On("Confirm", mock.Anything, mock.Anything).Return(true, nil)
-				fetcher.On("FetchTasks", "TEST", "Sprint 2").Return([]*domain.Task{
+				remoteRepo.On("FindByProjectAndSprint", ctx, "TEST", "Sprint 2").Return([]*domain.Task{
 					{Key: "TEST-3", Summary: "Task 3"},
 					{Key: "TEST-4", Summary: "Task 4"},
 				}, nil)
-				repo.On("Save", ctx, mock.Anything).Return(nil).Times(4)
+				localRepo.On("Save", ctx, mock.Anything).Return(nil).Times(4)
 				classifier.On("ClassifyTasks", mock.Anything).Return(map[string]domain.WorkType{
 					"TEST-3": domain.WorkTypeDiscovery,
 					"TEST-4": domain.WorkTypeDevelopment,
@@ -192,16 +192,16 @@ func TestClassifyTasksUseCase_Execute(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			// Create mocks
-			repo := new(MockTaskRepository)
+			localRepo := new(MockTaskRepository)
+			remoteRepo := new(MockTaskRepository)
 			classifier := new(MockTaskClassifier)
 			userInput := new(MockUserInput)
-			fetcher := new(MockTaskFetcher)
 
 			// Set up expected calls
-			tt.expectedCalls(repo, classifier, userInput, fetcher)
+			tt.expectedCalls(localRepo, remoteRepo, classifier, userInput)
 
 			// Create use case
-			uc := NewClassifyTasksUseCase(repo, classifier, userInput, fetcher)
+			uc := NewClassifyTasksUseCase(localRepo, remoteRepo, classifier, userInput)
 
 			// Execute use case
 			err := uc.Execute(ctx, tt.input)
@@ -211,10 +211,10 @@ func TestClassifyTasksUseCase_Execute(t *testing.T) {
 				assert.Error(t, err)
 			} else {
 				assert.NoError(t, err)
-				repo.AssertExpectations(t)
+				localRepo.AssertExpectations(t)
+				remoteRepo.AssertExpectations(t)
 				classifier.AssertExpectations(t)
 				userInput.AssertExpectations(t)
-				fetcher.AssertExpectations(t)
 			}
 		})
 	}

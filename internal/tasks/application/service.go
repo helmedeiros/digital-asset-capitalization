@@ -14,10 +14,10 @@ type TaskService struct {
 }
 
 // NewTasksService creates a new TasksService
-func NewTasksService(remoteRepo, localRepo ports.TaskRepository, classifier ports.TaskClassifier, userInput ports.UserInput, taskFetcher ports.TaskFetcher) *TaskService {
+func NewTasksService(remoteRepo, localRepo ports.TaskRepository, classifier ports.TaskClassifier, userInput ports.UserInput) *TaskService {
 	return &TaskService{
 		fetchTasksUseCase:    usecase.NewFetchTasksUseCase(remoteRepo, localRepo),
-		classifyTasksUseCase: usecase.NewClassifyTasksUseCase(localRepo, classifier, userInput, taskFetcher),
+		classifyTasksUseCase: usecase.NewClassifyTasksUseCase(localRepo, remoteRepo, classifier, userInput),
 	}
 }
 

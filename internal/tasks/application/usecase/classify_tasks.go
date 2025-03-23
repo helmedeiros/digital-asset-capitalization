@@ -15,31 +15,31 @@ type ClassifyTasksInput struct {
 
 // ClassifyTasksUseCase handles the classification of tasks for a project/sprint
 type ClassifyTasksUseCase struct {
-	taskRepo    ports.TaskRepository
-	classifier  ports.TaskClassifier
-	userInput   ports.UserInput
-	taskFetcher ports.TaskFetcher
+	localRepo  ports.TaskRepository
+	remoteRepo ports.TaskRepository
+	classifier ports.TaskClassifier
+	userInput  ports.UserInput
 }
 
 // NewClassifyTasksUseCase creates a new instance of ClassifyTasksUseCase
 func NewClassifyTasksUseCase(
-	taskRepo ports.TaskRepository,
+	localRepo ports.TaskRepository,
+	remoteRepo ports.TaskRepository,
 	classifier ports.TaskClassifier,
 	userInput ports.UserInput,
-	taskFetcher ports.TaskFetcher,
 ) *ClassifyTasksUseCase {
 	return &ClassifyTasksUseCase{
-		taskRepo:    taskRepo,
-		classifier:  classifier,
-		userInput:   userInput,
-		taskFetcher: taskFetcher,
+		localRepo:  localRepo,
+		remoteRepo: remoteRepo,
+		classifier: classifier,
+		userInput:  userInput,
 	}
 }
 
 // Execute runs the task classification process
 func (uc *ClassifyTasksUseCase) Execute(ctx context.Context, input ClassifyTasksInput) error {
 	// First, try to find existing tasks for the project/sprint
-	tasks, err := uc.taskRepo.FindByProjectAndSprint(ctx, input.Project, input.Sprint)
+	tasks, err := uc.localRepo.FindByProjectAndSprint(ctx, input.Project, input.Sprint)
 	if err != nil {
 		return fmt.Errorf("failed to find existing tasks: %w", err)
 	}
@@ -53,14 +53,14 @@ func (uc *ClassifyTasksUseCase) Execute(ctx context.Context, input ClassifyTasks
 
 		if shouldFetch {
 			// Fetch tasks from the platform
-			fetchedTasks, err := uc.taskFetcher.FetchTasks(input.Project, input.Sprint)
+			fetchedTasks, err := uc.remoteRepo.FindByProjectAndSprint(ctx, input.Project, input.Sprint)
 			if err != nil {
 				return fmt.Errorf("failed to fetch tasks: %w", err)
 			}
 
 			// Save fetched tasks to repository
 			for _, task := range fetchedTasks {
-				if err := uc.taskRepo.Save(ctx, task); err != nil {
+				if err := uc.localRepo.Save(ctx, task); err != nil {
 					return fmt.Errorf("failed to save fetched task %s: %w", task.Key, err)
 				}
 			}
@@ -84,7 +84,7 @@ func (uc *ClassifyTasksUseCase) Execute(ctx context.Context, input ClassifyTasks
 		}
 
 		// Save updated task
-		if err := uc.taskRepo.Save(ctx, task); err != nil {
+		if err := uc.localRepo.Save(ctx, task); err != nil {
 			return fmt.Errorf("failed to save classified task %s: %w", task.Key, err)
 		}
 	}
