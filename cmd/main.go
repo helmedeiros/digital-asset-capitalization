@@ -8,9 +8,10 @@ import (
 
 	assetsapp "github.com/helmedeiros/digital-asset-capitalization/internal/assets/application"
 	"github.com/helmedeiros/digital-asset-capitalization/internal/assets/domain/ports"
-	"github.com/helmedeiros/digital-asset-capitalization/internal/assets/infrastructure"
+	assetsinfra "github.com/helmedeiros/digital-asset-capitalization/internal/assets/infrastructure"
 	"github.com/helmedeiros/digital-asset-capitalization/internal/shell/completion"
-	"github.com/helmedeiros/digital-asset-capitalization/internal/sprint/action"
+	"github.com/helmedeiros/digital-asset-capitalization/internal/sprint/application"
+	sprintinfra "github.com/helmedeiros/digital-asset-capitalization/internal/sprint/infrastructure"
 	tasksapp "github.com/helmedeiros/digital-asset-capitalization/internal/tasks/application"
 	"github.com/helmedeiros/digital-asset-capitalization/internal/tasks/application/usecase"
 	"github.com/helmedeiros/digital-asset-capitalization/internal/tasks/infrastructure/classifier"
@@ -29,16 +30,17 @@ const (
 
 var assetService ports.AssetService
 var taskService *tasksapp.TaskService
+var sprintService *application.SprintService
 
 func init() {
 	// Initialize repositories
-	config := infrastructure.RepositoryConfig{
+	config := assetsinfra.RepositoryConfig{
 		Directory: assetsDir,
 		Filename:  assetsFile,
 		FileMode:  0644,
 		DirMode:   0755,
 	}
-	assetRepo := infrastructure.NewJSONRepository(config)
+	assetRepo := assetsinfra.NewJSONRepository(config)
 	assetService = assetsapp.NewAssetService(assetRepo)
 
 	// Initialize task repositories
@@ -52,6 +54,16 @@ func init() {
 	userInput := cliui.NewCLIUserInput()
 
 	taskService = tasksapp.NewTasksService(jiraRepo, localRepo, taskClassifier, userInput)
+}
+
+func initJiraAdapter() error {
+	// Initialize sprint service
+	jiraAdapter, err := sprintinfra.NewJiraAdapter()
+	if err != nil {
+		return fmt.Errorf("failed to initialize Jira adapter: %v", err)
+	}
+	sprintService = application.NewSprintService(jiraAdapter)
+	return nil
 }
 
 func Run() error {
@@ -118,7 +130,10 @@ For more information about a command:
 							project := ctx.Value("project").(string)
 							sprint := ctx.Value("sprint").(string)
 							override := ctx.Value("override").(string)
-							result, err := action.JiraDoer(project, sprint, override)
+							if err := initJiraAdapter(); err != nil {
+								return err
+							}
+							result, err := sprintService.ProcessJiraIssues(project, sprint, override)
 							if err != nil {
 								return err
 							}

@@ -35,17 +35,33 @@ func setupTestEnvironment(t *testing.T) func() {
 	require.NoError(t, err, "Failed to get working directory")
 
 	// Copy teams.json to test directory
-	srcTeamsFile := filepath.Join(oldWd, "..", "teams.json")
+	srcTeamsFile := filepath.Join(oldWd, "teams.json")
 	dstTeamsFile := filepath.Join(testDir, "teams.json")
 	srcData, err := os.ReadFile(srcTeamsFile)
 	if err != nil {
-		// Try to use teams.json.template as fallback
-		srcTeamsFile = filepath.Join(oldWd, "..", "teams.json.template")
+		// Try parent directory
+		srcTeamsFile = filepath.Join(oldWd, "..", "teams.json")
 		srcData, err = os.ReadFile(srcTeamsFile)
-		require.NoError(t, err, "Failed to read teams.json or teams.json.template")
+		if err != nil {
+			// Try to use teams.json.template as fallback
+			srcTeamsFile = filepath.Join(oldWd, "teams.json.template")
+			srcData, err = os.ReadFile(srcTeamsFile)
+			if err != nil {
+				srcTeamsFile = filepath.Join(oldWd, "..", "teams.json.template")
+				srcData, err = os.ReadFile(srcTeamsFile)
+				if err != nil {
+					// Create a default teams.json file
+					srcData = []byte(`{
+						"TEST": {
+							"team": ["Test User 1", "Test User 2"]
+						}
+					}`)
+				}
+			}
+		}
 	}
 	err = os.WriteFile(dstTeamsFile, srcData, 0644)
-	require.NoError(t, err, "Failed to copy teams.json")
+	require.NoError(t, err, "Failed to write teams.json")
 
 	// Change working directory
 	err = os.Chdir(testDir)
