@@ -9,6 +9,7 @@ This tool helps track and manage digital assets in your organization, including:
 1. Asset lifecycle management
 2. Time allocation tracking for tasks
 3. Documentation management
+4. Task classification and management
 
 The tool automatically calculates the time allocation for tasks in each sprint and helps manage the capitalization of digital assets.
 
@@ -96,9 +97,37 @@ assetcap assets tasks decrement --asset "Frontend App"
 ### Time Allocation
 
 This tool automatically calculates the time it took the developer
-to complete the task in the sprint in % of the total sprint time, as later fill it into "Time Allocation %" in JIRA.
+to complete the task in the sprint in % of the total sprint time. The tool:
 
-Simply copy-paste the output to the Google Spreadsheet with the split per columns.
+1. Fetches tasks from JIRA for a specific project and sprint
+2. Calculates time allocation based on task completion
+3. Generates a formatted output that can be copied to JIRA's "Time Allocation %" field
+4. Supports integration with Google Spreadsheets for team-wide tracking
+
+To use the time allocation feature:
+
+```bash
+# Fetch and classify tasks for a project and sprint
+assetcap tasks classify --project "PROJECT" --sprint "Sprint 1"
+
+# View the calculated time allocation
+assetcap tasks show --project "PROJECT" --sprint "Sprint 1"
+```
+
+### Task Management
+
+The tool provides comprehensive task management capabilities:
+
+```bash
+# Fetch tasks from JIRA
+assetcap tasks fetch --project "PROJECT" --sprint "Sprint 1"
+
+# Classify tasks for an asset
+assetcap tasks classify --project "PROJECT" --sprint "Sprint 1"
+
+# Show task details
+assetcap tasks show --project "PROJECT" --sprint "Sprint 1"
+```
 
 ## Architecture
 
@@ -108,23 +137,26 @@ The project follows a hexagonal (ports and adapters) architecture pattern, which
 
 The codebase is organized into distinct layers:
 
-1. **Domain Layer** (`internal/assets/domain/`)
+1. **Domain Layer** (`internal/*/domain/`)
 
    - Contains the core business logic and entities
    - Defines the domain models and interfaces
    - No dependencies on external frameworks or libraries
+   - Includes both assets and tasks domain models
 
-2. **Application Layer** (`internal/assets/application/`)
+2. **Application Layer** (`internal/*/application/`)
 
    - Implements use cases and business rules
    - Orchestrates the flow of data and domain objects
    - Defines ports (interfaces) for external dependencies
+   - Handles both asset and task operations
 
-3. **Infrastructure Layer** (`internal/assets/infrastructure/`)
+3. **Infrastructure Layer** (`internal/*/infrastructure/`)
 
    - Implements the adapters for external dependencies
    - Handles persistence, external services, and frameworks
    - Conforms to the interfaces defined in the application layer
+   - Includes JIRA integration and local storage
 
 4. **Interface Layer** (`assetcap/action/`)
    - Handles user interface and command-line interactions
@@ -182,7 +214,9 @@ The tool uses persistent ancillaries to maintain state between runs:
    ```json
    {
      "PROJECT_KEY": {
-       "Members": ["Team Member 1", "Team Member 2"]
+       "Members": ["Team Member 1", "Team Member 2"],
+       "SprintDuration": "2w",
+       "WorkingHoursPerDay": 8
      }
    }
    ```
@@ -192,6 +226,10 @@ The tool uses persistent ancillaries to maintain state between runs:
    export JIRA_EMAIL="your.email@company.com"
    export JIRA_TOKEN="your-api-token"
    ```
+5. The tool will automatically create a `.assetcap` directory in your home folder to store:
+   - Asset data (`assets.json`)
+   - Task data (`tasks.json`)
+   - Generated documentation (`docs/`)
 
 ## Testing
 
@@ -240,6 +278,23 @@ Run benchmarks to measure performance:
 ```bash
 make bench
 ```
+
+### Test Coverage Requirements
+
+The project maintains high test coverage requirements:
+
+- Domain layer: >90% coverage
+- Application layer: >80% coverage
+- Infrastructure layer: >80% coverage
+- Overall coverage target: >80%
+
+### Test Utilities
+
+The project includes test utilities in `internal/*/application/usecase/testutil/`:
+
+- Mock implementations for repositories
+- Test helpers for common scenarios
+- Utilities for setting up test data
 
 ## Contributing
 
