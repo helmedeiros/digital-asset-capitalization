@@ -45,6 +45,7 @@ func (c *JiraConfig) Validate() error {
 	if err := c.validateCredentials(); err != nil {
 		return err
 	}
+
 	return nil
 }
 
@@ -55,7 +56,10 @@ func (c *JiraConfig) validateBaseURL() error {
 	}
 
 	parsedURL, err := url.Parse(c.baseURL)
-	if err != nil || !strings.HasPrefix(parsedURL.Scheme, "http") {
+	if err != nil {
+		return ErrInvalidBaseURL
+	}
+	if !strings.HasPrefix(parsedURL.Scheme, "http") {
 		return ErrInvalidBaseURL
 	}
 
@@ -70,6 +74,7 @@ func (c *JiraConfig) validateCredentials() error {
 	if c.token == "" {
 		return ErrMissingToken
 	}
+
 	return nil
 }
 

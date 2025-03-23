@@ -23,6 +23,7 @@ func CalculateWorkingHours(issueKey string, manualAdjustments map[string]float64
 
 	workHours := 0.0
 	current := startTime
+
 	for current.Before(endTime) {
 		if !isWeekend(current) {
 			if current.Hour() >= 9 && current.Hour() < 17 {
@@ -31,6 +32,7 @@ func CalculateWorkingHours(issueKey string, manualAdjustments map[string]float64
 		}
 		current = current.Add(time.Hour)
 	}
+
 	return workHours
 }
 
@@ -47,6 +49,7 @@ var GetJiraIssues JiraIssuesGetter = func(url, authHeader string) ([]JiraIssue, 
 
 	req.Header.Add("Authorization", authHeader)
 	req.Header.Add("Content-Type", "application/json")
+	req.Header.Add("Accept", "application/json")
 
 	resp, err := client.Do(req)
 	if err != nil {
@@ -62,7 +65,7 @@ var GetJiraIssues JiraIssuesGetter = func(url, authHeader string) ([]JiraIssue, 
 	var jiraResponse JiraResponse
 	err = json.Unmarshal(body, &jiraResponse)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("error unmarshaling response: %w, body: %s", err, string(body))
 	}
 
 	return jiraResponse.Issues, nil

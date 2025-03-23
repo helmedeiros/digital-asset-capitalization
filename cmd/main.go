@@ -108,29 +108,42 @@ For more information about a command:
 				},
 			},
 			{
-				Name:  "timeallocation-calc",
-				Usage: "Process JIRA issues",
-				Action: func(ctx *cli.Context) error {
-					fmt.Print(action.JiraDoer(ctx.Value("project").(string), ctx.Value("sprint").(string), ctx.Value("override").(string)))
-					return nil
-				},
-				Flags: []cli.Flag{
-					&cli.StringFlag{
-						Name:     "project",
-						Aliases:  []string{"p"},
-						Usage:    "Project key",
-						Required: true,
-					},
-					&cli.StringFlag{
-						Name:     "sprint",
-						Aliases:  []string{"s"},
-						Usage:    "Sprint name or ID",
-						Required: true,
-					},
-					&cli.StringFlag{
-						Name:    "override",
-						Aliases: []string{"o"},
-						Usage:   "Manual percentage adjustments as JSON where key is IssueID and value is amount of working hours being spent (e.g. '{\"ISSUE-1\": 6, \"ISSUE-2\": 36}')",
+				Name:  "sprint",
+				Usage: "Manage sprint-related operations",
+				Subcommands: []*cli.Command{
+					{
+						Name:  "allocate",
+						Usage: "Calculate time allocation for JIRA issues in a sprint",
+						Action: func(ctx *cli.Context) error {
+							project := ctx.Value("project").(string)
+							sprint := ctx.Value("sprint").(string)
+							override := ctx.Value("override").(string)
+							result, err := action.JiraDoer(project, sprint, override)
+							if err != nil {
+								return err
+							}
+							fmt.Print(result)
+							return nil
+						},
+						Flags: []cli.Flag{
+							&cli.StringFlag{
+								Name:     "project",
+								Aliases:  []string{"p"},
+								Usage:    "Project key",
+								Required: true,
+							},
+							&cli.StringFlag{
+								Name:     "sprint",
+								Aliases:  []string{"s"},
+								Usage:    "Sprint name or ID",
+								Required: true,
+							},
+							&cli.StringFlag{
+								Name:    "override",
+								Aliases: []string{"o"},
+								Usage:   "Manual percentage adjustments as JSON where key is IssueID and value is amount of working hours being spent (e.g. '{\"ISSUE-1\": 6, \"ISSUE-2\": 36}')",
+							},
+						},
 					},
 				},
 			},

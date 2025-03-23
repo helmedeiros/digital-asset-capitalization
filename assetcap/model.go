@@ -62,6 +62,12 @@ type JiraFields struct {
 	Summary     string       `json:"summary"`
 	Assignee    JiraAssignee `json:"assignee"`
 	StoryPoints *float64     `json:"customfield_13192"`
+	Status      JiraStatus   `json:"status"`
+}
+
+// JiraStatus represents the status of a Jira issue
+type JiraStatus struct {
+	Name string `json:"name"`
 }
 
 // JiraChangelog represents the changelog of a Jira issue

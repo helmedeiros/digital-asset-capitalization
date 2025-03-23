@@ -30,9 +30,24 @@ func setupTestEnvironment(t *testing.T) func() {
 	err := os.MkdirAll(testDir, 0755)
 	require.NoError(t, err, "Failed to create test directory")
 
-	// Change working directory
+	// Get current working directory
 	oldWd, err := os.Getwd()
 	require.NoError(t, err, "Failed to get working directory")
+
+	// Copy teams.json to test directory
+	srcTeamsFile := filepath.Join(oldWd, "..", "teams.json")
+	dstTeamsFile := filepath.Join(testDir, "teams.json")
+	srcData, err := os.ReadFile(srcTeamsFile)
+	if err != nil {
+		// Try to use teams.json.template as fallback
+		srcTeamsFile = filepath.Join(oldWd, "..", "teams.json.template")
+		srcData, err = os.ReadFile(srcTeamsFile)
+		require.NoError(t, err, "Failed to read teams.json or teams.json.template")
+	}
+	err = os.WriteFile(dstTeamsFile, srcData, 0644)
+	require.NoError(t, err, "Failed to copy teams.json")
+
+	// Change working directory
 	err = os.Chdir(testDir)
 	require.NoError(t, err, "Failed to change working directory")
 
@@ -201,18 +216,23 @@ func TestRun(t *testing.T) {
 			wantOut: "",
 		},
 		{
-			name:    "timeallocation-calc with required flags",
-			args:    []string{"assetcap", "timeallocation-calc", "--project", "TEST", "--sprint", "Sprint 1"},
+			name:    "sprint allocate with required flags",
+			args:    []string{"assetcap", "sprint", "allocate", "--project", "FN", "--sprint", "Sprint 1"},
 			wantErr: false,
 		},
 		{
-			name:    "timeallocation-calc with override",
-			args:    []string{"assetcap", "timeallocation-calc", "--project", "TEST", "--sprint", "Sprint 1", "--override", "{\"ISSUE-1\": 6}"},
+			name:    "sprint allocate with override",
+			args:    []string{"assetcap", "sprint", "allocate", "--project", "FN", "--sprint", "Sprint 1", "--override", "{\"ISSUE-1\": 6}"},
 			wantErr: false,
 		},
 		{
-			name:    "timeallocation-calc missing project",
-			args:    []string{"assetcap", "timeallocation-calc", "--sprint", "Sprint 1"},
+			name:    "sprint allocate missing project",
+			args:    []string{"assetcap", "sprint", "allocate", "--sprint", "Sprint 1"},
+			wantErr: true,
+		},
+		{
+			name:    "sprint allocate missing sprint",
+			args:    []string{"assetcap", "sprint", "allocate", "--project", "FN"},
 			wantErr: true,
 		},
 		{
@@ -222,9 +242,9 @@ func TestRun(t *testing.T) {
 		},
 		{
 			name:    "tasks classify with required flags",
-			args:    []string{"assetcap", "tasks", "classify", "--project", "TEST", "--sprint", "Sprint 1", "--platform", "jira"},
+			args:    []string{"assetcap", "tasks", "classify", "--project", "FN", "--sprint", "Sprint 1", "--platform", "jira"},
 			wantErr: false,
-			wantOut: "Successfully classified tasks for project TEST, sprint Sprint 1 from jira\n",
+			wantOut: "Successfully classified tasks for project FN, sprint Sprint 1 from jira\n",
 		},
 		{
 			name:    "tasks classify missing project",
@@ -233,12 +253,12 @@ func TestRun(t *testing.T) {
 		},
 		{
 			name:    "tasks classify missing sprint",
-			args:    []string{"assetcap", "tasks", "classify", "--project", "TEST", "--platform", "jira"},
+			args:    []string{"assetcap", "tasks", "classify", "--project", "FN", "--platform", "jira"},
 			wantErr: true,
 		},
 		{
 			name:    "tasks classify missing platform",
-			args:    []string{"assetcap", "tasks", "classify", "--project", "TEST", "--sprint", "Sprint 1"},
+			args:    []string{"assetcap", "tasks", "classify", "--project", "FN", "--sprint", "Sprint 1"},
 			wantErr: true,
 		},
 	}

@@ -64,17 +64,26 @@ func (p *JiraProcessor) Process() (string, error) {
 	if err != nil {
 		return "", err
 	}
+	if len(manualAdjustments) > 0 {
+	}
 
 	totalHoursByPerson := p.calculateTotalHours(*team, issues, manualAdjustments)
+
 	results := p.calculatePercentageLoad(*team, issues, manualAdjustments, totalHoursByPerson)
 
-	return p.generateCSV(*team, results)
+	csvData, err := p.generateCSV(*team, results)
+	if err != nil {
+		return "", fmt.Errorf("failed to generate CSV: %w", err)
+	}
+
+	return csvData, nil
 }
 
 func (p *JiraProcessor) fetchIssues() ([]assetcap.JiraIssue, error) {
-	query := fmt.Sprintf("project = %s AND sprint in openSprints()", p.project)
+	query := fmt.Sprintf("project = %s AND sprint = '%s'", p.project, p.sprint)
 	encodedQuery := url.QueryEscape(query)
-	jiraURL := fmt.Sprintf("%s/rest/api/3/search?jql=%s", p.config.GetBaseURL(), encodedQuery)
+	fields := "summary,assignee,status,changelog"
+	jiraURL := fmt.Sprintf("%s/rest/api/3/search?jql=%s&expand=changelog&fields=%s", p.config.GetBaseURL(), encodedQuery, fields)
 
 	return assetcap.GetJiraIssues(jiraURL, p.config.GetAuthHeader())
 }
@@ -99,6 +108,7 @@ func (p *JiraProcessor) calculateTotalHours(team assetcap.Team, issues []assetca
 
 	for _, issue := range issues {
 		assignee := issue.Fields.Assignee.DisplayName
+
 		if !team.IsTeamMember(assignee) {
 			continue
 		}
@@ -109,6 +119,7 @@ func (p *JiraProcessor) calculateTotalHours(team assetcap.Team, issues []assetca
 		}
 
 		workingHours := assetcap.CalculateWorkingHours(issue.Key, manualAdjustments, startTime, endTime)
+
 		totalHoursByPerson[assignee] += workingHours
 	}
 
@@ -117,27 +128,61 @@ func (p *JiraProcessor) calculateTotalHours(team assetcap.Team, issues []assetca
 
 func (p *JiraProcessor) getIssueTimeRange(issue assetcap.JiraIssue) (time.Time, time.Time) {
 	var startTime, endTime time.Time
-	var inProgress, done bool
+	var inProgress bool
 
-	for i := len(issue.Changelog.Histories) - 1; i >= 0; i-- {
+	// Process histories in chronological order
+	for i := 0; i < len(issue.Changelog.Histories); i++ {
 		history := issue.Changelog.Histories[i]
+
 		for _, item := range history.Items {
 			if !item.IsStatusChange() {
 				continue
 			}
 
-			if (item.ToString == assetcap.StatusDone || item.ToString == assetcap.StatusWontDo) && !done {
-				endTime, _ = time.Parse("2006-01-02T15:04:05.000-0700", history.Created)
-				done = true
-			} else if item.ToString == assetcap.StatusInProgress && !inProgress {
-				startTime, _ = time.Parse("2006-01-02T15:04:05.000-0700", history.Created)
+			// Parse the history timestamp
+			historyTime, _ := time.Parse("2006-01-02T15:04:05.000-0700", history.Created)
+
+			// Look for transition into "In Progress" state
+			if !inProgress && item.ToString == assetcap.StatusInProgress {
+				startTime = historyTime
+				inProgress = true
+			}
+
+			// Look for transition to "Done" or "Won't Do" state
+			if inProgress && (item.ToString == assetcap.StatusDone || item.ToString == assetcap.StatusWontDo) {
+				endTime = historyTime
+			}
+
+			// If moving out of "In Progress" to a non-Done state, consider this a pause
+			if inProgress && item.FromString == assetcap.StatusInProgress &&
+				item.ToString != assetcap.StatusDone && item.ToString != assetcap.StatusWontDo {
+				// Calculate working hours up to this point and add to total
+				assetcap.CalculateWorkingHours(issue.Key, nil, startTime, historyTime)
+				inProgress = false
+			}
+
+			// If moving back to "In Progress", start a new time range
+			if !inProgress && item.ToString == assetcap.StatusInProgress {
+				startTime = historyTime
 				inProgress = true
 			}
 		}
 	}
 
-	if inProgress && !done {
+	// If still in progress and no end time found, use current time
+	if inProgress && endTime.IsZero() {
 		endTime = time.Now()
+	}
+
+	// If we found a start time but no end time, use the last history entry
+	if !startTime.IsZero() && endTime.IsZero() && len(issue.Changelog.Histories) > 0 {
+		lastHistory := issue.Changelog.Histories[len(issue.Changelog.Histories)-1]
+		endTime, _ = time.Parse("2006-01-02T15:04:05.000-0700", lastHistory.Created)
+	}
+
+	// If no valid time range found, return zero times
+	if startTime.IsZero() || endTime.IsZero() {
+		return time.Time{}, time.Time{}
 	}
 
 	return startTime, endTime
@@ -148,6 +193,7 @@ func (p *JiraProcessor) calculatePercentageLoad(team assetcap.Team, issues []ass
 
 	for _, issue := range issues {
 		assignee := issue.Fields.Assignee.DisplayName
+
 		if !team.IsTeamMember(assignee) {
 			continue
 		}
