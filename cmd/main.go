@@ -74,7 +74,6 @@ func Run() error {
 		UsageText: `assetcap [global options] command [command options] [arguments...]
 
 COMMANDS:
-   timeallocation-calc  Calculate time allocation for JIRA issues
    assets              Manage digital assets
      create           Create a new asset
      list            List all assets

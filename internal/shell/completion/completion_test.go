@@ -15,7 +15,6 @@ func TestGetBashCompletion(t *testing.T) {
 	required := []string{
 		"#! /bin/bash",
 		"_assetcap_completion()",
-		"timeallocation-calc",
 		"assets",
 		"completion",
 		"help",
@@ -46,7 +45,6 @@ func TestGetZshCompletion(t *testing.T) {
 	required := []string{
 		"#compdef assetcap",
 		"_assetcap()",
-		"timeallocation-calc",
 		"assets",
 		"completion",
 		"help",
@@ -76,7 +74,6 @@ func TestGetFishCompletion(t *testing.T) {
 	// Check for required components
 	required := []string{
 		"__fish_assetcap_no_subcommand",
-		"timeallocation-calc",
 		"assets",
 		"completion",
 		"help",
@@ -105,7 +102,6 @@ func TestCompletionScriptsConsistency(t *testing.T) {
 	fish := GetFishCompletion()
 
 	commands := []string{
-		"timeallocation-calc",
 		"assets",
 		"completion",
 		"help",

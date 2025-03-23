@@ -9,7 +9,7 @@ _assetcap_completion() {
     COMPREPLY=()
     cur="${COMP_WORDS[COMP_CWORD]}"
     prev="${COMP_WORDS[COMP_CWORD-1]}"
-    opts="timeallocation-calc assets completion help"
+    opts="assets completion help"
 
     case "${prev}" in
         "assets")

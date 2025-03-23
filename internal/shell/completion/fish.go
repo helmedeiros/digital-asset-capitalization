@@ -10,7 +10,6 @@ func GetFishCompletion() string {
     return 1
 end
 
-complete -c assetcap -n '__fish_assetcap_no_subcommand' -a timeallocation-calc -d 'Calculate time allocation for JIRA issues'
 complete -c assetcap -n '__fish_assetcap_no_subcommand' -a assets -d 'Manage digital assets'
 complete -c assetcap -n '__fish_assetcap_no_subcommand' -a completion -d 'Generate shell completion scripts'
 complete -c assetcap -n '__fish_assetcap_no_subcommand' -a help -d 'Shows a list of commands or help for one command'

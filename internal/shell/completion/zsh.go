@@ -7,7 +7,6 @@ func GetZshCompletion() string {
 _assetcap() {
     local -a commands
     commands=(
-        'timeallocation-calc:Calculate time allocation for JIRA issues'
         'assets:Manage digital assets'
         'completion:Generate shell completion scripts'
         'help:Shows a list of commands or help for one command'
