@@ -13,7 +13,7 @@ import (
 func TestTasksService_FetchTasks(t *testing.T) {
 	remoteRepo := testutil.NewMockTaskRepository()
 	localRepo := testutil.NewMockTaskRepository()
-	service := NewTasksService(remoteRepo, localRepo)
+	service := NewTasksService(remoteRepo, localRepo, nil, nil, nil)
 
 	tests := []struct {
 		name     string

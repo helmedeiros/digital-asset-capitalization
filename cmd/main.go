@@ -44,7 +44,7 @@ func init() {
 	}
 
 	localRepo := storage.NewJSONStorage(tasksDir, tasksFile)
-	taskService = tasksapp.NewTasksService(jiraRepo, localRepo)
+	taskService = tasksapp.NewTasksService(jiraRepo, localRepo, nil, nil, nil)
 }
 
 func Run() error {
