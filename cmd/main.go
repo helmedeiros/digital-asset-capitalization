@@ -84,6 +84,8 @@ COMMANDS:
        decrement     Decrement task count for an asset
    tasks              Manage tasks from various platforms
      fetch           Fetch tasks from a platform (e.g., Jira)
+   sprint             Manage sprint-related operations
+     allocate        Calculate time allocation for JIRA issues in a sprint
 
 For more information about a command:
    assetcap [command] --help`,
