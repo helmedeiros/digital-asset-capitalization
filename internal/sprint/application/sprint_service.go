@@ -5,7 +5,7 @@ import (
 
 	"github.com/helmedeiros/digital-asset-capitalization/internal/sprint/application/usecase"
 	"github.com/helmedeiros/digital-asset-capitalization/internal/sprint/domain"
-	"github.com/helmedeiros/digital-asset-capitalization/internal/sprint/ports"
+	"github.com/helmedeiros/digital-asset-capitalization/internal/sprint/domain/ports"
 )
 
 // SprintService handles sprint-related operations

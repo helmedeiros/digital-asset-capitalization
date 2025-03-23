@@ -11,7 +11,7 @@ import (
 	"time"
 
 	"github.com/helmedeiros/digital-asset-capitalization/internal/sprint/domain"
-	"github.com/helmedeiros/digital-asset-capitalization/internal/sprint/ports"
+	"github.com/helmedeiros/digital-asset-capitalization/internal/sprint/domain/ports"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )

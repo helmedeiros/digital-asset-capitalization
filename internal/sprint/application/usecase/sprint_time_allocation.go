@@ -10,8 +10,8 @@ import (
 
 	"github.com/helmedeiros/digital-asset-capitalization/internal/sprint/config"
 	"github.com/helmedeiros/digital-asset-capitalization/internal/sprint/domain"
+	"github.com/helmedeiros/digital-asset-capitalization/internal/sprint/domain/ports"
 	"github.com/helmedeiros/digital-asset-capitalization/internal/sprint/infrastructure"
-	"github.com/helmedeiros/digital-asset-capitalization/internal/sprint/ports"
 )
 
 // SprintTimeAllocationUseCase handles the processing of Jira issues and time calculations

@@ -8,7 +8,7 @@ import (
 
 	"github.com/helmedeiros/digital-asset-capitalization/internal/sprint/config"
 	"github.com/helmedeiros/digital-asset-capitalization/internal/sprint/domain"
-	"github.com/helmedeiros/digital-asset-capitalization/internal/sprint/ports"
+	"github.com/helmedeiros/digital-asset-capitalization/internal/sprint/domain/ports"
 )
 
 // JiraAdapter implements the JiraPort interface
