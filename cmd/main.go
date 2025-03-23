@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"log"
 	"os"
@@ -11,6 +12,10 @@ import (
 	"github.com/helmedeiros/digital-asset-capitalization/internal/assets/infrastructure"
 	"github.com/helmedeiros/digital-asset-capitalization/internal/shell/completion"
 	tasksapp "github.com/helmedeiros/digital-asset-capitalization/internal/tasks/application"
+	"github.com/helmedeiros/digital-asset-capitalization/internal/tasks/application/usecase"
+	"github.com/helmedeiros/digital-asset-capitalization/internal/tasks/domain"
+	"github.com/helmedeiros/digital-asset-capitalization/internal/tasks/infrastructure/classifier"
+	cliui "github.com/helmedeiros/digital-asset-capitalization/internal/tasks/infrastructure/cli"
 	"github.com/helmedeiros/digital-asset-capitalization/internal/tasks/infrastructure/jira"
 	"github.com/helmedeiros/digital-asset-capitalization/internal/tasks/infrastructure/storage"
 	"github.com/urfave/cli/v2"
@@ -44,7 +49,23 @@ func init() {
 	}
 
 	localRepo := storage.NewJSONStorage(tasksDir, tasksFile)
-	taskService = tasksapp.NewTasksService(jiraRepo, localRepo, nil, nil, nil)
+	taskClassifier := classifier.NewRandomClassifier()
+	userInput := cliui.NewCLIUserInput()
+
+	// Create a task fetcher that wraps the Jira repository
+	taskFetcher := &jiraTaskFetcher{repo: jiraRepo}
+
+	taskService = tasksapp.NewTasksService(jiraRepo, localRepo, taskClassifier, userInput, taskFetcher)
+}
+
+// jiraTaskFetcher wraps a JiraTaskRepository to implement the TaskFetcher interface
+type jiraTaskFetcher struct {
+	repo *jira.JiraTaskRepository
+}
+
+// FetchTasks implements the TaskFetcher interface
+func (f *jiraTaskFetcher) FetchTasks(project, sprint string) ([]*domain.Task, error) {
+	return f.repo.FindByProjectAndSprint(context.Background(), project, sprint)
 }
 
 func Run() error {
@@ -306,22 +327,61 @@ For more information about a command:
 							project := ctx.Value("project").(string)
 							sprint := ctx.Value("sprint").(string)
 							platform := ctx.Value("platform").(string)
-							return taskService.FetchTasks(ctx.Context, project, sprint, platform)
+							if err := taskService.FetchTasks(context.Background(), project, sprint, platform); err != nil {
+								return err
+							}
+							fmt.Printf("Successfully fetched tasks for project %s, sprint %s from %s\n", project, sprint, platform)
+							return nil
 						},
 						Flags: []cli.Flag{
 							&cli.StringFlag{
 								Name:     "project",
-								Usage:    "Project key",
+								Usage:    "Project key (e.g., FN)",
 								Required: true,
 							},
 							&cli.StringFlag{
 								Name:     "sprint",
-								Usage:    "Sprint name or ID",
+								Usage:    "Sprint name (e.g., Penguins)",
 								Required: true,
 							},
 							&cli.StringFlag{
 								Name:     "platform",
-								Usage:    "Platform name (e.g., jira)",
+								Usage:    "Platform to fetch tasks from (e.g., jira)",
+								Required: true,
+							},
+						},
+					},
+					{
+						Name:  "classify",
+						Usage: "Classify tasks for a specific project and sprint",
+						Action: func(ctx *cli.Context) error {
+							project := ctx.Value("project").(string)
+							sprint := ctx.Value("sprint").(string)
+							platform := ctx.Value("platform").(string)
+							input := usecase.ClassifyTasksInput{
+								Project: project,
+								Sprint:  sprint,
+							}
+							if err := taskService.ClassifyTasks(context.Background(), input); err != nil {
+								return err
+							}
+							fmt.Printf("Successfully classified tasks for project %s, sprint %s from %s\n", project, sprint, platform)
+							return nil
+						},
+						Flags: []cli.Flag{
+							&cli.StringFlag{
+								Name:     "project",
+								Usage:    "Project key (e.g., FN)",
+								Required: true,
+							},
+							&cli.StringFlag{
+								Name:     "sprint",
+								Usage:    "Sprint name (e.g., Penguins)",
+								Required: true,
+							},
+							&cli.StringFlag{
+								Name:     "platform",
+								Usage:    "Platform to classify tasks from (e.g., jira)",
 								Required: true,
 							},
 						},

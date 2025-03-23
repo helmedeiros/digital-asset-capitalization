@@ -87,3 +87,102 @@ func (m *MockTaskRepository) DeleteByProjectAndSprint(ctx context.Context, proje
 
 // Ensure MockTaskRepository implements TaskRepository
 var _ ports.TaskRepository = (*MockTaskRepository)(nil)
+
+// MockTaskClassifier is a mock implementation of TaskClassifier
+type MockTaskClassifier struct {
+	classifyTasksFunc func(tasks []*domain.Task) (map[string]domain.WorkType, error)
+	classifyTaskFunc  func(task *domain.Task) (domain.WorkType, error)
+}
+
+// NewMockTaskClassifier creates a new mock task classifier
+func NewMockTaskClassifier() *MockTaskClassifier {
+	return &MockTaskClassifier{}
+}
+
+// Reset resets the mock classifier
+func (m *MockTaskClassifier) Reset() {
+	m.classifyTasksFunc = nil
+	m.classifyTaskFunc = nil
+}
+
+// SetClassifyTasksFunc sets the function to be called when ClassifyTasks is called
+func (m *MockTaskClassifier) SetClassifyTasksFunc(f func(tasks []*domain.Task) (map[string]domain.WorkType, error)) {
+	m.classifyTasksFunc = f
+}
+
+// SetClassifyTaskFunc sets the function to be called when ClassifyTask is called
+func (m *MockTaskClassifier) SetClassifyTaskFunc(f func(task *domain.Task) (domain.WorkType, error)) {
+	m.classifyTaskFunc = f
+}
+
+// ClassifyTasks implements TaskClassifier.ClassifyTasks
+func (m *MockTaskClassifier) ClassifyTasks(tasks []*domain.Task) (map[string]domain.WorkType, error) {
+	if m.classifyTasksFunc != nil {
+		return m.classifyTasksFunc(tasks)
+	}
+	return nil, nil
+}
+
+// ClassifyTask implements TaskClassifier.ClassifyTask
+func (m *MockTaskClassifier) ClassifyTask(task *domain.Task) (domain.WorkType, error) {
+	if m.classifyTaskFunc != nil {
+		return m.classifyTaskFunc(task)
+	}
+	return "", nil
+}
+
+// MockUserInput is a mock implementation of UserInput
+type MockUserInput struct {
+	confirmFunc func(prompt string, args ...interface{}) (bool, error)
+}
+
+// NewMockUserInput creates a new mock user input
+func NewMockUserInput() *MockUserInput {
+	return &MockUserInput{}
+}
+
+// Reset resets the mock user input
+func (m *MockUserInput) Reset() {
+	m.confirmFunc = nil
+}
+
+// SetConfirmFunc sets the function to be called when Confirm is called
+func (m *MockUserInput) SetConfirmFunc(f func(prompt string, args ...interface{}) (bool, error)) {
+	m.confirmFunc = f
+}
+
+// Confirm implements UserInput.Confirm
+func (m *MockUserInput) Confirm(prompt string, args ...interface{}) (bool, error) {
+	if m.confirmFunc != nil {
+		return m.confirmFunc(prompt, args...)
+	}
+	return false, nil
+}
+
+// MockTaskFetcher is a mock implementation of TaskFetcher
+type MockTaskFetcher struct {
+	fetchTasksFunc func(project, sprint string) ([]*domain.Task, error)
+}
+
+// NewMockTaskFetcher creates a new mock task fetcher
+func NewMockTaskFetcher() *MockTaskFetcher {
+	return &MockTaskFetcher{}
+}
+
+// Reset resets the mock task fetcher
+func (m *MockTaskFetcher) Reset() {
+	m.fetchTasksFunc = nil
+}
+
+// SetFetchTasksFunc sets the function to be called when FetchTasks is called
+func (m *MockTaskFetcher) SetFetchTasksFunc(f func(project, sprint string) ([]*domain.Task, error)) {
+	m.fetchTasksFunc = f
+}
+
+// FetchTasks implements TaskFetcher.FetchTasks
+func (m *MockTaskFetcher) FetchTasks(project, sprint string) ([]*domain.Task, error) {
+	if m.fetchTasksFunc != nil {
+		return m.fetchTasksFunc(project, sprint)
+	}
+	return nil, nil
+}

@@ -2,13 +2,17 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"io"
 	"os"
 	"path/filepath"
 	"testing"
 
-	"github.com/helmedeiros/digital-asset-capitalization/internal/assets/application"
+	assetsapp "github.com/helmedeiros/digital-asset-capitalization/internal/assets/application"
 	"github.com/helmedeiros/digital-asset-capitalization/internal/assets/infrastructure"
+	tasksapp "github.com/helmedeiros/digital-asset-capitalization/internal/tasks/application"
+	"github.com/helmedeiros/digital-asset-capitalization/internal/tasks/application/usecase/testutil"
+	"github.com/helmedeiros/digital-asset-capitalization/internal/tasks/domain"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -40,7 +44,52 @@ func setupTestEnvironment(t *testing.T) func() {
 		DirMode:   0755,
 	}
 	assetRepo := infrastructure.NewJSONRepository(config)
-	assetService = application.NewAssetService(assetRepo)
+	assetService = assetsapp.NewAssetService(assetRepo)
+
+	// Initialize task service with mock dependencies
+	jiraRepo := testutil.NewMockTaskRepository()
+	localRepo := testutil.NewMockTaskRepository()
+	classifier := testutil.NewMockTaskClassifier()
+	userInput := testutil.NewMockUserInput()
+	taskFetcher := testutil.NewMockTaskFetcher()
+
+	// Set up mock behavior for task classification
+	classifier.SetClassifyTasksFunc(func(tasks []*domain.Task) (map[string]domain.WorkType, error) {
+		workTypes := make(map[string]domain.WorkType)
+		for _, task := range tasks {
+			workTypes[task.Key] = domain.WorkTypeDevelopment
+		}
+		return workTypes, nil
+	})
+
+	// Set up mock behavior for user input
+	userInput.SetConfirmFunc(func(prompt string, args ...interface{}) (bool, error) {
+		return true, nil
+	})
+
+	// Set up mock behavior for task fetching
+	taskFetcher.SetFetchTasksFunc(func(project, sprint string) ([]*domain.Task, error) {
+		task, err := domain.NewTask("TEST-1", "Test task", project, sprint, "jira")
+		if err != nil {
+			return nil, err
+		}
+		return []*domain.Task{task}, nil
+	})
+
+	// Set up mock behavior for local repository
+	localRepo.SetFindByProjectAndSprintFunc(func(ctx context.Context, project, sprint string) ([]*domain.Task, error) {
+		task, err := domain.NewTask("TEST-1", "Test task", project, sprint, "jira")
+		if err != nil {
+			return nil, err
+		}
+		return []*domain.Task{task}, nil
+	})
+
+	localRepo.SetSaveFunc(func(ctx context.Context, task *domain.Task) error {
+		return nil
+	})
+
+	taskService = tasksapp.NewTasksService(jiraRepo, localRepo, classifier, userInput, taskFetcher)
 
 	return func() {
 		// Restore original stdout
@@ -176,6 +225,27 @@ func TestRun(t *testing.T) {
 			name:    "shell completion commands",
 			args:    []string{"assetcap", "completion", "bash"},
 			wantErr: false,
+		},
+		{
+			name:    "tasks classify with required flags",
+			args:    []string{"assetcap", "tasks", "classify", "--project", "TEST", "--sprint", "Sprint 1", "--platform", "jira"},
+			wantErr: false,
+			wantOut: "Successfully classified tasks for project TEST, sprint Sprint 1 from jira\n",
+		},
+		{
+			name:    "tasks classify missing project",
+			args:    []string{"assetcap", "tasks", "classify", "--sprint", "Sprint 1", "--platform", "jira"},
+			wantErr: true,
+		},
+		{
+			name:    "tasks classify missing sprint",
+			args:    []string{"assetcap", "tasks", "classify", "--project", "TEST", "--platform", "jira"},
+			wantErr: true,
+		},
+		{
+			name:    "tasks classify missing platform",
+			args:    []string{"assetcap", "tasks", "classify", "--project", "TEST", "--sprint", "Sprint 1"},
+			wantErr: true,
 		},
 	}
 

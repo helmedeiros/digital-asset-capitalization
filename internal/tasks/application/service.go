@@ -25,3 +25,8 @@ func NewTasksService(remoteRepo, localRepo ports.TaskRepository, classifier port
 func (s *TaskService) FetchTasks(ctx context.Context, project, sprint, platform string) error {
 	return s.fetchTasksUseCase.Execute(ctx, project, sprint, platform)
 }
+
+// ClassifyTasks classifies tasks for a project and sprint
+func (s *TaskService) ClassifyTasks(ctx context.Context, input usecase.ClassifyTasksInput) error {
+	return s.classifyTasksUseCase.Execute(ctx, input)
+}
