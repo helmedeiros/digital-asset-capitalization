@@ -1,0 +1,221 @@
+package application
+
+import (
+	"context"
+	"testing"
+
+	"github.com/helmedeiros/digital-asset-capitalization/internal/tasks/domain"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/mock"
+)
+
+// MockTaskRepository is a mock implementation of TaskRepository
+type MockTaskRepository struct {
+	mock.Mock
+}
+
+func (m *MockTaskRepository) FindAll(ctx context.Context) ([]*domain.Task, error) {
+	args := m.Called(ctx)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).([]*domain.Task), args.Error(1)
+}
+
+func (m *MockTaskRepository) FindByKey(ctx context.Context, key string) (*domain.Task, error) {
+	args := m.Called(ctx, key)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*domain.Task), args.Error(1)
+}
+
+func (m *MockTaskRepository) FindByPlatform(ctx context.Context, platform string) ([]*domain.Task, error) {
+	args := m.Called(ctx, platform)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).([]*domain.Task), args.Error(1)
+}
+
+func (m *MockTaskRepository) FindByProject(ctx context.Context, project string) ([]*domain.Task, error) {
+	args := m.Called(ctx, project)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).([]*domain.Task), args.Error(1)
+}
+
+func (m *MockTaskRepository) FindByProjectAndSprint(ctx context.Context, project, sprint string) ([]*domain.Task, error) {
+	args := m.Called(ctx, project, sprint)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).([]*domain.Task), args.Error(1)
+}
+
+func (m *MockTaskRepository) FindBySprint(ctx context.Context, sprint string) ([]*domain.Task, error) {
+	args := m.Called(ctx, sprint)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).([]*domain.Task), args.Error(1)
+}
+
+func (m *MockTaskRepository) Save(ctx context.Context, task *domain.Task) error {
+	args := m.Called(ctx, task)
+	return args.Error(0)
+}
+
+func (m *MockTaskRepository) Delete(ctx context.Context, key string) error {
+	args := m.Called(ctx, key)
+	return args.Error(0)
+}
+
+func (m *MockTaskRepository) DeleteByProjectAndSprint(ctx context.Context, project, sprint string) error {
+	args := m.Called(ctx, project, sprint)
+	return args.Error(0)
+}
+
+// MockTaskClassifier is a mock implementation of TaskClassifier
+type MockTaskClassifier struct {
+	mock.Mock
+}
+
+func (m *MockTaskClassifier) ClassifyTask(task *domain.Task) (domain.WorkType, error) {
+	args := m.Called(task)
+	return args.Get(0).(domain.WorkType), args.Error(1)
+}
+
+func (m *MockTaskClassifier) ClassifyTasks(tasks []*domain.Task) (map[string]domain.WorkType, error) {
+	args := m.Called(tasks)
+	return args.Get(0).(map[string]domain.WorkType), args.Error(1)
+}
+
+// MockUserInput is a mock implementation of UserInput
+type MockUserInput struct {
+	mock.Mock
+}
+
+func (m *MockUserInput) Confirm(format string, args ...interface{}) (bool, error) {
+	callArgs := m.Called(format, args)
+	return callArgs.Bool(0), callArgs.Error(1)
+}
+
+// MockTaskFetcher is a mock implementation of TaskFetcher
+type MockTaskFetcher struct {
+	mock.Mock
+}
+
+func (m *MockTaskFetcher) FetchTasks(project, sprint string) ([]*domain.Task, error) {
+	args := m.Called(project, sprint)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).([]*domain.Task), args.Error(1)
+}
+
+func TestClassifyTasksUseCase_Execute(t *testing.T) {
+	ctx := context.Background()
+
+	tests := []struct {
+		name          string
+		input         ClassifyTasksInput
+		existingTasks []*domain.Task
+		shouldFetch   bool
+		fetchedTasks  []*domain.Task
+		workTypes     map[string]domain.WorkType
+		expectedError bool
+		expectedCalls func(*MockTaskRepository, *MockTaskClassifier, *MockUserInput, *MockTaskFetcher)
+	}{
+		{
+			name: "successfully classify existing tasks",
+			input: ClassifyTasksInput{
+				Project: "TEST",
+				Sprint:  "Sprint 1",
+			},
+			existingTasks: []*domain.Task{
+				{Key: "TEST-1", Summary: "Task 1"},
+				{Key: "TEST-2", Summary: "Task 2"},
+			},
+			shouldFetch: false,
+			workTypes: map[string]domain.WorkType{
+				"TEST-1": domain.WorkTypeDevelopment,
+				"TEST-2": domain.WorkTypeMaintenance,
+			},
+			expectedError: false,
+			expectedCalls: func(repo *MockTaskRepository, classifier *MockTaskClassifier, userInput *MockUserInput, fetcher *MockTaskFetcher) {
+				repo.On("FindByProjectAndSprint", ctx, "TEST", "Sprint 1").Return([]*domain.Task{
+					{Key: "TEST-1", Summary: "Task 1"},
+					{Key: "TEST-2", Summary: "Task 2"},
+				}, nil)
+				classifier.On("ClassifyTasks", mock.Anything).Return(map[string]domain.WorkType{
+					"TEST-1": domain.WorkTypeDevelopment,
+					"TEST-2": domain.WorkTypeMaintenance,
+				}, nil)
+				repo.On("Save", ctx, mock.Anything).Return(nil).Times(2)
+			},
+		},
+		{
+			name: "fetch and classify new tasks",
+			input: ClassifyTasksInput{
+				Project: "TEST",
+				Sprint:  "Sprint 2",
+			},
+			existingTasks: nil,
+			shouldFetch:   true,
+			fetchedTasks: []*domain.Task{
+				{Key: "TEST-3", Summary: "Task 3"},
+				{Key: "TEST-4", Summary: "Task 4"},
+			},
+			workTypes: map[string]domain.WorkType{
+				"TEST-3": domain.WorkTypeDiscovery,
+				"TEST-4": domain.WorkTypeDevelopment,
+			},
+			expectedError: false,
+			expectedCalls: func(repo *MockTaskRepository, classifier *MockTaskClassifier, userInput *MockUserInput, fetcher *MockTaskFetcher) {
+				repo.On("FindByProjectAndSprint", ctx, "TEST", "Sprint 2").Return(nil, nil)
+				userInput.On("Confirm", mock.Anything, mock.Anything).Return(true, nil)
+				fetcher.On("FetchTasks", "TEST", "Sprint 2").Return([]*domain.Task{
+					{Key: "TEST-3", Summary: "Task 3"},
+					{Key: "TEST-4", Summary: "Task 4"},
+				}, nil)
+				repo.On("Save", ctx, mock.Anything).Return(nil).Times(4)
+				classifier.On("ClassifyTasks", mock.Anything).Return(map[string]domain.WorkType{
+					"TEST-3": domain.WorkTypeDiscovery,
+					"TEST-4": domain.WorkTypeDevelopment,
+				}, nil)
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Create mocks
+			repo := new(MockTaskRepository)
+			classifier := new(MockTaskClassifier)
+			userInput := new(MockUserInput)
+			fetcher := new(MockTaskFetcher)
+
+			// Set up expected calls
+			tt.expectedCalls(repo, classifier, userInput, fetcher)
+
+			// Create use case
+			uc := NewClassifyTasksUseCase(repo, classifier, userInput, fetcher)
+
+			// Execute use case
+			err := uc.Execute(ctx, tt.input)
+
+			// Verify results
+			if tt.expectedError {
+				assert.Error(t, err)
+			} else {
+				assert.NoError(t, err)
+				repo.AssertExpectations(t)
+				classifier.AssertExpectations(t)
+				userInput.AssertExpectations(t)
+				fetcher.AssertExpectations(t)
+			}
+		})
+	}
+}
