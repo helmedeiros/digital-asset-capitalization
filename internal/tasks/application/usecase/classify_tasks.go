@@ -11,6 +11,7 @@ import (
 type ClassifyTasksInput struct {
 	Project string
 	Sprint  string
+	DryRun  bool
 }
 
 // ClassifyTasksUseCase handles the classification of tasks for a project/sprint
@@ -74,6 +75,16 @@ func (uc *ClassifyTasksUseCase) Execute(ctx context.Context, input ClassifyTasks
 	workTypes, err := uc.classifier.ClassifyTasks(tasks)
 	if err != nil {
 		return fmt.Errorf("failed to classify tasks: %w", err)
+	}
+
+	// Preview classifications if in dry run mode
+	if input.DryRun {
+		fmt.Println("\nPreview of task classifications:")
+		for _, task := range tasks {
+			workType := workTypes[task.Key]
+			fmt.Printf("- %s: %s (%s)\n", task.Key, workType, task.Summary)
+		}
+		return nil
 	}
 
 	// Update tasks with their classifications

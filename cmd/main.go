@@ -374,14 +374,20 @@ For more information about a command:
 							project := ctx.Value("project").(string)
 							sprint := ctx.Value("sprint").(string)
 							platform := ctx.Value("platform").(string)
+							dryRun := ctx.Value("dry-run").(bool)
 							input := usecase.ClassifyTasksInput{
 								Project: project,
 								Sprint:  sprint,
+								DryRun:  dryRun,
 							}
 							if err := taskService.ClassifyTasks(context.Background(), input); err != nil {
 								return err
 							}
-							fmt.Printf("Successfully classified tasks for project %s, sprint %s from %s\n", project, sprint, platform)
+							if dryRun {
+								fmt.Printf("Preview: Would classify tasks for project %s, sprint %s from %s\n", project, sprint, platform)
+							} else {
+								fmt.Printf("Successfully classified tasks for project %s, sprint %s from %s\n", project, sprint, platform)
+							}
 							return nil
 						},
 						Flags: []cli.Flag{
@@ -399,6 +405,11 @@ For more information about a command:
 								Name:     "platform",
 								Usage:    "Platform to classify tasks from (e.g., jira)",
 								Required: true,
+							},
+							&cli.BoolFlag{
+								Name:  "dry-run",
+								Usage: "Preview classification without making changes",
+								Value: false,
 							},
 						},
 					},

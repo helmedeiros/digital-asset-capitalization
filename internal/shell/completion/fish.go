@@ -23,5 +23,6 @@ complete -c assetcap -n '__fish_seen_subcommand_from assets' -a tasks -d 'Manage
 complete -c assetcap -n '__fish_seen_subcommand_from contribution-type' -a add -d 'Add a contribution type to an asset'
 complete -c assetcap -n '__fish_seen_subcommand_from documentation' -a update -d 'Mark asset documentation as updated'
 complete -c assetcap -n '__fish_seen_subcommand_from tasks' -a increment -d 'Increment task count for an asset'
-complete -c assetcap -n '__fish_seen_subcommand_from tasks' -a decrement -d 'Decrement task count for an asset'`
+complete -c assetcap -n '__fish_seen_subcommand_from tasks' -a decrement -d 'Decrement task count for an asset'
+complete -c assetcap -n '__fish_seen_subcommand_from tasks' -a classify -d 'Classify tasks for a project and sprint'`
 }

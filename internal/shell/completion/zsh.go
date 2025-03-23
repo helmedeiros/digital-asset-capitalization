@@ -35,6 +35,7 @@ _assetcap() {
     task_commands=(
         'increment:Increment task count for an asset'
         'decrement:Decrement task count for an asset'
+        'classify:Classify tasks for a project and sprint'
     )
 
     _arguments -C \

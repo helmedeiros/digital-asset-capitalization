@@ -187,6 +187,34 @@ func TestClassifyTasksUseCase_Execute(t *testing.T) {
 				}, nil)
 			},
 		},
+		{
+			name: "dry run classification",
+			input: ClassifyTasksInput{
+				Project: "TEST",
+				Sprint:  "Sprint 1",
+				DryRun:  true,
+			},
+			existingTasks: []*domain.Task{
+				{Key: "TEST-1", Summary: "Task 1"},
+				{Key: "TEST-2", Summary: "Task 2"},
+			},
+			shouldFetch: false,
+			workTypes: map[string]domain.WorkType{
+				"TEST-1": domain.WorkTypeDevelopment,
+				"TEST-2": domain.WorkTypeMaintenance,
+			},
+			expectedError: false,
+			expectedCalls: func(localRepo, remoteRepo *MockTaskRepository, classifier *MockTaskClassifier, userInput *MockUserInput) {
+				localRepo.On("FindByProjectAndSprint", ctx, "TEST", "Sprint 1").Return([]*domain.Task{
+					{Key: "TEST-1", Summary: "Task 1"},
+					{Key: "TEST-2", Summary: "Task 2"},
+				}, nil)
+				classifier.On("ClassifyTasks", mock.Anything).Return(map[string]domain.WorkType{
+					"TEST-1": domain.WorkTypeDevelopment,
+					"TEST-2": domain.WorkTypeMaintenance,
+				}, nil)
+			},
+		},
 	}
 
 	for _, tt := range tests {
