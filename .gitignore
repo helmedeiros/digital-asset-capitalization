@@ -8,3 +8,7 @@ teams.json
 .env
 .assetcap/
 completions/
+
+# Commit message temporary files
+commit_msg.txt
+*.commit-msg
