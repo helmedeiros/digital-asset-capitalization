@@ -14,6 +14,7 @@ var (
 	ErrInvalidStatus   = errors.New("invalid task status")
 	ErrInvalidType     = errors.New("invalid task type")
 	ErrInvalidPriority = errors.New("invalid task priority")
+	ErrInvalidWorkType = errors.New("invalid work type")
 )
 
 // TaskStatus represents the current status of a task
@@ -48,6 +49,15 @@ const (
 	TaskPriorityLowest  TaskPriority = "LOWEST"
 )
 
+// WorkType represents the type of work being done in a task
+type WorkType string
+
+const (
+	WorkTypeMaintenance WorkType = "cap-maintenance"
+	WorkTypeDiscovery   WorkType = "cap-discovery"
+	WorkTypeDevelopment WorkType = "cap-development"
+)
+
 // Task represents a task from a project management platform
 type Task struct {
 	Key         string       `json:"key"`
@@ -59,6 +69,7 @@ type Task struct {
 	Status      TaskStatus   `json:"status"`
 	Type        TaskType     `json:"type"`
 	Priority    TaskPriority `json:"priority"`
+	WorkType    WorkType     `json:"work_type"`
 	CreatedAt   time.Time    `json:"created_at"`
 	UpdatedAt   time.Time    `json:"updated_at"`
 	Version     int          `json:"version"`
@@ -142,6 +153,19 @@ func (t *Task) UpdateDescription(description string) {
 	t.Description = description
 	t.UpdatedAt = time.Now()
 	t.Version++
+}
+
+// UpdateWorkType updates the task work type
+func (t *Task) UpdateWorkType(workType WorkType) error {
+	switch workType {
+	case WorkTypeMaintenance, WorkTypeDiscovery, WorkTypeDevelopment:
+		t.WorkType = workType
+		t.UpdatedAt = time.Now()
+		t.Version++
+		return nil
+	default:
+		return ErrInvalidWorkType
+	}
 }
 
 // IsDone returns true if the task is in DONE status
