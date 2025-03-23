@@ -14,8 +14,8 @@ import (
 	"github.com/helmedeiros/digital-asset-capitalization/internal/sprint/ports"
 )
 
-// JiraProcessor handles the processing of Jira issues and time calculations
-type JiraProcessor struct {
+// SprintTimeAllocationUseCase handles the processing of Jira issues and time calculations
+type SprintTimeAllocationUseCase struct {
 	config   *config.JiraConfig
 	teams    domain.TeamMap
 	project  string
@@ -24,8 +24,8 @@ type JiraProcessor struct {
 	jiraPort ports.JiraPort
 }
 
-// NewJiraProcessor creates a new JiraProcessor instance
-func NewJiraProcessor(project, sprint, override string) (*JiraProcessor, error) {
+// NewSprintTimeAllocationUseCase creates a new JiraProcessor instance
+func NewSprintTimeAllocationUseCase(project, sprint, override string) (*SprintTimeAllocationUseCase, error) {
 	// Load Jira configuration
 	jiraConfig, err := config.NewJiraConfig()
 	if err != nil {
@@ -74,7 +74,7 @@ func NewJiraProcessor(project, sprint, override string) (*JiraProcessor, error) 
 		return nil, fmt.Errorf("failed to create Jira adapter: %w", err)
 	}
 
-	return &JiraProcessor{
+	return &SprintTimeAllocationUseCase{
 		config:   jiraConfig,
 		teams:    teams,
 		project:  project,
@@ -85,7 +85,7 @@ func NewJiraProcessor(project, sprint, override string) (*JiraProcessor, error) 
 }
 
 // Process calculates time allocation and returns CSV data
-func (p *JiraProcessor) Process() (string, error) {
+func (p *SprintTimeAllocationUseCase) Process() (string, error) {
 	team, exists := p.teams.GetTeam(p.project)
 	if !exists {
 		return "", fmt.Errorf("project %s not found in teams.json", p.project)
@@ -113,7 +113,7 @@ func (p *JiraProcessor) Process() (string, error) {
 	return csvData, nil
 }
 
-func (p *JiraProcessor) fetchIssues() ([]domain.JiraIssue, error) {
+func (p *SprintTimeAllocationUseCase) fetchIssues() ([]domain.JiraIssue, error) {
 	issues, err := p.jiraPort.GetIssuesForSprint(p.project, p.sprint)
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch sprint issues: %w", err)
@@ -163,7 +163,7 @@ func (p *JiraProcessor) fetchIssues() ([]domain.JiraIssue, error) {
 	return domainIssues, nil
 }
 
-func (p *JiraProcessor) parseManualAdjustments() (map[string]float64, error) {
+func (p *SprintTimeAllocationUseCase) parseManualAdjustments() (map[string]float64, error) {
 	if p.override == "" {
 		return nil, nil
 	}
@@ -175,7 +175,7 @@ func (p *JiraProcessor) parseManualAdjustments() (map[string]float64, error) {
 	return adjustments, nil
 }
 
-func (p *JiraProcessor) calculateTotalHours(team domain.Team, issues []domain.JiraIssue, manualAdjustments map[string]float64) map[string]float64 {
+func (p *SprintTimeAllocationUseCase) calculateTotalHours(team domain.Team, issues []domain.JiraIssue, manualAdjustments map[string]float64) map[string]float64 {
 	totalHoursByPerson := make(map[string]float64)
 	for _, person := range team.Team {
 		totalHoursByPerson[person] = 0
@@ -201,7 +201,7 @@ func (p *JiraProcessor) calculateTotalHours(team domain.Team, issues []domain.Ji
 	return totalHoursByPerson
 }
 
-func (p *JiraProcessor) getIssueTimeRange(issue domain.JiraIssue) (time.Time, time.Time) {
+func (p *SprintTimeAllocationUseCase) getIssueTimeRange(issue domain.JiraIssue) (time.Time, time.Time) {
 	var startTime, endTime time.Time
 	var inProgress bool
 
@@ -263,7 +263,7 @@ func (p *JiraProcessor) getIssueTimeRange(issue domain.JiraIssue) (time.Time, ti
 	return startTime, endTime
 }
 
-func (p *JiraProcessor) calculatePercentageLoad(team domain.Team, issues []domain.JiraIssue, manualAdjustments map[string]float64, totalHoursByPerson map[string]float64) []map[string]interface{} {
+func (p *SprintTimeAllocationUseCase) calculatePercentageLoad(team domain.Team, issues []domain.JiraIssue, manualAdjustments map[string]float64, totalHoursByPerson map[string]float64) []map[string]interface{} {
 	var results []map[string]interface{}
 
 	for _, issue := range issues {
@@ -308,7 +308,7 @@ func (p *JiraProcessor) calculatePercentageLoad(team domain.Team, issues []domai
 	return results
 }
 
-func (p *JiraProcessor) generateCSV(team domain.Team, results []map[string]interface{}) (string, error) {
+func (p *SprintTimeAllocationUseCase) generateCSV(team domain.Team, results []map[string]interface{}) (string, error) {
 	headers := []string{"sprint", "issueKey", "title"}
 	headers = append(headers, team.Team...)
 
@@ -321,7 +321,7 @@ func (p *JiraProcessor) generateCSV(team domain.Team, results []map[string]inter
 }
 
 // getJiraIssues retrieves issues from the Jira API
-func (p *JiraProcessor) getJiraIssues(jiraURL, authHeader string) ([]domain.JiraIssue, error) {
+func (p *SprintTimeAllocationUseCase) getJiraIssues(jiraURL, authHeader string) ([]domain.JiraIssue, error) {
 	client := &http.Client{
 		Timeout: time.Second * 10,
 	}
@@ -356,7 +356,7 @@ func (p *JiraProcessor) getJiraIssues(jiraURL, authHeader string) ([]domain.Jira
 }
 
 // calculateWorkingHours calculates the working hours for an issue
-func (p *JiraProcessor) calculateWorkingHours(issueKey string, manualAdjustments map[string]float64, startTime, endTime time.Time) float64 {
+func (p *SprintTimeAllocationUseCase) calculateWorkingHours(issueKey string, manualAdjustments map[string]float64, startTime, endTime time.Time) float64 {
 	// Check for manual adjustments first
 	if manualAdjustments != nil {
 		if hours, ok := manualAdjustments[issueKey]; ok {
@@ -373,7 +373,7 @@ func (p *JiraProcessor) calculateWorkingHours(issueKey string, manualAdjustments
 }
 
 // structArrayToCSVOrdered converts a slice of maps to CSV format
-func (p *JiraProcessor) structArrayToCSVOrdered(data []map[string]interface{}, headers []string) (string, error) {
+func (p *SprintTimeAllocationUseCase) structArrayToCSVOrdered(data []map[string]interface{}, headers []string) (string, error) {
 	if len(data) == 0 {
 		return "", nil
 	}
@@ -408,7 +408,7 @@ func (p *JiraProcessor) structArrayToCSVOrdered(data []map[string]interface{}, h
 
 // JiraDoer is the main entry point for processing Jira issues
 func JiraDoer(project string, sprint string, override string) (string, error) {
-	processor, err := NewJiraProcessor(project, sprint, override)
+	processor, err := NewSprintTimeAllocationUseCase(project, sprint, override)
 	if err != nil {
 		return "", err
 	}

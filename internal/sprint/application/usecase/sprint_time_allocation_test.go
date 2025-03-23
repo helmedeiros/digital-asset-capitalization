@@ -209,7 +209,7 @@ func TestJiraProcessor_CalculateTotalHours(t *testing.T) {
 	}
 
 	// Create a new processor
-	processor := &JiraProcessor{
+	processor := &SprintTimeAllocationUseCase{
 		project:  "TEST",
 		sprint:   "TEST-1",
 		override: "",
@@ -268,7 +268,7 @@ func TestJiraProcessor_GetIssueTimeRange(t *testing.T) {
 	// Set the base URL to our test server
 	os.Setenv("JIRA_BASE_URL", server.URL)
 
-	processor, err := NewJiraProcessor("TEST", "Sprint 1", "")
+	processor, err := NewSprintTimeAllocationUseCase("TEST", "Sprint 1", "")
 	require.NoError(t, err, "NewJiraProcessor should not return error")
 
 	issues, err := processor.fetchIssues()
@@ -288,7 +288,7 @@ func TestJiraProcessor_Process(t *testing.T) {
 	mockJira := new(MockJiraAdapter)
 
 	// Create a new processor with the mock adapter
-	processor := &JiraProcessor{
+	processor := &SprintTimeAllocationUseCase{
 		project:  "TEST",
 		sprint:   "TEST-1",
 		override: "",

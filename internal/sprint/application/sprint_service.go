@@ -61,7 +61,7 @@ func (s *SprintService) ProcessTeamIssues(team *domain.Team) error {
 
 // ProcessJiraIssues processes Jira issues and returns CSV data
 func (s *SprintService) ProcessJiraIssues(project, sprint, override string) (string, error) {
-	processor, err := usecase.NewJiraProcessor(project, sprint, override)
+	processor, err := usecase.NewSprintTimeAllocationUseCase(project, sprint, override)
 	if err != nil {
 		return "", fmt.Errorf("failed to create Jira processor: %w", err)
 	}
