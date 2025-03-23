@@ -7,8 +7,8 @@ import (
 	"net/url"
 	"time"
 
-	"github.com/helmedeiros/digital-asset-capitalization/assetcap"
-	"github.com/helmedeiros/digital-asset-capitalization/assetcap/config"
+	assetcap "github.com/helmedeiros/digital-asset-capitalization/internal/sprint"
+	"github.com/helmedeiros/digital-asset-capitalization/internal/sprint/config"
 )
 
 // JiraProcessor handles the processing of Jira issues and time calculations

@@ -7,41 +7,41 @@ import (
 	"testing"
 	"time"
 
-	"github.com/helmedeiros/digital-asset-capitalization/assetcap"
+	sprint "github.com/helmedeiros/digital-asset-capitalization/internal/sprint"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
 // mockGetJiraIssues mocks the GetJiraIssues function for testing
-func mockGetJiraIssues(url, authHeader string) ([]assetcap.JiraIssue, error) {
-	return []assetcap.JiraIssue{
+func mockGetJiraIssues(url, authHeader string) ([]sprint.JiraIssue, error) {
+	return []sprint.JiraIssue{
 		{
 			Key: "TEST-123",
-			Fields: assetcap.JiraFields{
+			Fields: sprint.JiraFields{
 				Summary: "Test Issue 1",
-				Assignee: assetcap.JiraAssignee{
+				Assignee: sprint.JiraAssignee{
 					DisplayName: "Test User 1",
 				},
 			},
-			Changelog: assetcap.JiraChangelog{
-				Histories: []assetcap.JiraChangeHistory{
+			Changelog: sprint.JiraChangelog{
+				Histories: []sprint.JiraChangeHistory{
 					{
 						Created: "2024-03-01T10:00:00.000+0000",
-						Items: []assetcap.JiraChangeItem{
+						Items: []sprint.JiraChangeItem{
 							{
 								Field:      "status",
 								FromString: "To Do",
-								ToString:   assetcap.StatusInProgress,
+								ToString:   sprint.StatusInProgress,
 							},
 						},
 					},
 					{
 						Created: "2024-03-02T15:00:00.000+0000",
-						Items: []assetcap.JiraChangeItem{
+						Items: []sprint.JiraChangeItem{
 							{
 								Field:      "status",
-								FromString: assetcap.StatusInProgress,
-								ToString:   assetcap.StatusDone,
+								FromString: sprint.StatusInProgress,
+								ToString:   sprint.StatusDone,
 							},
 						},
 					},
@@ -50,21 +50,21 @@ func mockGetJiraIssues(url, authHeader string) ([]assetcap.JiraIssue, error) {
 		},
 		{
 			Key: "TEST-124",
-			Fields: assetcap.JiraFields{
+			Fields: sprint.JiraFields{
 				Summary: "Test Issue 2",
-				Assignee: assetcap.JiraAssignee{
+				Assignee: sprint.JiraAssignee{
 					DisplayName: "Test User 2",
 				},
 			},
-			Changelog: assetcap.JiraChangelog{
-				Histories: []assetcap.JiraChangeHistory{
+			Changelog: sprint.JiraChangelog{
+				Histories: []sprint.JiraChangeHistory{
 					{
 						Created: "2024-03-01T11:00:00.000+0000",
-						Items: []assetcap.JiraChangeItem{
+						Items: []sprint.JiraChangeItem{
 							{
 								Field:      "status",
 								FromString: "To Do",
-								ToString:   assetcap.StatusInProgress,
+								ToString:   sprint.StatusInProgress,
 							},
 						},
 					},
@@ -89,10 +89,10 @@ func setupTestEnv(t *testing.T) func() {
 	os.Setenv("JIRA_TOKEN", "test-token")
 
 	// Create temporary teams.json for testing
-	team := assetcap.Team{
+	team := sprint.Team{
 		Members: []string{"Test User 1", "Test User 2"},
 	}
-	teams := assetcap.TeamMap{
+	teams := sprint.TeamMap{
 		"TEST": team,
 	}
 
@@ -104,8 +104,8 @@ func setupTestEnv(t *testing.T) func() {
 	require.NoError(t, err, "Failed to create temporary teams.json")
 
 	// Save original GetJiraIssues function
-	originalGetJiraIssues := assetcap.GetJiraIssues
-	assetcap.GetJiraIssues = mockGetJiraIssues
+	originalGetJiraIssues := sprint.GetJiraIssues
+	sprint.GetJiraIssues = mockGetJiraIssues
 
 	// Return cleanup function
 	return func() {
@@ -122,7 +122,7 @@ func setupTestEnv(t *testing.T) func() {
 		os.Remove(tmpTeamsFile)
 
 		// Restore original function
-		assetcap.GetJiraIssues = originalGetJiraIssues
+		sprint.GetJiraIssues = originalGetJiraIssues
 	}
 }
 
