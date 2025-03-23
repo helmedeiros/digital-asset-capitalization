@@ -26,6 +26,7 @@ const (
 	assetsFile = "assets.json"
 	tasksDir   = ".assetcap"
 	tasksFile  = "tasks.json"
+	teamsFile  = "teams.json"
 )
 
 var assetService ports.AssetService
@@ -58,7 +59,7 @@ func init() {
 
 func initJiraAdapter() error {
 	// Initialize sprint service
-	jiraAdapter, err := sprintinfra.NewJiraAdapter()
+	jiraAdapter, err := sprintinfra.NewJiraAdapter(teamsFile)
 	if err != nil {
 		return fmt.Errorf("failed to initialize Jira adapter: %v", err)
 	}

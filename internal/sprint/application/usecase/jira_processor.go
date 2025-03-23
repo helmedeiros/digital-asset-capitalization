@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"net/http"
+	"os"
 	"time"
 
 	"github.com/helmedeiros/digital-asset-capitalization/internal/sprint/config"
@@ -37,14 +38,7 @@ func NewJiraProcessor(project, sprint, override string) (*JiraProcessor, error) 
 
 	// Try different paths for teams.json
 	paths := []string{
-		"teams.json",                   // Current directory
-		"../teams.json",                // Parent directory
-		"../../teams.json",             // Parent's parent directory
-		"../../../teams.json",          // Root directory
-		"teams.json.template",          // Template in current directory
-		"../teams.json.template",       // Template in parent directory
-		"../../teams.json.template",    // Template in parent's parent directory
-		"../../../teams.json.template", // Template in root directory
+		".assetcap/teams.json", // .assetcap directory
 	}
 
 	for _, path := range paths {
@@ -55,13 +49,16 @@ func NewJiraProcessor(project, sprint, override string) (*JiraProcessor, error) 
 	}
 
 	if teamsErr != nil {
-		// If no file is found, create a default teams.json in the current directory
+		// If no file is found, create a default teams.json in the .assetcap directory
+		if err := os.MkdirAll(".assetcap", 0755); err != nil {
+			return nil, fmt.Errorf("failed to create .assetcap directory: %w", err)
+		}
 		teamsData = []byte(`{
 			"FN": {
 				"team": ["helio.medeiros", "julio.medeiros"]
 			}
 		}`)
-		if err := ioutil.WriteFile("teams.json", teamsData, 0644); err != nil {
+		if err := ioutil.WriteFile(".assetcap/teams.json", teamsData, 0644); err != nil {
 			return nil, fmt.Errorf("failed to create default teams.json: %w", err)
 		}
 	}
@@ -72,7 +69,7 @@ func NewJiraProcessor(project, sprint, override string) (*JiraProcessor, error) 
 	}
 
 	// Create Jira adapter
-	jiraAdapter, err := infrastructure.NewJiraAdapter()
+	jiraAdapter, err := infrastructure.NewJiraAdapter(".assetcap/teams.json")
 	if err != nil {
 		return nil, fmt.Errorf("failed to create Jira adapter: %w", err)
 	}

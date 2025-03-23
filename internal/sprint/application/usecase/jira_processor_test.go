@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"path/filepath"
 	"testing"
 	"time"
 
@@ -18,6 +19,18 @@ import (
 
 // setupTestEnv sets up the test environment and returns a cleanup function
 func setupTestEnv(t *testing.T) func() {
+	// Create test directory
+	testDir := filepath.Join("testdata", t.Name())
+	err := os.MkdirAll(testDir, 0755)
+	require.NoError(t, err, "Failed to create test directory")
+
+	// Create .assetcap directory
+	assetcapDir := filepath.Join(testDir, ".assetcap")
+	err = os.MkdirAll(assetcapDir, 0755)
+	require.NoError(t, err, "Failed to create .assetcap directory")
+
+	teamsFilePath := filepath.Join(assetcapDir, "teams.json")
+
 	// Create a temporary teams.json file
 	teams := domain.TeamMap{
 		"TEST": domain.Team{
@@ -28,8 +41,16 @@ func setupTestEnv(t *testing.T) func() {
 	data, err := json.Marshal(teams)
 	require.NoError(t, err, "Failed to marshal teams data")
 
-	err = os.WriteFile("teams.json", data, 0644)
+	err = os.WriteFile(teamsFilePath, data, 0644)
 	require.NoError(t, err, "Failed to write teams.json")
+
+	// Get current working directory
+	originalWd, err := os.Getwd()
+	require.NoError(t, err, "Failed to get current working directory")
+
+	// Change working directory to test directory
+	err = os.Chdir(testDir)
+	require.NoError(t, err, "Failed to change working directory")
 
 	// Set environment variables for testing
 	os.Setenv("JIRA_BASE_URL", "http://test.jira.com")
@@ -38,7 +59,18 @@ func setupTestEnv(t *testing.T) func() {
 
 	// Return cleanup function
 	return func() {
-		os.Remove("teams.json")
+		// Restore original working directory
+		err := os.Chdir(originalWd)
+		if err != nil {
+			t.Errorf("Failed to restore working directory: %v", err)
+		}
+
+		// Clean up test directory
+		err = os.RemoveAll(filepath.Join(originalWd, "testdata", t.Name()))
+		if err != nil {
+			t.Errorf("Failed to clean up test directory: %v", err)
+		}
+
 		os.Unsetenv("JIRA_BASE_URL")
 		os.Unsetenv("JIRA_EMAIL")
 		os.Unsetenv("JIRA_TOKEN")

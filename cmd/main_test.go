@@ -30,40 +30,30 @@ func setupTestEnvironment(t *testing.T) func() {
 	err := os.MkdirAll(testDir, 0755)
 	require.NoError(t, err, "Failed to create test directory")
 
+	// Create .assetcap directory
+	assetcapDir := filepath.Join(testDir, ".assetcap")
+	err = os.MkdirAll(assetcapDir, 0755)
+	require.NoError(t, err, "Failed to create .assetcap directory")
+
 	// Get current working directory
 	oldWd, err := os.Getwd()
 	require.NoError(t, err, "Failed to get working directory")
 
-	// Copy teams.json to test directory
-	srcTeamsFile := filepath.Join(oldWd, "teams.json")
-	dstTeamsFile := filepath.Join(testDir, "teams.json")
-	srcData, err := os.ReadFile(srcTeamsFile)
-	if err != nil {
-		// Try parent directory
-		srcTeamsFile = filepath.Join(oldWd, "..", "teams.json")
-		srcData, err = os.ReadFile(srcTeamsFile)
-		if err != nil {
-			// Try to use teams.json.template as fallback
-			srcTeamsFile = filepath.Join(oldWd, "teams.json.template")
-			srcData, err = os.ReadFile(srcTeamsFile)
-			if err != nil {
-				srcTeamsFile = filepath.Join(oldWd, "..", "teams.json.template")
-				srcData, err = os.ReadFile(srcTeamsFile)
-				if err != nil {
-					// Create a default teams.json file
-					srcData = []byte(`{
-						"TEST": {
-							"team": ["Test User 1", "Test User 2"]
-						}
-					}`)
-				}
-			}
+	// Create teams.json in .assetcap directory
+	teamsFilePath := filepath.Join(assetcapDir, "teams.json")
+	teamsData := []byte(`{
+		"TEST": {
+			"team": ["Test User 1", "Test User 2"]
+		},
+		"FN": {
+			"team": ["helio.medeiros", "julio.medeiros"]
 		}
-	}
-	err = os.WriteFile(dstTeamsFile, srcData, 0644)
+	}`)
+
+	err = os.WriteFile(teamsFilePath, teamsData, 0644)
 	require.NoError(t, err, "Failed to write teams.json")
 
-	// Change working directory
+	// Change working directory to test directory
 	err = os.Chdir(testDir)
 	require.NoError(t, err, "Failed to change working directory")
 
@@ -120,13 +110,17 @@ func setupTestEnvironment(t *testing.T) func() {
 		// Restore original stdout
 		os.Stdout = oldStdout
 
-		// Change back to original directory
+		// Restore original working directory
 		err := os.Chdir(oldWd)
-		assert.NoError(t, err, "Failed to restore working directory")
+		if err != nil {
+			t.Errorf("Failed to restore working directory: %v", err)
+		}
 
 		// Clean up test directory
-		err = os.RemoveAll(testDir)
-		assert.NoError(t, err, "Failed to clean up test directory")
+		err = os.RemoveAll(filepath.Join(oldWd, "testdata", t.Name()))
+		if err != nil {
+			t.Errorf("Failed to clean up test directory: %v", err)
+		}
 	}
 }
 

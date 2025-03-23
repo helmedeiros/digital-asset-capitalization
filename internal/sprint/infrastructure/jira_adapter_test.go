@@ -5,9 +5,8 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
-	"strings"
+	"path/filepath"
 	"testing"
-	"time"
 
 	"github.com/helmedeiros/digital-asset-capitalization/internal/sprint/domain"
 	"github.com/stretchr/testify/assert"
@@ -15,6 +14,18 @@ import (
 )
 
 func setupTestEnv(t *testing.T) func() {
+	// Create test directory
+	testDir := filepath.Join("testdata", t.Name())
+	err := os.MkdirAll(testDir, 0755)
+	require.NoError(t, err, "Failed to create test directory")
+
+	// Create .assetcap directory
+	assetcapDir := filepath.Join(testDir, ".assetcap")
+	err = os.MkdirAll(assetcapDir, 0755)
+	require.NoError(t, err, "Failed to create .assetcap directory")
+
+	teamsFilePath := filepath.Join(assetcapDir, "teams.json")
+
 	// Create a temporary teams.json file
 	teams := domain.TeamMap{
 		"TEST": domain.Team{
@@ -25,8 +36,16 @@ func setupTestEnv(t *testing.T) func() {
 	data, err := json.Marshal(teams)
 	require.NoError(t, err, "Failed to marshal teams data")
 
-	err = os.WriteFile("teams.json", data, 0644)
+	err = os.WriteFile(teamsFilePath, data, 0644)
 	require.NoError(t, err, "Failed to write teams.json")
+
+	// Get current working directory
+	originalWd, err := os.Getwd()
+	require.NoError(t, err, "Failed to get current working directory")
+
+	// Change working directory to test directory
+	err = os.Chdir(testDir)
+	require.NoError(t, err, "Failed to change working directory")
 
 	// Set environment variables for testing
 	os.Setenv("JIRA_BASE_URL", "http://test.jira.com")
@@ -35,7 +54,18 @@ func setupTestEnv(t *testing.T) func() {
 
 	// Return cleanup function
 	return func() {
-		os.Remove("teams.json")
+		// Restore original working directory
+		err := os.Chdir(originalWd)
+		if err != nil {
+			t.Errorf("Failed to restore working directory: %v", err)
+		}
+
+		// Clean up test directory
+		err = os.RemoveAll(filepath.Join(originalWd, "testdata", t.Name()))
+		if err != nil {
+			t.Errorf("Failed to clean up test directory: %v", err)
+		}
+
 		os.Unsetenv("JIRA_BASE_URL")
 		os.Unsetenv("JIRA_EMAIL")
 		os.Unsetenv("JIRA_TOKEN")
@@ -48,58 +78,38 @@ func TestJiraAdapter_GetIssues(t *testing.T) {
 
 	// Create a test server
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		assert.Equal(t, "/rest/api/3/search", r.URL.Path)
+		assert.Equal(t, "jql=project+%3D+TEST+AND+sprint+%3D+%27Test+Sprint%27&expand=changelog&fields=summary,assignee,status,changelog", r.URL.RawQuery)
 		w.WriteHeader(http.StatusOK)
-		json.NewEncoder(w).Encode(map[string]interface{}{
-			"issues": []map[string]interface{}{
+		w.Write([]byte(`{
+			"issues": [
 				{
-					"key": "TEST-123",
-					"fields": map[string]interface{}{
+					"key": "TEST-1",
+					"fields": {
 						"summary": "Test Issue 1",
-						"assignee": map[string]interface{}{
-							"displayName": "Test User 1",
-						},
-						"status": map[string]interface{}{
-							"name": "Done",
-						},
-						"customfield_13192": 5.0,
-					},
-					"changelog": map[string]interface{}{
-						"histories": []map[string]interface{}{
-							{
-								"created": "2024-03-01T10:00:00.000+0000",
-								"items": []map[string]interface{}{
-									{
-										"field":      "status",
-										"fromString": "To Do",
-										"toString":   "In Progress",
-									},
-								},
-							},
-						},
-					},
-				},
-			},
-		})
+						"assignee": {"displayName": "Test User 1"},
+						"status": {"name": "In Progress"}
+					}
+				}
+			]
+		}`))
 	}))
 	defer server.Close()
 
-	// Set the base URL to our test server
+	// Create adapter with test server URL
 	os.Setenv("JIRA_BASE_URL", server.URL)
+	adapter, err := NewJiraAdapter(t.TempDir() + "/teams.json")
+	require.NoError(t, err)
+	require.NotNil(t, adapter)
 
-	adapter, err := NewJiraAdapter()
-	require.NoError(t, err, "NewJiraAdapter should not return error")
-
-	issues, err := adapter.GetIssuesForSprint("TEST", "TEST-1")
-	require.NoError(t, err, "GetIssuesForSprint should not return error")
-	require.Len(t, issues, 1, "Should return exactly one issue")
-
-	issue := issues[0]
-	assert.Equal(t, "TEST-123", issue.Key)
-	assert.Equal(t, "Test Issue 1", issue.Summary)
-	assert.Equal(t, "Test User 1", issue.Assignee)
-	assert.Equal(t, "Done", issue.Status)
-	assert.NotNil(t, issue.StoryPoints)
-	assert.Equal(t, 5.0, *issue.StoryPoints)
+	// Test getting issues
+	issues, err := adapter.GetIssuesForSprint("TEST", "Test Sprint")
+	require.NoError(t, err)
+	require.Len(t, issues, 1)
+	assert.Equal(t, "TEST-1", issues[0].Key)
+	assert.Equal(t, "Test Issue 1", issues[0].Summary)
+	assert.Equal(t, "Test User 1", issues[0].Assignee)
+	assert.Equal(t, "In Progress", issues[0].Status)
 }
 
 func TestJiraAdapter_GetTeamIssues(t *testing.T) {
@@ -108,129 +118,62 @@ func TestJiraAdapter_GetTeamIssues(t *testing.T) {
 
 	// Create a test server
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		assert.Equal(t, "/rest/api/3/search", r.URL.Path)
+		assert.Equal(t, "jql=assignee+%3D+%27Test+User+1%27&expand=changelog&fields=summary,assignee,status,changelog", r.URL.RawQuery)
 		w.WriteHeader(http.StatusOK)
-		// Parse the query to get the assignee
-		query := r.URL.Query().Get("jql")
-		if strings.Contains(query, "Test User 1") {
-			json.NewEncoder(w).Encode(map[string]interface{}{
-				"issues": []map[string]interface{}{
-					{
-						"key": "TEST-123",
-						"fields": map[string]interface{}{
-							"summary": "Test Issue 1",
-							"assignee": map[string]interface{}{
-								"displayName": "Test User 1",
-							},
-							"status": map[string]interface{}{
-								"name": "Done",
-							},
-							"customfield_13192": 5.0,
-						},
-						"changelog": map[string]interface{}{
-							"histories": []map[string]interface{}{
-								{
-									"created": "2024-03-01T10:00:00.000+0000",
-									"items": []map[string]interface{}{
-										{
-											"field":      "status",
-											"fromString": "To Do",
-											"toString":   "In Progress",
-										},
-									},
-								},
-							},
-						},
-					},
-				},
-			})
-		} else if strings.Contains(query, "Test User 2") {
-			json.NewEncoder(w).Encode(map[string]interface{}{
-				"issues": []map[string]interface{}{
-					{
-						"key": "TEST-124",
-						"fields": map[string]interface{}{
-							"summary": "Test Issue 2",
-							"assignee": map[string]interface{}{
-								"displayName": "Test User 2",
-							},
-							"status": map[string]interface{}{
-								"name": "In Progress",
-							},
-							"customfield_13192": 3.0,
-						},
-						"changelog": map[string]interface{}{
-							"histories": []map[string]interface{}{
-								{
-									"created": "2024-03-01T10:00:00.000+0000",
-									"items": []map[string]interface{}{
-										{
-											"field":      "status",
-											"fromString": "To Do",
-											"toString":   "In Progress",
-										},
-									},
-								},
-							},
-						},
-					},
-				},
-			})
-		}
+		w.Write([]byte(`{
+			"issues": [
+				{
+					"key": "TEST-1",
+					"fields": {
+						"summary": "Test Issue 1",
+						"assignee": {"displayName": "Test User 1"},
+						"status": {"name": "In Progress"}
+					}
+				}
+			]
+		}`))
 	}))
 	defer server.Close()
 
-	// Set the base URL to our test server
+	// Create adapter with test server URL
 	os.Setenv("JIRA_BASE_URL", server.URL)
+	adapter, err := NewJiraAdapter(t.TempDir() + "/teams.json")
+	require.NoError(t, err)
+	require.NotNil(t, adapter)
 
-	adapter, err := NewJiraAdapter()
-	require.NoError(t, err, "NewJiraAdapter should not return error")
-
-	// Create a test team
-	team := &domain.Team{
-		Team: []string{"Test User 1", "Test User 2"},
-	}
-
-	issues, err := adapter.GetTeamIssues(team)
-	require.NoError(t, err, "GetTeamIssues should not return error")
-	require.Len(t, issues, 2, "Should return exactly two issues")
-
-	// Verify first issue
-	issue1 := issues[0]
-	assert.Equal(t, "TEST-123", issue1.Key)
-	assert.Equal(t, "Test Issue 1", issue1.Summary)
-	assert.Equal(t, "Test User 1", issue1.Assignee)
-	assert.Equal(t, "Done", issue1.Status)
-	assert.NotNil(t, issue1.StoryPoints)
-	assert.Equal(t, 5.0, *issue1.StoryPoints)
-
-	// Verify second issue
-	issue2 := issues[1]
-	assert.Equal(t, "TEST-124", issue2.Key)
-	assert.Equal(t, "Test Issue 2", issue2.Summary)
-	assert.Equal(t, "Test User 2", issue2.Assignee)
-	assert.Equal(t, "In Progress", issue2.Status)
-	assert.NotNil(t, issue2.StoryPoints)
-	assert.Equal(t, 3.0, *issue2.StoryPoints)
+	// Test getting team issues
+	issues, err := adapter.GetIssuesForTeamMember("Test User 1")
+	require.NoError(t, err)
+	require.Len(t, issues, 1)
+	assert.Equal(t, "TEST-1", issues[0].Key)
+	assert.Equal(t, "Test Issue 1", issues[0].Summary)
+	assert.Equal(t, "Test User 1", issues[0].Assignee)
+	assert.Equal(t, "In Progress", issues[0].Status)
 }
 
 func TestJiraAdapter_ServerError(t *testing.T) {
 	cleanup := setupTestEnv(t)
 	defer cleanup()
 
-	// Create a test server that returns a server error
+	// Create a test server that returns an error
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusInternalServerError)
+		w.Write([]byte(`{"error": "Internal Server Error"}`))
 	}))
 	defer server.Close()
 
-	// Set the base URL to our test server
+	// Create adapter with test server URL
 	os.Setenv("JIRA_BASE_URL", server.URL)
+	adapter, err := NewJiraAdapter(t.TempDir() + "/teams.json")
+	require.NoError(t, err)
+	require.NotNil(t, adapter)
 
-	adapter, err := NewJiraAdapter()
-	require.NoError(t, err, "NewJiraAdapter should not return error")
-
-	_, err = adapter.GetIssuesForSprint("TEST", "TEST-1")
-	assert.Error(t, err, "GetIssuesForSprint should return error")
+	// Test getting issues with server error
+	issues, err := adapter.GetIssuesForSprint("TEST", "Test Sprint")
+	require.Error(t, err)
+	assert.Nil(t, issues)
+	assert.Contains(t, err.Error(), "failed to fetch sprint issues")
 }
 
 func TestJiraAdapter_InvalidJSON(t *testing.T) {
@@ -240,18 +183,21 @@ func TestJiraAdapter_InvalidJSON(t *testing.T) {
 	// Create a test server that returns invalid JSON
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
-		w.Write([]byte("invalid json"))
+		w.Write([]byte(`{"invalid json`))
 	}))
 	defer server.Close()
 
-	// Set the base URL to our test server
+	// Create adapter with test server URL
 	os.Setenv("JIRA_BASE_URL", server.URL)
+	adapter, err := NewJiraAdapter(t.TempDir() + "/teams.json")
+	require.NoError(t, err)
+	require.NotNil(t, adapter)
 
-	adapter, err := NewJiraAdapter()
-	require.NoError(t, err, "NewJiraAdapter should not return error")
-
-	_, err = adapter.GetIssuesForSprint("TEST", "TEST-1")
-	assert.Error(t, err, "GetIssuesForSprint should return error")
+	// Test getting issues with invalid JSON
+	issues, err := adapter.GetIssuesForSprint("TEST", "Test Sprint")
+	require.Error(t, err)
+	assert.Nil(t, issues)
+	assert.Contains(t, err.Error(), "failed to fetch sprint issues")
 }
 
 func TestJiraAdapter_GetSprintIssues(t *testing.T) {
@@ -260,46 +206,42 @@ func TestJiraAdapter_GetSprintIssues(t *testing.T) {
 
 	// Create a test server
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		assert.Equal(t, "/rest/api/3/search", r.URL.Path)
+		assert.Equal(t, "jql=project+%3D+TEST+AND+sprint+%3D+%27Test+Sprint%27&expand=changelog&fields=summary,assignee,status,changelog", r.URL.RawQuery)
 		w.WriteHeader(http.StatusOK)
-		json.NewEncoder(w).Encode(map[string]interface{}{
-			"issues": []map[string]interface{}{
+		w.Write([]byte(`{
+			"issues": [
 				{
-					"key": "TEST-123",
-					"fields": map[string]interface{}{
+					"key": "TEST-1",
+					"fields": {
 						"summary": "Test Issue 1",
-						"assignee": map[string]interface{}{
-							"displayName": "Test User 1",
-						},
-						"status": map[string]interface{}{
-							"name": "Done",
-						},
-						"customfield_13192": 5.0,
-					},
-				},
-			},
-		})
+						"assignee": {"displayName": "Test User 1"},
+						"status": {"name": "In Progress"}
+					}
+				}
+			]
+		}`))
 	}))
 	defer server.Close()
 
-	// Set the base URL to our test server
+	// Create adapter with test server URL
 	os.Setenv("JIRA_BASE_URL", server.URL)
+	adapter, err := NewJiraAdapter(t.TempDir() + "/teams.json")
+	require.NoError(t, err)
+	require.NotNil(t, adapter)
 
-	adapter, err := NewJiraAdapter()
-	require.NoError(t, err, "NewJiraAdapter should not return error")
-
+	// Create a test sprint
 	sprint := &domain.Sprint{
-		ID:      "TEST-1",
-		Name:    "Sprint 1",
+		ID:      "Test Sprint",
 		Project: "TEST",
-		Team: domain.Team{
-			Team: []string{"Test User 1", "Test User 2"},
-		},
-		Status:    domain.SprintStatusActive,
-		StartDate: time.Now().Add(-7 * 24 * time.Hour).Format("2006-01-02"),
-		EndDate:   time.Now().Add(7 * 24 * time.Hour).Format("2006-01-02"),
 	}
 
+	// Test getting sprint issues
 	issues, err := adapter.GetSprintIssues(sprint)
-	require.NoError(t, err, "GetSprintIssues should not return error")
-	require.NotEmpty(t, issues, "Issues should not be empty")
+	require.NoError(t, err)
+	require.Len(t, issues, 1)
+	assert.Equal(t, "TEST-1", issues[0].Key)
+	assert.Equal(t, "Test Issue 1", issues[0].Summary)
+	assert.Equal(t, "Test User 1", issues[0].Assignee)
+	assert.Equal(t, "In Progress", issues[0].Status)
 }

@@ -19,7 +19,7 @@ type JiraAdapter struct {
 }
 
 // NewJiraAdapter creates a new Jira adapter
-func NewJiraAdapter() (*JiraAdapter, error) {
+func NewJiraAdapter(teamsFilePath string) (*JiraAdapter, error) {
 	// Load Jira configuration
 	jiraConfig, err := config.NewJiraConfig()
 	if err != nil {
@@ -30,28 +30,21 @@ func NewJiraAdapter() (*JiraAdapter, error) {
 	var teams domain.TeamMap
 	var teamsData []byte
 
-	// Try to read teams.json from current directory
-	teamsData, err = ioutil.ReadFile("teams.json")
+	// Try to read teams.json from the specified path
+	teamsData, err = ioutil.ReadFile(teamsFilePath)
 	if err != nil {
-		// Try parent directory
-		teamsData, err = ioutil.ReadFile("../teams.json")
+		// Try to use teams.json.template as fallback
+		teamsData, err = ioutil.ReadFile(teamsFilePath + ".template")
 		if err != nil {
-			// Try to use teams.json.template as fallback
-			teamsData, err = ioutil.ReadFile("teams.json.template")
-			if err != nil {
-				teamsData, err = ioutil.ReadFile("../teams.json.template")
-				if err != nil {
-					// Create a default teams.json file
-					teamsData = []byte(`{
-						"FN": {
-							"team": ["helio.medeiros", "julio.medeiros"]
-						}
-					}`)
-					err = ioutil.WriteFile("teams.json", teamsData, 0644)
-					if err != nil {
-						return nil, fmt.Errorf("failed to create default teams.json: %w", err)
-					}
+			// Create a default teams.json file
+			teamsData = []byte(`{
+				"FN": {
+					"team": ["helio.medeiros", "julio.medeiros"]
 				}
+			}`)
+			err = ioutil.WriteFile(teamsFilePath, teamsData, 0644)
+			if err != nil {
+				return nil, fmt.Errorf("failed to create default teams.json: %w", err)
 			}
 		}
 	}
