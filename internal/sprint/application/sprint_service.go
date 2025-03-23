@@ -21,7 +21,10 @@ func NewSprintService(jiraPort ports.JiraPort) *SprintService {
 }
 
 // ProcessSprint processes a sprint and its issues
-func (s *SprintService) ProcessSprint(sprint *domain.Sprint) error {
+func (s *SprintService) ProcessSprint(project string, sprint *domain.Sprint) error {
+	// Set the project field
+	sprint.Project = project
+
 	// Get all issues for the sprint
 	issues, err := s.jiraPort.GetSprintIssues(sprint)
 	if err != nil {

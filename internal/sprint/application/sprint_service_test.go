@@ -19,7 +19,7 @@ func setupTestEnv(t *testing.T) func() {
 	// Create a temporary teams.json file
 	teams := domain.TeamMap{
 		"TEST": domain.Team{
-			Members: []string{"Test User 1", "Test User 2"},
+			Team: []string{"Test User 1", "Test User 2"},
 		},
 	}
 
@@ -48,7 +48,7 @@ type mockJiraPort struct {
 	err    error
 }
 
-func (m *mockJiraPort) GetIssuesForSprint(sprintID string) ([]ports.JiraIssue, error) {
+func (m *mockJiraPort) GetIssuesForSprint(project, sprintID string) ([]ports.JiraIssue, error) {
 	return m.issues, m.err
 }
 
@@ -199,12 +199,13 @@ func TestSprintService_ProcessSprint(t *testing.T) {
 		sprint := &domain.Sprint{
 			ID:        "TEST-1",
 			Name:      "Sprint 1",
+			Project:   "TEST",
 			Status:    domain.SprintStatusActive,
 			StartDate: time.Now().Add(-7 * 24 * time.Hour).Format("2006-01-02"),
 			EndDate:   time.Now().Add(7 * 24 * time.Hour).Format("2006-01-02"),
 		}
 
-		err := service.ProcessSprint(sprint)
+		err := service.ProcessSprint("TEST", sprint)
 		require.NoError(t, err, "ProcessSprint should not return error")
 	})
 
@@ -213,6 +214,7 @@ func TestSprintService_ProcessSprint(t *testing.T) {
 		sprint := &domain.Sprint{
 			ID:        "TEST-1",
 			Name:      "Sprint 1",
+			Project:   "TEST",
 			Status:    domain.SprintStatusActive,
 			StartDate: time.Now().Add(-7 * 24 * time.Hour).Format("2006-01-02"),
 			EndDate:   time.Now().Add(7 * 24 * time.Hour).Format("2006-01-02"),
@@ -223,7 +225,7 @@ func TestSprintService_ProcessSprint(t *testing.T) {
 		}
 		serviceWithError := NewSprintService(mockJiraWithError)
 
-		err := serviceWithError.ProcessSprint(sprint)
+		err := serviceWithError.ProcessSprint("TEST", sprint)
 		assert.Error(t, err, "ProcessSprint should return error")
 	})
 }
@@ -289,7 +291,7 @@ func TestSprintService_ProcessTeamIssues(t *testing.T) {
 	// Test successful processing
 	t.Run("successful processing", func(t *testing.T) {
 		team := &domain.Team{
-			Members: []string{"Test User 1", "Test User 2"},
+			Team: []string{"Test User 1", "Test User 2"},
 		}
 
 		err := service.ProcessTeamIssues(team)
@@ -299,7 +301,7 @@ func TestSprintService_ProcessTeamIssues(t *testing.T) {
 	// Test error from Jira port
 	t.Run("error from Jira port", func(t *testing.T) {
 		team := &domain.Team{
-			Members: []string{"Test User 1", "Test User 2"},
+			Team: []string{"Test User 1", "Test User 2"},
 		}
 
 		mockJiraWithError := &mockJiraPort{

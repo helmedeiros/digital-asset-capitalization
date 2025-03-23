@@ -5,11 +5,12 @@ import (
 	"fmt"
 	"io/ioutil"
 	"net/http"
-	"net/url"
 	"time"
 
 	"github.com/helmedeiros/digital-asset-capitalization/internal/sprint/config"
 	"github.com/helmedeiros/digital-asset-capitalization/internal/sprint/domain"
+	"github.com/helmedeiros/digital-asset-capitalization/internal/sprint/infrastructure"
+	"github.com/helmedeiros/digital-asset-capitalization/internal/sprint/ports"
 )
 
 // JiraProcessor handles the processing of Jira issues and time calculations
@@ -19,6 +20,7 @@ type JiraProcessor struct {
 	project  string
 	sprint   string
 	override string
+	jiraPort ports.JiraPort
 }
 
 // NewJiraProcessor creates a new JiraProcessor instance
@@ -30,14 +32,49 @@ func NewJiraProcessor(project, sprint, override string) (*JiraProcessor, error) 
 	}
 
 	// Load teams data
-	data, err := ioutil.ReadFile("teams.json")
-	if err != nil {
-		return nil, fmt.Errorf("error reading teams.json: %w", err)
+	var teamsData []byte
+	var teamsErr error
+
+	// Try different paths for teams.json
+	paths := []string{
+		"teams.json",                   // Current directory
+		"../teams.json",                // Parent directory
+		"../../teams.json",             // Parent's parent directory
+		"../../../teams.json",          // Root directory
+		"teams.json.template",          // Template in current directory
+		"../teams.json.template",       // Template in parent directory
+		"../../teams.json.template",    // Template in parent's parent directory
+		"../../../teams.json.template", // Template in root directory
+	}
+
+	for _, path := range paths {
+		teamsData, teamsErr = ioutil.ReadFile(path)
+		if teamsErr == nil {
+			break
+		}
+	}
+
+	if teamsErr != nil {
+		// If no file is found, create a default teams.json in the current directory
+		teamsData = []byte(`{
+			"FN": {
+				"team": ["helio.medeiros", "julio.medeiros"]
+			}
+		}`)
+		if err := ioutil.WriteFile("teams.json", teamsData, 0644); err != nil {
+			return nil, fmt.Errorf("failed to create default teams.json: %w", err)
+		}
 	}
 
 	var teams domain.TeamMap
-	if err := json.Unmarshal(data, &teams); err != nil {
+	if err := json.Unmarshal(teamsData, &teams); err != nil {
 		return nil, fmt.Errorf("error unmarshaling teams data: %w", err)
+	}
+
+	// Create Jira adapter
+	jiraAdapter, err := infrastructure.NewJiraAdapter()
+	if err != nil {
+		return nil, fmt.Errorf("failed to create Jira adapter: %w", err)
 	}
 
 	return &JiraProcessor{
@@ -46,6 +83,7 @@ func NewJiraProcessor(project, sprint, override string) (*JiraProcessor, error) 
 		project:  project,
 		sprint:   sprint,
 		override: override,
+		jiraPort: jiraAdapter,
 	}, nil
 }
 
@@ -79,12 +117,53 @@ func (p *JiraProcessor) Process() (string, error) {
 }
 
 func (p *JiraProcessor) fetchIssues() ([]domain.JiraIssue, error) {
-	query := fmt.Sprintf("project = %s AND sprint = '%s'", p.project, p.sprint)
-	encodedQuery := url.QueryEscape(query)
-	fields := "summary,assignee,status,changelog"
-	jiraURL := fmt.Sprintf("%s/rest/api/3/search?jql=%s&expand=changelog&fields=%s", p.config.GetBaseURL(), encodedQuery, fields)
+	issues, err := p.jiraPort.GetIssuesForSprint(p.project, p.sprint)
+	if err != nil {
+		return nil, fmt.Errorf("failed to fetch sprint issues: %w", err)
+	}
 
-	return p.getJiraIssues(jiraURL, p.config.GetAuthHeader())
+	var domainIssues []domain.JiraIssue
+	for _, issue := range issues {
+		domainIssue := domain.JiraIssue{
+			Key: issue.Key,
+			Fields: domain.JiraFields{
+				Summary: issue.Summary,
+				Assignee: domain.JiraAssignee{
+					DisplayName: issue.Assignee,
+				},
+				Status: domain.JiraStatus{
+					Name: issue.Status,
+				},
+				StoryPoints: issue.StoryPoints,
+			},
+			Changelog: domain.JiraChangelog{
+				Histories: make([]domain.JiraChangeHistory, len(issue.Changelog.Histories)),
+			},
+		}
+
+		// Convert changelog histories
+		for i, history := range issue.Changelog.Histories {
+			domainHistory := domain.JiraChangeHistory{
+				Created: history.Created,
+				Items:   make([]domain.JiraChangeItem, len(history.Items)),
+			}
+
+			// Convert changelog items
+			for j, item := range history.Items {
+				domainHistory.Items[j] = domain.JiraChangeItem{
+					Field:      item.Field,
+					FromString: item.FromString,
+					ToString:   item.ToString,
+				}
+			}
+
+			domainIssue.Changelog.Histories[i] = domainHistory
+		}
+
+		domainIssues = append(domainIssues, domainIssue)
+	}
+
+	return domainIssues, nil
 }
 
 func (p *JiraProcessor) parseManualAdjustments() (map[string]float64, error) {
@@ -101,7 +180,7 @@ func (p *JiraProcessor) parseManualAdjustments() (map[string]float64, error) {
 
 func (p *JiraProcessor) calculateTotalHours(team domain.Team, issues []domain.JiraIssue, manualAdjustments map[string]float64) map[string]float64 {
 	totalHoursByPerson := make(map[string]float64)
-	for _, person := range team.Members {
+	for _, person := range team.Team {
 		totalHoursByPerson[person] = 0
 	}
 
@@ -198,8 +277,15 @@ func (p *JiraProcessor) calculatePercentageLoad(team domain.Team, issues []domai
 		}
 
 		startTime, endTime := p.getIssueTimeRange(issue)
+		if startTime.IsZero() && len(issue.Changelog.Histories) > 0 {
+			// If there's no start time but we have changelog entries,
+			// use the first changelog entry as the start time
+			startTime, _ = time.Parse(time.RFC3339, issue.Changelog.Histories[0].Created)
+		}
 		if startTime.IsZero() {
-			continue
+			// If we still don't have a start time, use a default duration of 8 hours
+			endTime = time.Now()
+			startTime = endTime.Add(-8 * time.Hour)
 		}
 
 		workingHours := p.calculateWorkingHours(issue.Key, manualAdjustments, startTime, endTime)
@@ -214,7 +300,7 @@ func (p *JiraProcessor) calculatePercentageLoad(team domain.Team, issues []domai
 		result["issueKey"] = issue.Key
 		result["title"] = issue.Fields.Summary
 
-		for _, person := range team.Members {
+		for _, person := range team.Team {
 			result[person] = ""
 		}
 
@@ -227,7 +313,7 @@ func (p *JiraProcessor) calculatePercentageLoad(team domain.Team, issues []domai
 
 func (p *JiraProcessor) generateCSV(team domain.Team, results []map[string]interface{}) (string, error) {
 	headers := []string{"sprint", "issueKey", "title"}
-	headers = append(headers, team.Members...)
+	headers = append(headers, team.Team...)
 
 	csvData, err := p.structArrayToCSVOrdered(results, headers)
 	if err != nil {

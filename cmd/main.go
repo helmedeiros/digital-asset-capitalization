@@ -127,9 +127,9 @@ For more information about a command:
 						Name:  "allocate",
 						Usage: "Calculate time allocation for JIRA issues in a sprint",
 						Action: func(ctx *cli.Context) error {
-							project := ctx.Value("project").(string)
-							sprint := ctx.Value("sprint").(string)
-							override := ctx.Value("override").(string)
+							project := ctx.String("project")
+							sprint := ctx.String("sprint")
+							override := ctx.String("override")
 							if err := initJiraAdapter(); err != nil {
 								return err
 							}

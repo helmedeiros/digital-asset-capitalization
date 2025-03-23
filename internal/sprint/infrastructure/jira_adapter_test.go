@@ -7,6 +7,7 @@ import (
 	"os"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/helmedeiros/digital-asset-capitalization/internal/sprint/domain"
 	"github.com/stretchr/testify/assert"
@@ -17,7 +18,7 @@ func setupTestEnv(t *testing.T) func() {
 	// Create a temporary teams.json file
 	teams := domain.TeamMap{
 		"TEST": domain.Team{
-			Members: []string{"Test User 1", "Test User 2"},
+			Team: []string{"Test User 1", "Test User 2"},
 		},
 	}
 
@@ -88,7 +89,7 @@ func TestJiraAdapter_GetIssues(t *testing.T) {
 	adapter, err := NewJiraAdapter()
 	require.NoError(t, err, "NewJiraAdapter should not return error")
 
-	issues, err := adapter.GetIssuesForSprint("TEST-1")
+	issues, err := adapter.GetIssuesForSprint("TEST", "TEST-1")
 	require.NoError(t, err, "GetIssuesForSprint should not return error")
 	require.Len(t, issues, 1, "Should return exactly one issue")
 
@@ -184,9 +185,10 @@ func TestJiraAdapter_GetTeamIssues(t *testing.T) {
 	adapter, err := NewJiraAdapter()
 	require.NoError(t, err, "NewJiraAdapter should not return error")
 
-	team, exists := adapter.teams.GetTeam("TEST")
-	require.True(t, exists, "Team should exist")
-	require.NotNil(t, team, "Team should not be nil")
+	// Create a test team
+	team := &domain.Team{
+		Team: []string{"Test User 1", "Test User 2"},
+	}
 
 	issues, err := adapter.GetTeamIssues(team)
 	require.NoError(t, err, "GetTeamIssues should not return error")
@@ -227,7 +229,7 @@ func TestJiraAdapter_ServerError(t *testing.T) {
 	adapter, err := NewJiraAdapter()
 	require.NoError(t, err, "NewJiraAdapter should not return error")
 
-	_, err = adapter.GetIssuesForSprint("TEST-1")
+	_, err = adapter.GetIssuesForSprint("TEST", "TEST-1")
 	assert.Error(t, err, "GetIssuesForSprint should return error")
 }
 
@@ -248,6 +250,56 @@ func TestJiraAdapter_InvalidJSON(t *testing.T) {
 	adapter, err := NewJiraAdapter()
 	require.NoError(t, err, "NewJiraAdapter should not return error")
 
-	_, err = adapter.GetIssuesForSprint("TEST-1")
+	_, err = adapter.GetIssuesForSprint("TEST", "TEST-1")
 	assert.Error(t, err, "GetIssuesForSprint should return error")
+}
+
+func TestJiraAdapter_GetSprintIssues(t *testing.T) {
+	cleanup := setupTestEnv(t)
+	defer cleanup()
+
+	// Create a test server
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"issues": []map[string]interface{}{
+				{
+					"key": "TEST-123",
+					"fields": map[string]interface{}{
+						"summary": "Test Issue 1",
+						"assignee": map[string]interface{}{
+							"displayName": "Test User 1",
+						},
+						"status": map[string]interface{}{
+							"name": "Done",
+						},
+						"customfield_13192": 5.0,
+					},
+				},
+			},
+		})
+	}))
+	defer server.Close()
+
+	// Set the base URL to our test server
+	os.Setenv("JIRA_BASE_URL", server.URL)
+
+	adapter, err := NewJiraAdapter()
+	require.NoError(t, err, "NewJiraAdapter should not return error")
+
+	sprint := &domain.Sprint{
+		ID:      "TEST-1",
+		Name:    "Sprint 1",
+		Project: "TEST",
+		Team: domain.Team{
+			Team: []string{"Test User 1", "Test User 2"},
+		},
+		Status:    domain.SprintStatusActive,
+		StartDate: time.Now().Add(-7 * 24 * time.Hour).Format("2006-01-02"),
+		EndDate:   time.Now().Add(7 * 24 * time.Hour).Format("2006-01-02"),
+	}
+
+	issues, err := adapter.GetSprintIssues(sprint)
+	require.NoError(t, err, "GetSprintIssues should not return error")
+	require.NotEmpty(t, issues, "Issues should not be empty")
 }

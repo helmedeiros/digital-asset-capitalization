@@ -8,6 +8,7 @@ import (
 type Sprint struct {
 	ID        string
 	Name      string
+	Project   string
 	Team      Team
 	Status    SprintStatus
 	StartDate string
@@ -55,12 +56,12 @@ func (s *Sprint) GetRemainingTime() time.Duration {
 
 // Team represents a group of team members
 type Team struct {
-	Members []string
+	Team []string `json:"team"`
 }
 
 // IsTeamMember checks if a person is a member of the team
 func (t *Team) IsTeamMember(person string) bool {
-	for _, member := range t.Members {
+	for _, member := range t.Team {
 		if member == person {
 			return true
 		}
