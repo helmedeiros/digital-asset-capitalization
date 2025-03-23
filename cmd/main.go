@@ -375,16 +375,20 @@ For more information about a command:
 							sprint := ctx.Value("sprint").(string)
 							platform := ctx.Value("platform").(string)
 							dryRun := ctx.Value("dry-run").(bool)
+							apply := ctx.Value("apply").(bool)
 							input := usecase.ClassifyTasksInput{
 								Project: project,
 								Sprint:  sprint,
 								DryRun:  dryRun,
+								Apply:   apply,
 							}
 							if err := taskService.ClassifyTasks(context.Background(), input); err != nil {
 								return err
 							}
 							if dryRun {
 								fmt.Printf("Preview: Would classify tasks for project %s, sprint %s from %s\n", project, sprint, platform)
+							} else if apply {
+								fmt.Printf("Successfully classified and applied labels to tasks for project %s, sprint %s from %s\n", project, sprint, platform)
 							} else {
 								fmt.Printf("Successfully classified tasks for project %s, sprint %s from %s\n", project, sprint, platform)
 							}
@@ -409,6 +413,11 @@ For more information about a command:
 							&cli.BoolFlag{
 								Name:  "dry-run",
 								Usage: "Preview classification without making changes",
+								Value: false,
+							},
+							&cli.BoolFlag{
+								Name:  "apply",
+								Usage: "Write classifications back to Jira",
 								Value: false,
 							},
 						},

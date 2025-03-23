@@ -2,6 +2,7 @@ package ports
 
 import (
 	"context"
+	"fmt"
 	"testing"
 
 	"github.com/helmedeiros/digital-asset-capitalization/internal/tasks/domain"
@@ -94,6 +95,21 @@ func (m *mockRepository) DeleteByProjectAndSprint(ctx context.Context, project, 
 	return nil
 }
 
+// UpdateLabels updates the labels of a task in the remote repository
+func (m *mockRepository) UpdateLabels(ctx context.Context, taskKey string, labels []string) error {
+	if taskKey == "" {
+		return fmt.Errorf("task key cannot be empty")
+	}
+
+	task, exists := m.tasks[taskKey]
+	if !exists {
+		return fmt.Errorf("task %s not found", taskKey)
+	}
+
+	task.Labels = labels
+	return nil
+}
+
 // Ensure mockRepository implements Repository
 var _ TaskRepository = (*mockRepository)(nil)
 
@@ -164,4 +180,33 @@ func TestRepositoryOperations(t *testing.T) {
 	tasks, err = repo.FindAll(ctx)
 	require.NoError(t, err)
 	assert.Empty(t, tasks)
+
+	// Test UpdateLabels
+	// First save a task to update
+	task3, err := domain.NewTask("TASK-3", "Test Task 3", "PROJECT-2", "SPRINT-2", "JIRA")
+	require.NoError(t, err)
+	require.NotNil(t, task3)
+
+	err = repo.Save(ctx, task3)
+	require.NoError(t, err)
+
+	// Test updating labels
+	newLabels := []string{"label1", "label2"}
+	err = repo.UpdateLabels(ctx, "TASK-3", newLabels)
+	require.NoError(t, err)
+
+	// Verify the labels were updated
+	updatedTask, err := repo.FindByKey(ctx, "TASK-3")
+	require.NoError(t, err)
+	assert.Equal(t, newLabels, updatedTask.Labels)
+
+	// Test updating labels for non-existent task
+	err = repo.UpdateLabels(ctx, "NON-EXISTENT", newLabels)
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "task NON-EXISTENT not found")
+
+	// Test updating labels with empty task key
+	err = repo.UpdateLabels(ctx, "", newLabels)
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "task key cannot be empty")
 }

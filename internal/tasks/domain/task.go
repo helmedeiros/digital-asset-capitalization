@@ -70,6 +70,7 @@ type Task struct {
 	Type        TaskType     `json:"type"`
 	Priority    TaskPriority `json:"priority"`
 	WorkType    WorkType     `json:"work_type"`
+	Labels      []string     `json:"labels"`
 	CreatedAt   time.Time    `json:"created_at"`
 	UpdatedAt   time.Time    `json:"updated_at"`
 	Version     int          `json:"version"`

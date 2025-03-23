@@ -183,6 +183,26 @@ func (s *JSONStorage) DeleteByProjectAndSprint(ctx context.Context, project, spr
 	return s.saveTasks(newTasks)
 }
 
+// UpdateLabels updates the labels of a task in the remote repository
+func (s *JSONStorage) UpdateLabels(ctx context.Context, taskKey string, labels []string) error {
+	if taskKey == "" {
+		return fmt.Errorf("task key cannot be empty")
+	}
+
+	tasks, err := s.loadTasks()
+	if err != nil {
+		return fmt.Errorf("failed to load tasks: %w", err)
+	}
+
+	task, exists := tasks[taskKey]
+	if !exists {
+		return fmt.Errorf("task %s not found", taskKey)
+	}
+
+	task.Labels = labels
+	return s.saveTasks(tasks)
+}
+
 // loadTasks loads all tasks from the JSON file
 func (s *JSONStorage) loadTasks() (map[string]*domain.Task, error) {
 	// Create directory if it doesn't exist

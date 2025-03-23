@@ -3,6 +3,8 @@ package jira
 import (
 	"context"
 	"errors"
+	"fmt"
+	"net/http"
 	"testing"
 	"time"
 
@@ -11,12 +13,55 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// MockHTTPClient is a mock implementation of HTTPClient
+type MockHTTPClient struct {
+	DoFunc func(req *http.Request) (*http.Response, error)
+}
+
+func (m *MockHTTPClient) Do(req *http.Request) (*http.Response, error) {
+	if m.DoFunc != nil {
+		return m.DoFunc(req)
+	}
+	return nil, nil
+}
+
+// MockClient is a mock implementation of Client
+type MockClient struct {
+	FetchTasksFunc   func(ctx context.Context, project, sprint string) ([]*domain.Task, error)
+	UpdateLabelsFunc func(ctx context.Context, issueKey string, labels []string) error
+}
+
+func (m *MockClient) FetchTasks(ctx context.Context, project, sprint string) ([]*domain.Task, error) {
+	if m.FetchTasksFunc != nil {
+		return m.FetchTasksFunc(ctx, project, sprint)
+	}
+	return nil, nil
+}
+
+func (m *MockClient) UpdateLabels(ctx context.Context, issueKey string, labels []string) error {
+	if m.UpdateLabelsFunc != nil {
+		return m.UpdateLabelsFunc(ctx, issueKey, labels)
+	}
+	return nil
+}
+
 type mockClient struct {
-	fetchTasksFunc func(ctx context.Context, project, sprint string) ([]*domain.Task, error)
+	fetchTasksFunc   func(ctx context.Context, project, sprint string) ([]*domain.Task, error)
+	updateLabelsFunc func(ctx context.Context, issueKey string, labels []string) error
 }
 
 func (m *mockClient) FetchTasks(ctx context.Context, project, sprint string) ([]*domain.Task, error) {
-	return m.fetchTasksFunc(ctx, project, sprint)
+	if m.fetchTasksFunc != nil {
+		return m.fetchTasksFunc(ctx, project, sprint)
+	}
+	return nil, nil
+}
+
+func (m *mockClient) UpdateLabels(ctx context.Context, issueKey string, labels []string) error {
+	if m.updateLabelsFunc != nil {
+		return m.updateLabelsFunc(ctx, issueKey, labels)
+	}
+	return nil
 }
 
 func TestNewRepository(t *testing.T) {
@@ -215,4 +260,54 @@ func TestRepository_NotImplementedMethods(t *testing.T) {
 		require.Error(t, err, "Should return error")
 		assert.Equal(t, "not implemented", err.Error(), "Error message should match")
 	})
+}
+
+func TestJiraTaskRepository_UpdateLabels(t *testing.T) {
+	tests := []struct {
+		name          string
+		taskKey       string
+		labels        []string
+		mockError     error
+		expectedError bool
+	}{
+		{
+			name:          "successful label update",
+			taskKey:       "TEST-1",
+			labels:        []string{"development"},
+			mockError:     nil,
+			expectedError: false,
+		},
+		{
+			name:          "failed label update",
+			taskKey:       "TEST-1",
+			labels:        []string{"development"},
+			mockError:     fmt.Errorf("failed to update labels"),
+			expectedError: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Create mock client
+			mockClient := &mockClient{
+				updateLabelsFunc: func(ctx context.Context, issueKey string, labels []string) error {
+					return tt.mockError
+				},
+			}
+
+			// Create repository with mock client
+			repo := &JiraTaskRepository{
+				client: mockClient,
+			}
+
+			// Test UpdateLabels
+			err := repo.UpdateLabels(context.Background(), tt.taskKey, tt.labels)
+
+			if tt.expectedError {
+				assert.Error(t, err)
+			} else {
+				assert.NoError(t, err)
+			}
+		})
+	}
 }

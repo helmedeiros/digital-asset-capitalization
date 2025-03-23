@@ -83,5 +83,10 @@ func (r *JiraTaskRepository) DeleteByProjectAndSprint(ctx context.Context, proje
 	return fmt.Errorf("not implemented")
 }
 
+// UpdateLabels updates the labels of a task in the remote repository
+func (r *JiraTaskRepository) UpdateLabels(ctx context.Context, taskKey string, labels []string) error {
+	return r.client.UpdateLabels(ctx, taskKey, labels)
+}
+
 // Ensure Repository implements ports.Repository
 var _ ports.TaskRepository = (*JiraTaskRepository)(nil)

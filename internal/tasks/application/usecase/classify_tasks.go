@@ -12,6 +12,7 @@ type ClassifyTasksInput struct {
 	Project string
 	Sprint  string
 	DryRun  bool
+	Apply   bool
 }
 
 // ClassifyTasksUseCase handles the classification of tasks for a project/sprint
@@ -94,9 +95,16 @@ func (uc *ClassifyTasksUseCase) Execute(ctx context.Context, input ClassifyTasks
 			return fmt.Errorf("failed to update work type for task %s: %w", task.Key, err)
 		}
 
-		// Save updated task
+		// Save updated task locally
 		if err := uc.localRepo.Save(ctx, task); err != nil {
 			return fmt.Errorf("failed to save classified task %s: %w", task.Key, err)
+		}
+
+		// Apply labels to Jira if requested
+		if input.Apply {
+			if err := uc.remoteRepo.UpdateLabels(ctx, task.Key, []string{string(workType)}); err != nil {
+				return fmt.Errorf("failed to apply labels to task %s: %w", task.Key, err)
+			}
 		}
 	}
 

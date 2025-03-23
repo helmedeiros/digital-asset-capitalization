@@ -34,4 +34,7 @@ type TaskRepository interface {
 
 	// DeleteByProjectAndSprint removes all tasks for a specific project and sprint
 	DeleteByProjectAndSprint(ctx context.Context, project, sprint string) error
+
+	// UpdateLabels updates the labels of a task in the remote repository
+	UpdateLabels(ctx context.Context, taskKey string, labels []string) error
 }

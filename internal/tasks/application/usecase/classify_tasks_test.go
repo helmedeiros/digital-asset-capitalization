@@ -77,6 +77,11 @@ func (m *MockTaskRepository) DeleteByProjectAndSprint(ctx context.Context, proje
 	return args.Error(0)
 }
 
+func (m *MockTaskRepository) UpdateLabels(ctx context.Context, taskKey string, labels []string) error {
+	args := m.Called(ctx, taskKey, labels)
+	return args.Error(0)
+}
+
 // MockTaskClassifier is a mock implementation of TaskClassifier
 type MockTaskClassifier struct {
 	mock.Mock

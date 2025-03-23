@@ -19,6 +19,9 @@ import (
 type Client interface {
 	// FetchTasks retrieves tasks from Jira for a given project and sprint
 	FetchTasks(ctx context.Context, project, sprint string) ([]*domain.Task, error)
+
+	// UpdateLabels updates the labels of a Jira issue
+	UpdateLabels(ctx context.Context, issueKey string, labels []string) error
 }
 
 // HTTPClient defines the interface for making HTTP requests
@@ -405,4 +408,46 @@ func (c *JiraClient) GetTasks(project string, sprint string) ([]api.JiraIssue, e
 	}
 
 	return tasks, nil
+}
+
+// UpdateLabels updates the labels of a Jira issue
+func (c *client) UpdateLabels(ctx context.Context, issueKey string, labels []string) error {
+	// Construct the request body
+	body := struct {
+		Fields struct {
+			Labels []string `json:"labels"`
+		} `json:"fields"`
+	}{}
+	body.Fields.Labels = labels
+
+	// Convert to JSON
+	jsonBody, err := json.Marshal(body)
+	if err != nil {
+		return fmt.Errorf("failed to marshal request body: %w", err)
+	}
+
+	// Construct the request
+	req, err := http.NewRequestWithContext(ctx, "PUT", fmt.Sprintf("%s/rest/api/3/issue/%s", c.config.GetBaseURL(), issueKey), bytes.NewBuffer(jsonBody))
+	if err != nil {
+		return fmt.Errorf("failed to create request: %w", err)
+	}
+
+	// Set headers
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", c.config.GetAuthHeader())
+
+	// Send request
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return fmt.Errorf("failed to send request: %w", err)
+	}
+	defer resp.Body.Close()
+
+	// Check response status
+	if resp.StatusCode != http.StatusNoContent && resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(resp.Body)
+		return fmt.Errorf("failed to update labels: status %d, body: %s", resp.StatusCode, string(body))
+	}
+
+	return nil
 }

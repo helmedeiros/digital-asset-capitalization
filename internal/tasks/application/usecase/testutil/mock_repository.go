@@ -11,6 +11,7 @@ import (
 type MockTaskRepository struct {
 	findByProjectAndSprintFunc func(ctx context.Context, project, sprint string) ([]*domain.Task, error)
 	saveFunc                   func(ctx context.Context, task *domain.Task) error
+	updateLabelsFunc           func(ctx context.Context, taskKey string, labels []string) error
 }
 
 // NewMockTaskRepository creates a new mock task repository
@@ -22,6 +23,7 @@ func NewMockTaskRepository() *MockTaskRepository {
 func (m *MockTaskRepository) Reset() {
 	m.findByProjectAndSprintFunc = nil
 	m.saveFunc = nil
+	m.updateLabelsFunc = nil
 }
 
 // SetFindByProjectAndSprintFunc sets the mock function for FindByProjectAndSprint
@@ -32,6 +34,11 @@ func (m *MockTaskRepository) SetFindByProjectAndSprintFunc(f func(ctx context.Co
 // SetSaveFunc sets the mock function for Save
 func (m *MockTaskRepository) SetSaveFunc(f func(ctx context.Context, task *domain.Task) error) {
 	m.saveFunc = f
+}
+
+// SetUpdateLabelsFunc sets the mock function for UpdateLabels
+func (m *MockTaskRepository) SetUpdateLabelsFunc(f func(ctx context.Context, taskKey string, labels []string) error) {
+	m.updateLabelsFunc = f
 }
 
 // Save saves a task to the repository
@@ -82,6 +89,14 @@ func (m *MockTaskRepository) Delete(ctx context.Context, key string) error {
 
 // DeleteByProjectAndSprint deletes tasks by project and sprint
 func (m *MockTaskRepository) DeleteByProjectAndSprint(ctx context.Context, project, sprint string) error {
+	return nil
+}
+
+// UpdateLabels updates the labels of a task in the remote repository
+func (m *MockTaskRepository) UpdateLabels(ctx context.Context, taskKey string, labels []string) error {
+	if m.updateLabelsFunc != nil {
+		return m.updateLabelsFunc(ctx, taskKey, labels)
+	}
 	return nil
 }
 
