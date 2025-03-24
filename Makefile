@@ -1,12 +1,22 @@
-.PHONY: test test-cover test-race test-watch install completion
+.PHONY: test test-cover test-cover-detail test-race test-watch test-all test-all-detail install completion
 
 # Run tests with gotestsum
 test:
 	gotestsum ./...
 
-# Run tests with coverage report
+# Run tests with coverage report (summary only)
 test-cover:
-	gotestsum -- -cover ./...
+	gotestsum -- -coverprofile=coverage.out ./... && \
+	grep -v "testutil" coverage.out > coverage.filtered.out && \
+	go tool cover -func=coverage.filtered.out | grep "total:" && \
+	rm coverage.out coverage.filtered.out
+
+# Run tests with detailed coverage report
+test-cover-detail:
+	gotestsum -- -coverprofile=coverage.out ./... && \
+	grep -v "testutil" coverage.out > coverage.filtered.out && \
+	go tool cover -func=coverage.filtered.out && \
+	rm coverage.out coverage.filtered.out
 
 # Run tests with race detector
 test-race:
@@ -20,9 +30,19 @@ test-watch:
 test-v:
 	gotestsum -- -v ./...
 
-# Run tests with race detector and coverage
+# Run tests with race detector and coverage (summary only)
 test-all:
-	gotestsum -- -race -cover ./...
+	gotestsum -- -race -coverprofile=coverage.out ./... && \
+	grep -v "testutil" coverage.out > coverage.filtered.out && \
+	go tool cover -func=coverage.filtered.out | grep "total:" && \
+	rm coverage.out coverage.filtered.out
+
+# Run tests with race detector and detailed coverage
+test-all-detail:
+	gotestsum -- -race -coverprofile=coverage.out ./... && \
+	grep -v "testutil" coverage.out > coverage.filtered.out && \
+	go tool cover -func=coverage.filtered.out && \
+	rm coverage.out coverage.filtered.out
 
 # Generate and install shell completion scripts
 completion:
