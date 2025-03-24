@@ -14,6 +14,7 @@ import (
 	sprintinfra "github.com/helmedeiros/digital-asset-capitalization/internal/sprint/infrastructure"
 	tasksapp "github.com/helmedeiros/digital-asset-capitalization/internal/tasks/application"
 	"github.com/helmedeiros/digital-asset-capitalization/internal/tasks/application/usecase"
+	"github.com/helmedeiros/digital-asset-capitalization/internal/tasks/domain"
 	"github.com/helmedeiros/digital-asset-capitalization/internal/tasks/infrastructure/classifier"
 	cliui "github.com/helmedeiros/digital-asset-capitalization/internal/tasks/infrastructure/cli"
 	"github.com/helmedeiros/digital-asset-capitalization/internal/tasks/infrastructure/jira"
@@ -369,28 +370,49 @@ For more information about a command:
 					},
 					{
 						Name:  "show",
-						Usage: "Show tasks for a project and sprint",
+						Usage: "Show tasks for a specific project and sprint",
 						Action: func(ctx *cli.Context) error {
 							project := ctx.Value("project").(string)
 							sprint := ctx.Value("sprint").(string)
+							epic := ctx.String("epic")
+
 							tasks, err := taskService.GetTasks(context.Background(), project, sprint)
 							if err != nil {
 								return err
 							}
-							if len(tasks) == 0 {
-								fmt.Printf("No tasks found for project %s and sprint %s\n", project, sprint)
-								return nil
+
+							// Filter tasks by story if specified
+							if epic != "" {
+								var storyTasks []*domain.Task
+								for _, task := range tasks {
+									if task.Epic == epic {
+										storyTasks = append(storyTasks, task)
+									}
+								}
+								tasks = storyTasks
 							}
-							fmt.Printf("Tasks for project %s and sprint %s:\n", project, sprint)
+
+							// Display tasks
+							fmt.Printf("\nTasks for project %s, sprint %s:\n", project, sprint)
+							if epic != "" {
+								fmt.Printf("Filtered by epic: %s\n", epic)
+							}
+							fmt.Println("----------------------------------------")
 							for _, task := range tasks {
-								fmt.Printf("- %s: [%s] %s (%s)\n", task.Key, task.Type, task.Summary, task.Status)
+								fmt.Printf("Key: %s\n", task.Key)
+								fmt.Printf("Type: %s\n", task.Type)
+								fmt.Printf("Summary: %s\n", task.Summary)
+								fmt.Printf("Status: %s\n", task.Status)
+								fmt.Printf("Epic: %s\n", task.Epic)
 								if task.WorkType != "" {
-									fmt.Printf("  Work Type: %s\n", task.WorkType)
+									fmt.Printf("Work Type: %s\n", task.WorkType)
 								}
 								if len(task.Labels) > 0 {
-									fmt.Printf("  Labels: %v\n", task.Labels)
+									fmt.Printf("Labels: %v\n", task.Labels)
 								}
+								fmt.Println("----------------------------------------")
 							}
+
 							return nil
 						},
 						Flags: []cli.Flag{
@@ -403,6 +425,11 @@ For more information about a command:
 								Name:     "sprint",
 								Usage:    "Sprint name (e.g., Penguins)",
 								Required: true,
+							},
+							&cli.StringFlag{
+								Name:  "epic",
+								Usage: "Filter tasks by epic number (e.g., FN-123)",
+								Value: "",
 							},
 						},
 					},

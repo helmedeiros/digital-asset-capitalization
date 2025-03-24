@@ -37,6 +37,7 @@ type Fields struct {
 	Updated     string                 `json:"updated"`
 	Assignee    Assignee               `json:"assignee"`
 	IssueType   IssueType              `json:"issuetype"`
+	Parent      *Issue                 `json:"parent"`
 	RawFields   map[string]interface{} `json:"-"`
 }
 

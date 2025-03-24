@@ -217,18 +217,18 @@ func (c *client) convertToDomainTasks(searchResp api.SearchResult, sprint string
 			}
 		}
 
-		task, err := domain.NewTask(
-			issue.Key,
-			issue.Fields.Summary,
-			projectKey,
-			sprintName,
-			"JIRA",
-		)
+		// Get the parent issue key for stories
+		epicKey := ""
+		if issue.Fields.Parent != nil {
+			epicKey = issue.Fields.Parent.Key
+		}
+
+		task, err := domain.NewTask(issue.Key, issue.Fields.Summary, projectKey, sprintName, "JIRA")
 		if err != nil {
 			return nil, fmt.Errorf("failed to create task: %w", err)
 		}
 
-		// Extract description text
+		// Set additional fields
 		var description string
 		if len(issue.Fields.Description.Content) > 0 {
 			for _, content := range issue.Fields.Description.Content {
@@ -241,17 +241,12 @@ func (c *client) convertToDomainTasks(searchResp api.SearchResult, sprint string
 				}
 			}
 		}
-		task.UpdateDescription(strings.TrimSpace(description))
-
-		if err := task.UpdateStatus(mapJiraStatus(issue.Fields.Status.Name)); err != nil {
-			return nil, fmt.Errorf("failed to update task status: %w", err)
-		}
-
-		if err := task.UpdateType(mapJiraType(issue.Fields.IssueType.Name)); err != nil {
-			return nil, fmt.Errorf("failed to update task type: %w", err)
-		}
-
-		// Override timestamps from Jira
+		task.Description = strings.TrimSpace(description)
+		task.Status = mapJiraStatus(issue.Fields.Status.Name)
+		task.Type = mapJiraType(issue.Fields.IssueType.Name)
+		task.Priority = domain.TaskPriorityMedium // Default priority since it's not available in the API
+		task.Labels = []string{}                  // Labels will be populated from the API response
+		task.Epic = epicKey
 		task.CreatedAt = created
 		task.UpdatedAt = updated
 
