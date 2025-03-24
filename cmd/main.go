@@ -368,6 +368,45 @@ For more information about a command:
 						},
 					},
 					{
+						Name:  "show",
+						Usage: "Show tasks for a project and sprint",
+						Action: func(ctx *cli.Context) error {
+							project := ctx.Value("project").(string)
+							sprint := ctx.Value("sprint").(string)
+							tasks, err := taskService.GetTasks(context.Background(), project, sprint)
+							if err != nil {
+								return err
+							}
+							if len(tasks) == 0 {
+								fmt.Printf("No tasks found for project %s and sprint %s\n", project, sprint)
+								return nil
+							}
+							fmt.Printf("Tasks for project %s and sprint %s:\n", project, sprint)
+							for _, task := range tasks {
+								fmt.Printf("- %s: [%s] %s (%s)\n", task.Key, task.Type, task.Summary, task.Status)
+								if task.WorkType != "" {
+									fmt.Printf("  Work Type: %s\n", task.WorkType)
+								}
+								if len(task.Labels) > 0 {
+									fmt.Printf("  Labels: %v\n", task.Labels)
+								}
+							}
+							return nil
+						},
+						Flags: []cli.Flag{
+							&cli.StringFlag{
+								Name:     "project",
+								Usage:    "Project key (e.g., FN)",
+								Required: true,
+							},
+							&cli.StringFlag{
+								Name:     "sprint",
+								Usage:    "Sprint name (e.g., Penguins)",
+								Required: true,
+							},
+						},
+					},
+					{
 						Name:  "classify",
 						Usage: "Classify tasks for a specific project and sprint",
 						Action: func(ctx *cli.Context) error {

@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/helmedeiros/digital-asset-capitalization/internal/tasks/domain"
 	"github.com/helmedeiros/digital-asset-capitalization/internal/tasks/domain/ports"
 )
 
@@ -109,4 +110,30 @@ func (uc *ClassifyTasksUseCase) Execute(ctx context.Context, input ClassifyTasks
 	}
 
 	return nil
+}
+
+// GetTasks retrieves tasks for a project and sprint
+func (uc *ClassifyTasksUseCase) GetTasks(ctx context.Context, project, sprint string) ([]*domain.Task, error) {
+	// Try to find existing tasks in local repository
+	tasks, err := uc.localRepo.FindByProjectAndSprint(ctx, project, sprint)
+	if err != nil {
+		return nil, fmt.Errorf("failed to find existing tasks: %w", err)
+	}
+
+	// If no tasks found locally, fetch from remote
+	if len(tasks) == 0 {
+		tasks, err = uc.remoteRepo.FindByProjectAndSprint(ctx, project, sprint)
+		if err != nil {
+			return nil, fmt.Errorf("failed to fetch tasks: %w", err)
+		}
+
+		// Save fetched tasks locally
+		for _, task := range tasks {
+			if err := uc.localRepo.Save(ctx, task); err != nil {
+				return nil, fmt.Errorf("failed to save fetched task: %w", err)
+			}
+		}
+	}
+
+	return tasks, nil
 }

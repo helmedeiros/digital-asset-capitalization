@@ -2,6 +2,7 @@ package usecase
 
 import (
 	"context"
+	"fmt"
 	"testing"
 
 	"github.com/helmedeiros/digital-asset-capitalization/internal/tasks/domain"
@@ -94,6 +95,9 @@ func (m *MockTaskClassifier) ClassifyTask(task *domain.Task) (domain.WorkType, e
 
 func (m *MockTaskClassifier) ClassifyTasks(tasks []*domain.Task) (map[string]domain.WorkType, error) {
 	args := m.Called(tasks)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
 	return args.Get(0).(map[string]domain.WorkType), args.Error(1)
 }
 
@@ -251,4 +255,180 @@ func TestClassifyTasksUseCase_Execute(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestGetTasks(t *testing.T) {
+	ctx := context.Background()
+
+	t.Run("should return tasks from local repository when available", func(t *testing.T) {
+		// Create mocks
+		mockLocalRepo := new(MockTaskRepository)
+		mockRemoteRepo := new(MockTaskRepository)
+		mockClassifier := new(MockTaskClassifier)
+		mockUserInput := new(MockUserInput)
+
+		// Create use case
+		uc := NewClassifyTasksUseCase(mockLocalRepo, mockRemoteRepo, mockClassifier, mockUserInput)
+
+		// Arrange
+		project := "TEST"
+		sprint := "Sprint 1"
+		expectedTasks := []*domain.Task{
+			{
+				Key:     "TEST-1",
+				Type:    "Task",
+				Summary: "Test Task 1",
+				Status:  "In Progress",
+			},
+		}
+
+		mockLocalRepo.On("FindByProjectAndSprint", ctx, project, sprint).
+			Return(expectedTasks, nil)
+
+		// Act
+		tasks, err := uc.GetTasks(ctx, project, sprint)
+
+		// Assert
+		assert.NoError(t, err)
+		assert.Equal(t, expectedTasks, tasks)
+		mockLocalRepo.AssertExpectations(t)
+		mockRemoteRepo.AssertNotCalled(t, "FindByProjectAndSprint")
+	})
+
+	t.Run("should fetch and save tasks from remote when local is empty", func(t *testing.T) {
+		// Create mocks
+		mockLocalRepo := new(MockTaskRepository)
+		mockRemoteRepo := new(MockTaskRepository)
+		mockClassifier := new(MockTaskClassifier)
+		mockUserInput := new(MockUserInput)
+
+		// Create use case
+		uc := NewClassifyTasksUseCase(mockLocalRepo, mockRemoteRepo, mockClassifier, mockUserInput)
+
+		// Arrange
+		project := "TEST"
+		sprint := "Sprint 1"
+		remoteTasks := []*domain.Task{
+			{
+				Key:     "TEST-1",
+				Type:    "Task",
+				Summary: "Test Task 1",
+				Status:  "In Progress",
+			},
+		}
+
+		mockLocalRepo.On("FindByProjectAndSprint", ctx, project, sprint).
+			Return([]*domain.Task{}, nil).Once()
+		mockRemoteRepo.On("FindByProjectAndSprint", ctx, project, sprint).
+			Return(remoteTasks, nil).Once()
+		mockLocalRepo.On("Save", ctx, remoteTasks[0]).
+			Return(nil).Once()
+
+		// Act
+		tasks, err := uc.GetTasks(ctx, project, sprint)
+
+		// Assert
+		assert.NoError(t, err)
+		assert.Equal(t, remoteTasks, tasks)
+		mockLocalRepo.AssertExpectations(t)
+		mockRemoteRepo.AssertExpectations(t)
+	})
+
+	t.Run("should return error when local repository fails", func(t *testing.T) {
+		// Create mocks
+		mockLocalRepo := new(MockTaskRepository)
+		mockRemoteRepo := new(MockTaskRepository)
+		mockClassifier := new(MockTaskClassifier)
+		mockUserInput := new(MockUserInput)
+
+		// Create use case
+		uc := NewClassifyTasksUseCase(mockLocalRepo, mockRemoteRepo, mockClassifier, mockUserInput)
+
+		// Arrange
+		project := "TEST"
+		sprint := "Sprint 1"
+
+		mockLocalRepo.On("FindByProjectAndSprint", ctx, project, sprint).
+			Return(nil, fmt.Errorf("repository error")).Once()
+
+		// Act
+		tasks, err := uc.GetTasks(ctx, project, sprint)
+
+		// Assert
+		assert.Error(t, err)
+		assert.Nil(t, tasks)
+		assert.Contains(t, err.Error(), "failed to find existing tasks")
+		mockLocalRepo.AssertExpectations(t)
+		mockRemoteRepo.AssertNotCalled(t, "FindByProjectAndSprint")
+	})
+
+	t.Run("should return error when remote repository fails", func(t *testing.T) {
+		// Create mocks
+		mockLocalRepo := new(MockTaskRepository)
+		mockRemoteRepo := new(MockTaskRepository)
+		mockClassifier := new(MockTaskClassifier)
+		mockUserInput := new(MockUserInput)
+
+		// Create use case
+		uc := NewClassifyTasksUseCase(mockLocalRepo, mockRemoteRepo, mockClassifier, mockUserInput)
+
+		// Arrange
+		project := "TEST"
+		sprint := "Sprint 1"
+
+		mockLocalRepo.On("FindByProjectAndSprint", ctx, project, sprint).
+			Return([]*domain.Task{}, nil).Once()
+		mockRemoteRepo.On("FindByProjectAndSprint", ctx, project, sprint).
+			Return(nil, fmt.Errorf("remote error")).Once()
+
+		// Act
+		tasks, err := uc.GetTasks(ctx, project, sprint)
+
+		// Assert
+		assert.Error(t, err)
+		assert.Nil(t, tasks)
+		assert.Contains(t, err.Error(), "failed to fetch tasks")
+		mockLocalRepo.AssertExpectations(t)
+		mockRemoteRepo.AssertExpectations(t)
+	})
+
+	t.Run("should return error when saving fetched task fails", func(t *testing.T) {
+		// Create mocks
+		mockLocalRepo := new(MockTaskRepository)
+		mockRemoteRepo := new(MockTaskRepository)
+		mockClassifier := new(MockTaskClassifier)
+		mockUserInput := new(MockUserInput)
+
+		// Create use case
+		uc := NewClassifyTasksUseCase(mockLocalRepo, mockRemoteRepo, mockClassifier, mockUserInput)
+
+		// Arrange
+		project := "TEST"
+		sprint := "Sprint 1"
+		remoteTasks := []*domain.Task{
+			{
+				Key:     "TEST-1",
+				Type:    "Task",
+				Summary: "Test Task 1",
+				Status:  "In Progress",
+			},
+		}
+
+		mockLocalRepo.On("FindByProjectAndSprint", ctx, project, sprint).
+			Return([]*domain.Task{}, nil).Once()
+		mockRemoteRepo.On("FindByProjectAndSprint", ctx, project, sprint).
+			Return(remoteTasks, nil).Once()
+		mockLocalRepo.On("Save", ctx, remoteTasks[0]).
+			Return(fmt.Errorf("save error")).Once()
+
+		// Act
+		tasks, err := uc.GetTasks(ctx, project, sprint)
+
+		// Assert
+		assert.Error(t, err)
+		assert.Nil(t, tasks)
+		assert.Contains(t, err.Error(), "failed to save fetched task")
+		mockLocalRepo.AssertExpectations(t)
+		mockRemoteRepo.AssertExpectations(t)
+	})
 }

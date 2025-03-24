@@ -25,7 +25,7 @@ _assetcap_completion() {
             return 0
             ;;
         "tasks")
-            COMPREPLY=( $(compgen -W "increment decrement classify" -- ${cur}) )
+            COMPREPLY=( $(compgen -W "increment decrement classify show" -- ${cur}) )
             return 0
             ;;
         *)

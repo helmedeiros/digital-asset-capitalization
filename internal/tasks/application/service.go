@@ -4,6 +4,7 @@ import (
 	"context"
 
 	"github.com/helmedeiros/digital-asset-capitalization/internal/tasks/application/usecase"
+	"github.com/helmedeiros/digital-asset-capitalization/internal/tasks/domain"
 	"github.com/helmedeiros/digital-asset-capitalization/internal/tasks/domain/ports"
 )
 
@@ -29,4 +30,9 @@ func (s *TaskService) FetchTasks(ctx context.Context, project, sprint, platform 
 // ClassifyTasks classifies tasks for a project and sprint
 func (s *TaskService) ClassifyTasks(ctx context.Context, input usecase.ClassifyTasksInput) error {
 	return s.classifyTasksUseCase.Execute(ctx, input)
+}
+
+// GetTasks retrieves tasks for a project and sprint
+func (s *TaskService) GetTasks(ctx context.Context, project, sprint string) ([]*domain.Task, error) {
+	return s.classifyTasksUseCase.GetTasks(ctx, project, sprint)
 }
