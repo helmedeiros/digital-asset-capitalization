@@ -2,7 +2,7 @@
 
 # Run tests with gotestsum
 test:
-	gotestsum ./...
+	gotestsum --format testdox ./...
 
 # Run tests with coverage report (summary only)
 test-cover:
