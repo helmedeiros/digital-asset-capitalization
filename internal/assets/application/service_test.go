@@ -450,3 +450,84 @@ func TestTaskCountOperations(t *testing.T) {
 		})
 	}
 }
+
+func TestGetAsset(t *testing.T) {
+	tests := []struct {
+		name          string
+		identifier    string
+		setupMock     func(*MockRepository)
+		expectedAsset *domain.Asset
+		expectedError error
+	}{
+		{
+			name:       "find by name",
+			identifier: "test-asset",
+			setupMock: func(m *MockRepository) {
+				m.findResult = &domain.Asset{
+					ID:          "test-id",
+					Name:        "test-asset",
+					Description: "Test description",
+				}
+			},
+			expectedAsset: &domain.Asset{
+				ID:          "test-id",
+				Name:        "test-asset",
+				Description: "Test description",
+			},
+			expectedError: nil,
+		},
+		{
+			name:       "find by ID",
+			identifier: "test-id",
+			setupMock: func(m *MockRepository) {
+				m.findError = errors.New("not found")
+				m.findByIDResult = &domain.Asset{
+					ID:          "test-id",
+					Name:        "test-asset",
+					Description: "Test description",
+				}
+			},
+			expectedAsset: &domain.Asset{
+				ID:          "test-id",
+				Name:        "test-asset",
+				Description: "Test description",
+			},
+			expectedError: nil,
+		},
+		{
+			name:       "not found",
+			identifier: "non-existent",
+			setupMock: func(m *MockRepository) {
+				m.findError = errors.New("not found")
+				m.findByIDError = errors.New("not found")
+			},
+			expectedAsset: nil,
+			expectedError: fmt.Errorf("asset not found by name or ID: non-existent"),
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			mockRepo := new(MockRepository)
+			tt.setupMock(mockRepo)
+			service := NewAssetService(mockRepo)
+
+			asset, err := service.GetAsset(tt.identifier)
+
+			if tt.expectedError != nil {
+				require.Error(t, err)
+				assert.Equal(t, tt.expectedError.Error(), err.Error())
+				return
+			}
+
+			require.NoError(t, err)
+			assert.Equal(t, tt.expectedAsset, asset)
+			assert.True(t, mockRepo.findCalled, "FindByName was not called")
+			if tt.name == "find by ID" {
+				assert.True(t, mockRepo.findByIDCalled, "FindByID should be called when looking up by ID")
+			} else {
+				assert.False(t, mockRepo.findByIDCalled, "FindByID should not be called when looking up by name")
+			}
+		})
+	}
+}

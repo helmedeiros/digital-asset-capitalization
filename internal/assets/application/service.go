@@ -61,9 +61,20 @@ func (s *AssetService) ListAssets() ([]*domain.Asset, error) {
 	return s.repo.FindAll()
 }
 
-// GetAsset returns an asset by name
-func (s *AssetService) GetAsset(name string) (*domain.Asset, error) {
-	return s.repo.FindByName(name)
+// GetAsset returns an asset by name or ID
+func (s *AssetService) GetAsset(identifier string) (*domain.Asset, error) {
+	// First try to find by name
+	asset, err := s.repo.FindByName(identifier)
+	if err == nil {
+		return asset, nil
+	}
+
+	// If not found by name, try to find by ID
+	asset, err = s.repo.FindByID(identifier)
+	if err != nil {
+		return nil, fmt.Errorf("asset not found by name or ID: %s", identifier)
+	}
+	return asset, nil
 }
 
 // DeleteAsset deletes an asset by name
