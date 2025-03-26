@@ -172,8 +172,8 @@ func cleanHTML(text string) string {
 
 // extractLabels extracts labels from the metadata section
 func extractLabels(content string) []string {
-	// Find all label tags in the content
-	labelPattern := `"label":"([^"]+)"`
+	// First try to find labels in the metadata.labels.results format
+	labelPattern := `"name":"([^"]+)"`
 	re := regexp.MustCompile(labelPattern)
 	matches := re.FindAllStringSubmatch(content, -1)
 
@@ -184,6 +184,22 @@ func extractLabels(content string) []string {
 			label := match[1]
 			if !strings.HasPrefix(label, "global") && !strings.HasPrefix(label, "cap-asset-") {
 				labels[label] = true
+			}
+		}
+	}
+
+	// If no labels found, try the HTML format
+	if len(labels) == 0 {
+		labelPattern = `"label":"([^"]+)"`
+		re = regexp.MustCompile(labelPattern)
+		matches = re.FindAllStringSubmatch(content, -1)
+
+		for _, match := range matches {
+			if len(match) > 1 {
+				label := match[1]
+				if !strings.HasPrefix(label, "global") && !strings.HasPrefix(label, "cap-asset-") {
+					labels[label] = true
+				}
 			}
 		}
 	}
@@ -199,10 +215,25 @@ func extractLabels(content string) []string {
 
 // extractAssetIdentifier extracts the asset identifier from labels
 func extractAssetIdentifier(content string) string {
-	// Find all label tags in the content
-	labelPattern := `"label":"([^"]+)"`
+	// First try to find labels in the metadata.labels.results format
+	labelPattern := `"name":"([^"]+)"`
 	re := regexp.MustCompile(labelPattern)
 	matches := re.FindAllStringSubmatch(content, -1)
+
+	// Look for a label that matches the cap-asset-* pattern
+	for _, match := range matches {
+		if len(match) > 1 {
+			label := match[1]
+			if strings.HasPrefix(label, "cap-asset-") {
+				return label
+			}
+		}
+	}
+
+	// If not found, try the HTML format
+	labelPattern = `"label":"([^"]+)"`
+	re = regexp.MustCompile(labelPattern)
+	matches = re.FindAllStringSubmatch(content, -1)
 
 	// Look for a label that matches the cap-asset-* pattern
 	for _, match := range matches {

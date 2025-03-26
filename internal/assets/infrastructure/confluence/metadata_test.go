@@ -14,7 +14,26 @@ func TestExtractMetadata(t *testing.T) {
 		wantErr  bool
 	}{
 		{
-			name: "extract all metadata",
+			name: "extract all metadata with API format labels",
+			content: `<table>
+				<tr><td><strong>Why are we doing this?</strong></td><td><p>Test description</p></td></tr>
+				<tr><td><strong>Pod</strong></td><td><p>Test Platform</p></td></tr>
+				<tr><td><strong>Status</strong></td><td><p>in development</p></td></tr>
+				<tr><td><strong>Launch date</strong></td><td><p>March 4, 2022</p></td></tr>
+			</table>
+			{"metadata":{"labels":{"results":[{"name":"test-label"},{"name":"cap-asset-test-asset"}]}}}`,
+			expected: &PageMetadata{
+				Description: "Test description",
+				Platform:    "Test Platform",
+				Status:      "in development",
+				LaunchDate:  time.Date(2022, 3, 4, 0, 0, 0, 0, time.UTC),
+				Keywords:    []string{"test-label"},
+				Identifier:  "cap-asset-test-asset",
+			},
+			wantErr: false,
+		},
+		{
+			name: "extract all metadata with HTML format labels",
 			content: `<table>
 				<tr><td><strong>Why are we doing this?</strong></td><td><p>Test description</p></td></tr>
 				<tr><td><strong>Pod</strong></td><td><p>Test Platform</p></td></tr>

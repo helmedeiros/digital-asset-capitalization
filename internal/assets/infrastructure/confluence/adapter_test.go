@@ -151,14 +151,14 @@ func TestFetchAssets(t *testing.T) {
 				"title": "Test Asset",
 				"space": {"key": "TEST"},
 				"version": {"number": 1},
-				"body": {"storage": {"value": "<table><tr><td><strong>Why are we doing this?</strong></td><td><p>Test description</p></td></tr><tr><td><strong>Pod</strong></td><td><p>Test Platform</p></td></tr><tr><td><strong>Status</strong></td><td><p>in development</p></td></tr><tr><td><strong>Launch date</strong></td><td><p>since 2022</p></td></tr></table>"}},
+				"body": {"storage": {"value": "<table><tr><td><strong>Why are we doing this?</strong></td><td><p>Test description</p></td></tr><tr><td><strong>Pod</strong></td><td><p>Test Platform</p></td></tr><tr><td><strong>Status</strong></td><td><p>in development</p></td></tr><tr><td><strong>Launch date</strong></td><td><p>since 2022</p></td></tr></table><div class=\"labels\">{\"label\":\"cap-asset-test-asset\"}</div>"}},
 				"_links": {"webui": "https://test.atlassian.net/wiki/spaces/TEST/pages/test-id"}
 			}`,
 			statusCode:  http.StatusOK,
 			expectError: false,
 			expectedAssets: []*domain.Asset{
 				{
-					ID:          "test-id",
+					ID:          "cap-asset-test-asset",
 					Name:        "Test Asset",
 					Description: "Test description",
 					Version:     1,
@@ -288,7 +288,8 @@ func TestConvertPageToAsset(t *testing.T) {
 							<tr><td><strong>Pod</strong></td><td><p>Test Platform</p></td></tr>
 							<tr><td><strong>Status</strong></td><td><p>in development</p></td></tr>
 							<tr><td><strong>Launch date</strong></td><td><p>since 2022</p></td></tr>
-						</table>`,
+						</table>
+						<div class="labels">{"label":"cap-asset-test-asset"}</div>`,
 					},
 				},
 				Links: struct {
@@ -298,7 +299,7 @@ func TestConvertPageToAsset(t *testing.T) {
 				},
 			},
 			expectedAsset: &domain.Asset{
-				ID:          "test-id",
+				ID:          "cap-asset-test-asset",
 				Name:        "Test Asset",
 				Description: "Test description",
 				Version:     1,

@@ -11,6 +11,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/helmedeiros/digital-asset-capitalization/internal/assets/common"
 	"github.com/helmedeiros/digital-asset-capitalization/internal/assets/domain"
 )
 
@@ -199,6 +200,10 @@ func (a *Adapter) FetchAssets(ctx context.Context) ([]*domain.Asset, error) {
 		defer contentResp.Body.Close()
 
 		contentBody, _ := io.ReadAll(contentResp.Body)
+		if a.config.Debug {
+			fmt.Printf("Content response for page %s: %s\n", page.Title, string(contentBody))
+		}
+
 		if contentResp.StatusCode != http.StatusOK {
 			if a.config.Debug {
 				fmt.Printf("Warning: failed to fetch content for page %s: status %d\n", page.Title, contentResp.StatusCode)
@@ -212,6 +217,13 @@ func (a *Adapter) FetchAssets(ctx context.Context) ([]*domain.Asset, error) {
 				fmt.Printf("Warning: failed to decode content for page %s: %v\n", page.Title, err)
 			}
 			continue
+		}
+
+		if a.config.Debug {
+			fmt.Printf("Labels for page %s:\n", contentPage.Title)
+			for _, label := range contentPage.Metadata.Labels.Results {
+				fmt.Printf("  - %s\n", label.Name)
+			}
 		}
 
 		asset, err := a.convertPageToAsset(contentPage)
@@ -234,9 +246,27 @@ func (a *Adapter) convertPageToAsset(page ConfluencePage) (*domain.Asset, error)
 		return nil, fmt.Errorf("failed to extract metadata: %w", err)
 	}
 
+	// First try to get the identifier from the page's metadata labels
+	for _, label := range page.Metadata.Labels.Results {
+		if strings.HasPrefix(label.Name, "cap-asset-") {
+			metadata.Identifier = label.Name
+			break
+		}
+	}
+
+	// If no identifier was found in the metadata labels, try to get it from the content
+	if metadata.Identifier == "" {
+		metadata.Identifier = extractAssetIdentifier(page.Body.Storage.Value)
+	}
+
+	// If still no identifier, generate one
+	if metadata.Identifier == "" {
+		metadata.Identifier = common.GenerateID(page.Title)
+	}
+
 	now := time.Now()
-	return &domain.Asset{
-		ID:              page.ID,
+	asset := &domain.Asset{
+		ID:              metadata.Identifier,
 		Name:            page.Title,
 		Description:     metadata.Description,
 		CreatedAt:       now,
@@ -249,5 +279,7 @@ func (a *Adapter) convertPageToAsset(page ConfluencePage) (*domain.Asset, error)
 		IsRolledOut100:  metadata.IsRolledOut100,
 		Keywords:        metadata.Keywords,
 		DocLink:         page.Links.WebUI,
-	}, nil
+	}
+
+	return asset, nil
 }

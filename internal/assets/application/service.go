@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/helmedeiros/digital-asset-capitalization/internal/assets/common"
 	"github.com/helmedeiros/digital-asset-capitalization/internal/assets/domain"
 	"github.com/helmedeiros/digital-asset-capitalization/internal/assets/domain/ports"
 	"github.com/helmedeiros/digital-asset-capitalization/internal/assets/infrastructure/confluence"
@@ -33,7 +34,7 @@ func (s *AssetService) CreateAsset(name, description string) error {
 
 	now := time.Now()
 	asset := &domain.Asset{
-		ID:              generateID(name),
+		ID:              common.GenerateID(name),
 		Name:            name,
 		Description:     description,
 		CreatedAt:       now,
