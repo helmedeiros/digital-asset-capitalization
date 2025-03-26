@@ -21,13 +21,14 @@ func TestExtractMetadata(t *testing.T) {
 				<tr><td><strong>Status</strong></td><td><p>in development</p></td></tr>
 				<tr><td><strong>Launch date</strong></td><td><p>March 4, 2022</p></td></tr>
 			</table>
-			<div class="labels">{"label":"test-label"}</div>`,
+			<div class="labels">{"label":"test-label"},{"label":"cap-asset-test-asset"}</div>`,
 			expected: &PageMetadata{
 				Description: "Test description",
 				Platform:    "Test Platform",
 				Status:      "in development",
 				LaunchDate:  time.Date(2022, 3, 4, 0, 0, 0, 0, time.UTC),
 				Keywords:    []string{"test-label"},
+				Identifier:  "cap-asset-test-asset",
 			},
 			wantErr: false,
 		},
@@ -39,13 +40,14 @@ func TestExtractMetadata(t *testing.T) {
 				<tr><td><strong>Status</strong></td><td><p>in development</p></td></tr>
 				<tr><td><strong>Launch date</strong></td><td><p>since 2022</p></td></tr>
 			</table>
-			<div class="labels">{"label":"test-label"}</div>`,
+			<div class="labels">{"label":"test-label"},{"label":"cap-asset-test-asset"}</div>`,
 			expected: &PageMetadata{
 				Description: "Test description",
 				Platform:    "Test Platform",
 				Status:      "in development",
 				LaunchDate:  time.Date(2022, 1, 1, 0, 0, 0, 0, time.UTC),
 				Keywords:    []string{"test-label"},
+				Identifier:  "cap-asset-test-asset",
 			},
 			wantErr: false,
 		},
@@ -54,10 +56,11 @@ func TestExtractMetadata(t *testing.T) {
 			content: `<table>
 				<tr><td><strong>Economic benefits</strong></td><td><p>Fallback description</p></td></tr>
 			</table>
-			<div class="labels">{"label":"test-label"}</div>`,
+			<div class="labels">{"label":"test-label"},{"label":"cap-asset-test-asset"}</div>`,
 			expected: &PageMetadata{
 				Description: "Fallback description",
 				Keywords:    []string{"test-label"},
+				Identifier:  "cap-asset-test-asset",
 			},
 			wantErr: false,
 		},
@@ -66,10 +69,24 @@ func TestExtractMetadata(t *testing.T) {
 			content: `<table>
 				<tr><td><strong>Status</strong></td><td><p><ac:structured-macro ac:name="status"><ac:parameter ac:name="title">in development</ac:parameter></ac:structured-macro></p></td></tr>
 			</table>
+			<div class="labels">{"label":"test-label"},{"label":"cap-asset-test-asset"}</div>`,
+			expected: &PageMetadata{
+				Status:     "in development",
+				Keywords:   []string{"test-label"},
+				Identifier: "cap-asset-test-asset",
+			},
+			wantErr: false,
+		},
+		{
+			name: "no asset identifier",
+			content: `<table>
+				<tr><td><strong>Status</strong></td><td><p>in development</p></td></tr>
+			</table>
 			<div class="labels">{"label":"test-label"}</div>`,
 			expected: &PageMetadata{
-				Status:   "in development",
-				Keywords: []string{"test-label"},
+				Status:     "in development",
+				Keywords:   []string{"test-label"},
+				Identifier: "",
 			},
 			wantErr: false,
 		},
@@ -104,6 +121,9 @@ func TestExtractMetadata(t *testing.T) {
 			}
 			if !reflect.DeepEqual(got.Keywords, tt.expected.Keywords) {
 				t.Errorf("Keywords = %v, want %v", got.Keywords, tt.expected.Keywords)
+			}
+			if got.Identifier != tt.expected.Identifier {
+				t.Errorf("Identifier = %v, want %v", got.Identifier, tt.expected.Identifier)
 			}
 		})
 	}

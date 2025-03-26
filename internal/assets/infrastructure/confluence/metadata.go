@@ -16,6 +16,7 @@ type PageMetadata struct {
 	LaunchDate     time.Time
 	IsRolledOut100 bool
 	Keywords       []string
+	Identifier     string
 }
 
 // extractMetadata extracts metadata from the page content
@@ -88,6 +89,9 @@ func (a *Adapter) extractMetadata(content string) (*PageMetadata, error) {
 
 	// Extract keywords from labels
 	metadata.Keywords = extractLabels(content)
+
+	// Extract asset identifier from labels
+	metadata.Identifier = extractAssetIdentifier(content)
 
 	// Set rollout status based on content
 	metadata.IsRolledOut100 = strings.Contains(content, "100% of traffic")
@@ -173,12 +177,12 @@ func extractLabels(content string) []string {
 	re := regexp.MustCompile(labelPattern)
 	matches := re.FindAllStringSubmatch(content, -1)
 
-	// Extract unique labels, excluding those prefixed with "global"
+	// Extract unique labels, excluding those prefixed with "global" or "cap-asset-"
 	labels := make(map[string]bool)
 	for _, match := range matches {
 		if len(match) > 1 {
 			label := match[1]
-			if !strings.HasPrefix(label, "global") {
+			if !strings.HasPrefix(label, "global") && !strings.HasPrefix(label, "cap-asset-") {
 				labels[label] = true
 			}
 		}
@@ -191,4 +195,24 @@ func extractLabels(content string) []string {
 	}
 
 	return result
+}
+
+// extractAssetIdentifier extracts the asset identifier from labels
+func extractAssetIdentifier(content string) string {
+	// Find all label tags in the content
+	labelPattern := `"label":"([^"]+)"`
+	re := regexp.MustCompile(labelPattern)
+	matches := re.FindAllStringSubmatch(content, -1)
+
+	// Look for a label that matches the cap-asset-* pattern
+	for _, match := range matches {
+		if len(match) > 1 {
+			label := match[1]
+			if strings.HasPrefix(label, "cap-asset-") {
+				return label
+			}
+		}
+	}
+
+	return ""
 }
