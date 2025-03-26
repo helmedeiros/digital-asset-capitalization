@@ -162,6 +162,10 @@ func (a *Adapter) FetchAssets(ctx context.Context) ([]*domain.Asset, error) {
 		return nil, fmt.Errorf("failed to decode response: %v", err)
 	}
 
+	if len(result.Results) == 0 {
+		return nil, fmt.Errorf("no assets found with label '%s' in space '%s'", a.config.Label, a.config.SpaceKey)
+	}
+
 	// Convert pages to assets
 	var assets []*domain.Asset
 	for _, page := range result.Results {

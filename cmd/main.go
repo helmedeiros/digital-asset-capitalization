@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"strings"
 
 	assetsapp "github.com/helmedeiros/digital-asset-capitalization/internal/assets/application"
 	"github.com/helmedeiros/digital-asset-capitalization/internal/assets/domain/ports"
@@ -221,6 +222,10 @@ For more information about a command:
 							label := ctx.String("label")
 
 							if err := assetService.SyncFromConfluence(space, label); err != nil {
+								if strings.Contains(err.Error(), "no assets found with label") {
+									fmt.Println(err)
+									return nil
+								}
 								return err
 							}
 							fmt.Println("Successfully synced assets from Confluence")

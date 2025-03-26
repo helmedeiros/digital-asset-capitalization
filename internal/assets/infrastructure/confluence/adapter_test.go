@@ -170,6 +170,12 @@ func TestFetchAssets(t *testing.T) {
 			},
 		},
 		{
+			name:           "no assets found with label",
+			searchResponse: `{"results": [], "_links": {}}`,
+			statusCode:     http.StatusOK,
+			expectError:    true,
+		},
+		{
 			name:           "server error",
 			searchResponse: `{"error": "internal server error"}`,
 			statusCode:     http.StatusInternalServerError,
@@ -194,6 +200,7 @@ func TestFetchAssets(t *testing.T) {
 			config := &Config{
 				BaseURL:  server.URL,
 				Label:    "test-label",
+				SpaceKey: "TEST",
 				Token:    "test-token",
 				Username: "test@example.com",
 			}
@@ -204,6 +211,9 @@ func TestFetchAssets(t *testing.T) {
 			if tt.expectError {
 				if err == nil {
 					t.Error("expected error but got none")
+				}
+				if tt.name == "no assets found with label" && !strings.Contains(err.Error(), "no assets found with label") {
+					t.Errorf("expected error message to contain 'no assets found with label', got: %v", err)
 				}
 				return
 			}

@@ -6,6 +6,7 @@ import (
 	"encoding/hex"
 	"fmt"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/helmedeiros/digital-asset-capitalization/internal/assets/domain"
@@ -132,6 +133,9 @@ func (s *AssetService) SyncFromConfluence(spaceKey, label string) error {
 	adapter := confluence.NewAdapter(config)
 	assets, err := adapter.FetchAssets(context.Background())
 	if err != nil {
+		if strings.Contains(err.Error(), "no assets found with label") {
+			return err
+		}
 		return fmt.Errorf("failed to fetch assets from Confluence: %v", err)
 	}
 
