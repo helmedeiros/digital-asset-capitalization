@@ -1,6 +1,7 @@
 package confluence
 
 import (
+	"reflect"
 	"testing"
 	"time"
 )
@@ -10,77 +11,99 @@ func TestExtractMetadata(t *testing.T) {
 		name     string
 		content  string
 		expected *PageMetadata
+		wantErr  bool
 	}{
 		{
-			name: "extract all metadata fields",
-			content: `
-				<table>
-					<tr><td><strong>Why are we doing this?</strong></td><td><p>Test description</p></td></tr>
-					<tr><td><strong>Pod</strong></td><td><p>Test Platform</p></td></tr>
-					<tr><td><strong>Status</strong></td><td><p>in continuous development</p></td></tr>
-					<tr><td><strong>Launch date</strong></td><td><p>since 2022</p></td></tr>
-				</table>
-				<div>100% of traffic</div>
-				<div>"label":"test-keyword"</div>
-			`,
+			name: "extract all metadata",
+			content: `<table>
+				<tr><td><strong>Why are we doing this?</strong></td><td><p>Test description</p></td></tr>
+				<tr><td><strong>Pod</strong></td><td><p>Test Platform</p></td></tr>
+				<tr><td><strong>Status</strong></td><td><p>in development</p></td></tr>
+				<tr><td><strong>Launch date</strong></td><td><p>March 4, 2022</p></td></tr>
+			</table>
+			<div class="labels">{"label":"test-label"}</div>`,
 			expected: &PageMetadata{
-				Description:    "Test description",
-				Platform:       "Test Platform",
-				Status:         "in continuous development",
-				LaunchDate:     time.Date(2022, 1, 1, 0, 0, 0, 0, time.UTC),
-				IsRolledOut100: true,
-				Keywords:       []string{"test-keyword"},
+				Description: "Test description",
+				Platform:    "Test Platform",
+				Status:      "in development",
+				LaunchDate:  time.Date(2022, 3, 4, 0, 0, 0, 0, time.UTC),
+				Keywords:    []string{"test-label"},
 			},
+			wantErr: false,
+		},
+		{
+			name: "extract all metadata fields",
+			content: `<table>
+				<tr><td><strong>Why are we doing this?</strong></td><td><p>Test description</p></td></tr>
+				<tr><td><strong>Pod</strong></td><td><p>Test Platform</p></td></tr>
+				<tr><td><strong>Status</strong></td><td><p>in development</p></td></tr>
+				<tr><td><strong>Launch date</strong></td><td><p>since 2022</p></td></tr>
+			</table>
+			<div class="labels">{"label":"test-label"}</div>`,
+			expected: &PageMetadata{
+				Description: "Test description",
+				Platform:    "Test Platform",
+				Status:      "in development",
+				LaunchDate:  time.Date(2022, 1, 1, 0, 0, 0, 0, time.UTC),
+				Keywords:    []string{"test-label"},
+			},
+			wantErr: false,
 		},
 		{
 			name: "fallback to economic benefits",
-			content: `
-				<table>
-					<tr><td><strong>Economic benefits</strong></td><td><p>Fallback description</p></td></tr>
-				</table>
-			`,
+			content: `<table>
+				<tr><td><strong>Economic benefits</strong></td><td><p>Fallback description</p></td></tr>
+			</table>
+			<div class="labels">{"label":"test-label"}</div>`,
 			expected: &PageMetadata{
 				Description: "Fallback description",
+				Keywords:    []string{"test-label"},
 			},
+			wantErr: false,
 		},
 		{
 			name: "extract status from macro",
-			content: `
-				<table>
-					<tr><td><strong>Status</strong></td><td><ac:structured-macro ac:name="status" ac:schema-version="1"><ac:parameter ac:name="title">in development</ac:parameter></ac:structured-macro></td></tr>
-				</table>
-			`,
+			content: `<table>
+				<tr><td><strong>Status</strong></td><td><p><ac:structured-macro ac:name="status"><ac:parameter ac:name="title">in development</ac:parameter></ac:structured-macro></p></td></tr>
+			</table>
+			<div class="labels">{"label":"test-label"}</div>`,
 			expected: &PageMetadata{
-				Status: "in development",
+				Status:   "in development",
+				Keywords: []string{"test-label"},
 			},
+			wantErr: false,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			adapter := &Adapter{}
-			metadata, err := adapter.extractMetadata(tt.content)
+			got, err := adapter.extractMetadata(tt.content)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("extractMetadata() error = %v, wantErr %v", err, tt.wantErr)
+				return
+			}
 			if err != nil {
-				t.Fatalf("unexpected error: %v", err)
+				return
 			}
 
-			if metadata.Description != tt.expected.Description {
-				t.Errorf("Description = %v, want %v", metadata.Description, tt.expected.Description)
+			if got.Description != tt.expected.Description {
+				t.Errorf("Description = %v, want %v", got.Description, tt.expected.Description)
 			}
-			if metadata.Platform != tt.expected.Platform {
-				t.Errorf("Platform = %v, want %v", metadata.Platform, tt.expected.Platform)
+			if got.Platform != tt.expected.Platform {
+				t.Errorf("Platform = %v, want %v", got.Platform, tt.expected.Platform)
 			}
-			if metadata.Status != tt.expected.Status {
-				t.Errorf("Status = %v, want %v", metadata.Status, tt.expected.Status)
+			if got.Status != tt.expected.Status {
+				t.Errorf("Status = %v, want %v", got.Status, tt.expected.Status)
 			}
-			if !metadata.LaunchDate.Equal(tt.expected.LaunchDate) {
-				t.Errorf("LaunchDate = %v, want %v", metadata.LaunchDate, tt.expected.LaunchDate)
+			if !got.LaunchDate.Equal(tt.expected.LaunchDate) {
+				t.Errorf("LaunchDate = %v, want %v", got.LaunchDate, tt.expected.LaunchDate)
 			}
-			if metadata.IsRolledOut100 != tt.expected.IsRolledOut100 {
-				t.Errorf("IsRolledOut100 = %v, want %v", metadata.IsRolledOut100, tt.expected.IsRolledOut100)
+			if got.IsRolledOut100 != tt.expected.IsRolledOut100 {
+				t.Errorf("IsRolledOut100 = %v, want %v", got.IsRolledOut100, tt.expected.IsRolledOut100)
 			}
-			if len(metadata.Keywords) != len(tt.expected.Keywords) {
-				t.Errorf("Keywords length = %v, want %v", len(metadata.Keywords), len(tt.expected.Keywords))
+			if !reflect.DeepEqual(got.Keywords, tt.expected.Keywords) {
+				t.Errorf("Keywords = %v, want %v", got.Keywords, tt.expected.Keywords)
 			}
 		})
 	}

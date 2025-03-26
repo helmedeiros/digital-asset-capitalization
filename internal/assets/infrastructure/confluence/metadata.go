@@ -59,11 +59,30 @@ func (a *Adapter) extractMetadata(content string) (*PageMetadata, error) {
 	// Extract launch date from "Launch date" section
 	launchDate := extractTableValue(content, "Launch date")
 	launchDate = cleanHTML(launchDate)
-	// Parse "since 2022" format
+
+	// Try different date formats
 	if strings.HasPrefix(strings.ToLower(launchDate), "since") {
+		// Handle "since YYYY" format
 		year := strings.TrimSpace(strings.TrimPrefix(strings.ToLower(launchDate), "since"))
 		if yearInt, err := strconv.Atoi(year); err == nil {
 			metadata.LaunchDate = time.Date(yearInt, 1, 1, 0, 0, 0, 0, time.UTC)
+		}
+	} else {
+		// Try parsing specific date formats
+		formats := []string{
+			"January 2, 2006",
+			"January 2 2006",
+			"Jan 2, 2006",
+			"Jan 2 2006",
+			"02/01/2006",
+			"2006-01-02",
+		}
+
+		for _, format := range formats {
+			if t, err := time.Parse(format, launchDate); err == nil {
+				metadata.LaunchDate = t
+				break
+			}
 		}
 	}
 
