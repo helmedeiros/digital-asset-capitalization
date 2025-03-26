@@ -27,14 +27,25 @@ func NewAssetService(repo ports.AssetRepository) ports.AssetService {
 
 // CreateAsset creates a new asset with the given name and description
 func (s *AssetService) CreateAsset(name, description string) error {
-	// Check if asset already exists
+	// Check if asset already exists by name
 	if _, err := s.repo.FindByName(name); err == nil {
-		return fmt.Errorf("asset already exists")
+		return fmt.Errorf("asset with name '%s' already exists", name)
+	}
+
+	// Check if name matches any existing asset's ID
+	if _, err := s.repo.FindByID(name); err == nil {
+		return fmt.Errorf("cannot create asset with name '%s' as it matches an existing asset's ID", name)
+	}
+
+	// Generate ID and check if it already exists
+	id := common.GenerateID(name)
+	if _, err := s.repo.FindByID(id); err == nil {
+		return fmt.Errorf("asset with ID '%s' already exists", id)
 	}
 
 	now := time.Now()
 	asset := &domain.Asset{
-		ID:              common.GenerateID(name),
+		ID:              id,
 		Name:            name,
 		Description:     description,
 		CreatedAt:       now,

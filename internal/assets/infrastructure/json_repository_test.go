@@ -323,3 +323,37 @@ func TestJSONRepository_EdgeCases(t *testing.T) {
 		assert.Contains(t, err.Error(), "failed to load assets", "Unexpected error message")
 	})
 }
+
+func TestJSONRepository_FindByID(t *testing.T) {
+	h := setupTest(t)
+	defer h.cleanup(t)
+
+	t.Run("should find existing asset by ID", func(t *testing.T) {
+		// Create and save a test asset
+		asset := h.createTestAsset("test-asset", "Test Description")
+		err := h.repo.Save(asset)
+		require.NoError(t, err, "Failed to save asset")
+
+		// Find the asset by ID
+		found, err := h.repo.FindByID(asset.ID)
+		require.NoError(t, err, "Failed to find asset by ID")
+
+		assert.Equal(t, asset.ID, found.ID, "Asset ID mismatch")
+		assert.Equal(t, asset.Name, found.Name, "Asset name mismatch")
+		assert.Equal(t, asset.Description, found.Description, "Asset description mismatch")
+	})
+
+	t.Run("should return error for non-existent ID", func(t *testing.T) {
+		found, err := h.repo.FindByID("non-existent-id")
+		assert.Error(t, err, "Expected error for non-existent ID")
+		assert.Nil(t, found, "Expected nil asset for non-existent ID")
+		assert.Contains(t, err.Error(), "asset with ID non-existent-id not found", "Unexpected error message")
+	})
+
+	t.Run("should return error for empty ID", func(t *testing.T) {
+		found, err := h.repo.FindByID("")
+		assert.Error(t, err, "Expected error for empty ID")
+		assert.Nil(t, found, "Expected nil asset for empty ID")
+		assert.Contains(t, err.Error(), "asset ID cannot be empty", "Unexpected error message")
+	})
+}

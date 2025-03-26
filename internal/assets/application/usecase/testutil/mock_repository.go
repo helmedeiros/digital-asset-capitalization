@@ -51,6 +51,19 @@ func (m *MockAssetRepository) FindAll() ([]*domain.Asset, error) {
 	return assets, nil
 }
 
+// FindByID finds an asset by its ID
+func (m *MockAssetRepository) FindByID(id string) (*domain.Asset, error) {
+	if id == "" {
+		return nil, errors.New("id cannot be empty")
+	}
+	for _, asset := range m.assets {
+		if asset.ID == id {
+			return asset, nil
+		}
+	}
+	return nil, errors.New("asset not found")
+}
+
 // Delete deletes an asset by name
 func (m *MockAssetRepository) Delete(name string) error {
 	if name == "" {

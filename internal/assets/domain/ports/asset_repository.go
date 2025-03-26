@@ -10,6 +10,8 @@ type AssetRepository interface {
 	Save(asset *domain.Asset) error
 	// FindByName finds an asset by its name
 	FindByName(name string) (*domain.Asset, error)
+	// FindByID finds an asset by its ID
+	FindByID(id string) (*domain.Asset, error)
 	// FindAll returns all assets
 	FindAll() ([]*domain.Asset, error)
 	// Delete deletes an asset by name

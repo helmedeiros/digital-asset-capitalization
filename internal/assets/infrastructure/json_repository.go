@@ -118,6 +118,27 @@ func (r *JSONRepository) Delete(name string) error {
 	return r.saveAssets(assets)
 }
 
+// FindByID finds an asset by its ID
+func (r *JSONRepository) FindByID(id string) (*domain.Asset, error) {
+	if id == "" {
+		return nil, fmt.Errorf("asset ID cannot be empty")
+	}
+
+	assets, err := r.loadAssets()
+	if err != nil {
+		return nil, fmt.Errorf("failed to load assets: %w", err)
+	}
+
+	// Search through all assets to find one with matching ID
+	for _, asset := range assets {
+		if asset.ID == id {
+			return asset, nil
+		}
+	}
+
+	return nil, fmt.Errorf("asset with ID %s not found", id)
+}
+
 // loadAssets loads all assets from the JSON file
 func (r *JSONRepository) loadAssets() (map[string]*domain.Asset, error) {
 	// Create directory if it doesn't exist

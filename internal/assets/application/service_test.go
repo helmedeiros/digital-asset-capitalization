@@ -3,6 +3,7 @@ package application
 import (
 	"errors"
 	"fmt"
+	"strings"
 	"testing"
 
 	"github.com/helmedeiros/digital-asset-capitalization/internal/assets/domain"
@@ -12,18 +13,25 @@ import (
 
 // MockRepository is a mock implementation of AssetRepository
 type MockRepository struct {
-	saveCalled    bool
-	findCalled    bool
-	findAllCalled bool
-	deleteCalled  bool
-	saveAsset     *domain.Asset
-	findName      string
-	findResult    *domain.Asset
-	findError     error
-	findAllResult []*domain.Asset
-	findAllError  error
-	deleteName    string
-	deleteError   error
+	saveCalled     bool
+	findCalled     bool
+	findAllCalled  bool
+	deleteCalled   bool
+	findByIDCalled bool
+	findByIDCalls  int
+	saveAsset      *domain.Asset
+	findName       string
+	findResult     *domain.Asset
+	findError      error
+	findAllResult  []*domain.Asset
+	findAllError   error
+	deleteName     string
+	deleteError    error
+	findByIDResult *domain.Asset
+	findByIDError  error
+	// For multiple FindByID calls
+	findByIDResults []*domain.Asset
+	findByIDErrors  []error
 }
 
 func (m *MockRepository) Save(asset *domain.Asset) error {
@@ -49,6 +57,18 @@ func (m *MockRepository) Delete(name string) error {
 	return m.deleteError
 }
 
+func (m *MockRepository) FindByID(id string) (*domain.Asset, error) {
+	m.findByIDCalled = true
+	m.findByIDCalls++
+
+	// If using multiple results
+	if len(m.findByIDResults) > 0 && m.findByIDCalls <= len(m.findByIDResults) {
+		return m.findByIDResults[m.findByIDCalls-1], m.findByIDErrors[m.findByIDCalls-1]
+	}
+
+	return m.findByIDResult, m.findByIDError
+}
+
 func TestCreateAsset(t *testing.T) {
 	tests := []struct {
 		name          string
@@ -56,6 +76,7 @@ func TestCreateAsset(t *testing.T) {
 		description   string
 		setupMock     func(*MockRepository)
 		expectedError error
+		checkError    func(error) bool
 	}{
 		{
 			name:        "successful creation",
@@ -63,11 +84,19 @@ func TestCreateAsset(t *testing.T) {
 			description: "Test description",
 			setupMock: func(m *MockRepository) {
 				m.findError = errors.New("not found")
+				m.findByIDResults = []*domain.Asset{
+					nil, // First call (name check)
+					nil, // Second call (generated ID check)
+				}
+				m.findByIDErrors = []error{
+					errors.New("not found"), // First call (name check)
+					errors.New("not found"), // Second call (generated ID check)
+				}
 			},
 			expectedError: nil,
 		},
 		{
-			name:        "asset already exists",
+			name:        "asset already exists by name",
 			assetName:   "existing-asset",
 			description: "Test description",
 			setupMock: func(m *MockRepository) {
@@ -76,7 +105,47 @@ func TestCreateAsset(t *testing.T) {
 					Description: "Existing description",
 				}
 			},
-			expectedError: fmt.Errorf("asset already exists"),
+			expectedError: fmt.Errorf("asset with name 'existing-asset' already exists"),
+		},
+		{
+			name:        "name matches existing asset ID",
+			assetName:   "existing-id",
+			description: "Test description",
+			setupMock: func(m *MockRepository) {
+				m.findError = errors.New("not found")
+				m.findByIDResults = []*domain.Asset{
+					{
+						ID:          "existing-id",
+						Name:        "some-asset",
+						Description: "Some description",
+					},
+				}
+				m.findByIDErrors = []error{nil}
+			},
+			expectedError: fmt.Errorf("cannot create asset with name 'existing-id' as it matches an existing asset's ID"),
+		},
+		{
+			name:        "asset already exists by generated ID",
+			assetName:   "test-asset",
+			description: "Test description",
+			setupMock: func(m *MockRepository) {
+				m.findError = errors.New("not found")
+				m.findByIDResults = []*domain.Asset{
+					nil,
+					{
+						ID:          "test-id",
+						Name:        "test-asset",
+						Description: "Test description",
+					},
+				}
+				m.findByIDErrors = []error{
+					errors.New("not found"), // First call (name check)
+					nil,                     // Second call (generated ID check)
+				}
+			},
+			checkError: func(err error) bool {
+				return err != nil && strings.Contains(err.Error(), "asset with ID '") && strings.Contains(err.Error(), "' already exists")
+			},
 		},
 	}
 
@@ -94,12 +163,19 @@ func TestCreateAsset(t *testing.T) {
 				return
 			}
 
+			if tt.checkError != nil {
+				assert.True(t, tt.checkError(err), "Error message did not match expected pattern")
+				return
+			}
+
 			require.NoError(t, err)
 			assert.True(t, mockRepo.findCalled, "FindByName was not called")
 			assert.True(t, mockRepo.saveCalled, "Save was not called")
 			if mockRepo.saveAsset != nil {
 				assert.Equal(t, tt.assetName, mockRepo.saveAsset.Name)
 				assert.Equal(t, tt.description, mockRepo.saveAsset.Description)
+				assert.NotEmpty(t, mockRepo.saveAsset.ID, "Asset ID should not be empty")
+				assert.Len(t, mockRepo.saveAsset.ID, 16, "Asset ID should be 16 characters long")
 			}
 		})
 	}
