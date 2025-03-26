@@ -114,7 +114,7 @@ func (s *AssetService) DecrementTaskCount(name string) error {
 }
 
 // SyncFromConfluence fetches assets from Confluence and updates the local repository
-func (s *AssetService) SyncFromConfluence(spaceKey, label string) error {
+func (s *AssetService) SyncFromConfluence(spaceKey, label string, debug bool) error {
 	config := confluence.DefaultConfig()
 
 	// Get configuration from environment variables
@@ -122,6 +122,7 @@ func (s *AssetService) SyncFromConfluence(spaceKey, label string) error {
 	config.SpaceKey = spaceKey
 	config.Label = label
 	config.Token = os.Getenv("JIRA_TOKEN")
+	config.Debug = debug
 
 	if config.BaseURL == "" {
 		return fmt.Errorf("JIRA_BASE_URL environment variable must be set")

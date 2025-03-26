@@ -97,7 +97,9 @@ func (a *Adapter) getSpaceID(ctx context.Context) (string, error) {
 	defer resp.Body.Close()
 
 	body, _ := io.ReadAll(resp.Body)
-	fmt.Printf("Space response status: %d\nResponse body: %s\n", resp.StatusCode, string(body))
+	if a.config.Debug {
+		fmt.Printf("Space response status: %d\nResponse body: %s\n", resp.StatusCode, string(body))
+	}
 
 	if resp.StatusCode != http.StatusOK {
 		return "", fmt.Errorf("unexpected status code: %d, body: %s", resp.StatusCode, string(body))
@@ -132,7 +134,9 @@ func (a *Adapter) FetchAssets(ctx context.Context) ([]*domain.Asset, error) {
 	baseURL := strings.TrimRight(a.config.BaseURL, "/")
 	url := fmt.Sprintf("%s/wiki/rest/api/content/search?cql=type=page%%20AND%%20label=%%22%s%%22&expand=body.storage,version,metadata.labels",
 		baseURL, a.config.Label)
-	fmt.Printf("Fetching pages from URL: %s\n", url)
+	if a.config.Debug {
+		fmt.Printf("Fetching pages from URL: %s\n", url)
+	}
 
 	req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
 	if err != nil {
@@ -151,7 +155,9 @@ func (a *Adapter) FetchAssets(ctx context.Context) ([]*domain.Asset, error) {
 	defer resp.Body.Close()
 
 	body, _ := io.ReadAll(resp.Body)
-	fmt.Printf("Response status: %d\nResponse body: %s\n", resp.StatusCode, string(body))
+	if a.config.Debug {
+		fmt.Printf("Response status: %d\nResponse body: %s\n", resp.StatusCode, string(body))
+	}
 
 	if resp.StatusCode != http.StatusOK {
 		return nil, fmt.Errorf("unexpected status code: %d, body: %s", resp.StatusCode, string(body))
@@ -174,7 +180,9 @@ func (a *Adapter) FetchAssets(ctx context.Context) ([]*domain.Asset, error) {
 			baseURL, page.ID)
 		contentReq, err := http.NewRequestWithContext(ctx, "GET", contentURL, nil)
 		if err != nil {
-			fmt.Printf("Warning: failed to create request for page %s: %v\n", page.Title, err)
+			if a.config.Debug {
+				fmt.Printf("Warning: failed to create request for page %s: %v\n", page.Title, err)
+			}
 			continue
 		}
 
@@ -183,26 +191,34 @@ func (a *Adapter) FetchAssets(ctx context.Context) ([]*domain.Asset, error) {
 
 		contentResp, err := client.Do(contentReq)
 		if err != nil {
-			fmt.Printf("Warning: failed to fetch content for page %s: %v\n", page.Title, err)
+			if a.config.Debug {
+				fmt.Printf("Warning: failed to fetch content for page %s: %v\n", page.Title, err)
+			}
 			continue
 		}
 		defer contentResp.Body.Close()
 
 		contentBody, _ := io.ReadAll(contentResp.Body)
 		if contentResp.StatusCode != http.StatusOK {
-			fmt.Printf("Warning: failed to fetch content for page %s: status %d\n", page.Title, contentResp.StatusCode)
+			if a.config.Debug {
+				fmt.Printf("Warning: failed to fetch content for page %s: status %d\n", page.Title, contentResp.StatusCode)
+			}
 			continue
 		}
 
 		var contentPage ConfluencePage
 		if err := json.NewDecoder(bytes.NewReader(contentBody)).Decode(&contentPage); err != nil {
-			fmt.Printf("Warning: failed to decode content for page %s: %v\n", page.Title, err)
+			if a.config.Debug {
+				fmt.Printf("Warning: failed to decode content for page %s: %v\n", page.Title, err)
+			}
 			continue
 		}
 
 		asset, err := a.convertPageToAsset(contentPage)
 		if err != nil {
-			fmt.Printf("Warning: failed to convert page %s to asset: %v\n", page.Title, err)
+			if a.config.Debug {
+				fmt.Printf("Warning: failed to convert page %s to asset: %v\n", page.Title, err)
+			}
 			continue
 		}
 		assets = append(assets, asset)

@@ -220,8 +220,9 @@ For more information about a command:
 						Action: func(ctx *cli.Context) error {
 							space := ctx.String("space")
 							label := ctx.String("label")
+							debug := ctx.Bool("debug")
 
-							if err := assetService.SyncFromConfluence(space, label); err != nil {
+							if err := assetService.SyncFromConfluence(space, label, debug); err != nil {
 								if strings.Contains(err.Error(), "no assets found with label") {
 									fmt.Println(err)
 									return nil
@@ -241,6 +242,11 @@ For more information about a command:
 								Name:     "label",
 								Usage:    "Filter pages by label (e.g. cap-asset)",
 								Required: true,
+							},
+							&cli.BoolFlag{
+								Name:  "debug",
+								Usage: "Enable debug logging",
+								Value: false,
 							},
 						},
 					},

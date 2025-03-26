@@ -18,6 +18,8 @@ type Config struct {
 	Username string
 	// MaxResults is the maximum number of results to fetch per page
 	MaxResults int
+	// Debug enables debug logging
+	Debug bool
 }
 
 // DefaultConfig returns a default configuration
@@ -27,5 +29,6 @@ func DefaultConfig() *Config {
 		Username:   os.Getenv("JIRA_EMAIL"),
 		Token:      os.Getenv("JIRA_TOKEN"),
 		BaseURL:    os.Getenv("JIRA_BASE_URL"),
+		Debug:      false,
 	}
 }

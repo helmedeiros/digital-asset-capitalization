@@ -23,5 +23,5 @@ type AssetService interface {
 	// DecrementTaskCount decrements the task count for an asset
 	DecrementTaskCount(name string) error
 	// SyncFromConfluence fetches assets from Confluence and updates the local repository
-	SyncFromConfluence(spaceKey, label string) error
+	SyncFromConfluence(spaceKey, label string, debug bool) error
 }
