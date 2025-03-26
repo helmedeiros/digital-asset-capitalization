@@ -214,6 +214,32 @@ For more information about a command:
 						},
 					},
 					{
+						Name:  "sync",
+						Usage: "Sync assets from Confluence",
+						Action: func(ctx *cli.Context) error {
+							space := ctx.String("space")
+							label := ctx.String("label")
+
+							if err := assetService.SyncFromConfluence(space, label); err != nil {
+								return err
+							}
+							fmt.Println("Successfully synced assets from Confluence")
+							return nil
+						},
+						Flags: []cli.Flag{
+							&cli.StringFlag{
+								Name:     "space",
+								Usage:    "Confluence space key (e.g. MZN)",
+								Required: true,
+							},
+							&cli.StringFlag{
+								Name:     "label",
+								Usage:    "Filter pages by label (e.g. cap-asset)",
+								Required: true,
+							},
+						},
+					},
+					{
 						Name:  "update",
 						Usage: "Update an asset's description",
 						Action: func(ctx *cli.Context) error {

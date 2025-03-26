@@ -36,6 +36,18 @@ type Asset struct {
 	AssociatedTaskCount int `json:"associated_task_count"`
 	// Version is used for optimistic locking
 	Version int `json:"version"`
+	// Platform represents the domain/platform for classification hints
+	Platform string `json:"platform"`
+	// Status represents the current state of the asset
+	Status string `json:"status"`
+	// LaunchDate is when the asset was rolled out to production
+	LaunchDate time.Time `json:"launch_date"`
+	// IsRolledOut100 indicates if the asset is fully rolled out
+	IsRolledOut100 bool `json:"is_rolled_out_100"`
+	// Keywords are terms to match against task titles/descriptions
+	Keywords []string `json:"keywords"`
+	// DocLink is the link to full Confluence documentation
+	DocLink string `json:"doc_link"`
 }
 
 // NewAsset creates a new Asset instance

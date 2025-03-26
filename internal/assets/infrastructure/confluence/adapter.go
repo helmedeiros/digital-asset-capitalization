@@ -1,0 +1,233 @@
+package confluence
+
+import (
+	"bytes"
+	"context"
+	"encoding/json"
+	"fmt"
+	"io"
+	"net/http"
+	"net/url"
+	"strings"
+	"time"
+
+	"github.com/helmedeiros/digital-asset-capitalization/internal/assets/domain"
+)
+
+// ConfluencePage represents a page in Confluence
+type ConfluencePage struct {
+	ID    string `json:"id"`
+	Title string `json:"title"`
+	Space struct {
+		Key string `json:"key"`
+	} `json:"space"`
+	Version struct {
+		Number int `json:"number"`
+	} `json:"version"`
+	Body struct {
+		Storage struct {
+			Value string `json:"value"`
+		} `json:"storage"`
+	} `json:"body"`
+	Links struct {
+		WebUI string `json:"webui"`
+	} `json:"_links"`
+	Metadata struct {
+		Labels struct {
+			Results []struct {
+				Name string `json:"name"`
+			} `json:"results"`
+		} `json:"labels"`
+	} `json:"metadata"`
+}
+
+// ConfluenceResponse represents the response from the Confluence API
+type ConfluenceResponse struct {
+	Results []ConfluencePage `json:"results"`
+	Links   struct {
+		Next string `json:"next"`
+	} `json:"_links"`
+}
+
+// ConfluenceSpace represents a space in Confluence
+type ConfluenceSpace struct {
+	ID   string `json:"id"`
+	Key  string `json:"key"`
+	Name string `json:"name"`
+}
+
+// ConfluenceSpaceResponse represents the response from the Confluence API for spaces
+type ConfluenceSpaceResponse struct {
+	Results []ConfluenceSpace `json:"results"`
+}
+
+// Adapter handles communication with Confluence API
+type Adapter struct {
+	config     *Config
+	httpClient *http.Client
+}
+
+// NewAdapter creates a new Confluence adapter
+func NewAdapter(config *Config) *Adapter {
+	return &Adapter{
+		config: config,
+		httpClient: &http.Client{
+			Timeout: 30 * time.Second,
+		},
+	}
+}
+
+func (a *Adapter) getSpaceID(ctx context.Context) (string, error) {
+	baseURL := strings.TrimRight(a.config.BaseURL, "/")
+	url := fmt.Sprintf("%s/wiki/api/v2/spaces?keys=%s", baseURL, a.config.SpaceKey)
+
+	req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
+	if err != nil {
+		return "", fmt.Errorf("failed to create request: %v", err)
+	}
+
+	req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", a.config.Token))
+	req.Header.Set("Accept", "application/json")
+
+	client := &http.Client{}
+	resp, err := client.Do(req)
+	if err != nil {
+		return "", fmt.Errorf("failed to make request: %v", err)
+	}
+	defer resp.Body.Close()
+
+	body, _ := io.ReadAll(resp.Body)
+	fmt.Printf("Space response status: %d\nResponse body: %s\n", resp.StatusCode, string(body))
+
+	if resp.StatusCode != http.StatusOK {
+		return "", fmt.Errorf("unexpected status code: %d, body: %s", resp.StatusCode, string(body))
+	}
+
+	var result ConfluenceSpaceResponse
+	if err := json.NewDecoder(bytes.NewReader(body)).Decode(&result); err != nil {
+		return "", fmt.Errorf("failed to decode response: %v", err)
+	}
+
+	if len(result.Results) == 0 {
+		return "", fmt.Errorf("space not found: %s", a.config.SpaceKey)
+	}
+
+	return result.Results[0].ID, nil
+}
+
+func (a *Adapter) buildSearchURL(spaceID string) string {
+	baseURL := strings.TrimRight(a.config.BaseURL, "/")
+	searchURL := baseURL + "/wiki/api/v2/pages"
+
+	query := url.Values{}
+	query.Add("space-id", spaceID)
+	query.Add("expand", "body.storage,version,metadata.labels")
+	query.Add("limit", fmt.Sprintf("%d", a.config.MaxResults))
+
+	return searchURL + "?" + query.Encode()
+}
+
+// FetchAssets retrieves assets from Confluence
+func (a *Adapter) FetchAssets(ctx context.Context) ([]*domain.Asset, error) {
+	baseURL := strings.TrimRight(a.config.BaseURL, "/")
+	url := fmt.Sprintf("%s/wiki/rest/api/content/search?cql=type=page%%20AND%%20label=%%22%s%%22&expand=body.storage,version,metadata.labels",
+		baseURL, a.config.Label)
+	fmt.Printf("Fetching pages from URL: %s\n", url)
+
+	req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create request: %v", err)
+	}
+
+	// Set authentication header using Basic auth
+	req.SetBasicAuth(a.config.Username, a.config.Token)
+	req.Header.Set("Accept", "application/json")
+
+	client := &http.Client{}
+	resp, err := client.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("failed to make request: %v", err)
+	}
+	defer resp.Body.Close()
+
+	body, _ := io.ReadAll(resp.Body)
+	fmt.Printf("Response status: %d\nResponse body: %s\n", resp.StatusCode, string(body))
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("unexpected status code: %d, body: %s", resp.StatusCode, string(body))
+	}
+
+	var result ConfluenceResponse
+	if err := json.NewDecoder(bytes.NewReader(body)).Decode(&result); err != nil {
+		return nil, fmt.Errorf("failed to decode response: %v", err)
+	}
+
+	// Convert pages to assets
+	var assets []*domain.Asset
+	for _, page := range result.Results {
+		// Fetch page content
+		contentURL := fmt.Sprintf("%s/wiki/rest/api/content/%s?expand=body.storage,version,metadata.labels",
+			baseURL, page.ID)
+		contentReq, err := http.NewRequestWithContext(ctx, "GET", contentURL, nil)
+		if err != nil {
+			fmt.Printf("Warning: failed to create request for page %s: %v\n", page.Title, err)
+			continue
+		}
+
+		contentReq.SetBasicAuth(a.config.Username, a.config.Token)
+		contentReq.Header.Set("Accept", "application/json")
+
+		contentResp, err := client.Do(contentReq)
+		if err != nil {
+			fmt.Printf("Warning: failed to fetch content for page %s: %v\n", page.Title, err)
+			continue
+		}
+		defer contentResp.Body.Close()
+
+		contentBody, _ := io.ReadAll(contentResp.Body)
+		if contentResp.StatusCode != http.StatusOK {
+			fmt.Printf("Warning: failed to fetch content for page %s: status %d\n", page.Title, contentResp.StatusCode)
+			continue
+		}
+
+		var contentPage ConfluencePage
+		if err := json.NewDecoder(bytes.NewReader(contentBody)).Decode(&contentPage); err != nil {
+			fmt.Printf("Warning: failed to decode content for page %s: %v\n", page.Title, err)
+			continue
+		}
+
+		asset, err := a.convertPageToAsset(contentPage)
+		if err != nil {
+			fmt.Printf("Warning: failed to convert page %s to asset: %v\n", page.Title, err)
+			continue
+		}
+		assets = append(assets, asset)
+	}
+
+	return assets, nil
+}
+
+// convertPageToAsset converts a Confluence page to an Asset
+func (a *Adapter) convertPageToAsset(page ConfluencePage) (*domain.Asset, error) {
+	metadata, err := a.extractMetadata(page.Body.Storage.Value)
+	if err != nil {
+		return nil, fmt.Errorf("failed to extract metadata: %w", err)
+	}
+
+	now := time.Now()
+	return &domain.Asset{
+		ID:              page.ID,
+		Name:            page.Title,
+		Description:     metadata.Description,
+		CreatedAt:       now,
+		UpdatedAt:       now,
+		LastDocUpdateAt: now,
+		Version:         1,
+		Platform:        metadata.Platform,
+		Status:          metadata.Status,
+		LaunchDate:      metadata.LaunchDate,
+		IsRolledOut100:  metadata.IsRolledOut100,
+		Keywords:        metadata.Keywords,
+		DocLink:         page.Links.WebUI,
+	}, nil
+}
