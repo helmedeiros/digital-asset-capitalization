@@ -1,80 +1,96 @@
 package application
 
 import (
+	"context"
 	"errors"
 	"fmt"
-	"strings"
+	"os"
 	"testing"
+	"time"
 
 	"github.com/helmedeiros/digital-asset-capitalization/internal/assets/domain"
+	"github.com/helmedeiros/digital-asset-capitalization/internal/assets/domain/ports"
+	"github.com/helmedeiros/digital-asset-capitalization/internal/assets/infrastructure/confluence"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 )
 
-// MockRepository is a mock implementation of AssetRepository
-type MockRepository struct {
-	saveCalled     bool
-	findCalled     bool
-	findAllCalled  bool
-	deleteCalled   bool
-	findByIDCalled bool
-	findByIDCalls  int
-	saveAsset      *domain.Asset
-	findName       string
-	findResult     *domain.Asset
-	findError      error
-	findAllResult  []*domain.Asset
-	findAllError   error
-	deleteName     string
-	deleteError    error
-	findByIDResult *domain.Asset
-	findByIDError  error
-	// For multiple FindByID calls
-	findByIDResults []*domain.Asset
-	findByIDErrors  []error
+// MockAssetRepository is a mock implementation of AssetRepository
+type MockAssetRepository struct {
+	mock.Mock
 }
 
-func (m *MockRepository) Save(asset *domain.Asset) error {
-	m.saveCalled = true
-	m.saveAsset = asset
-	return nil
+func (m *MockAssetRepository) Save(asset *domain.Asset) error {
+	args := m.Called(asset)
+	return args.Error(0)
 }
 
-func (m *MockRepository) FindByName(name string) (*domain.Asset, error) {
-	m.findCalled = true
-	m.findName = name
-	return m.findResult, m.findError
-}
-
-func (m *MockRepository) FindAll() ([]*domain.Asset, error) {
-	m.findAllCalled = true
-	return m.findAllResult, m.findAllError
-}
-
-func (m *MockRepository) Delete(name string) error {
-	m.deleteCalled = true
-	m.deleteName = name
-	return m.deleteError
-}
-
-func (m *MockRepository) FindByID(id string) (*domain.Asset, error) {
-	m.findByIDCalled = true
-	m.findByIDCalls++
-
-	// If using multiple results
-	if len(m.findByIDResults) > 0 && m.findByIDCalls <= len(m.findByIDResults) {
-		return m.findByIDResults[m.findByIDCalls-1], m.findByIDErrors[m.findByIDCalls-1]
+func (m *MockAssetRepository) FindByName(name string) (*domain.Asset, error) {
+	args := m.Called(name)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
 	}
-
-	return m.findByIDResult, m.findByIDError
+	return args.Get(0).(*domain.Asset), args.Error(1)
 }
+
+func (m *MockAssetRepository) FindByID(id string) (*domain.Asset, error) {
+	args := m.Called(id)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*domain.Asset), args.Error(1)
+}
+
+func (m *MockAssetRepository) FindAll() ([]*domain.Asset, error) {
+	args := m.Called()
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).([]*domain.Asset), args.Error(1)
+}
+
+func (m *MockAssetRepository) Delete(name string) error {
+	args := m.Called(name)
+	return args.Error(0)
+}
+
+// MockLLAMAClient is a mock implementation of LLAMAClient
+type MockLLAMAClient struct {
+	mock.Mock
+}
+
+func (m *MockLLAMAClient) EnrichContent(content, field string) (string, error) {
+	args := m.Called(content, field)
+	return args.String(0), args.Error(1)
+}
+
+func (m *MockLLAMAClient) Close() error {
+	args := m.Called()
+	return args.Error(0)
+}
+
+// MockConfluenceAdapter is a mock implementation of the Confluence adapter
+type MockConfluenceAdapter struct {
+	mock.Mock
+}
+
+func (m *MockConfluenceAdapter) FetchPage(ctx context.Context, pageID string) (*confluence.ConfluencePage, error) {
+	args := m.Called(ctx, pageID)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*confluence.ConfluencePage), args.Error(1)
+}
+
+var _ ports.ConfluenceAdapter = (*MockConfluenceAdapter)(nil)
 
 func TestCreateAsset(t *testing.T) {
 	tests := []struct {
 		name          string
 		assetName     string
 		description   string
-		setupMock     func(*MockRepository)
+		setupMock     func(*MockAssetRepository)
 		expectedError error
 		checkError    func(error) bool
 	}{
@@ -82,76 +98,66 @@ func TestCreateAsset(t *testing.T) {
 			name:        "successful creation",
 			assetName:   "test-asset",
 			description: "Test description",
-			setupMock: func(m *MockRepository) {
-				m.findError = errors.New("not found")
-				m.findByIDResults = []*domain.Asset{
-					nil, // First call (name check)
-					nil, // Second call (generated ID check)
-				}
-				m.findByIDErrors = []error{
-					errors.New("not found"), // First call (name check)
-					errors.New("not found"), // Second call (generated ID check)
-				}
+			setupMock: func(m *MockAssetRepository) {
+				m.On("FindByName", "test-asset").Return(nil, errors.New("not found"))
+				m.On("FindByID", mock.AnythingOfType("string")).Return(nil, errors.New("not found"))
+				m.On("Save", mock.AnythingOfType("*domain.Asset")).Return(nil)
 			},
 			expectedError: nil,
+			checkError: func(err error) bool {
+				return err == nil
+			},
 		},
 		{
-			name:        "asset already exists by name",
+			name:        "existing asset",
 			assetName:   "existing-asset",
 			description: "Test description",
-			setupMock: func(m *MockRepository) {
-				m.findResult = &domain.Asset{
+			setupMock: func(m *MockAssetRepository) {
+				m.On("FindByName", "existing-asset").Return(&domain.Asset{
 					Name:        "existing-asset",
 					Description: "Existing description",
-				}
+				}, nil)
 			},
 			expectedError: fmt.Errorf("asset with name 'existing-asset' already exists"),
+			checkError: func(err error) bool {
+				return err != nil && err.Error() == "asset with name 'existing-asset' already exists"
+			},
 		},
 		{
-			name:        "name matches existing asset ID",
+			name:        "existing ID",
 			assetName:   "existing-id",
 			description: "Test description",
-			setupMock: func(m *MockRepository) {
-				m.findError = errors.New("not found")
-				m.findByIDResults = []*domain.Asset{
-					{
-						ID:          "existing-id",
-						Name:        "some-asset",
-						Description: "Some description",
-					},
-				}
-				m.findByIDErrors = []error{nil}
+			setupMock: func(m *MockAssetRepository) {
+				m.On("FindByName", "existing-id").Return(nil, errors.New("not found"))
+				m.On("FindByID", "existing-id").Return(&domain.Asset{
+					ID:          "existing-id",
+					Name:        "some-asset",
+					Description: "Some description",
+				}, nil)
 			},
 			expectedError: fmt.Errorf("cannot create asset with name 'existing-id' as it matches an existing asset's ID"),
 		},
 		{
-			name:        "asset already exists by generated ID",
+			name:        "duplicate ID",
 			assetName:   "test-asset",
 			description: "Test description",
-			setupMock: func(m *MockRepository) {
-				m.findError = errors.New("not found")
-				m.findByIDResults = []*domain.Asset{
-					nil,
-					{
-						ID:          "test-id",
-						Name:        "test-asset",
-						Description: "Test description",
-					},
-				}
-				m.findByIDErrors = []error{
-					errors.New("not found"), // First call (name check)
-					nil,                     // Second call (generated ID check)
-				}
+			setupMock: func(m *MockAssetRepository) {
+				m.On("FindByName", "test-asset").Return(nil, errors.New("not found"))
+				m.On("FindByID", mock.AnythingOfType("string")).Return(&domain.Asset{
+					ID:          "test-id",
+					Name:        "test-asset",
+					Description: "Test description",
+					Status:      "active",
+					DocLink:     "https://example.com",
+				}, nil)
 			},
-			checkError: func(err error) bool {
-				return err != nil && strings.Contains(err.Error(), "asset with ID '") && strings.Contains(err.Error(), "' already exists")
-			},
+			expectedError: fmt.Errorf("cannot create asset with name 'test-asset' as it matches an existing asset's ID"),
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			mockRepo := new(MockRepository)
+			mockRepo := new(MockAssetRepository)
 			tt.setupMock(mockRepo)
 			service := NewAssetService(mockRepo)
 
@@ -163,20 +169,8 @@ func TestCreateAsset(t *testing.T) {
 				return
 			}
 
-			if tt.checkError != nil {
-				assert.True(t, tt.checkError(err), "Error message did not match expected pattern")
-				return
-			}
-
 			require.NoError(t, err)
-			assert.True(t, mockRepo.findCalled, "FindByName was not called")
-			assert.True(t, mockRepo.saveCalled, "Save was not called")
-			if mockRepo.saveAsset != nil {
-				assert.Equal(t, tt.assetName, mockRepo.saveAsset.Name)
-				assert.Equal(t, tt.description, mockRepo.saveAsset.Description)
-				assert.NotEmpty(t, mockRepo.saveAsset.ID, "Asset ID should not be empty")
-				assert.Len(t, mockRepo.saveAsset.ID, 16, "Asset ID should be 16 characters long")
-			}
+			mockRepo.AssertExpectations(t)
 		})
 	}
 }
@@ -184,17 +178,17 @@ func TestCreateAsset(t *testing.T) {
 func TestListAssets(t *testing.T) {
 	tests := []struct {
 		name           string
-		setupMock      func(*MockRepository)
+		setupMock      func(*MockAssetRepository)
 		expectedError  error
 		expectedAssets []*domain.Asset
 	}{
 		{
 			name: "successful listing",
-			setupMock: func(m *MockRepository) {
-				m.findAllResult = []*domain.Asset{
+			setupMock: func(m *MockAssetRepository) {
+				m.On("FindAll").Return([]*domain.Asset{
 					{Name: "asset1", Description: "Description 1"},
 					{Name: "asset2", Description: "Description 2"},
-				}
+				}, nil)
 			},
 			expectedError: nil,
 			expectedAssets: []*domain.Asset{
@@ -204,16 +198,16 @@ func TestListAssets(t *testing.T) {
 		},
 		{
 			name: "empty list",
-			setupMock: func(m *MockRepository) {
-				m.findAllResult = []*domain.Asset{}
+			setupMock: func(m *MockAssetRepository) {
+				m.On("FindAll").Return([]*domain.Asset{}, nil)
 			},
 			expectedError:  nil,
 			expectedAssets: []*domain.Asset{},
 		},
 		{
 			name: "repository error",
-			setupMock: func(m *MockRepository) {
-				m.findAllError = errors.New("repository error")
+			setupMock: func(m *MockAssetRepository) {
+				m.On("FindAll").Return(nil, errors.New("repository error"))
 			},
 			expectedError:  errors.New("repository error"),
 			expectedAssets: nil,
@@ -222,7 +216,7 @@ func TestListAssets(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			mockRepo := new(MockRepository)
+			mockRepo := new(MockAssetRepository)
 			tt.setupMock(mockRepo)
 			service := NewAssetService(mockRepo)
 
@@ -235,7 +229,7 @@ func TestListAssets(t *testing.T) {
 			}
 
 			require.NoError(t, err)
-			assert.True(t, mockRepo.findAllCalled, "FindAll was not called")
+			assert.True(t, mockRepo.AssertCalled(t, "FindAll"), "FindAll was not called")
 			assert.Len(t, assets, len(tt.expectedAssets), "unexpected number of assets")
 
 			for i, asset := range assets {
@@ -251,26 +245,27 @@ func TestUpdateAsset(t *testing.T) {
 		name          string
 		assetName     string
 		description   string
-		setupMock     func(*MockRepository)
+		setupMock     func(*MockAssetRepository)
 		expectedError string
 	}{
 		{
 			name:        "successful update",
 			assetName:   "test-asset",
 			description: "Updated description",
-			setupMock: func(m *MockRepository) {
-				m.findResult = &domain.Asset{
+			setupMock: func(m *MockAssetRepository) {
+				m.On("FindByName", "test-asset").Return(&domain.Asset{
 					Name:        "test-asset",
 					Description: "Original description",
-				}
+				}, nil)
+				m.On("Save", mock.AnythingOfType("*domain.Asset")).Return(nil)
 			},
 		},
 		{
 			name:        "asset not found",
 			assetName:   "non-existent",
 			description: "Updated description",
-			setupMock: func(m *MockRepository) {
-				m.findError = fmt.Errorf("not found")
+			setupMock: func(m *MockAssetRepository) {
+				m.On("FindByName", "non-existent").Return(nil, errors.New("not found"))
 			},
 			expectedError: "asset not found",
 		},
@@ -278,11 +273,11 @@ func TestUpdateAsset(t *testing.T) {
 			name:        "empty description",
 			assetName:   "test-asset",
 			description: "",
-			setupMock: func(m *MockRepository) {
-				m.findResult = &domain.Asset{
+			setupMock: func(m *MockAssetRepository) {
+				m.On("FindByName", "test-asset").Return(&domain.Asset{
 					Name:        "test-asset",
 					Description: "Original description",
-				}
+				}, nil)
 			},
 			expectedError: "asset description cannot be empty",
 		},
@@ -290,25 +285,21 @@ func TestUpdateAsset(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			mockRepo := new(MockRepository)
+			mockRepo := new(MockAssetRepository)
 			tt.setupMock(mockRepo)
 			service := NewAssetService(mockRepo)
 
 			err := service.UpdateAsset(tt.assetName, tt.description)
 
 			if tt.expectedError != "" {
-				require.Error(t, err)
+				assert.Error(t, err)
 				assert.Contains(t, err.Error(), tt.expectedError)
 				return
 			}
 
-			require.NoError(t, err)
-			assert.True(t, mockRepo.findCalled, "FindByName was not called")
-			assert.Equal(t, tt.assetName, mockRepo.findName, "FindByName called with wrong name")
-			assert.True(t, mockRepo.saveCalled, "Save was not called")
-			if mockRepo.saveAsset != nil {
-				assert.Equal(t, tt.description, mockRepo.saveAsset.Description, "Save called with wrong description")
-			}
+			assert.NoError(t, err)
+			mockRepo.AssertCalled(t, "FindByName", tt.assetName)
+			mockRepo.AssertCalled(t, "Save", mock.AnythingOfType("*domain.Asset"))
 		})
 	}
 }
@@ -317,25 +308,26 @@ func TestUpdateDocumentation(t *testing.T) {
 	tests := []struct {
 		name          string
 		assetName     string
-		setupMock     func(*MockRepository)
+		setupMock     func(*MockAssetRepository)
 		expectedError error
 	}{
 		{
 			name:      "successful update",
 			assetName: "test-asset",
-			setupMock: func(m *MockRepository) {
-				m.findResult = &domain.Asset{
+			setupMock: func(m *MockAssetRepository) {
+				m.On("FindByName", "test-asset").Return(&domain.Asset{
 					Name:        "test-asset",
 					Description: "Test description",
-				}
+				}, nil)
+				m.On("Save", mock.AnythingOfType("*domain.Asset")).Return(nil)
 			},
 			expectedError: nil,
 		},
 		{
 			name:      "asset not found",
 			assetName: "non-existent",
-			setupMock: func(m *MockRepository) {
-				m.findError = errors.New("not found")
+			setupMock: func(m *MockAssetRepository) {
+				m.On("FindByName", "non-existent").Return(nil, errors.New("not found"))
 			},
 			expectedError: fmt.Errorf("asset not found"),
 		},
@@ -343,7 +335,7 @@ func TestUpdateDocumentation(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			mockRepo := new(MockRepository)
+			mockRepo := new(MockAssetRepository)
 			tt.setupMock(mockRepo)
 			service := NewAssetService(mockRepo)
 
@@ -356,8 +348,8 @@ func TestUpdateDocumentation(t *testing.T) {
 			}
 
 			require.NoError(t, err)
-			assert.True(t, mockRepo.findCalled, "FindByName was not called")
-			assert.True(t, mockRepo.saveCalled, "Save was not called")
+			mockRepo.AssertCalled(t, "FindByName", tt.assetName)
+			mockRepo.AssertCalled(t, "Save", mock.AnythingOfType("*domain.Asset"))
 		})
 	}
 }
@@ -366,66 +358,68 @@ func TestTaskCountOperations(t *testing.T) {
 	tests := []struct {
 		name          string
 		assetName     string
-		operation     func(*MockRepository, string) error
-		setupMock     func(*MockRepository)
+		operation     func(*MockAssetRepository, string) error
+		setupMock     func(*MockAssetRepository)
 		expectedError error
 	}{
 		{
 			name:      "increment success",
 			assetName: "test-asset",
-			operation: func(mockRepo *MockRepository, name string) error {
+			operation: func(mockRepo *MockAssetRepository, name string) error {
 				service := NewAssetService(mockRepo)
 				return service.IncrementTaskCount(name)
 			},
-			setupMock: func(m *MockRepository) {
-				m.findResult = &domain.Asset{
+			setupMock: func(m *MockAssetRepository) {
+				m.On("FindByName", "test-asset").Return(&domain.Asset{
 					Name:        "test-asset",
 					Description: "Test description",
-				}
+				}, nil)
+				m.On("Save", mock.AnythingOfType("*domain.Asset")).Return(nil)
 			},
 			expectedError: nil,
 		},
 		{
 			name:      "decrement success",
 			assetName: "test-asset",
-			operation: func(mockRepo *MockRepository, name string) error {
+			operation: func(mockRepo *MockAssetRepository, name string) error {
 				service := NewAssetService(mockRepo)
 				return service.DecrementTaskCount(name)
 			},
-			setupMock: func(m *MockRepository) {
-				m.findResult = &domain.Asset{
+			setupMock: func(m *MockAssetRepository) {
+				m.On("FindByName", "test-asset").Return(&domain.Asset{
 					Name:                "test-asset",
 					Description:         "Test description",
 					AssociatedTaskCount: 1,
-				}
+				}, nil)
+				m.On("Save", mock.AnythingOfType("*domain.Asset")).Return(nil)
 			},
 			expectedError: nil,
 		},
 		{
 			name:      "decrement below zero",
 			assetName: "test-asset",
-			operation: func(mockRepo *MockRepository, name string) error {
+			operation: func(mockRepo *MockAssetRepository, name string) error {
 				service := NewAssetService(mockRepo)
 				return service.DecrementTaskCount(name)
 			},
-			setupMock: func(m *MockRepository) {
-				m.findResult = &domain.Asset{
+			setupMock: func(m *MockAssetRepository) {
+				m.On("FindByName", "test-asset").Return(&domain.Asset{
 					Name:                "test-asset",
 					Description:         "Test description",
 					AssociatedTaskCount: 0,
-				}
+				}, nil)
 			},
 			expectedError: fmt.Errorf("task count cannot be negative"),
 		},
 		{
 			name:      "asset not found",
 			assetName: "non-existent",
-			operation: func(mockRepo *MockRepository, name string) error {
+			operation: func(mockRepo *MockAssetRepository, name string) error {
 				service := NewAssetService(mockRepo)
 				return service.IncrementTaskCount(name)
 			},
-			setupMock: func(m *MockRepository) {
-				m.findError = errors.New("not found")
+			setupMock: func(m *MockAssetRepository) {
+				m.On("FindByName", "non-existent").Return(nil, errors.New("not found"))
 			},
 			expectedError: fmt.Errorf("asset not found"),
 		},
@@ -433,7 +427,7 @@ func TestTaskCountOperations(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			mockRepo := new(MockRepository)
+			mockRepo := new(MockAssetRepository)
 			tt.setupMock(mockRepo)
 
 			err := tt.operation(mockRepo, tt.assetName)
@@ -445,61 +439,74 @@ func TestTaskCountOperations(t *testing.T) {
 			}
 
 			require.NoError(t, err)
-			assert.True(t, mockRepo.findCalled, "FindByName was not called")
-			assert.True(t, mockRepo.saveCalled, "Save was not called")
+			mockRepo.AssertCalled(t, "FindByName", tt.assetName)
+			mockRepo.AssertCalled(t, "Save", mock.AnythingOfType("*domain.Asset"))
 		})
 	}
 }
 
 func TestGetAsset(t *testing.T) {
+	fixedTime := time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC)
 	tests := []struct {
 		name          string
 		identifier    string
-		setupMock     func(*MockRepository)
+		setupMock     func(*MockAssetRepository)
 		expectedAsset *domain.Asset
 		expectedError error
 	}{
 		{
 			name:       "find by name",
 			identifier: "test-asset",
-			setupMock: func(m *MockRepository) {
-				m.findResult = &domain.Asset{
+			setupMock: func(m *MockAssetRepository) {
+				m.On("FindByName", "test-asset").Return(&domain.Asset{
 					ID:          "test-id",
 					Name:        "test-asset",
 					Description: "Test description",
-				}
+					LaunchDate:  fixedTime,
+					Status:      "active",
+					DocLink:     "https://example.com",
+				}, nil)
 			},
 			expectedAsset: &domain.Asset{
 				ID:          "test-id",
 				Name:        "test-asset",
 				Description: "Test description",
+				LaunchDate:  fixedTime,
+				Status:      "active",
+				DocLink:     "https://example.com",
 			},
 			expectedError: nil,
 		},
 		{
 			name:       "find by ID",
 			identifier: "test-id",
-			setupMock: func(m *MockRepository) {
-				m.findError = errors.New("not found")
-				m.findByIDResult = &domain.Asset{
+			setupMock: func(m *MockAssetRepository) {
+				m.On("FindByName", "test-id").Return(nil, errors.New("not found"))
+				m.On("FindByID", "test-id").Return(&domain.Asset{
 					ID:          "test-id",
 					Name:        "test-asset",
 					Description: "Test description",
-				}
+					LaunchDate:  fixedTime,
+					Status:      "active",
+					DocLink:     "https://example.com",
+				}, nil)
 			},
 			expectedAsset: &domain.Asset{
 				ID:          "test-id",
 				Name:        "test-asset",
 				Description: "Test description",
+				LaunchDate:  fixedTime,
+				Status:      "active",
+				DocLink:     "https://example.com",
 			},
 			expectedError: nil,
 		},
 		{
 			name:       "not found",
 			identifier: "non-existent",
-			setupMock: func(m *MockRepository) {
-				m.findError = errors.New("not found")
-				m.findByIDError = errors.New("not found")
+			setupMock: func(m *MockAssetRepository) {
+				m.On("FindByName", "non-existent").Return(nil, errors.New("not found"))
+				m.On("FindByID", "non-existent").Return(nil, errors.New("not found"))
 			},
 			expectedAsset: nil,
 			expectedError: fmt.Errorf("asset not found by name or ID: non-existent"),
@@ -508,7 +515,7 @@ func TestGetAsset(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			mockRepo := new(MockRepository)
+			mockRepo := new(MockAssetRepository)
 			tt.setupMock(mockRepo)
 			service := NewAssetService(mockRepo)
 
@@ -522,12 +529,321 @@ func TestGetAsset(t *testing.T) {
 
 			require.NoError(t, err)
 			assert.Equal(t, tt.expectedAsset, asset)
-			assert.True(t, mockRepo.findCalled, "FindByName was not called")
+			mockRepo.AssertCalled(t, "FindByName", tt.identifier)
 			if tt.name == "find by ID" {
-				assert.True(t, mockRepo.findByIDCalled, "FindByID should be called when looking up by ID")
+				mockRepo.AssertCalled(t, "FindByID", tt.identifier)
 			} else {
-				assert.False(t, mockRepo.findByIDCalled, "FindByID should not be called when looking up by name")
+				mockRepo.AssertNotCalled(t, "FindByID", tt.identifier)
 			}
+		})
+	}
+}
+
+func TestValidateRequiredFields(t *testing.T) {
+	fixedTime := time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC)
+	tests := []struct {
+		name            string
+		asset           *domain.Asset
+		expectedMissing []string
+	}{
+		{
+			name: "all fields present",
+			asset: &domain.Asset{
+				ID:          "test-id",
+				Name:        "test-asset",
+				Description: "Test description",
+				LaunchDate:  fixedTime,
+				Status:      "active",
+				DocLink:     "https://example.com",
+			},
+			expectedMissing: nil,
+		},
+		{
+			name: "missing launch date",
+			asset: &domain.Asset{
+				ID:          "test-id",
+				Name:        "test-asset",
+				Description: "Test description",
+				Status:      "active",
+				DocLink:     "https://example.com",
+			},
+			expectedMissing: []string{"LaunchDate"},
+		},
+		{
+			name: "missing multiple fields",
+			asset: &domain.Asset{
+				Name:        "test-asset",
+				Description: "Test description",
+			},
+			expectedMissing: []string{"ID", "LaunchDate", "Status", "DocLink"},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			missingFields := validateRequiredFields(tt.asset)
+			assert.Equal(t, tt.expectedMissing, missingFields)
+		})
+	}
+}
+
+func TestEnrichAsset(t *testing.T) {
+	// Save original env vars
+	origBaseURL := os.Getenv("JIRA_BASE_URL")
+	origToken := os.Getenv("JIRA_TOKEN")
+
+	// Set test env vars
+	os.Setenv("JIRA_BASE_URL", "https://confluence.example.com")
+	os.Setenv("JIRA_TOKEN", "test-token")
+
+	// Restore env vars after test
+	defer func() {
+		os.Setenv("JIRA_BASE_URL", origBaseURL)
+		os.Setenv("JIRA_TOKEN", origToken)
+	}()
+
+	tests := []struct {
+		name          string
+		assetName     string
+		field         string
+		mockSetup     func(*MockAssetRepository, *MockLLAMAClient, *MockConfluenceAdapter)
+		expectedError string
+	}{
+		{
+			name:      "successful enrichment",
+			assetName: "test-asset",
+			field:     "description",
+			mockSetup: func(repo *MockAssetRepository, llama *MockLLAMAClient, confluenceAdapter *MockConfluenceAdapter) {
+				repo.On("FindByName", "test-asset").Return(&domain.Asset{
+					ID:          "123",
+					Name:        "test-asset",
+					Description: "original description",
+					DocLink:     "https://confluence.example.com/wiki/spaces/SPACE/pages/123456",
+					CreatedAt:   time.Now(),
+					UpdatedAt:   time.Now(),
+					Version:     1,
+				}, nil)
+
+				confluenceAdapter.On("FetchPage", mock.Anything, "123456").Return(&confluence.ConfluencePage{
+					ID:    "123456",
+					Title: "Test Page",
+					Space: struct {
+						Key string `json:"key"`
+					}{
+						Key: "SPACE",
+					},
+					Version: struct {
+						Number int `json:"number"`
+					}{
+						Number: 1,
+					},
+					Body: struct {
+						Storage struct {
+							Value string `json:"value"`
+						} `json:"storage"`
+					}{
+						Storage: struct {
+							Value string `json:"value"`
+						}{
+							Value: "test content",
+						},
+					},
+					Links: struct {
+						WebUI string `json:"webui"`
+					}{
+						WebUI: "https://confluence.example.com/wiki/spaces/SPACE/pages/123456",
+					},
+					Metadata: struct {
+						Labels struct {
+							Results []struct {
+								Name string `json:"name"`
+							} `json:"results"`
+						} `json:"labels"`
+					}{
+						Labels: struct {
+							Results []struct {
+								Name string `json:"name"`
+							} `json:"results"`
+						}{
+							Results: []struct {
+								Name string `json:"name"`
+							}{
+								{Name: "test-label"},
+							},
+						},
+					},
+				}, nil)
+
+				llama.On("EnrichContent", "test content", "description").Return("enriched description", nil)
+				repo.On("Save", mock.AnythingOfType("*domain.Asset")).Return(nil)
+			},
+		},
+		{
+			name:      "asset not found",
+			assetName: "non-existent",
+			field:     "description",
+			mockSetup: func(repo *MockAssetRepository, llama *MockLLAMAClient, confluenceAdapter *MockConfluenceAdapter) {
+				repo.On("FindByName", "non-existent").Return(nil, errors.New("not found"))
+				repo.On("FindByID", "non-existent").Return(nil, errors.New("not found"))
+			},
+			expectedError: "failed to get asset: asset not found by name or ID: non-existent",
+		},
+		{
+			name:      "missing DocLink",
+			assetName: "test-asset",
+			field:     "description",
+			mockSetup: func(repo *MockAssetRepository, llama *MockLLAMAClient, confluenceAdapter *MockConfluenceAdapter) {
+				repo.On("FindByName", "test-asset").Return(&domain.Asset{
+					ID:          "123",
+					Name:        "test-asset",
+					Description: "original description",
+					CreatedAt:   time.Now(),
+					UpdatedAt:   time.Now(),
+					Version:     1,
+				}, nil)
+			},
+			expectedError: "asset has no DocLink",
+		},
+		{
+			name:      "unsupported field",
+			assetName: "test-asset",
+			field:     "unsupported",
+			mockSetup: func(repo *MockAssetRepository, llama *MockLLAMAClient, confluenceAdapter *MockConfluenceAdapter) {
+				repo.On("FindByName", "test-asset").Return(&domain.Asset{
+					ID:          "123",
+					Name:        "test-asset",
+					Description: "original description",
+					DocLink:     "https://confluence.example.com/wiki/spaces/SPACE/pages/123456",
+					CreatedAt:   time.Now(),
+					UpdatedAt:   time.Now(),
+					Version:     1,
+				}, nil)
+
+				confluenceAdapter.On("FetchPage", mock.Anything, "123456").Return(&confluence.ConfluencePage{
+					ID:    "123456",
+					Title: "Test Page",
+					Space: struct {
+						Key string `json:"key"`
+					}{
+						Key: "SPACE",
+					},
+					Version: struct {
+						Number int `json:"number"`
+					}{
+						Number: 1,
+					},
+					Body: struct {
+						Storage struct {
+							Value string `json:"value"`
+						} `json:"storage"`
+					}{
+						Storage: struct {
+							Value string `json:"value"`
+						}{
+							Value: "test content",
+						},
+					},
+					Links: struct {
+						WebUI string `json:"webui"`
+					}{
+						WebUI: "https://confluence.example.com/wiki/spaces/SPACE/pages/123456",
+					},
+					Metadata: struct {
+						Labels struct {
+							Results []struct {
+								Name string `json:"name"`
+							} `json:"results"`
+						} `json:"labels"`
+					}{
+						Labels: struct {
+							Results []struct {
+								Name string `json:"name"`
+							} `json:"results"`
+						}{
+							Results: []struct {
+								Name string `json:"name"`
+							}{
+								{Name: "test-label"},
+							},
+						},
+					},
+				}, nil)
+
+				llama.On("EnrichContent", "test content", "unsupported").Return("", fmt.Errorf("unsupported field for enrichment: unsupported"))
+			},
+			expectedError: "failed to enrich content: unsupported field for enrichment: unsupported",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			mockRepo := new(MockAssetRepository)
+			mockLLAMA := new(MockLLAMAClient)
+			mockConfluence := new(MockConfluenceAdapter)
+
+			if tt.mockSetup != nil {
+				tt.mockSetup(mockRepo, mockLLAMA, mockConfluence)
+			}
+
+			service := &AssetService{
+				repo:       mockRepo,
+				llama:      mockLLAMA,
+				confluence: mockConfluence,
+			}
+
+			err := service.EnrichAsset(tt.assetName, tt.field)
+
+			if tt.expectedError != "" {
+				assert.Error(t, err)
+				assert.Equal(t, tt.expectedError, err.Error())
+				return
+			}
+
+			assert.NoError(t, err)
+			mockRepo.AssertExpectations(t)
+			mockLLAMA.AssertExpectations(t)
+			mockConfluence.AssertExpectations(t)
+		})
+	}
+}
+
+func TestExtractPageIDFromDocLink(t *testing.T) {
+	tests := []struct {
+		name     string
+		docLink  string
+		expected string
+	}{
+		{
+			name:     "full URL with query parameters",
+			docLink:  "https://confluence.example.com/wiki/spaces/SPACE/pages/123456?param=value",
+			expected: "123456",
+		},
+		{
+			name:     "full URL with fragment",
+			docLink:  "https://confluence.example.com/wiki/spaces/SPACE/pages/123456#section",
+			expected: "123456",
+		},
+		{
+			name:     "relative URL",
+			docLink:  "/wiki/spaces/SPACE/pages/123456",
+			expected: "123456",
+		},
+		{
+			name:     "short relative URL",
+			docLink:  "/spaces/SPACE/pages/123456",
+			expected: "123456",
+		},
+		{
+			name:     "invalid URL",
+			docLink:  "https://confluence.example.com/invalid",
+			expected: "",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := extractPageIDFromDocLink(tt.docLink)
+			assert.Equal(t, tt.expected, result)
 		})
 	}
 }

@@ -3,6 +3,7 @@ package domain
 import (
 	"crypto/sha256"
 	"encoding/hex"
+	"encoding/json"
 	"errors"
 	"sync"
 	"time"
@@ -48,6 +49,21 @@ type Asset struct {
 	Keywords []string `json:"keywords"`
 	// DocLink is the link to full Confluence documentation
 	DocLink string `json:"doc_link"`
+}
+
+// UnmarshalJSON implements the json.Unmarshaler interface
+func (a *Asset) UnmarshalJSON(data []byte) error {
+	type Alias Asset
+	aux := &struct {
+		*Alias
+	}{
+		Alias: (*Alias)(a),
+	}
+	if err := json.Unmarshal(data, &aux); err != nil {
+		return err
+	}
+	a.mu = sync.RWMutex{}
+	return nil
 }
 
 // NewAsset creates a new Asset instance

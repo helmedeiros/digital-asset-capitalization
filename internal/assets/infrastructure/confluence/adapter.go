@@ -87,7 +87,8 @@ func (a *Adapter) getSpaceID(ctx context.Context) (string, error) {
 		return "", fmt.Errorf("failed to create request: %v", err)
 	}
 
-	req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", a.config.Token))
+	// Set authentication header using Basic auth
+	req.SetBasicAuth(a.config.Username, a.config.Token)
 	req.Header.Set("Accept", "application/json")
 
 	client := &http.Client{}
@@ -293,4 +294,38 @@ func (a *Adapter) convertPageToAsset(page ConfluencePage) (*domain.Asset, error)
 	}
 
 	return asset, nil
+}
+
+// FetchPage retrieves a single page from Confluence by its ID
+func (a *Adapter) FetchPage(ctx context.Context, pageID string) (*ConfluencePage, error) {
+	baseURL := strings.TrimRight(a.config.BaseURL, "/")
+	url := fmt.Sprintf("%s/wiki/rest/api/content/%s?expand=body.storage,version,metadata.labels",
+		baseURL, pageID)
+
+	req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create request: %v", err)
+	}
+
+	// Set authentication header using Basic auth
+	req.SetBasicAuth(a.config.Username, a.config.Token)
+	req.Header.Set("Accept", "application/json")
+
+	resp, err := a.httpClient.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("failed to make request: %v", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(resp.Body)
+		return nil, fmt.Errorf("unexpected status code: %d, body: %s", resp.StatusCode, string(body))
+	}
+
+	var page ConfluencePage
+	if err := json.NewDecoder(resp.Body).Decode(&page); err != nil {
+		return nil, fmt.Errorf("failed to decode response: %v", err)
+	}
+
+	return &page, nil
 }

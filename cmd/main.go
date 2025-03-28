@@ -297,7 +297,7 @@ For more information about a command:
 						Name:  "show",
 						Usage: "Show detailed information about an asset",
 						Action: func(ctx *cli.Context) error {
-							name := ctx.Value("name").(string)
+							name := ctx.String("name")
 							asset, err := assetService.GetAsset(name)
 							if err != nil {
 								return err
@@ -307,6 +307,9 @@ For more information about a command:
 							fmt.Printf("Created: %s\n", asset.CreatedAt.Format("2006-01-02 15:04:05"))
 							fmt.Printf("Updated: %s\n", asset.UpdatedAt.Format("2006-01-02 15:04:05"))
 							fmt.Printf("Task Count: %d\n", asset.AssociatedTaskCount)
+							if asset.DocLink != "" {
+								fmt.Printf("DocLink: %s\n", asset.DocLink)
+							}
 							return nil
 						},
 						Flags: []cli.Flag{
@@ -383,6 +386,31 @@ For more information about a command:
 										Required: true,
 									},
 								},
+							},
+						},
+					},
+					{
+						Name:  "enrich",
+						Usage: "Enrich asset fields using LLaMA 3",
+						Action: func(ctx *cli.Context) error {
+							name := ctx.String("name")
+							field := ctx.String("field")
+							if err := assetService.EnrichAsset(name, field); err != nil {
+								return err
+							}
+							fmt.Printf("Enriched %s field for asset: %s\n", field, name)
+							return nil
+						},
+						Flags: []cli.Flag{
+							&cli.StringFlag{
+								Name:     "name",
+								Usage:    "Asset name or ID",
+								Required: true,
+							},
+							&cli.StringFlag{
+								Name:     "field",
+								Usage:    "Field to enrich (e.g., description)",
+								Required: true,
 							},
 						},
 					},

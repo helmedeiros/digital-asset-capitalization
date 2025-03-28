@@ -8,6 +8,22 @@ import (
 	"time"
 )
 
+var dateFormats = []string{
+	"since 2006",
+	"January 2, 2006",
+	"January 2nd, 2006",
+	"January 2rd, 2006",
+	"January 2th, 2006",
+	"January 2st, 2006",
+	"2006-01-02",
+	"02/01/2006",
+	"May 2, 2006",
+	"Q1 2006",
+	"Q2 2006",
+	"Q3 2006",
+	"Q4 2006",
+}
+
 // PageMetadata represents the metadata extracted from a Confluence page
 type PageMetadata struct {
 	Description    string
@@ -57,35 +73,15 @@ func (a *Adapter) extractMetadata(content string) (*PageMetadata, error) {
 	status = strings.ReplaceAll(status, "continious", "continuous")
 	metadata.Status = status
 
-	// Extract launch date from "Launch date" section
+	// Extract launch date
 	launchDate := extractTableValue(content, "Launch date")
-	launchDate = cleanHTML(launchDate)
 
-	// Try different date formats
-	if strings.HasPrefix(strings.ToLower(launchDate), "since") {
-		// Handle "since YYYY" format
-		year := strings.TrimSpace(strings.TrimPrefix(strings.ToLower(launchDate), "since"))
-		if yearInt, err := strconv.Atoi(year); err == nil {
-			metadata.LaunchDate = time.Date(yearInt, 1, 1, 0, 0, 0, 0, time.UTC)
-		}
-	} else {
-		// Try parsing specific date formats
-		formats := []string{
-			"January 2, 2006",
-			"January 2 2006",
-			"Jan 2, 2006",
-			"Jan 2 2006",
-			"02/01/2006",
-			"2006-01-02",
-		}
-
-		for _, format := range formats {
-			if t, err := time.Parse(format, launchDate); err == nil {
-				metadata.LaunchDate = t
-				break
-			}
-		}
+	var parsedDate time.Time
+	if t, err := parseDate(launchDate); err == nil {
+		parsedDate = t
 	}
+
+	metadata.LaunchDate = parsedDate
 
 	// Extract keywords from labels
 	metadata.Keywords = extractLabels(content)
@@ -246,4 +242,54 @@ func extractAssetIdentifier(content string) string {
 	}
 
 	return ""
+}
+
+func mustParseInt(s string) int {
+	i, err := strconv.Atoi(s)
+	if err != nil {
+		return 0
+	}
+	return i
+}
+
+func parseDate(dateStr string) (time.Time, error) {
+	// Remove any HTML time tag and extract datetime attribute if present
+	if strings.Contains(dateStr, "<time") {
+		re := regexp.MustCompile(`datetime="([^"]+)"`)
+		if matches := re.FindStringSubmatch(dateStr); len(matches) > 1 {
+			dateStr = matches[1]
+		}
+	}
+
+	dateStr = strings.TrimSpace(dateStr)
+
+	// Handle "since YYYY" format case-insensitively
+	if strings.HasPrefix(strings.ToLower(dateStr), "since") {
+		yearStr := strings.TrimSpace(strings.TrimPrefix(strings.ToLower(dateStr), "since"))
+		if year, err := strconv.Atoi(yearStr); err == nil {
+			return time.Date(year, 1, 1, 0, 0, 0, 0, time.UTC), nil
+		}
+	}
+
+	// Handle quarter format (e.g., "Q1 2024")
+	if strings.HasPrefix(dateStr, "Q") && len(dateStr) == 7 {
+		quarter := mustParseInt(string(dateStr[1]))
+		yearStr := dateStr[3:]
+		if year, err := strconv.Atoi(yearStr); err == nil && quarter >= 1 && quarter <= 4 {
+			month := time.Month((quarter-1)*3 + 1)
+			return time.Date(year, month, 1, 0, 0, 0, 0, time.UTC), nil
+		}
+	}
+
+	// Remove ordinal indicators before parsing
+	dateStr = regexp.MustCompile(`(\d+)(st|nd|rd|th)`).ReplaceAllString(dateStr, "$1")
+
+	// Try all date formats
+	for _, format := range dateFormats {
+		if t, err := time.Parse(format, dateStr); err == nil {
+			return t, nil
+		}
+	}
+
+	return time.Time{}, fmt.Errorf("could not parse date: %s", dateStr)
 }
