@@ -117,7 +117,7 @@ func TestBuildSearchURL(t *testing.T) {
 	spaceID := "test-space-id"
 	url := adapter.buildSearchURL(spaceID)
 
-	expectedURL := "https://test.atlassian.net/wiki/api/v2/pages?expand=body.storage%2Cversion%2Cmetadata.labels&limit=25&space-id=test-space-id"
+	expectedURL := "https://test.atlassian.net/wiki/api/v2/pages?expand=version%2Cmetadata.labels&limit=25&space-id=test-space-id"
 	if url != expectedURL {
 		t.Errorf("buildSearchURL() = %v, want %v", url, expectedURL)
 	}
@@ -126,12 +126,63 @@ func TestBuildSearchURL(t *testing.T) {
 func TestFetchAssets(t *testing.T) {
 	tests := []struct {
 		name            string
+		config          *Config
 		searchResponse  string
 		contentResponse string
 		statusCode      int
 		expectError     bool
 		expectedAssets  []*domain.Asset
+		validateRequest func(*testing.T, *http.Request)
 	}{
+		{
+			name: "successful asset fetch with default limit",
+			config: &Config{
+				Label:      "test-label",
+				MaxResults: 200,
+			},
+			searchResponse: `{
+				"results": [
+					{
+						"id": "test-id",
+						"title": "Test Asset",
+						"space": {"key": "TEST"},
+						"version": {"number": 1},
+						"_links": {"webui": "https://test.atlassian.net/wiki/spaces/TEST/pages/test-id"}
+					}
+				],
+				"_links": {}
+			}`,
+			contentResponse: `{
+				"id": "test-id",
+				"title": "Test Asset",
+				"space": {"key": "TEST"},
+				"version": {"number": 1},
+				"body": {"storage": {"value": "<table><tr><td><strong>Why are we doing this?</strong></td><td><p>Test description</p></td></tr><tr><td><strong>Pod</strong></td><td><p>Test Platform</p></td></tr><tr><td><strong>Status</strong></td><td><p>in development</p></td></tr><tr><td><strong>Launch date</strong></td><td><p>since 2022</p></td></tr></table><div class=\"labels\">{\"label\":\"cap-asset-test-asset\"}</div>"}},
+				"_links": {"webui": "https://test.atlassian.net/wiki/spaces/TEST/pages/test-id"}
+			}`,
+			statusCode:  http.StatusOK,
+			expectError: false,
+			expectedAssets: []*domain.Asset{
+				{
+					ID:          "cap-asset-test-asset",
+					Name:        "Test Asset",
+					Description: "Test description",
+					Version:     1,
+					Platform:    "Test Platform",
+					Status:      "in development",
+					LaunchDate:  time.Date(2022, 1, 1, 0, 0, 0, 0, time.UTC),
+					DocLink:     "https://test.atlassian.net/wiki/spaces/TEST/pages/test-id",
+				},
+			},
+			validateRequest: func(t *testing.T, r *http.Request) {
+				if !strings.Contains(r.URL.RawQuery, "limit=200") {
+					t.Errorf("URL does not contain expected limit parameter: got %v", r.URL.RawQuery)
+				}
+				if strings.Contains(r.URL.RawQuery, "body.storage") {
+					t.Errorf("URL should not contain body.storage expansion: got %v", r.URL.RawQuery)
+				}
+			},
+		},
 		{
 			name: "successful asset fetch",
 			searchResponse: `{
@@ -186,6 +237,9 @@ func TestFetchAssets(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				if tt.validateRequest != nil && strings.Contains(r.URL.Path, "/content/search") {
+					tt.validateRequest(t, r)
+				}
 				w.WriteHeader(tt.statusCode)
 				if strings.Contains(r.URL.Path, "/content/search") {
 					w.Write([]byte(tt.searchResponse))
@@ -197,14 +251,11 @@ func TestFetchAssets(t *testing.T) {
 			}))
 			defer server.Close()
 
-			config := &Config{
-				BaseURL:  server.URL,
-				Label:    "test-label",
-				SpaceKey: "TEST",
-				Token:    "test-token",
-				Username: "test@example.com",
+			if tt.config == nil {
+				tt.config = &Config{}
 			}
-			adapter := NewAdapter(config)
+			tt.config.BaseURL = server.URL
+			adapter := NewAdapter(tt.config)
 
 			assets, err := adapter.FetchAssets(context.Background())
 

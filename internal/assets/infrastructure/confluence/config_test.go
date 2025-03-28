@@ -34,8 +34,8 @@ func TestDefaultConfig(t *testing.T) {
 	if config.BaseURL != "https://test.atlassian.net" {
 		t.Errorf("BaseURL = %v, want %v", config.BaseURL, "https://test.atlassian.net")
 	}
-	if config.MaxResults != 25 {
-		t.Errorf("MaxResults = %v, want %v", config.MaxResults, 25)
+	if config.MaxResults != 200 {
+		t.Errorf("MaxResults = %v, want %v", config.MaxResults, 200)
 	}
 }
 
@@ -68,7 +68,7 @@ func TestConfigWithEmptyEnvVars(t *testing.T) {
 	if config.BaseURL != "" {
 		t.Errorf("BaseURL = %v, want empty string", config.BaseURL)
 	}
-	if config.MaxResults != 25 {
-		t.Errorf("MaxResults = %v, want %v", config.MaxResults, 25)
+	if config.MaxResults != 200 {
+		t.Errorf("MaxResults = %v, want %v", config.MaxResults, 200)
 	}
 }

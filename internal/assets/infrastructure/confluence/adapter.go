@@ -124,7 +124,7 @@ func (a *Adapter) buildSearchURL(spaceID string) string {
 
 	query := url.Values{}
 	query.Add("space-id", spaceID)
-	query.Add("expand", "body.storage,version,metadata.labels")
+	query.Add("expand", "version,metadata.labels")
 	query.Add("limit", fmt.Sprintf("%d", a.config.MaxResults))
 
 	return searchURL + "?" + query.Encode()
@@ -133,8 +133,8 @@ func (a *Adapter) buildSearchURL(spaceID string) string {
 // FetchAssets retrieves assets from Confluence
 func (a *Adapter) FetchAssets(ctx context.Context) ([]*domain.Asset, error) {
 	baseURL := strings.TrimRight(a.config.BaseURL, "/")
-	url := fmt.Sprintf("%s/wiki/rest/api/content/search?cql=type=page%%20AND%%20label=%%22%s%%22&expand=body.storage,version,metadata.labels",
-		baseURL, a.config.Label)
+	url := fmt.Sprintf("%s/wiki/rest/api/content/search?cql=type=page%%20AND%%20label=%%22%s%%22&expand=version,metadata.labels&limit=%d",
+		baseURL, a.config.Label, a.config.MaxResults)
 	if a.config.Debug {
 		fmt.Printf("Fetching pages from URL: %s\n", url)
 	}

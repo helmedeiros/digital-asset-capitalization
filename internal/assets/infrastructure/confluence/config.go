@@ -25,7 +25,7 @@ type Config struct {
 // DefaultConfig returns a default configuration
 func DefaultConfig() *Config {
 	return &Config{
-		MaxResults: 25,
+		MaxResults: 200,
 		Username:   os.Getenv("JIRA_EMAIL"),
 		Token:      os.Getenv("JIRA_TOKEN"),
 		BaseURL:    os.Getenv("JIRA_BASE_URL"),
