@@ -85,6 +85,23 @@ The tool:
 
 - Go 1.21 or later
 - Git
+- Ollama (for asset enrichment)
+
+### Installing Dependencies
+
+The tool provides a script to install required dependencies:
+
+```bash
+# Install dependencies (Ollama, etc.)
+./bin/install-deps.sh
+```
+
+This script will:
+
+- Install Ollama and its dependencies
+- Start the Ollama service
+- Pull the required LLaMA model
+- Work on both macOS and Linux
 
 ### Installing the Tool
 
