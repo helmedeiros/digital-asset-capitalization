@@ -312,11 +312,12 @@ func TestConvertPageToAsset(t *testing.T) {
 	tests := []struct {
 		name          string
 		page          ConfluencePage
+		config        *Config
 		expectedAsset *domain.Asset
 		expectError   bool
 	}{
 		{
-			name: "successful conversion",
+			name: "successful conversion with full URL",
 			page: ConfluencePage{
 				ID:    "test-id",
 				Title: "Test Asset",
@@ -349,6 +350,107 @@ func TestConvertPageToAsset(t *testing.T) {
 					WebUI: "https://test.atlassian.net/wiki/spaces/TEST/pages/test-id",
 				},
 			},
+			config: &Config{
+				BaseURL: "https://test.atlassian.net",
+			},
+			expectedAsset: &domain.Asset{
+				ID:          "cap-asset-test-asset",
+				Name:        "Test Asset",
+				Description: "Test description",
+				Version:     1,
+				Platform:    "Test Platform",
+				Status:      "in development",
+				LaunchDate:  time.Date(2022, 1, 1, 0, 0, 0, 0, time.UTC),
+				DocLink:     "https://test.atlassian.net/wiki/spaces/TEST/pages/test-id",
+			},
+			expectError: false,
+		},
+		{
+			name: "successful conversion with relative URL",
+			page: ConfluencePage{
+				ID:    "test-id",
+				Title: "Test Asset",
+				Space: struct {
+					Key string `json:"key"`
+				}{Key: "TEST"},
+				Version: struct {
+					Number int `json:"number"`
+				}{Number: 1},
+				Body: struct {
+					Storage struct {
+						Value string `json:"value"`
+					} `json:"storage"`
+				}{
+					Storage: struct {
+						Value string `json:"value"`
+					}{
+						Value: `<table>
+							<tr><td><strong>Why are we doing this?</strong></td><td><p>Test description</p></td></tr>
+							<tr><td><strong>Pod</strong></td><td><p>Test Platform</p></td></tr>
+							<tr><td><strong>Status</strong></td><td><p>in development</p></td></tr>
+							<tr><td><strong>Launch date</strong></td><td><p>since 2022</p></td></tr>
+						</table>
+						<div class="labels">{"label":"cap-asset-test-asset"}</div>`,
+					},
+				},
+				Links: struct {
+					WebUI string `json:"webui"`
+				}{
+					WebUI: "/spaces/TEST/pages/test-id",
+				},
+			},
+			config: &Config{
+				BaseURL: "https://test.atlassian.net",
+			},
+			expectedAsset: &domain.Asset{
+				ID:          "cap-asset-test-asset",
+				Name:        "Test Asset",
+				Description: "Test description",
+				Version:     1,
+				Platform:    "Test Platform",
+				Status:      "in development",
+				LaunchDate:  time.Date(2022, 1, 1, 0, 0, 0, 0, time.UTC),
+				DocLink:     "https://test.atlassian.net/wiki/spaces/TEST/pages/test-id",
+			},
+			expectError: false,
+		},
+		{
+			name: "successful conversion with relative URL containing wiki",
+			page: ConfluencePage{
+				ID:    "test-id",
+				Title: "Test Asset",
+				Space: struct {
+					Key string `json:"key"`
+				}{Key: "TEST"},
+				Version: struct {
+					Number int `json:"number"`
+				}{Number: 1},
+				Body: struct {
+					Storage struct {
+						Value string `json:"value"`
+					} `json:"storage"`
+				}{
+					Storage: struct {
+						Value string `json:"value"`
+					}{
+						Value: `<table>
+							<tr><td><strong>Why are we doing this?</strong></td><td><p>Test description</p></td></tr>
+							<tr><td><strong>Pod</strong></td><td><p>Test Platform</p></td></tr>
+							<tr><td><strong>Status</strong></td><td><p>in development</p></td></tr>
+							<tr><td><strong>Launch date</strong></td><td><p>since 2022</p></td></tr>
+						</table>
+						<div class="labels">{"label":"cap-asset-test-asset"}</div>`,
+					},
+				},
+				Links: struct {
+					WebUI string `json:"webui"`
+				}{
+					WebUI: "/wiki/spaces/TEST/pages/test-id",
+				},
+			},
+			config: &Config{
+				BaseURL: "https://test.atlassian.net",
+			},
 			expectedAsset: &domain.Asset{
 				ID:          "cap-asset-test-asset",
 				Name:        "Test Asset",
@@ -378,13 +480,16 @@ func TestConvertPageToAsset(t *testing.T) {
 					},
 				},
 			},
+			config:      &Config{},
 			expectError: true,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			adapter := &Adapter{}
+			adapter := &Adapter{
+				config: tt.config,
+			}
 
 			asset, err := adapter.convertPageToAsset(tt.page)
 

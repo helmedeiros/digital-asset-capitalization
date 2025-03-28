@@ -264,6 +264,17 @@ func (a *Adapter) convertPageToAsset(page ConfluencePage) (*domain.Asset, error)
 		metadata.Identifier = common.GenerateID(page.Title)
 	}
 
+	// Ensure we have the full URL for DocLink
+	docLink := page.Links.WebUI
+	if !strings.HasPrefix(docLink, "http") {
+		baseURL := strings.TrimRight(a.config.BaseURL, "/")
+		// Add /wiki if it's not already in the path
+		if !strings.Contains(docLink, "/wiki/") {
+			docLink = "/wiki" + docLink
+		}
+		docLink = baseURL + docLink
+	}
+
 	now := time.Now()
 	asset := &domain.Asset{
 		ID:              metadata.Identifier,
@@ -278,7 +289,7 @@ func (a *Adapter) convertPageToAsset(page ConfluencePage) (*domain.Asset, error)
 		LaunchDate:      metadata.LaunchDate,
 		IsRolledOut100:  metadata.IsRolledOut100,
 		Keywords:        metadata.Keywords,
-		DocLink:         page.Links.WebUI,
+		DocLink:         docLink,
 	}
 
 	return asset, nil
