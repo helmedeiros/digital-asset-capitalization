@@ -222,14 +222,32 @@ For more information about a command:
 							label := ctx.String("label")
 							debug := ctx.Bool("debug")
 
-							if err := assetService.SyncFromConfluence(space, label, debug); err != nil {
+							result, err := assetService.SyncFromConfluence(space, label, debug)
+							if err != nil {
 								if strings.Contains(err.Error(), "no assets found with label") {
 									fmt.Println(err)
 									return nil
 								}
 								return err
 							}
-							fmt.Println("Successfully synced assets from Confluence")
+
+							totalAssets := len(result.SyncedAssets) + len(result.NotSyncedAssets)
+							fmt.Printf("Successfully synced %d/%d assets from Confluence\n", len(result.SyncedAssets), totalAssets)
+
+							if len(result.NotSyncedAssets) > 0 {
+								fmt.Printf("\nWarning: %d assets could not be synced due to missing information:\n", len(result.NotSyncedAssets))
+								for _, asset := range result.NotSyncedAssets {
+									fmt.Printf("\n- %s:\n", asset.Name)
+									fmt.Printf("  Missing fields: %s\n", strings.Join(asset.MissingFields, ", "))
+									fmt.Println("  Available fields:")
+									for field, value := range asset.AvailableFields {
+										if value != "" {
+											fmt.Printf("    %s: %s\n", field, value)
+										}
+									}
+								}
+							}
+
 							return nil
 						},
 						Flags: []cli.Flag{
