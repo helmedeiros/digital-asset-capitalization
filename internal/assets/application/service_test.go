@@ -60,8 +60,8 @@ type MockLLAMAClient struct {
 	mock.Mock
 }
 
-func (m *MockLLAMAClient) EnrichContent(content, field string) (string, error) {
-	args := m.Called(content, field)
+func (m *MockLLAMAClient) EnrichContent(content, field string, asset *domain.Asset) (string, error) {
+	args := m.Called(content, field, asset)
 	return args.String(0), args.Error(1)
 }
 
@@ -689,7 +689,7 @@ func TestEnrichAsset(t *testing.T) {
 					},
 				}, nil)
 
-				llama.On("EnrichContent", "test content", "description").Return("enriched description", nil)
+				llama.On("EnrichContent", "test content", "description", mock.Anything).Return("enriched description", nil)
 				repo.On("Save", mock.AnythingOfType("*domain.Asset")).Return(nil)
 			},
 		},
@@ -784,7 +784,7 @@ func TestEnrichAsset(t *testing.T) {
 					},
 				}, nil)
 
-				llama.On("EnrichContent", "test content", "unsupported").Return("", fmt.Errorf("unsupported field for enrichment: unsupported"))
+				llama.On("EnrichContent", "test content", "unsupported", mock.Anything).Return("", fmt.Errorf("unsupported field for enrichment: unsupported"))
 			},
 			expectedError: "failed to enrich content: unsupported field for enrichment: unsupported",
 		},

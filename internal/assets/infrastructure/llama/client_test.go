@@ -6,6 +6,7 @@ import (
 	"os"
 	"testing"
 
+	"github.com/helmedeiros/digital-asset-capitalization/internal/assets/domain"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -64,29 +65,51 @@ func TestEnrichContent(t *testing.T) {
 		name          string
 		content       string
 		field         string
+		asset         *domain.Asset
 		mockResponse  string
 		mockStatus    int
 		expectedError string
 	}{
 		{
-			name:         "successful enrichment",
-			content:      "Test content",
-			field:        "description",
+			name:    "successful enrichment",
+			content: "Test content",
+			field:   "description",
+			asset: &domain.Asset{
+				Name:     "Test Asset",
+				Why:      "Test Why",
+				Benefits: "Test Benefits",
+				How:      "Test How",
+				Metrics:  "Test Metrics",
+			},
 			mockResponse: `{"response": "Enriched content"}`,
 			mockStatus:   http.StatusOK,
 		},
 		{
-			name:          "API error",
-			content:       "Test content",
-			field:         "description",
+			name:    "API error",
+			content: "Test content",
+			field:   "description",
+			asset: &domain.Asset{
+				Name:     "Test Asset",
+				Why:      "Test Why",
+				Benefits: "Test Benefits",
+				How:      "Test How",
+				Metrics:  "Test Metrics",
+			},
 			mockResponse:  `{"error": "API error"}`,
 			mockStatus:    http.StatusInternalServerError,
 			expectedError: "API request failed with status 500: {\"error\": \"API error\"}",
 		},
 		{
-			name:          "empty response",
-			content:       "Test content",
-			field:         "description",
+			name:    "empty response",
+			content: "Test content",
+			field:   "description",
+			asset: &domain.Asset{
+				Name:     "Test Asset",
+				Why:      "Test Why",
+				Benefits: "Test Benefits",
+				How:      "Test How",
+				Metrics:  "Test Metrics",
+			},
 			mockResponse:  `{"response": ""}`,
 			mockStatus:    http.StatusOK,
 			expectedError: "no response from Ollama",
@@ -108,7 +131,7 @@ func TestEnrichContent(t *testing.T) {
 			client, err := NewClient(Config{BaseURL: server.URL})
 			require.NoError(t, err)
 
-			result, err := client.EnrichContent(tt.content, tt.field)
+			result, err := client.EnrichContent(tt.content, tt.field, tt.asset)
 
 			if tt.expectedError != "" {
 				require.Error(t, err)

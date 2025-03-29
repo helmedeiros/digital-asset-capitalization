@@ -10,7 +10,7 @@ import (
 // LLAMAClient defines the interface for LLaMA operations
 type LLAMAClient interface {
 	// EnrichContent enriches the given content for the specified field
-	EnrichContent(content, field string) (string, error)
+	EnrichContent(content, field string, asset *domain.Asset) (string, error)
 	// Close closes the client connection
 	Close() error
 }

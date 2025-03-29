@@ -300,7 +300,7 @@ func (s *AssetService) EnrichAsset(name, field string) error {
 	// Extract content from the page
 	content := page.Body.Storage.Value
 
-	enrichedContent, err := s.llama.EnrichContent(content, field)
+	enrichedContent, err := s.llama.EnrichContent(content, field, asset)
 	if err != nil {
 		return fmt.Errorf("failed to enrich content: %w", err)
 	}
