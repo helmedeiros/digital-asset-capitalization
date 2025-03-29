@@ -1,11 +1,15 @@
 package confluence
 
 import (
+	"bytes"
 	"fmt"
+	"io"
 	"regexp"
 	"strconv"
 	"strings"
 	"time"
+
+	"golang.org/x/net/html"
 )
 
 var dateFormats = []string{
@@ -42,52 +46,27 @@ type PageMetadata struct {
 
 // extractMetadata extracts metadata from the page content
 func (a *Adapter) extractMetadata(content string) (*PageMetadata, error) {
-	// Validate content structure
-	if !strings.Contains(content, "<table") {
+	metadata := &PageMetadata{}
+
+	// Check for invalid content
+	if !strings.Contains(content, "<table") || !strings.Contains(content, "</table>") {
 		return nil, fmt.Errorf("invalid content: no table found")
 	}
 
-	metadata := &PageMetadata{}
+	// Extract labels and identifier
+	metadata.Keywords = extractLabels(content)
+	metadata.Identifier = extractAssetIdentifier(content)
 
-	// Extract description from "Why are we doing this?" section
+	// Extract table values
 	metadata.Why = cleanHTML(extractTableValue(content, "Why are we doing this?"))
-	metadata.Description = metadata.Why
-
-	// Extract benefits from "Economic benefits" section
 	metadata.Benefits = cleanHTML(extractTableValue(content, "Economic benefits"))
-
-	// If Why is empty, use Benefits as Description
-	if metadata.Description == "" {
-		metadata.Description = metadata.Benefits
-	}
-
-	// Extract how from "How it works?" section
 	metadata.How = cleanHTML(extractTableValue(content, "How it works?"))
-
-	// Extract metrics from "How do we judge success?" section
 	metadata.Metrics = cleanHTML(extractTableValue(content, "How do we judge success?"))
-
-	// Extract platform from "Pod" section
 	metadata.Platform = cleanHTML(extractTableValue(content, "Pod"))
-
-	// Extract status from "Status" section
-	status := extractTableValue(content, "Status")
-	// Extract status from macro title
-	if strings.Contains(status, "ac:parameter ac:name=\"title\"") {
-		start := strings.Index(status, "ac:parameter ac:name=\"title\">") + len("ac:parameter ac:name=\"title\">")
-		end := strings.Index(status[start:], "</ac:parameter>")
-		if end != -1 {
-			status = status[start : start+end]
-		}
-	}
-	// Clean up status and correct common typos
-	status = cleanHTML(status)
-	status = strings.ReplaceAll(status, "continious", "continuous")
-	metadata.Status = status
+	metadata.Status = cleanHTML(extractTableValue(content, "Status"))
 
 	// Extract launch date
 	launchDate := extractTableValue(content, "Launch date")
-
 	var parsedDate time.Time
 	if t, err := parseDate(launchDate); err == nil {
 		parsedDate = t
@@ -95,11 +74,12 @@ func (a *Adapter) extractMetadata(content string) (*PageMetadata, error) {
 
 	metadata.LaunchDate = parsedDate
 
-	// Extract keywords from labels
-	metadata.Keywords = extractLabels(content)
-
-	// Extract asset identifier from labels
-	metadata.Identifier = extractAssetIdentifier(content)
+	// Set description to Why field if available, otherwise use Economic benefits
+	if metadata.Why != "" {
+		metadata.Description = metadata.Why
+	} else {
+		metadata.Description = metadata.Benefits
+	}
 
 	// Set rollout status based on content
 	metadata.IsRolledOut100 = strings.Contains(content, "100% of traffic")
@@ -108,150 +88,222 @@ func (a *Adapter) extractMetadata(content string) (*PageMetadata, error) {
 }
 
 // extractTableValue extracts a value from a table row with the given header
-func extractTableValue(content, header string) string {
-	// Look for the header in a table cell
-	markers := []string{
-		fmt.Sprintf("<strong>%s</strong>", header),
-		fmt.Sprintf("<p><strong>%s</strong></p>", header),
-		fmt.Sprintf("data-highlight-colour=\"#f4f5f7\"><p><strong>%s</strong>", header),
-		fmt.Sprintf("data-highlight-colour=\"#e3fcef\"><p><strong>%s</strong>", header),
-		header, // Simple text match
-	}
+func extractTableValue(content string, header string) string {
+	// Replace Unicode entities with their HTML equivalents
+	content = strings.ReplaceAll(content, `\u003c`, "<")
+	content = strings.ReplaceAll(content, `\u003e`, ">")
 
-	var start int = -1
-	for _, marker := range markers {
-		start = strings.Index(content, marker)
-		if start != -1 {
-			break
-		}
-	}
-	if start == -1 {
+	// Check for malformed tables
+	if !strings.Contains(content, "<table") || !strings.Contains(content, "</table>") {
 		return ""
 	}
 
-	// Find the start of the row containing our header
-	rowStart := strings.LastIndex(content[:start], "<tr")
-	if rowStart == -1 {
-		return ""
-	}
-
-	// Find the end of the row
-	rowEnd := strings.Index(content[start:], "</tr>")
-	if rowEnd == -1 {
-		return ""
-	}
-	rowEnd += start
-
-	// Get the row content
-	row := content[rowStart:rowEnd]
-
-	// Check for proper closing tags
-	tdCount := strings.Count(row, "<td")
-	tdCloseCount := strings.Count(row, "</td")
-	thCount := strings.Count(row, "<th")
-	thCloseCount := strings.Count(row, "</th")
+	// Check for proper table structure
+	tdCount := strings.Count(content, "<td")
+	tdCloseCount := strings.Count(content, "</td>")
+	thCount := strings.Count(content, "<th")
+	thCloseCount := strings.Count(content, "</th>")
+	trCount := strings.Count(content, "<tr")
+	trCloseCount := strings.Count(content, "</tr>")
 
 	// If the number of opening and closing tags don't match, the table is malformed
-	if tdCount != tdCloseCount || thCount != thCloseCount {
+	if tdCount != tdCloseCount || thCount != thCloseCount || trCount != trCloseCount {
 		return ""
 	}
 
-	// Find the first cell in this row (could be td or th)
-	firstCell := -1
-	firstTd := strings.Index(row, "<td")
-	firstTh := strings.Index(row, "<th")
+	// Parse the HTML content
+	doc, err := html.Parse(strings.NewReader(content))
+	if err != nil {
+		return ""
+	}
 
-	// Determine which tag appears first (if both exist)
-	if firstTd != -1 && firstTh != -1 {
-		if firstTd < firstTh {
-			firstCell = firstTd
-		} else {
-			firstCell = firstTh
+	// Find the first cell that matches the header
+	var headerCell *html.Node
+	var traverse func(*html.Node)
+	traverse = func(n *html.Node) {
+		if n.Type == html.ElementNode && (n.Data == "td" || n.Data == "th") {
+			text := extractText(n)
+			if strings.TrimSpace(text) == header {
+				headerCell = n
+				return
+			}
 		}
-	} else if firstTd != -1 {
-		firstCell = firstTd
-	} else if firstTh != -1 {
-		firstCell = firstTh
-	}
-
-	if firstCell == -1 {
-		return ""
-	}
-
-	// Find the second cell
-	secondCell := -1
-	// Look for both td and th after the first cell
-	secondTd := strings.Index(row[firstCell+3:], "<td")
-	secondTh := strings.Index(row[firstCell+3:], "<th")
-
-	// Determine which tag appears first (if both exist)
-	if secondTd != -1 && secondTh != -1 {
-		if secondTd < secondTh {
-			secondCell = secondTd
-		} else {
-			secondCell = secondTh
+		for c := n.FirstChild; c != nil; c = c.NextSibling {
+			traverse(c)
 		}
-	} else if secondTd != -1 {
-		secondCell = secondTd
-	} else if secondTh != -1 {
-		secondCell = secondTh
 	}
+	traverse(doc)
 
-	if secondCell == -1 {
+	if headerCell == nil {
 		return ""
 	}
-	secondCell += firstCell + 3
 
-	// Find the end of the second cell (could be td or th)
-	valueEnd := -1
-	endTd := strings.Index(row[secondCell:], "</td>")
-	endTh := strings.Index(row[secondCell:], "</th>")
+	// Find the next cell
+	nextCell := headerCell.NextSibling
+	for nextCell != nil && nextCell.Type != html.ElementNode {
+		nextCell = nextCell.NextSibling
+	}
+	if nextCell == nil || (nextCell.Data != "td" && nextCell.Data != "th") {
+		return ""
+	}
 
-	// Determine which end tag appears first (if both exist)
-	if endTd != -1 && endTh != -1 {
-		if endTd < endTh {
-			valueEnd = endTd
-		} else {
-			valueEnd = endTh
+	// Extract the value from the next cell's children
+	var value string
+	for child := nextCell.FirstChild; child != nil; child = child.NextSibling {
+		value += renderNode(child)
+	}
+	value = strings.TrimSpace(value)
+
+	// Check for empty paragraph tags with various formats
+	emptyPTags := []string{
+		"<p />",
+		"<p/>",
+		"<p></p>",
+		"<p> </p>",
+		"<p>\n</p>",
+		"<p>\n\t</p>",
+		"<p>\n        </p>",
+		"<p>  </p>",
+	}
+
+	for _, emptyTag := range emptyPTags {
+		if strings.TrimSpace(value) == emptyTag {
+			return ""
 		}
-	} else if endTd != -1 {
-		valueEnd = endTd
-	} else if endTh != -1 {
-		valueEnd = endTh
 	}
 
-	if valueEnd == -1 {
-		return ""
+	// If the value doesn't contain any HTML tags, return it as is
+	if !strings.Contains(value, "<") && !strings.Contains(value, ">") {
+		return value
 	}
-	valueEnd += secondCell
 
-	// Find the actual content start (after the opening tag)
-	valueStart := strings.Index(row[secondCell:valueEnd], ">")
-	if valueStart == -1 {
-		return ""
+	return value
+}
+
+// extractText extracts text content from a node
+func extractText(n *html.Node) string {
+	var text string
+	var extract func(*html.Node)
+	extract = func(n *html.Node) {
+		if n.Type == html.TextNode {
+			text += n.Data
+		}
+		for c := n.FirstChild; c != nil; c = c.NextSibling {
+			extract(c)
+		}
 	}
-	valueStart += secondCell + 1
+	extract(n)
+	return strings.TrimSpace(text)
+}
 
-	return strings.TrimSpace(row[valueStart:valueEnd])
+// renderNode renders a node back to HTML
+func renderNode(n *html.Node) string {
+	var buf bytes.Buffer
+	w := io.Writer(&buf)
+	html.Render(w, n)
+	return buf.String()
 }
 
 // cleanHTML removes HTML tags and decodes entities
-func cleanHTML(text string) string {
+func cleanHTML(input string) string {
+	// First, handle unicode-encoded HTML entities
+	unicodeReplacements := map[string]string{
+		"\u0026":        "&",
+		"\u003c":        "<",
+		"\u003e":        ">",
+		"\u003cp":       "<p",
+		"\u003c/p":      "</p",
+		"\u003cli":      "<li",
+		"\u003c/li":     "</li",
+		"\u003cul":      "<ul",
+		"\u003c/ul":     "</ul",
+		"\u003cbr":      "<br",
+		"\u003c/br":     "</br",
+		"\u003cdiv":     "<div",
+		"\u003c/div":    "</div",
+		"\u003cspan":    "<span",
+		"\u003c/span":   "</span",
+		"\u003ca":       "<a",
+		"\u003c/a":      "</a",
+		"\u003ccode":    "<code",
+		"\u003c/code":   "</code",
+		"\u003cstrong":  "<strong",
+		"\u003c/strong": "</strong",
+		"\u003cem":      "<em",
+		"\u003c/em":     "</em",
+		"\u003cp /":     "<p",
+		"\u003cp/":      "<p",
+		"\u0026ldquo;":  "\"",
+		"\u0026rdquo;":  "\"",
+		"\u0026lsquo;":  "'",
+		"\u0026rsquo;":  "'",
+	}
+
+	for unicode, replacement := range unicodeReplacements {
+		input = strings.ReplaceAll(input, unicode, replacement)
+	}
+
+	// Handle common HTML entities
+	replacements := map[string]string{
+		"&mdash;":  "—",
+		"&euro;":   "€",
+		"&hellip;": "...",
+		"&amp;":    "&",
+		"&nbsp;":   " ",
+		"&quot;":   "\"",
+		"&rsquo;":  "'",
+		"&lsquo;":  "'",
+		"&rdquo;":  "\"",
+		"&ldquo;":  "\"",
+		"&ndash;":  "–",
+		"&lt;":     "<",
+		"&gt;":     ">",
+	}
+
+	for entity, replacement := range replacements {
+		input = strings.ReplaceAll(input, entity, replacement)
+	}
+
+	// Check for empty paragraph tags before parsing
+	if input == "" || input == "<p />" || input == "<p/>" || input == "<p></p>" ||
+		input == "\u003cp /\u003e" || input == "\u003cp/\u003e" || input == "\u003cp\u003e\u003c/p\u003e" ||
+		input == "\n" || input == "\r\n" || input == "\r" {
+		return ""
+	}
+
 	// Remove HTML tags
-	text = strings.ReplaceAll(text, "<p>", "")
-	text = strings.ReplaceAll(text, "</p>", " ")
-	text = strings.ReplaceAll(text, "<em>", "")
-	text = strings.ReplaceAll(text, "</em>", "")
-	text = strings.ReplaceAll(text, "<strong>", "")
-	text = strings.ReplaceAll(text, "</strong>", "")
-	text = strings.ReplaceAll(text, "<br />", " ")
-	text = strings.ReplaceAll(text, "<br/>", " ")
-	text = strings.ReplaceAll(text, "&nbsp;", " ")
-	text = strings.ReplaceAll(text, "&amp;", "&")
+	doc, err := html.Parse(strings.NewReader(input))
+	if err != nil {
+		return input
+	}
+
+	var textContent strings.Builder
+	var extractText func(*html.Node)
+	extractText = func(n *html.Node) {
+		if n.Type == html.TextNode {
+			textContent.WriteString(n.Data)
+		}
+		for c := n.FirstChild; c != nil; c = c.NextSibling {
+			extractText(c)
+		}
+		// Add space after block elements
+		if n.Type == html.ElementNode && (n.Data == "p" || n.Data == "div" || n.Data == "li" || n.Data == "br") {
+			textContent.WriteString(" ")
+		}
+	}
+	extractText(doc)
 
 	// Clean up whitespace
-	text = strings.Join(strings.Fields(text), " ")
-	return text
+	result := textContent.String()
+	result = strings.Join(strings.Fields(result), " ")
+	result = strings.TrimSpace(result)
+
+	// Return empty string if the result is just whitespace
+	if result == "" {
+		return ""
+	}
+
+	return result
 }
 
 // extractLabels extracts labels from the metadata section
@@ -341,41 +393,32 @@ func mustParseInt(s string) int {
 }
 
 func parseDate(dateStr string) (time.Time, error) {
-	// Clean HTML from the date string first
+	// First try to extract date from time tag
+	if strings.Contains(dateStr, "<time") {
+		// Handle Unicode-encoded time tags
+		dateStr = strings.ReplaceAll(dateStr, "\u003ctime", "<time")
+		dateStr = strings.ReplaceAll(dateStr, "\u003c/time", "</time")
+
+		// Find the datetime attribute
+		start := strings.Index(dateStr, "datetime=\"")
+		if start != -1 {
+			start += len("datetime=\"")
+			end := strings.Index(dateStr[start:], "\"")
+			if end != -1 {
+				dateStr = dateStr[start : start+end]
+				// Try to parse the date
+				if t, err := time.Parse("2006-01-02", dateStr); err == nil {
+					return t, nil
+				}
+			}
+		}
+	}
+
+	// Clean up the date string
+	dateStr = strings.TrimSpace(dateStr)
 	dateStr = cleanHTML(dateStr)
 
-	// Remove any HTML time tag and extract datetime attribute if present
-	if strings.Contains(dateStr, "<time") {
-		re := regexp.MustCompile(`datetime="([^"]+)"`)
-		if matches := re.FindStringSubmatch(dateStr); len(matches) > 1 {
-			dateStr = matches[1]
-		}
-	}
-
-	dateStr = strings.TrimSpace(dateStr)
-
-	// Handle "since YYYY" format case-insensitively
-	if strings.HasPrefix(strings.ToLower(dateStr), "since") {
-		yearStr := strings.TrimSpace(strings.TrimPrefix(strings.ToLower(dateStr), "since"))
-		if year, err := strconv.Atoi(yearStr); err == nil {
-			return time.Date(year, 1, 1, 0, 0, 0, 0, time.UTC), nil
-		}
-	}
-
-	// Handle quarter format (e.g., "Q1 2024")
-	if strings.HasPrefix(dateStr, "Q") && len(dateStr) == 7 {
-		quarter := mustParseInt(string(dateStr[1]))
-		yearStr := dateStr[3:]
-		if year, err := strconv.Atoi(yearStr); err == nil && quarter >= 1 && quarter <= 4 {
-			month := time.Month((quarter-1)*3 + 1)
-			return time.Date(year, month, 1, 0, 0, 0, 0, time.UTC), nil
-		}
-	}
-
-	// Remove ordinal indicators before parsing
-	dateStr = regexp.MustCompile(`(\d+)(st|nd|rd|th)`).ReplaceAllString(dateStr, "$1")
-
-	// Try all date formats
+	// Try each date format
 	for _, format := range dateFormats {
 		if t, err := time.Parse(format, dateStr); err == nil {
 			return t, nil
