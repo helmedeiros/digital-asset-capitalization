@@ -245,6 +245,10 @@ func TestUpdateAsset(t *testing.T) {
 		name          string
 		assetName     string
 		description   string
+		why           string
+		benefits      string
+		how           string
+		metrics       string
 		setupMock     func(*MockAssetRepository)
 		expectedError string
 	}{
@@ -289,7 +293,7 @@ func TestUpdateAsset(t *testing.T) {
 			tt.setupMock(mockRepo)
 			service := NewAssetService(mockRepo)
 
-			err := service.UpdateAsset(tt.assetName, tt.description)
+			err := service.UpdateAsset(tt.assetName, tt.description, tt.why, tt.benefits, tt.how, tt.metrics)
 
 			if tt.expectedError != "" {
 				assert.Error(t, err)
@@ -540,11 +544,10 @@ func TestGetAsset(t *testing.T) {
 }
 
 func TestValidateRequiredFields(t *testing.T) {
-	fixedTime := time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC)
 	tests := []struct {
-		name            string
-		asset           *domain.Asset
-		expectedMissing []string
+		name     string
+		asset    *domain.Asset
+		expected []string
 	}{
 		{
 			name: "all fields present",
@@ -552,11 +555,15 @@ func TestValidateRequiredFields(t *testing.T) {
 				ID:          "test-id",
 				Name:        "test-asset",
 				Description: "Test description",
-				LaunchDate:  fixedTime,
+				Why:         "Test why",
+				Benefits:    "Test benefits",
+				How:         "Test how",
+				Metrics:     "Test metrics",
 				Status:      "active",
 				DocLink:     "https://example.com",
+				LaunchDate:  time.Now(),
 			},
-			expectedMissing: nil,
+			expected: nil,
 		},
 		{
 			name: "missing launch date",
@@ -564,25 +571,33 @@ func TestValidateRequiredFields(t *testing.T) {
 				ID:          "test-id",
 				Name:        "test-asset",
 				Description: "Test description",
+				Why:         "Test why",
+				Benefits:    "Test benefits",
+				How:         "Test how",
+				Metrics:     "Test metrics",
 				Status:      "active",
 				DocLink:     "https://example.com",
 			},
-			expectedMissing: []string{"LaunchDate"},
+			expected: []string{"LaunchDate"},
 		},
 		{
 			name: "missing multiple fields",
 			asset: &domain.Asset{
 				Name:        "test-asset",
 				Description: "Test description",
+				Why:         "Test why",
+				Benefits:    "Test benefits",
+				How:         "Test how",
+				Metrics:     "Test metrics",
 			},
-			expectedMissing: []string{"ID", "LaunchDate", "Status", "DocLink"},
+			expected: []string{"ID", "LaunchDate", "Status", "DocLink"},
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			missingFields := validateRequiredFields(tt.asset)
-			assert.Equal(t, tt.expectedMissing, missingFields)
+			got := validateRequiredFields(tt.asset)
+			assert.Equal(t, tt.expected, got)
 		})
 	}
 }

@@ -16,14 +16,21 @@ func TestExtractMetadata(t *testing.T) {
 		{
 			name: "extract all metadata with API format labels",
 			content: `<table>
-				<tr><td><strong>Why are we doing this?</strong></td><td><p>Test description</p></td></tr>
+				<tr><td><strong>Why are we doing this?</strong></td><td><p>Test why</p></td></tr>
+				<tr><td><strong>Economic benefits</strong></td><td><p>Test benefits</p></td></tr>
+				<tr><td><strong>How it works?</strong></td><td><p>Test how</p></td></tr>
+				<tr><td><strong>How do we judge success?</strong></td><td><p>Test metrics</p></td></tr>
 				<tr><td><strong>Pod</strong></td><td><p>Test Platform</p></td></tr>
 				<tr><td><strong>Status</strong></td><td><p>in development</p></td></tr>
 				<tr><td><strong>Launch date</strong></td><td><p>March 4, 2022</p></td></tr>
 			</table>
 			{"metadata":{"labels":{"results":[{"name":"test-label"},{"name":"cap-asset-test-asset"}]}}}`,
 			expected: &PageMetadata{
-				Description: "Test description",
+				Description: "Test why",
+				Why:         "Test why",
+				Benefits:    "Test benefits",
+				How:         "Test how",
+				Metrics:     "Test metrics",
 				Platform:    "Test Platform",
 				Status:      "in development",
 				LaunchDate:  time.Date(2022, 3, 4, 0, 0, 0, 0, time.UTC),
@@ -35,14 +42,21 @@ func TestExtractMetadata(t *testing.T) {
 		{
 			name: "extract all metadata with HTML format labels",
 			content: `<table>
-				<tr><td><strong>Why are we doing this?</strong></td><td><p>Test description</p></td></tr>
+				<tr><td><strong>Why are we doing this?</strong></td><td><p>Test why</p></td></tr>
+				<tr><td><strong>Economic benefits</strong></td><td><p>Test benefits</p></td></tr>
+				<tr><td><strong>How it works?</strong></td><td><p>Test how</p></td></tr>
+				<tr><td><strong>How do we judge success?</strong></td><td><p>Test metrics</p></td></tr>
 				<tr><td><strong>Pod</strong></td><td><p>Test Platform</p></td></tr>
 				<tr><td><strong>Status</strong></td><td><p>in development</p></td></tr>
 				<tr><td><strong>Launch date</strong></td><td><p>March 4, 2022</p></td></tr>
 			</table>
 			<div class="labels">{"label":"test-label"},{"label":"cap-asset-test-asset"}</div>`,
 			expected: &PageMetadata{
-				Description: "Test description",
+				Description: "Test why",
+				Why:         "Test why",
+				Benefits:    "Test benefits",
+				How:         "Test how",
+				Metrics:     "Test metrics",
 				Platform:    "Test Platform",
 				Status:      "in development",
 				LaunchDate:  time.Date(2022, 3, 4, 0, 0, 0, 0, time.UTC),
@@ -54,14 +68,21 @@ func TestExtractMetadata(t *testing.T) {
 		{
 			name: "extract all metadata fields",
 			content: `<table>
-				<tr><td><strong>Why are we doing this?</strong></td><td><p>Test description</p></td></tr>
+				<tr><td><strong>Why are we doing this?</strong></td><td><p>Test why</p></td></tr>
+				<tr><td><strong>Economic benefits</strong></td><td><p>Test benefits</p></td></tr>
+				<tr><td><strong>How it works?</strong></td><td><p>Test how</p></td></tr>
+				<tr><td><strong>How do we judge success?</strong></td><td><p>Test metrics</p></td></tr>
 				<tr><td><strong>Pod</strong></td><td><p>Test Platform</p></td></tr>
 				<tr><td><strong>Status</strong></td><td><p>in development</p></td></tr>
 				<tr><td><strong>Launch date</strong></td><td><p>since 2022</p></td></tr>
 			</table>
 			<div class="labels">{"label":"test-label"},{"label":"cap-asset-test-asset"}</div>`,
 			expected: &PageMetadata{
-				Description: "Test description",
+				Description: "Test why",
+				Why:         "Test why",
+				Benefits:    "Test benefits",
+				How:         "Test how",
+				Metrics:     "Test metrics",
 				Platform:    "Test Platform",
 				Status:      "in development",
 				LaunchDate:  time.Date(2022, 1, 1, 0, 0, 0, 0, time.UTC),
@@ -78,6 +99,10 @@ func TestExtractMetadata(t *testing.T) {
 			<div class="labels">{"label":"test-label"},{"label":"cap-asset-test-asset"}</div>`,
 			expected: &PageMetadata{
 				Description: "Fallback description",
+				Why:         "",
+				Benefits:    "Fallback description",
+				How:         "",
+				Metrics:     "",
 				Keywords:    []string{"test-label"},
 				Identifier:  "cap-asset-test-asset",
 			},
@@ -126,6 +151,18 @@ func TestExtractMetadata(t *testing.T) {
 			if got.Description != tt.expected.Description {
 				t.Errorf("Description = %v, want %v", got.Description, tt.expected.Description)
 			}
+			if got.Why != tt.expected.Why {
+				t.Errorf("Why = %v, want %v", got.Why, tt.expected.Why)
+			}
+			if got.Benefits != tt.expected.Benefits {
+				t.Errorf("Benefits = %v, want %v", got.Benefits, tt.expected.Benefits)
+			}
+			if got.How != tt.expected.How {
+				t.Errorf("How = %v, want %v", got.How, tt.expected.How)
+			}
+			if got.Metrics != tt.expected.Metrics {
+				t.Errorf("Metrics = %v, want %v", got.Metrics, tt.expected.Metrics)
+			}
 			if got.Platform != tt.expected.Platform {
 				t.Errorf("Platform = %v, want %v", got.Platform, tt.expected.Platform)
 			}
@@ -156,16 +193,40 @@ func TestExtractTableValue(t *testing.T) {
 		expected string
 	}{
 		{
-			name:     "extract value from standard table",
+			name:     "extract value from standard table with td tags",
 			content:  `<table><tr><td><strong>Test</strong></td><td><p>Value</p></td></tr></table>`,
 			header:   "Test",
-			expected: "Value",
+			expected: "<p>Value</p>",
 		},
 		{
-			name:     "extract value from highlighted table",
-			content:  `<table><tr><td data-highlight-colour="#f4f5f7"><p><strong>Test</strong></td><td><p>Value</p></td></tr></table>`,
+			name:     "extract value from table with th tags",
+			content:  `<table><tr><th data-highlight-colour="#e3fcef"><p><strong>Why are we doing this?</strong></p></th><th data-highlight-colour="#ffffff"><p>Test value</p></th></tr></table>`,
+			header:   "Why are we doing this?",
+			expected: "<p>Test value</p>",
+		},
+		{
+			name:     "extract value from mixed td and th tags",
+			content:  `<table><tr><th><strong>Test</strong></th><td><p>Value</p></td></tr></table>`,
 			header:   "Test",
-			expected: "Value",
+			expected: "<p>Value</p>",
+		},
+		{
+			name:     "extract value with background color",
+			content:  `<table><tr><td data-highlight-colour="#e3fcef"><p><strong>Test</strong></p></td><td><p>Value</p></td></tr></table>`,
+			header:   "Test",
+			expected: "<p>Value</p>",
+		},
+		{
+			name:     "extract value with complex content",
+			content:  `<table><tr><td><strong>Test</strong></td><td><p>First line<br/>Second line</p></td></tr></table>`,
+			header:   "Test",
+			expected: "<p>First line<br/>Second line</p>",
+		},
+		{
+			name:     "extract value when header is not in strong tags",
+			content:  `<table><tr><td>Test</td><td><p>Value</p></td></tr></table>`,
+			header:   "Test",
+			expected: "<p>Value</p>",
 		},
 		{
 			name:     "header not found",
@@ -173,13 +234,31 @@ func TestExtractTableValue(t *testing.T) {
 			header:   "Test",
 			expected: "",
 		},
+		{
+			name:     "malformed table - no closing td",
+			content:  `<table><tr><td><strong>Test</strong><td><p>Value</p></td></tr></table>`,
+			header:   "Test",
+			expected: "",
+		},
+		{
+			name:     "malformed table - no closing tr",
+			content:  `<table><tr><td><strong>Test</strong></td><td><p>Value</p></td></table>`,
+			header:   "Test",
+			expected: "",
+		},
+		{
+			name:     "extract value with status macro",
+			content:  `<table><tr><td><strong>Status</strong></td><td><p><ac:structured-macro ac:name="status"><ac:parameter ac:name="title">in development</ac:parameter></ac:structured-macro></p></td></tr></table>`,
+			header:   "Status",
+			expected: "<p><ac:structured-macro ac:name=\"status\"><ac:parameter ac:name=\"title\">in development</ac:parameter></ac:structured-macro></p>",
+		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result := extractTableValue(tt.content, tt.header)
-			if result != tt.expected {
-				t.Errorf("extractTableValue() = %v, want %v", result, tt.expected)
+			got := extractTableValue(tt.content, tt.header)
+			if got != tt.expected {
+				t.Errorf("extractTableValue() = %v, want %v", got, tt.expected)
 			}
 		})
 	}

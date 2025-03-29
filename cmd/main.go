@@ -209,7 +209,16 @@ For more information about a command:
 							}
 							fmt.Println("Assets:")
 							for _, asset := range assets {
-								fmt.Printf("- %s: %s\n", asset.Name, asset.Description)
+								fmt.Printf("- %s:\n", asset.Name)
+								fmt.Printf("  Description: %s\n", asset.Description)
+								fmt.Printf("  Why: %s\n", asset.Why)
+								fmt.Printf("  Benefits: %s\n", asset.Benefits)
+								fmt.Printf("  How: %s\n", asset.How)
+								fmt.Printf("  Metrics: %s\n", asset.Metrics)
+								if asset.DocLink != "" {
+									fmt.Printf("  DocLink: %s\n", asset.DocLink)
+								}
+								fmt.Println()
 							}
 							return nil
 						},
@@ -274,7 +283,11 @@ For more information about a command:
 						Action: func(ctx *cli.Context) error {
 							name := ctx.Value("name").(string)
 							description := ctx.Value("description").(string)
-							if err := assetService.UpdateAsset(name, description); err != nil {
+							why := ctx.Value("why").(string)
+							benefits := ctx.Value("benefits").(string)
+							how := ctx.Value("how").(string)
+							metrics := ctx.Value("metrics").(string)
+							if err := assetService.UpdateAsset(name, description, why, benefits, how, metrics); err != nil {
 								return err
 							}
 							fmt.Printf("Updated asset: %s\n", name)
@@ -291,6 +304,26 @@ For more information about a command:
 								Usage:    "New asset description",
 								Required: true,
 							},
+							&cli.StringFlag{
+								Name:     "why",
+								Usage:    "Why are we doing this?",
+								Required: true,
+							},
+							&cli.StringFlag{
+								Name:     "benefits",
+								Usage:    "Economic benefits",
+								Required: true,
+							},
+							&cli.StringFlag{
+								Name:     "how",
+								Usage:    "How it works?",
+								Required: true,
+							},
+							&cli.StringFlag{
+								Name:     "metrics",
+								Usage:    "How do we judge success?",
+								Required: true,
+							},
 						},
 					},
 					{
@@ -304,6 +337,10 @@ For more information about a command:
 							}
 							fmt.Printf("Asset: %s\n", asset.Name)
 							fmt.Printf("Description: %s\n", asset.Description)
+							fmt.Printf("Why: %s\n", asset.Why)
+							fmt.Printf("Benefits: %s\n", asset.Benefits)
+							fmt.Printf("How: %s\n", asset.How)
+							fmt.Printf("Metrics: %s\n", asset.Metrics)
 							fmt.Printf("Created: %s\n", asset.CreatedAt.Format("2006-01-02 15:04:05"))
 							fmt.Printf("Updated: %s\n", asset.UpdatedAt.Format("2006-01-02 15:04:05"))
 							fmt.Printf("Task Count: %d\n", asset.AssociatedTaskCount)

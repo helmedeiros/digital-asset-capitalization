@@ -179,7 +179,7 @@ func TestRun(t *testing.T) {
 			name:    "list assets after creation",
 			args:    []string{"assetcap", "assets", "list"},
 			wantErr: false,
-			wantOut: "Assets:\n- test-asset: Test description\n",
+			wantOut: "Assets:\n- test-asset:\n  Description: Test description\n  Why: \n  Benefits: \n  How: \n  Metrics: \n\n",
 			setup: func() error {
 				return assetService.CreateAsset("test-asset", "Test description")
 			},

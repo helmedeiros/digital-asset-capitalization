@@ -41,6 +41,14 @@ type Asset struct {
 	Name string `json:"name"`
 	// Description provides detailed information about the asset
 	Description string `json:"description"`
+	// Why provides additional context or justification for the asset
+	Why string `json:"why"`
+	// Benefits describes the advantages or positive outcomes of the asset
+	Benefits string `json:"benefits"`
+	// How describes the process or method used to create or implement the asset
+	How string `json:"how"`
+	// Metrics are key performance indicators or measurements for the asset
+	Metrics string `json:"metrics"`
 	// CreatedAt is when the asset was first created
 	CreatedAt time.Time `json:"created_at"`
 	// UpdatedAt is when the asset was last modified
@@ -83,6 +91,34 @@ func NewAsset(name, description string) (*Asset, error) {
 		ID:                generateID(name),
 		Name:              name,
 		Description:       description,
+		CreatedAt:         now,
+		UpdatedAt:         now,
+		LastDocUpdateAt:   now,
+		ContributionTypes: make([]string, 0),
+		Version:           1,
+	}, nil
+}
+
+// NewAsset creates a new Asset instance with the given name and description.
+// It validates the input parameters and initializes all fields with appropriate default values.
+// Returns an error if the name or description is empty.
+func NewAssetWithDetails(name, description, why, benefits, how, metrics string) (*Asset, error) {
+	if name == "" {
+		return nil, ErrEmptyName
+	}
+	if description == "" {
+		return nil, ErrEmptyDescription
+	}
+
+	now := time.Now()
+	return &Asset{
+		ID:                generateID(name),
+		Name:              name,
+		Description:       description,
+		Why:               why,
+		Benefits:          benefits,
+		How:               how,
+		Metrics:           metrics,
 		CreatedAt:         now,
 		UpdatedAt:         now,
 		LastDocUpdateAt:   now,

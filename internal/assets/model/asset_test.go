@@ -12,10 +12,15 @@ func TestAsset(t *testing.T) {
 	mother := NewAssetMother()
 
 	t.Run("should create a valid asset", func(t *testing.T) {
-		asset := mother.CreateValidAsset()
+		asset, err := NewAssetWithDetails("Test Asset", "Test Description", "Test Why", "Test Benefits", "Test How", "Test Metrics")
+		require.NoError(t, err)
 
 		assert.Equal(t, "Test Asset", asset.Name, "expected name to be 'Test Asset'")
 		assert.Equal(t, "Test Description", asset.Description, "expected description to be 'Test Description'")
+		assert.Equal(t, "Test Why", asset.Why, "expected why to be 'Test Why'")
+		assert.Equal(t, "Test Benefits", asset.Benefits, "expected benefits to be 'Test Benefits'")
+		assert.Equal(t, "Test How", asset.How, "expected how to be 'Test How'")
+		assert.Equal(t, "Test Metrics", asset.Metrics, "expected metrics to be 'Test Metrics'")
 		assert.NotEmpty(t, asset.ID, "expected ID to be set")
 		assert.Len(t, asset.ID, 16, "expected ID to be 16 characters long")
 		assert.False(t, asset.CreatedAt.IsZero(), "expected CreatedAt to be set")

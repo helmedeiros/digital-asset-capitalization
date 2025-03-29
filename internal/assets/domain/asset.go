@@ -49,6 +49,14 @@ type Asset struct {
 	Keywords []string `json:"keywords"`
 	// DocLink is the link to full Confluence documentation
 	DocLink string `json:"doc_link"`
+	// Why explains the purpose and motivation for this asset
+	Why string `json:"why"`
+	// Benefits describes the economic benefits of this asset
+	Benefits string `json:"benefits"`
+	// How explains how the asset works
+	How string `json:"how"`
+	// Metrics defines how we measure success for this asset
+	Metrics string `json:"metrics"`
 }
 
 // UnmarshalJSON implements the json.Unmarshaler interface
@@ -80,6 +88,32 @@ func NewAsset(name, description string) (*Asset, error) {
 		ID:                  generateID(name),
 		Name:                name,
 		Description:         description,
+		CreatedAt:           now,
+		UpdatedAt:           now,
+		LastDocUpdateAt:     now,
+		AssociatedTaskCount: 0,
+		Version:             1,
+	}, nil
+}
+
+// NewAsset creates a new Asset instance
+func NewAssetWithDetails(name, description, why, benefits, how, metrics string) (*Asset, error) {
+	if name == "" {
+		return nil, ErrEmptyName
+	}
+	if description == "" {
+		return nil, ErrEmptyDescription
+	}
+
+	now := time.Now()
+	return &Asset{
+		ID:                  generateID(name),
+		Name:                name,
+		Description:         description,
+		Why:                 why,
+		Benefits:            benefits,
+		How:                 how,
+		Metrics:             metrics,
 		CreatedAt:           now,
 		UpdatedAt:           now,
 		LastDocUpdateAt:     now,

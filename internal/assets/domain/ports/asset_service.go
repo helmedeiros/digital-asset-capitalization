@@ -32,7 +32,7 @@ type AssetService interface {
 	// DeleteAsset deletes an asset by name
 	DeleteAsset(name string) error
 	// UpdateAsset updates an asset's name and description
-	UpdateAsset(name, description string) error
+	UpdateAsset(name, description, why, benefits, how, metrics string) error
 	// UpdateDocumentation marks the documentation for an asset as updated
 	UpdateDocumentation(assetName string) error
 	// IncrementTaskCount increments the task count for an asset

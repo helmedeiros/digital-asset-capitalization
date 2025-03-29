@@ -13,6 +13,10 @@ func TestNewAsset(t *testing.T) {
 		name        string
 		assetName   string
 		description string
+		why         string
+		benefits    string
+		how         string
+		metrics     string
 		wantErr     bool
 		errMsg      string
 	}{
@@ -20,12 +24,20 @@ func TestNewAsset(t *testing.T) {
 			name:        "valid asset",
 			assetName:   "test-asset",
 			description: "Test description",
+			why:         "Test why",
+			benefits:    "Test benefits",
+			how:         "Test how",
+			metrics:     "Test metrics",
 			wantErr:     false,
 		},
 		{
 			name:        "empty name",
 			assetName:   "",
 			description: "Test description",
+			why:         "Test why",
+			benefits:    "Test benefits",
+			how:         "Test how",
+			metrics:     "Test metrics",
 			wantErr:     true,
 			errMsg:      ErrEmptyName.Error(),
 		},
@@ -33,6 +45,10 @@ func TestNewAsset(t *testing.T) {
 			name:        "empty description",
 			assetName:   "test-asset",
 			description: "",
+			why:         "Test why",
+			benefits:    "Test benefits",
+			how:         "Test how",
+			metrics:     "Test metrics",
 			wantErr:     true,
 			errMsg:      ErrEmptyDescription.Error(),
 		},
@@ -40,7 +56,7 @@ func TestNewAsset(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			asset, err := NewAsset(tt.assetName, tt.description)
+			asset, err := NewAssetWithDetails(tt.assetName, tt.description, tt.why, tt.benefits, tt.how, tt.metrics)
 
 			if tt.wantErr {
 				require.Error(t, err)
@@ -51,6 +67,10 @@ func TestNewAsset(t *testing.T) {
 			require.NoError(t, err)
 			assert.Equal(t, tt.assetName, asset.Name)
 			assert.Equal(t, tt.description, asset.Description)
+			assert.Equal(t, tt.why, asset.Why)
+			assert.Equal(t, tt.benefits, asset.Benefits)
+			assert.Equal(t, tt.how, asset.How)
+			assert.Equal(t, tt.metrics, asset.Metrics)
 			assert.NotEmpty(t, asset.ID, "Expected non-empty ID")
 			assert.Equal(t, 1, asset.Version)
 		})

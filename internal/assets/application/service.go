@@ -104,7 +104,7 @@ func (s *AssetService) DeleteAsset(name string) error {
 }
 
 // UpdateAsset updates an asset's description
-func (s *AssetService) UpdateAsset(name, description string) error {
+func (s *AssetService) UpdateAsset(name, description, why, benefits, how, metrics string) error {
 	if description == "" {
 		return fmt.Errorf("asset description cannot be empty")
 	}
@@ -114,6 +114,10 @@ func (s *AssetService) UpdateAsset(name, description string) error {
 		return fmt.Errorf("asset not found")
 	}
 	asset.Description = description
+	asset.Why = why
+	asset.Benefits = benefits
+	asset.How = how
+	asset.Metrics = metrics
 	asset.UpdatedAt = time.Now()
 	asset.Version++
 	return s.repo.Save(asset)
@@ -200,6 +204,10 @@ func (s *AssetService) SyncFromConfluence(spaceKey, label string, debug bool) (*
 					"LaunchDate":  asset.LaunchDate.Format("2006-01-02"),
 					"Status":      string(asset.Status),
 					"DocLink":     asset.DocLink,
+					"Why":         asset.Why,
+					"Benefits":    asset.Benefits,
+					"How":         asset.How,
+					"Metrics":     asset.Metrics,
 				},
 			}
 			result.NotSyncedAssets = append(result.NotSyncedAssets, notSynced)
@@ -236,6 +244,18 @@ func validateRequiredFields(asset *domain.Asset) []string {
 	}
 	if asset.DocLink == "" {
 		missingFields = append(missingFields, "DocLink")
+	}
+	if asset.Why == "" {
+		missingFields = append(missingFields, "Why")
+	}
+	if asset.Benefits == "" {
+		missingFields = append(missingFields, "Benefits")
+	}
+	if asset.How == "" {
+		missingFields = append(missingFields, "How")
+	}
+	if asset.Metrics == "" {
+		missingFields = append(missingFields, "Metrics")
 	}
 
 	return missingFields

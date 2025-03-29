@@ -18,6 +18,7 @@ var dateFormats = []string{
 	"2006-01-02",
 	"02/01/2006",
 	"May 2, 2006",
+	"March 4, 2006",
 	"Q1 2006",
 	"Q2 2006",
 	"Q3 2006",
@@ -27,6 +28,10 @@ var dateFormats = []string{
 // PageMetadata represents the metadata extracted from a Confluence page
 type PageMetadata struct {
 	Description    string
+	Why            string
+	Benefits       string
+	How            string
+	Metrics        string
 	Platform       string
 	Status         string
 	LaunchDate     time.Time
@@ -45,18 +50,25 @@ func (a *Adapter) extractMetadata(content string) (*PageMetadata, error) {
 	metadata := &PageMetadata{}
 
 	// Extract description from "Why are we doing this?" section
-	desc := extractTableValue(content, "Why are we doing this?")
-	if desc != "" {
-		metadata.Description = cleanHTML(desc)
-	} else {
-		// Fallback to "Economic benefits" section if "Why are we doing this?" is empty
-		desc = extractTableValue(content, "Economic benefits")
-		metadata.Description = cleanHTML(desc)
+	metadata.Why = cleanHTML(extractTableValue(content, "Why are we doing this?"))
+	metadata.Description = metadata.Why
+
+	// Extract benefits from "Economic benefits" section
+	metadata.Benefits = cleanHTML(extractTableValue(content, "Economic benefits"))
+
+	// If Why is empty, use Benefits as Description
+	if metadata.Description == "" {
+		metadata.Description = metadata.Benefits
 	}
 
+	// Extract how from "How it works?" section
+	metadata.How = cleanHTML(extractTableValue(content, "How it works?"))
+
+	// Extract metrics from "How do we judge success?" section
+	metadata.Metrics = cleanHTML(extractTableValue(content, "How do we judge success?"))
+
 	// Extract platform from "Pod" section
-	platform := extractTableValue(content, "Pod")
-	metadata.Platform = cleanHTML(platform)
+	metadata.Platform = cleanHTML(extractTableValue(content, "Pod"))
 
 	// Extract status from "Status" section
 	status := extractTableValue(content, "Status")
@@ -103,6 +115,7 @@ func extractTableValue(content, header string) string {
 		fmt.Sprintf("<p><strong>%s</strong></p>", header),
 		fmt.Sprintf("data-highlight-colour=\"#f4f5f7\"><p><strong>%s</strong>", header),
 		fmt.Sprintf("data-highlight-colour=\"#e3fcef\"><p><strong>%s</strong>", header),
+		header, // Simple text match
 	}
 
 	var start int = -1
@@ -116,35 +129,110 @@ func extractTableValue(content, header string) string {
 		return ""
 	}
 
-	// Find the next table cell
-	tdMarkers := []string{"<td><p>", "<td>"}
-	tdStart := -1
-	for _, marker := range tdMarkers {
-		tdStart = strings.Index(content[start:], marker)
-		if tdStart != -1 {
-			tdStart += start + len(marker)
-			break
-		}
-	}
-	if tdStart == -1 {
+	// Find the start of the row containing our header
+	rowStart := strings.LastIndex(content[:start], "<tr")
+	if rowStart == -1 {
 		return ""
 	}
 
-	// Find the end of the table cell
-	tdEnds := []string{"</p></td>", "</td>"}
-	tdEnd := -1
-	for _, marker := range tdEnds {
-		tdEnd = strings.Index(content[tdStart:], marker)
-		if tdEnd != -1 {
-			tdEnd += tdStart
-			break
-		}
+	// Find the end of the row
+	rowEnd := strings.Index(content[start:], "</tr>")
+	if rowEnd == -1 {
+		return ""
 	}
-	if tdEnd == -1 {
+	rowEnd += start
+
+	// Get the row content
+	row := content[rowStart:rowEnd]
+
+	// Check for proper closing tags
+	tdCount := strings.Count(row, "<td")
+	tdCloseCount := strings.Count(row, "</td")
+	thCount := strings.Count(row, "<th")
+	thCloseCount := strings.Count(row, "</th")
+
+	// If the number of opening and closing tags don't match, the table is malformed
+	if tdCount != tdCloseCount || thCount != thCloseCount {
 		return ""
 	}
 
-	return strings.TrimSpace(content[tdStart:tdEnd])
+	// Find the first cell in this row (could be td or th)
+	firstCell := -1
+	firstTd := strings.Index(row, "<td")
+	firstTh := strings.Index(row, "<th")
+
+	// Determine which tag appears first (if both exist)
+	if firstTd != -1 && firstTh != -1 {
+		if firstTd < firstTh {
+			firstCell = firstTd
+		} else {
+			firstCell = firstTh
+		}
+	} else if firstTd != -1 {
+		firstCell = firstTd
+	} else if firstTh != -1 {
+		firstCell = firstTh
+	}
+
+	if firstCell == -1 {
+		return ""
+	}
+
+	// Find the second cell
+	secondCell := -1
+	// Look for both td and th after the first cell
+	secondTd := strings.Index(row[firstCell+3:], "<td")
+	secondTh := strings.Index(row[firstCell+3:], "<th")
+
+	// Determine which tag appears first (if both exist)
+	if secondTd != -1 && secondTh != -1 {
+		if secondTd < secondTh {
+			secondCell = secondTd
+		} else {
+			secondCell = secondTh
+		}
+	} else if secondTd != -1 {
+		secondCell = secondTd
+	} else if secondTh != -1 {
+		secondCell = secondTh
+	}
+
+	if secondCell == -1 {
+		return ""
+	}
+	secondCell += firstCell + 3
+
+	// Find the end of the second cell (could be td or th)
+	valueEnd := -1
+	endTd := strings.Index(row[secondCell:], "</td>")
+	endTh := strings.Index(row[secondCell:], "</th>")
+
+	// Determine which end tag appears first (if both exist)
+	if endTd != -1 && endTh != -1 {
+		if endTd < endTh {
+			valueEnd = endTd
+		} else {
+			valueEnd = endTh
+		}
+	} else if endTd != -1 {
+		valueEnd = endTd
+	} else if endTh != -1 {
+		valueEnd = endTh
+	}
+
+	if valueEnd == -1 {
+		return ""
+	}
+	valueEnd += secondCell
+
+	// Find the actual content start (after the opening tag)
+	valueStart := strings.Index(row[secondCell:valueEnd], ">")
+	if valueStart == -1 {
+		return ""
+	}
+	valueStart += secondCell + 1
+
+	return strings.TrimSpace(row[valueStart:valueEnd])
 }
 
 // cleanHTML removes HTML tags and decodes entities
@@ -253,6 +341,9 @@ func mustParseInt(s string) int {
 }
 
 func parseDate(dateStr string) (time.Time, error) {
+	// Clean HTML from the date string first
+	dateStr = cleanHTML(dateStr)
+
 	// Remove any HTML time tag and extract datetime attribute if present
 	if strings.Contains(dateStr, "<time") {
 		re := regexp.MustCompile(`datetime="([^"]+)"`)
