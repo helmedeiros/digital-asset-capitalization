@@ -208,6 +208,7 @@ func (p *SprintTimeAllocationUseCase) calculateTotalHours(team domain.Team, issu
 func (p *SprintTimeAllocationUseCase) getIssueTimeRange(issue domain.JiraIssue) (time.Time, time.Time) {
 	var startTime, endTime time.Time
 	var inProgress bool
+	var firstInProgressTime time.Time
 
 	// Process histories in chronological order
 	for i := 0; i < len(issue.Changelog.Histories); i++ {
@@ -218,18 +219,26 @@ func (p *SprintTimeAllocationUseCase) getIssueTimeRange(issue domain.JiraIssue) 
 				continue
 			}
 
-			// Parse the history timestamp
+			// Parse the history timestamp and ensure UTC timezone
 			historyTime, _ := time.Parse("2006-01-02T15:04:05.000-0700", history.Created)
+			historyTime = historyTime.UTC()
 
 			// Look for transition into "In Progress" state
-			if !inProgress && item.ToString == "In Progress" {
-				startTime = historyTime
+			if item.ToString == "In Progress" {
+				if firstInProgressTime.IsZero() {
+					firstInProgressTime = historyTime
+				}
+				startTime = firstInProgressTime // Always use the first In Progress time
 				inProgress = true
 			}
 
 			// Look for transition to "Done" or "Won't Do" state
-			if inProgress && (item.ToString == "Done" || item.ToString == "Won't Do") {
+			if item.ToString == "Done" || item.ToString == "Won't Do" {
 				endTime = historyTime
+				// If we weren't in progress, use the completion time as start time
+				if !inProgress && startTime.IsZero() {
+					startTime = historyTime
+				}
 			}
 
 			// If moving out of "In Progress" to a non-Done state, consider this a pause
@@ -239,29 +248,7 @@ func (p *SprintTimeAllocationUseCase) getIssueTimeRange(issue domain.JiraIssue) 
 				p.calculateWorkingHours(issue.Key, nil, startTime, historyTime)
 				inProgress = false
 			}
-
-			// If moving back to "In Progress", start a new time range
-			if !inProgress && item.ToString == "In Progress" {
-				startTime = historyTime
-				inProgress = true
-			}
 		}
-	}
-
-	// If still in progress and no end time found, use current time
-	if inProgress && endTime.IsZero() {
-		endTime = time.Now()
-	}
-
-	// If we found a start time but no end time, use the last history entry
-	if !startTime.IsZero() && endTime.IsZero() && len(issue.Changelog.Histories) > 0 {
-		lastHistory := issue.Changelog.Histories[len(issue.Changelog.Histories)-1]
-		endTime, _ = time.Parse("2006-01-02T15:04:05.000-0700", lastHistory.Created)
-	}
-
-	// If no valid time range found, return zero times
-	if startTime.IsZero() || endTime.IsZero() {
-		return time.Time{}, time.Time{}
 	}
 
 	return startTime, endTime

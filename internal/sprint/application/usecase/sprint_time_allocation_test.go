@@ -257,6 +257,16 @@ func TestJiraProcessor_GetIssueTimeRange(t *testing.T) {
 									},
 								},
 							},
+							{
+								"created": "2024-03-02T15:00:00.000+0000",
+								"items": []map[string]interface{}{
+									{
+										"field":      "status",
+										"fromString": "In Progress",
+										"toString":   "Done",
+									},
+								},
+							},
 						},
 					},
 				},
@@ -278,6 +288,8 @@ func TestJiraProcessor_GetIssueTimeRange(t *testing.T) {
 	startTime, endTime := processor.getIssueTimeRange(issues[0])
 	assert.NotZero(t, startTime, "Start time should not be zero")
 	assert.NotZero(t, endTime, "End time should not be zero")
+	assert.Equal(t, time.Date(2024, 3, 1, 10, 0, 0, 0, time.UTC), startTime)
+	assert.Equal(t, time.Date(2024, 3, 2, 15, 0, 0, 0, time.UTC), endTime)
 }
 
 func TestJiraProcessor_Process(t *testing.T) {
@@ -391,4 +403,362 @@ func (m *MockJiraAdapter) GetIssuesForSprint(project, sprintID string) ([]ports.
 func (m *MockJiraAdapter) GetIssuesForTeamMember(teamMember string) ([]ports.JiraIssue, error) {
 	args := m.Called(teamMember)
 	return args.Get(0).([]ports.JiraIssue), args.Error(1)
+}
+
+func TestGetIssueTimeRange(t *testing.T) {
+	processor := &SprintTimeAllocationUseCase{}
+
+	tests := []struct {
+		name           string
+		issue          domain.JiraIssue
+		expectedStart  time.Time
+		expectedEnd    time.Time
+		expectedStatus string
+	}{
+		{
+			name: "Direct to Done",
+			issue: domain.JiraIssue{
+				Key: "TEST-1",
+				Changelog: domain.JiraChangelog{
+					Histories: []domain.JiraChangeHistory{
+						{
+							Created: "2024-03-20T10:00:00.000+0000",
+							Items: []domain.JiraChangeItem{
+								{
+									Field:      "status",
+									FromString: "To Do",
+									ToString:   "Done",
+								},
+							},
+						},
+					},
+				},
+			},
+			expectedStart: time.Date(2024, 3, 20, 10, 0, 0, 0, time.UTC),
+			expectedEnd:   time.Date(2024, 3, 20, 10, 0, 0, 0, time.UTC),
+		},
+		{
+			name: "Through In Progress to Done",
+			issue: domain.JiraIssue{
+				Key: "TEST-2",
+				Changelog: domain.JiraChangelog{
+					Histories: []domain.JiraChangeHistory{
+						{
+							Created: "2024-03-20T10:00:00.000+0000",
+							Items: []domain.JiraChangeItem{
+								{
+									Field:      "status",
+									FromString: "To Do",
+									ToString:   "In Progress",
+								},
+							},
+						},
+						{
+							Created: "2024-03-21T15:00:00.000+0000",
+							Items: []domain.JiraChangeItem{
+								{
+									Field:      "status",
+									FromString: "In Progress",
+									ToString:   "Done",
+								},
+							},
+						},
+					},
+				},
+			},
+			expectedStart: time.Date(2024, 3, 20, 10, 0, 0, 0, time.UTC),
+			expectedEnd:   time.Date(2024, 3, 21, 15, 0, 0, 0, time.UTC),
+		},
+		{
+			name: "Multiple In Progress periods",
+			issue: domain.JiraIssue{
+				Key: "TEST-3",
+				Changelog: domain.JiraChangelog{
+					Histories: []domain.JiraChangeHistory{
+						{
+							Created: "2024-03-20T10:00:00.000+0000",
+							Items: []domain.JiraChangeItem{
+								{
+									Field:      "status",
+									FromString: "To Do",
+									ToString:   "In Progress",
+								},
+							},
+						},
+						{
+							Created: "2024-03-20T12:00:00.000+0000",
+							Items: []domain.JiraChangeItem{
+								{
+									Field:      "status",
+									FromString: "In Progress",
+									ToString:   "Blocked",
+								},
+							},
+						},
+						{
+							Created: "2024-03-21T10:00:00.000+0000",
+							Items: []domain.JiraChangeItem{
+								{
+									Field:      "status",
+									FromString: "Blocked",
+									ToString:   "In Progress",
+								},
+							},
+						},
+						{
+							Created: "2024-03-21T15:00:00.000+0000",
+							Items: []domain.JiraChangeItem{
+								{
+									Field:      "status",
+									FromString: "In Progress",
+									ToString:   "Done",
+								},
+							},
+						},
+					},
+				},
+			},
+			expectedStart: time.Date(2024, 3, 20, 10, 0, 0, 0, time.UTC),
+			expectedEnd:   time.Date(2024, 3, 21, 15, 0, 0, 0, time.UTC),
+		},
+		{
+			name: "Still In Progress",
+			issue: domain.JiraIssue{
+				Key: "TEST-4",
+				Changelog: domain.JiraChangelog{
+					Histories: []domain.JiraChangeHistory{
+						{
+							Created: "2024-03-20T10:00:00.000+0000",
+							Items: []domain.JiraChangeItem{
+								{
+									Field:      "status",
+									FromString: "To Do",
+									ToString:   "In Progress",
+								},
+							},
+						},
+					},
+				},
+			},
+			expectedStart: time.Date(2024, 3, 20, 10, 0, 0, 0, time.UTC),
+			expectedEnd:   time.Time{},
+		},
+		{
+			name: "No status changes",
+			issue: domain.JiraIssue{
+				Key: "TEST-5",
+				Changelog: domain.JiraChangelog{
+					Histories: []domain.JiraChangeHistory{
+						{
+							Created: "2024-03-20T10:00:00.000+0000",
+							Items: []domain.JiraChangeItem{
+								{
+									Field:      "description",
+									FromString: "",
+									ToString:   "Updated description",
+								},
+							},
+						},
+					},
+				},
+			},
+			expectedStart: time.Time{},
+			expectedEnd:   time.Time{},
+		},
+		{
+			name: "Direct to Won't Do",
+			issue: domain.JiraIssue{
+				Key: "TEST-6",
+				Changelog: domain.JiraChangelog{
+					Histories: []domain.JiraChangeHistory{
+						{
+							Created: "2024-03-20T10:00:00.000+0000",
+							Items: []domain.JiraChangeItem{
+								{
+									Field:      "status",
+									FromString: "To Do",
+									ToString:   "Won't Do",
+								},
+							},
+						},
+					},
+				},
+			},
+			expectedStart: time.Date(2024, 3, 20, 10, 0, 0, 0, time.UTC),
+			expectedEnd:   time.Date(2024, 3, 20, 10, 0, 0, 0, time.UTC),
+		},
+		{
+			name: "Through In Progress to Won't Do",
+			issue: domain.JiraIssue{
+				Key: "TEST-7",
+				Changelog: domain.JiraChangelog{
+					Histories: []domain.JiraChangeHistory{
+						{
+							Created: "2024-03-20T10:00:00.000+0000",
+							Items: []domain.JiraChangeItem{
+								{
+									Field:      "status",
+									FromString: "To Do",
+									ToString:   "In Progress",
+								},
+							},
+						},
+						{
+							Created: "2024-03-21T15:00:00.000+0000",
+							Items: []domain.JiraChangeItem{
+								{
+									Field:      "status",
+									FromString: "In Progress",
+									ToString:   "Won't Do",
+								},
+							},
+						},
+					},
+				},
+			},
+			expectedStart: time.Date(2024, 3, 20, 10, 0, 0, 0, time.UTC),
+			expectedEnd:   time.Date(2024, 3, 21, 15, 0, 0, 0, time.UTC),
+		},
+		{
+			name: "Multiple Non-Progress Status Changes",
+			issue: domain.JiraIssue{
+				Key: "TEST-8",
+				Changelog: domain.JiraChangelog{
+					Histories: []domain.JiraChangeHistory{
+						{
+							Created: "2024-03-20T10:00:00.000+0000",
+							Items: []domain.JiraChangeItem{
+								{
+									Field:      "status",
+									FromString: "To Do",
+									ToString:   "Blocked",
+								},
+							},
+						},
+						{
+							Created: "2024-03-21T10:00:00.000+0000",
+							Items: []domain.JiraChangeItem{
+								{
+									Field:      "status",
+									FromString: "Blocked",
+									ToString:   "To Do",
+								},
+							},
+						},
+						{
+							Created: "2024-03-22T10:00:00.000+0000",
+							Items: []domain.JiraChangeItem{
+								{
+									Field:      "status",
+									FromString: "To Do",
+									ToString:   "Under Review",
+								},
+							},
+						},
+					},
+				},
+			},
+			expectedStart: time.Time{},
+			expectedEnd:   time.Time{},
+		},
+		{
+			name: "Multiple Status Changes Before Won't Do",
+			issue: domain.JiraIssue{
+				Key: "TEST-9",
+				Changelog: domain.JiraChangelog{
+					Histories: []domain.JiraChangeHistory{
+						{
+							Created: "2024-03-20T10:00:00.000+0000",
+							Items: []domain.JiraChangeItem{
+								{
+									Field:      "status",
+									FromString: "To Do",
+									ToString:   "Blocked",
+								},
+							},
+						},
+						{
+							Created: "2024-03-21T10:00:00.000+0000",
+							Items: []domain.JiraChangeItem{
+								{
+									Field:      "status",
+									FromString: "Blocked",
+									ToString:   "Under Review",
+								},
+							},
+						},
+						{
+							Created: "2024-03-22T10:00:00.000+0000",
+							Items: []domain.JiraChangeItem{
+								{
+									Field:      "status",
+									FromString: "Under Review",
+									ToString:   "Won't Do",
+								},
+							},
+						},
+					},
+				},
+			},
+			expectedStart: time.Date(2024, 3, 22, 10, 0, 0, 0, time.UTC),
+			expectedEnd:   time.Date(2024, 3, 22, 10, 0, 0, 0, time.UTC),
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			startTime, endTime := processor.getIssueTimeRange(tt.issue)
+			assert.Equal(t, tt.expectedStart, startTime, "Start time mismatch for %s", tt.name)
+			assert.Equal(t, tt.expectedEnd, endTime, "End time mismatch for %s", tt.name)
+		})
+	}
+}
+
+func TestCalculatePercentageLoad(t *testing.T) {
+	processor := &SprintTimeAllocationUseCase{
+		sprint: "Test Sprint",
+	}
+
+	team := domain.Team{
+		Team: []string{"test.user"},
+	}
+
+	issues := []domain.JiraIssue{
+		{
+			Key: "TEST-1",
+			Fields: domain.JiraFields{
+				Assignee: domain.JiraAssignee{
+					DisplayName: "test.user",
+				},
+				Summary: "Test Issue 1",
+				IssueType: domain.IssueType{
+					Name: "Task",
+				},
+			},
+			Changelog: domain.JiraChangelog{
+				Histories: []domain.JiraChangeHistory{
+					{
+						Created: "2024-03-20T10:00:00.000+0000",
+						Items: []domain.JiraChangeItem{
+							{
+								Field:      "status",
+								FromString: "To Do",
+								ToString:   "Done",
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	totalHoursByPerson := map[string]float64{
+		"test.user": 8.0,
+	}
+
+	results := processor.calculatePercentageLoad(team, issues, nil, totalHoursByPerson)
+	require.Len(t, results, 1)
+
+	result := results[0]
+	assert.Equal(t, "2024-03-20", result["dateCompleted"])
 }
