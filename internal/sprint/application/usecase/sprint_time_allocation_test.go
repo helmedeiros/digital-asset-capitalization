@@ -2,10 +2,12 @@ package usecase
 
 import (
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -761,4 +763,132 @@ func TestCalculatePercentageLoad(t *testing.T) {
 
 	result := results[0]
 	assert.Equal(t, "2024-03-20", result["dateCompleted"])
+}
+
+func TestGenerateCSV(t *testing.T) {
+	tests := []struct {
+		name           string
+		team           domain.Team
+		results        []map[string]interface{}
+		expectedHeader string
+		wantErr        bool
+	}{
+		{
+			name: "Single engineer team",
+			team: domain.Team{
+				Team: []string{"engineer1"},
+			},
+			results: []map[string]interface{}{
+				{
+					"sprint":     "Sprint 1",
+					"issueKey":   "TEST-1",
+					"issueType":  "Task",
+					"issueTitle": "Test Task",
+					"workType":   "Development",
+					"assetName":  "cap-asset-booking",
+					"status":     "Done",
+					"engineer1":  "50.00%",
+				},
+			},
+			expectedHeader: `"sprint","issueKey","issueType","issueTitle","workType","assetName","status","dateCompleted","engineer1"`,
+			wantErr:        false,
+		},
+		{
+			name: "Multiple engineers team",
+			team: domain.Team{
+				Team: []string{"engineer1", "engineer2", "engineer3"},
+			},
+			results: []map[string]interface{}{
+				{
+					"sprint":     "Sprint 1",
+					"issueKey":   "TEST-1",
+					"issueType":  "Task",
+					"issueTitle": "Test Task",
+					"workType":   "Development",
+					"assetName":  "cap-asset-booking",
+					"status":     "Done",
+					"engineer1":  "30.00%",
+					"engineer2":  "70.00%",
+					"engineer3":  "",
+				},
+			},
+			expectedHeader: `"sprint","issueKey","issueType","issueTitle","workType","assetName","status","dateCompleted","engineer1","engineer2","engineer3"`,
+			wantErr:        false,
+		},
+		{
+			name: "Empty team",
+			team: domain.Team{
+				Team: []string{},
+			},
+			results: []map[string]interface{}{
+				{
+					"sprint":     "Sprint 1",
+					"issueKey":   "TEST-1",
+					"issueType":  "Task",
+					"issueTitle": "Test Task",
+					"workType":   "Development",
+					"assetName":  "cap-asset-booking",
+					"status":     "Done",
+				},
+			},
+			expectedHeader: `"sprint","issueKey","issueType","issueTitle","workType","assetName","status","dateCompleted"`,
+			wantErr:        false,
+		},
+		{
+			name: "Empty results",
+			team: domain.Team{
+				Team: []string{"engineer1", "engineer2"},
+			},
+			results:        []map[string]interface{}{},
+			expectedHeader: "",
+			wantErr:        false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			processor := &SprintTimeAllocationUseCase{
+				sprint: "Sprint 1",
+			}
+
+			csvData, err := processor.generateCSV(tt.team, tt.results)
+			if tt.wantErr {
+				assert.Error(t, err)
+				return
+			}
+
+			assert.NoError(t, err)
+			if tt.expectedHeader == "" {
+				assert.Empty(t, csvData)
+				return
+			}
+
+			// Split CSV into lines and check header
+			lines := strings.Split(csvData, "\n")
+			assert.NotEmpty(t, lines)
+			assert.Equal(t, tt.expectedHeader, strings.TrimSpace(lines[0]), "CSV header should match expected header with all team members")
+
+			// For each result row, verify all team members have a column
+			if len(tt.results) > 0 {
+				for i, result := range tt.results {
+					row := strings.TrimSpace(lines[i+1])
+					fields := strings.Split(row, ",")
+
+					// Count the number of columns
+					assert.Equal(t, len(strings.Split(tt.expectedHeader, ",")), len(fields),
+						"Each row should have the same number of columns as the header")
+
+					// Verify each engineer has a value (empty or percentage)
+					for _, engineer := range tt.team.Team {
+						value, exists := result[engineer]
+						assert.True(t, exists, "Each engineer should have a column in the result")
+						if value != "" {
+							assert.Contains(t, row, fmt.Sprintf("%q", value),
+								"Engineer's percentage should be in the CSV row")
+						}
+					}
+				}
+			}
+		})
+	}
 }
