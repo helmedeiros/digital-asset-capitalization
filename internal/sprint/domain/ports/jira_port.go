@@ -4,7 +4,7 @@ import (
 	"github.com/helmedeiros/digital-asset-capitalization/internal/sprint/domain"
 )
 
-// JiraIssue represents a Jira issue
+// JiraIssue represents a Jira issue in the ports layer
 type JiraIssue struct {
 	Key         string
 	Summary     string
@@ -12,6 +12,7 @@ type JiraIssue struct {
 	Status      string
 	StoryPoints *float64
 	IssueType   string
+	Labels      []string
 	Changelog   JiraChangelog
 }
 

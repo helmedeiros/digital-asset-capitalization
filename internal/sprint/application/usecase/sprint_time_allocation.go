@@ -135,6 +135,7 @@ func (p *SprintTimeAllocationUseCase) fetchIssues() ([]domain.JiraIssue, error) 
 				IssueType: domain.IssueType{
 					Name: issue.IssueType,
 				},
+				Labels: issue.Labels,
 			},
 			Changelog: domain.JiraChangelog{
 				Histories: make([]domain.JiraChangeHistory, len(issue.Changelog.Histories)),
@@ -300,7 +301,7 @@ func (p *SprintTimeAllocationUseCase) calculatePercentageLoad(team domain.Team, 
 		result["issueKey"] = issue.Key
 		result["issueType"] = issue.Fields.IssueType.Name
 		result["issueTitle"] = issue.Fields.Summary
-		result["workType"] = issue.Fields.WorkType
+		result["workType"] = issue.GetWorkType()
 		result["assetName"] = issue.Fields.AssetName
 		result["status"] = issue.Fields.Status.Name
 		result["dateCompleted"] = endTime.Format("2006-01-02")

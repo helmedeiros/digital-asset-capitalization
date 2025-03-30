@@ -67,7 +67,7 @@ func NewJiraAdapter(teamsFilePath string) (*JiraAdapter, error) {
 func (a *JiraAdapter) GetIssuesForSprint(project, sprintID string) ([]ports.JiraIssue, error) {
 	query := fmt.Sprintf("project = %s AND sprint = '%s'", project, sprintID)
 	encodedQuery := url.QueryEscape(query)
-	fields := "summary,assignee,status,changelog,issuetype,customfield_10014,customfield_10015"
+	fields := "summary,assignee,status,changelog,issuetype,customfield_10014,customfield_10015,labels"
 	jiraURL := fmt.Sprintf("%s/rest/api/3/search?jql=%s&expand=changelog&fields=%s",
 		a.config.GetBaseURL(), encodedQuery, fields)
 
@@ -83,7 +83,7 @@ func (a *JiraAdapter) GetIssuesForSprint(project, sprintID string) ([]ports.Jira
 func (a *JiraAdapter) GetIssuesForTeamMember(member string) ([]ports.JiraIssue, error) {
 	query := fmt.Sprintf("assignee = '%s'", member)
 	encodedQuery := url.QueryEscape(query)
-	fields := "summary,assignee,status,changelog"
+	fields := "summary,assignee,status,changelog,issuetype,customfield_10014,customfield_10015,labels"
 	jiraURL := fmt.Sprintf("%s/rest/api/3/search?jql=%s&expand=changelog&fields=%s",
 		a.config.GetBaseURL(), encodedQuery, fields)
 
@@ -156,28 +156,8 @@ func (a *JiraAdapter) convertToPortIssues(issues []domain.JiraIssue) []ports.Jir
 			Status:      issue.Fields.Status.Name,
 			StoryPoints: issue.Fields.StoryPoints,
 			IssueType:   issue.Fields.IssueType.Name,
-			Changelog: ports.JiraChangelog{
-				Histories: make([]ports.JiraChangeHistory, len(issue.Changelog.Histories)),
-			},
-		}
-
-		// Convert changelog histories
-		for i, history := range issue.Changelog.Histories {
-			portHistory := ports.JiraChangeHistory{
-				Created: history.Created,
-				Items:   make([]ports.JiraChangeItem, len(history.Items)),
-			}
-
-			// Convert changelog items
-			for j, item := range history.Items {
-				portHistory.Items[j] = ports.JiraChangeItem{
-					Field:      item.Field,
-					FromString: item.FromString,
-					ToString:   item.ToString,
-				}
-			}
-
-			portIssue.Changelog.Histories[i] = portHistory
+			Labels:      issue.Fields.Labels,
+			Changelog:   convertChangelog(issue.Changelog),
 		}
 
 		portIssues = append(portIssues, portIssue)

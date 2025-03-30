@@ -32,6 +32,7 @@ type JiraFields struct {
 	IssueType   IssueType    `json:"issuetype"`
 	WorkType    string       `json:"customfield_10014"`
 	AssetName   string       `json:"customfield_10015"`
+	Labels      []string     `json:"labels"`
 }
 
 // JiraStatus represents the status of a Jira issue
@@ -98,4 +99,19 @@ func (i *JiraIssue) IsDone() bool {
 // IssueType represents the type of a Jira issue
 type IssueType struct {
 	Name string `json:"name"`
+}
+
+// GetWorkType returns the work type based on the issue's labels
+func (i *JiraIssue) GetWorkType() string {
+	for _, label := range i.Fields.Labels {
+		switch label {
+		case "cap-maintenance":
+			return "cap-maintenance"
+		case "cap-discovery":
+			return "cap-discovery"
+		case "cap-development":
+			return "cap-development"
+		}
+	}
+	return ""
 }
