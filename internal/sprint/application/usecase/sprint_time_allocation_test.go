@@ -156,6 +156,9 @@ func TestJiraProcessor_CalculateTotalHours(t *testing.T) {
 				Status: domain.JiraStatus{
 					Name: "Done",
 				},
+				IssueType: domain.IssueType{
+					Name: "Task",
+				},
 			},
 			Changelog: domain.JiraChangelog{
 				Histories: []domain.JiraChangeHistory{
@@ -190,7 +193,10 @@ func TestJiraProcessor_CalculateTotalHours(t *testing.T) {
 					DisplayName: "Test User 2",
 				},
 				Status: domain.JiraStatus{
-					Name: "In Progress",
+					Name: "Done",
+				},
+				IssueType: domain.IssueType{
+					Name: "Task",
 				},
 			},
 			Changelog: domain.JiraChangelog{
@@ -202,6 +208,45 @@ func TestJiraProcessor_CalculateTotalHours(t *testing.T) {
 								Field:      "status",
 								FromString: "To Do",
 								ToString:   "In Progress",
+							},
+						},
+					},
+					{
+						Created: now.Add(-24 * time.Hour).Format("2006-01-02T15:04:05.000-0700"),
+						Items: []domain.JiraChangeItem{
+							{
+								Field:      "status",
+								FromString: "In Progress",
+								ToString:   "Done",
+							},
+						},
+					},
+				},
+			},
+		},
+		{
+			Key: "TEST-125",
+			Fields: domain.JiraFields{
+				Summary: "Test Sub-task 1",
+				Assignee: domain.JiraAssignee{
+					DisplayName: "Test User 2",
+				},
+				Status: domain.JiraStatus{
+					Name: "Done",
+				},
+				IssueType: domain.IssueType{
+					Name: "Sub-task",
+				},
+			},
+			Changelog: domain.JiraChangelog{
+				Histories: []domain.JiraChangeHistory{
+					{
+						Created: now.Add(-24 * time.Hour).Format("2006-01-02T15:04:05.000-0700"),
+						Items: []domain.JiraChangeItem{
+							{
+								Field:      "status",
+								FromString: "To Do",
+								ToString:   "Done",
 							},
 						},
 					},
@@ -1124,4 +1169,80 @@ func TestTimeCalculations(t *testing.T) {
 			assert.Equal(t, tt.expectedHours, hours, "Hours mismatch for %s", tt.description)
 		})
 	}
+}
+
+func TestFilterSubtasks(t *testing.T) {
+	processor := &SprintTimeAllocationUseCase{
+		sprint: "Test Sprint",
+	}
+
+	team := domain.Team{
+		Team: []string{"test.user"},
+	}
+
+	issues := []domain.JiraIssue{
+		{
+			Key: "TEST-1",
+			Fields: domain.JiraFields{
+				Assignee: domain.JiraAssignee{
+					DisplayName: "test.user",
+				},
+				Summary: "Test Issue 1",
+				IssueType: domain.IssueType{
+					Name: "Task",
+				},
+			},
+			Changelog: domain.JiraChangelog{
+				Histories: []domain.JiraChangeHistory{
+					{
+						Created: "2024-03-20T10:00:00.000+0000",
+						Items: []domain.JiraChangeItem{
+							{
+								Field:      "status",
+								FromString: "To Do",
+								ToString:   "Done",
+							},
+						},
+					},
+				},
+			},
+		},
+		{
+			Key: "TEST-2",
+			Fields: domain.JiraFields{
+				Assignee: domain.JiraAssignee{
+					DisplayName: "test.user",
+				},
+				Summary: "Test Sub-task 1",
+				IssueType: domain.IssueType{
+					Name: "Sub-task",
+				},
+			},
+			Changelog: domain.JiraChangelog{
+				Histories: []domain.JiraChangeHistory{
+					{
+						Created: "2024-03-20T10:00:00.000+0000",
+						Items: []domain.JiraChangeItem{
+							{
+								Field:      "status",
+								FromString: "To Do",
+								ToString:   "Done",
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	totalHoursByPerson := map[string]float64{
+		"test.user": 8.0,
+	}
+
+	results := processor.calculatePercentageLoad(team, issues, nil, totalHoursByPerson)
+	require.Len(t, results, 1, "Should only include non-subtask issues")
+
+	result := results[0]
+	assert.Equal(t, "Task", result["issueType"], "Should only include non-subtask issues")
+	assert.Equal(t, "TEST-1", result["issueKey"], "Should only include non-subtask issues")
 }

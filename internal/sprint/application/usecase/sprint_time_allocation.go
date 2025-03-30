@@ -192,6 +192,11 @@ func (p *SprintTimeAllocationUseCase) calculateTotalHours(team domain.Team, issu
 			continue
 		}
 
+		// Skip Sub-tasks
+		if issue.Fields.IssueType.Name == "Sub-task" {
+			continue
+		}
+
 		startTime, endTime := p.getIssueTimeRange(issue)
 		if startTime.IsZero() {
 			continue
@@ -274,6 +279,11 @@ func (p *SprintTimeAllocationUseCase) calculatePercentageLoad(team domain.Team, 
 		assignee := issue.Fields.Assignee.DisplayName
 
 		if !team.IsTeamMember(assignee) {
+			continue
+		}
+
+		// Skip Sub-tasks
+		if issue.Fields.IssueType.Name == "Sub-task" {
 			continue
 		}
 
