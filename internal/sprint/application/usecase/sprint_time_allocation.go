@@ -132,6 +132,9 @@ func (p *SprintTimeAllocationUseCase) fetchIssues() ([]domain.JiraIssue, error) 
 					Name: issue.Status,
 				},
 				StoryPoints: issue.StoryPoints,
+				IssueType: domain.IssueType{
+					Name: issue.IssueType,
+				},
 			},
 			Changelog: domain.JiraChangelog{
 				Histories: make([]domain.JiraChangeHistory, len(issue.Changelog.Histories)),
@@ -295,7 +298,12 @@ func (p *SprintTimeAllocationUseCase) calculatePercentageLoad(team domain.Team, 
 		result := make(map[string]interface{})
 		result["sprint"] = p.sprint
 		result["issueKey"] = issue.Key
-		result["title"] = issue.Fields.Summary
+		result["issueType"] = issue.Fields.IssueType.Name
+		result["issueTitle"] = issue.Fields.Summary
+		result["workType"] = issue.Fields.WorkType
+		result["assetName"] = issue.Fields.AssetName
+		result["status"] = issue.Fields.Status.Name
+		result["dateCompleted"] = endTime.Format("2006-01-02")
 
 		for _, person := range team.Team {
 			result[person] = ""
@@ -309,7 +317,7 @@ func (p *SprintTimeAllocationUseCase) calculatePercentageLoad(team domain.Team, 
 }
 
 func (p *SprintTimeAllocationUseCase) generateCSV(team domain.Team, results []map[string]interface{}) (string, error) {
-	headers := []string{"sprint", "issueKey", "title"}
+	headers := []string{"sprint", "issueKey", "issueType", "issueTitle", "workType", "assetName", "status", "dateCompleted"}
 	headers = append(headers, team.Team...)
 
 	csvData, err := p.structArrayToCSVOrdered(results, headers)

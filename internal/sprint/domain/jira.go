@@ -29,6 +29,9 @@ type JiraFields struct {
 	Assignee    JiraAssignee `json:"assignee"`
 	StoryPoints *float64     `json:"customfield_13192"`
 	Status      JiraStatus   `json:"status"`
+	IssueType   IssueType    `json:"issuetype"`
+	WorkType    string       `json:"customfield_10014"`
+	AssetName   string       `json:"customfield_10015"`
 }
 
 // JiraStatus represents the status of a Jira issue
@@ -90,4 +93,9 @@ func (i *JiraIssue) IsDone() bool {
 		}
 	}
 	return false
+}
+
+// IssueType represents the type of a Jira issue
+type IssueType struct {
+	Name string `json:"name"`
 }

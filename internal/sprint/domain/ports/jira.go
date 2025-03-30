@@ -11,6 +11,7 @@ type JiraIssue struct {
 	Assignee    string
 	Status      string
 	StoryPoints *float64
+	IssueType   string
 	Changelog   JiraChangelog
 }
 
