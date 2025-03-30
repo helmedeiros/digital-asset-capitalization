@@ -274,7 +274,9 @@ func (p *SprintTimeAllocationUseCase) getIssueTimeRange(issue domain.JiraIssue) 
 
 func (p *SprintTimeAllocationUseCase) calculatePercentageLoad(team domain.Team, issues []domain.JiraIssue, manualAdjustments map[string]float64, totalHoursByPerson map[string]float64) []map[string]interface{} {
 	var results []map[string]interface{}
+	personHours := make(map[string]float64) // Track total hours per person
 
+	// First pass: calculate raw hours and percentages
 	for _, issue := range issues {
 		assignee := issue.Fields.Assignee.DisplayName
 
@@ -300,10 +302,52 @@ func (p *SprintTimeAllocationUseCase) calculatePercentageLoad(team domain.Team, 
 		}
 
 		workingHours := p.calculateWorkingHours(issue.Key, manualAdjustments, startTime, endTime)
+
+		// For percentage calculations, ensure a minimum of 1 hour for completed issues in the same day
+		if workingHours < 1 && startTime.Year() == endTime.Year() && startTime.Month() == endTime.Month() && startTime.Day() == endTime.Day() &&
+			(issue.Fields.Status.Name == "Done" || issue.Fields.Status.Name == "Won't Do") {
+			workingHours = 1
+		}
+
+		personHours[assignee] += workingHours
+	}
+
+	// Second pass: calculate normalized percentages
+	for _, issue := range issues {
+		assignee := issue.Fields.Assignee.DisplayName
+
+		if !team.IsTeamMember(assignee) {
+			continue
+		}
+
+		// Skip Sub-tasks
+		if issue.Fields.IssueType.Name == "Sub-task" {
+			continue
+		}
+
+		startTime, endTime := p.getIssueTimeRange(issue)
+		if startTime.IsZero() && len(issue.Changelog.Histories) > 0 {
+			startTime, _ = time.Parse(time.RFC3339, issue.Changelog.Histories[0].Created)
+		}
+		if startTime.IsZero() {
+			endTime = time.Now()
+			startTime = endTime.Add(-8 * time.Hour)
+		}
+
+		workingHours := p.calculateWorkingHours(issue.Key, manualAdjustments, startTime, endTime)
+
+		// For percentage calculations, ensure a minimum of 1 hour for completed issues in the same day
+		if workingHours < 1 && startTime.Year() == endTime.Year() && startTime.Month() == endTime.Month() && startTime.Day() == endTime.Day() &&
+			(issue.Fields.Status.Name == "Done" || issue.Fields.Status.Name == "Won't Do") {
+			workingHours = 1
+		}
+
 		totalHours := totalHoursByPerson[assignee]
 		percentageLoad := 0.0
 		if totalHours != 0 {
-			percentageLoad = (workingHours / totalHours) * 100
+			// Calculate percentage based on the proportion of hours this issue represents
+			// of the person's total hours across all issues
+			percentageLoad = (workingHours / personHours[assignee]) * 100
 		}
 
 		result := make(map[string]interface{})
