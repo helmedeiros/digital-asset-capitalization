@@ -315,7 +315,13 @@ func (p *SprintTimeAllocationUseCase) calculatePercentageLoad(team domain.Team, 
 		result["assetName"] = issue.GetAssetName()
 		result["status"] = issue.Fields.Status.Name
 		result["dateStarted"] = startTime.Format("2006-01-02")
-		result["dateCompleted"] = endTime.Format("2006-01-02")
+
+		// Only set completion date if the issue is actually completed
+		if issue.Fields.Status.Name == "Done" || issue.Fields.Status.Name == "Won't Do" {
+			result["dateCompleted"] = endTime.Format("2006-01-02")
+		} else {
+			result["dateCompleted"] = ""
+		}
 
 		for _, person := range team.Team {
 			result[person] = ""

@@ -781,6 +781,9 @@ func TestCalculatePercentageLoad(t *testing.T) {
 				IssueType: domain.IssueType{
 					Name: "Task",
 				},
+				Status: domain.JiraStatus{
+					Name: "Done",
+				},
 			},
 			Changelog: domain.JiraChangelog{
 				Histories: []domain.JiraChangeHistory{
@@ -1245,4 +1248,61 @@ func TestFilterSubtasks(t *testing.T) {
 	result := results[0]
 	assert.Equal(t, "Task", result["issueType"], "Should only include non-subtask issues")
 	assert.Equal(t, "TEST-1", result["issueKey"], "Should only include non-subtask issues")
+}
+
+func TestUncompletedIssues(t *testing.T) {
+	// Create test data
+	team := domain.Team{
+		Team: []string{"Test User 1"},
+	}
+
+	issues := []domain.JiraIssue{
+		{
+			Key: "TEST-123",
+			Fields: domain.JiraFields{
+				Summary: "Test Task 1",
+				Assignee: domain.JiraAssignee{
+					DisplayName: "Test User 1",
+				},
+				Status: domain.JiraStatus{
+					Name: "In Progress",
+				},
+				IssueType: domain.IssueType{
+					Name: "Task",
+				},
+			},
+			Changelog: domain.JiraChangelog{
+				Histories: []domain.JiraChangeHistory{
+					{
+						Created: "2024-03-20T10:00:00.000Z",
+						Items: []domain.JiraChangeItem{
+							{
+								Field:      "status",
+								FromString: "To Do",
+								ToString:   "In Progress",
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	// Create processor
+	processor := &SprintTimeAllocationUseCase{
+		teams: domain.TeamMap{
+			"TEST": team,
+		},
+	}
+
+	// Calculate results
+	results := processor.calculatePercentageLoad(team, issues, nil, map[string]float64{"Test User 1": 8.0})
+
+	// Verify results
+	assert.Equal(t, 1, len(results))
+	result := results[0]
+	assert.Equal(t, "TEST-123", result["issueKey"])
+	assert.Equal(t, "In Progress", result["status"])
+	assert.Equal(t, "2024-03-20", result["dateStarted"])
+	assert.Equal(t, "", result["dateCompleted"]) // Should be empty for uncompleted issues
 }
