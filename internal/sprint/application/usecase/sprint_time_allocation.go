@@ -302,7 +302,7 @@ func (p *SprintTimeAllocationUseCase) calculatePercentageLoad(team domain.Team, 
 		result["issueType"] = issue.Fields.IssueType.Name
 		result["issueTitle"] = issue.Fields.Summary
 		result["workType"] = issue.GetWorkType()
-		result["assetName"] = issue.Fields.AssetName
+		result["assetName"] = issue.GetAssetName()
 		result["status"] = issue.Fields.Status.Name
 		result["dateCompleted"] = endTime.Format("2006-01-02")
 

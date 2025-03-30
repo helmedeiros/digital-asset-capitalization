@@ -92,7 +92,7 @@ func TestJiraAdapter_GetIssues(t *testing.T) {
 						"issuetype": {"name": "Task"},
 						"customfield_10014": "Development",
 						"customfield_10015": "Test Asset",
-						"labels": ["cap-development"]
+						"labels": ["cap-development", "cap-asset-booking"]
 					}
 				}
 			]
@@ -114,7 +114,7 @@ func TestJiraAdapter_GetIssues(t *testing.T) {
 	assert.Equal(t, "Test Issue 1", issues[0].Summary)
 	assert.Equal(t, "Test User 1", issues[0].Assignee)
 	assert.Equal(t, "In Progress", issues[0].Status)
-	assert.Equal(t, []string{"cap-development"}, issues[0].Labels)
+	assert.Equal(t, []string{"cap-development", "cap-asset-booking"}, issues[0].Labels)
 }
 
 func TestJiraAdapter_GetTeamIssues(t *testing.T) {
@@ -137,7 +137,7 @@ func TestJiraAdapter_GetTeamIssues(t *testing.T) {
 						"issuetype": {"name": "Task"},
 						"customfield_10014": "Development",
 						"customfield_10015": "Test Asset",
-						"labels": ["cap-development"]
+						"labels": ["cap-development", "cap-asset-booking"]
 					}
 				}
 			]
@@ -159,7 +159,7 @@ func TestJiraAdapter_GetTeamIssues(t *testing.T) {
 	assert.Equal(t, "Test Issue 1", issues[0].Summary)
 	assert.Equal(t, "Test User 1", issues[0].Assignee)
 	assert.Equal(t, "In Progress", issues[0].Status)
-	assert.Equal(t, []string{"cap-development"}, issues[0].Labels)
+	assert.Equal(t, []string{"cap-development", "cap-asset-booking"}, issues[0].Labels)
 }
 
 func TestJiraAdapter_ServerError(t *testing.T) {
@@ -230,7 +230,7 @@ func TestJiraAdapter_GetSprintIssues(t *testing.T) {
 						"issuetype": {"name": "Task"},
 						"customfield_10014": "Development",
 						"customfield_10015": "Test Asset",
-						"labels": ["cap-development"]
+						"labels": ["cap-development", "cap-asset-booking"]
 					}
 				}
 			]
@@ -258,5 +258,5 @@ func TestJiraAdapter_GetSprintIssues(t *testing.T) {
 	assert.Equal(t, "Test Issue 1", issues[0].Summary)
 	assert.Equal(t, "Test User 1", issues[0].Assignee)
 	assert.Equal(t, "In Progress", issues[0].Status)
-	assert.Equal(t, []string{"cap-development"}, issues[0].Labels)
+	assert.Equal(t, []string{"cap-development", "cap-asset-booking"}, issues[0].Labels)
 }

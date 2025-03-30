@@ -1,5 +1,9 @@
 package domain
 
+import (
+	"strings"
+)
+
 // JiraAssignee represents a Jira issue assignee
 type JiraAssignee struct {
 	DisplayName string `json:"displayName"`
@@ -111,6 +115,16 @@ func (i *JiraIssue) GetWorkType() string {
 			return "cap-discovery"
 		case "cap-development":
 			return "cap-development"
+		}
+	}
+	return ""
+}
+
+// GetAssetName returns the asset name based on the issue's labels
+func (i *JiraIssue) GetAssetName() string {
+	for _, label := range i.Fields.Labels {
+		if strings.HasPrefix(label, "cap-asset-") {
+			return label
 		}
 	}
 	return ""
