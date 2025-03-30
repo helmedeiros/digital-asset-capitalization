@@ -3,10 +3,12 @@ package usecase
 import (
 	"encoding/json"
 	"fmt"
+	"math"
 	"net/http"
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -1305,4 +1307,261 @@ func TestUncompletedIssues(t *testing.T) {
 	assert.Equal(t, "In Progress", result["status"])
 	assert.Equal(t, "2024-03-20", result["dateStarted"])
 	assert.Equal(t, "", result["dateCompleted"]) // Should be empty for uncompleted issues
+}
+
+func TestMinimumHoursForDirectDone(t *testing.T) {
+	processor := &SprintTimeAllocationUseCase{
+		sprint: "Test Sprint",
+	}
+
+	team := domain.Team{
+		Team: []string{"test.user"},
+	}
+
+	issues := []domain.JiraIssue{
+		{
+			Key: "TEST-1",
+			Fields: domain.JiraFields{
+				Assignee: domain.JiraAssignee{
+					DisplayName: "test.user",
+				},
+				Summary: "Test Issue 1",
+				IssueType: domain.IssueType{
+					Name: "Task",
+				},
+				Status: domain.JiraStatus{
+					Name: "Done",
+				},
+			},
+			Changelog: domain.JiraChangelog{
+				Histories: []domain.JiraChangeHistory{
+					{
+						Created: "2024-03-20T10:00:00.000+0000",
+						Items: []domain.JiraChangeItem{
+							{
+								Field:      "status",
+								FromString: "To Do",
+								ToString:   "Done",
+							},
+						},
+					},
+				},
+			},
+		},
+		{
+			Key: "TEST-2",
+			Fields: domain.JiraFields{
+				Assignee: domain.JiraAssignee{
+					DisplayName: "test.user",
+				},
+				Summary: "Test Issue 2",
+				IssueType: domain.IssueType{
+					Name: "Task",
+				},
+				Status: domain.JiraStatus{
+					Name: "Done",
+				},
+			},
+			Changelog: domain.JiraChangelog{
+				Histories: []domain.JiraChangeHistory{
+					{
+						Created: "2024-03-20T10:00:00.000+0000",
+						Items: []domain.JiraChangeItem{
+							{
+								Field:      "status",
+								FromString: "To Do",
+								ToString:   "Done",
+							},
+						},
+					},
+					{
+						Created: "2024-03-20T10:30:00.000+0000",
+						Items: []domain.JiraChangeItem{
+							{
+								Field:      "status",
+								FromString: "Done",
+								ToString:   "To Do",
+							},
+						},
+					},
+					{
+						Created: "2024-03-20T10:35:00.000+0000",
+						Items: []domain.JiraChangeItem{
+							{
+								Field:      "status",
+								FromString: "To Do",
+								ToString:   "Done",
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	totalHoursByPerson := map[string]float64{
+		"test.user": 8.0,
+	}
+
+	results := processor.calculatePercentageLoad(team, issues, nil, totalHoursByPerson)
+	require.Len(t, results, 2)
+
+	// Test first issue (direct to Done)
+	result1 := results[0]
+	assert.Equal(t, "TEST-1", result1["issueKey"])
+	assert.Equal(t, "50.00%", result1["test.user"])
+
+	// Test second issue (multiple transitions in same day)
+	result2 := results[1]
+	assert.Equal(t, "TEST-2", result2["issueKey"])
+	assert.Equal(t, "50.00%", result2["test.user"])
+}
+
+func TestPercentageLoadWithMinimumHours(t *testing.T) {
+	processor := &SprintTimeAllocationUseCase{
+		sprint: "Test Sprint",
+	}
+
+	team := domain.Team{
+		Team: []string{"test.user"},
+	}
+
+	// Create multiple issues that were completed in the same day
+	issues := []domain.JiraIssue{
+		{
+			Key: "TEST-1",
+			Fields: domain.JiraFields{
+				Assignee: domain.JiraAssignee{
+					DisplayName: "test.user",
+				},
+				Summary: "Test Issue 1",
+				IssueType: domain.IssueType{
+					Name: "Task",
+				},
+				Status: domain.JiraStatus{
+					Name: "Done",
+				},
+			},
+			Changelog: domain.JiraChangelog{
+				Histories: []domain.JiraChangeHistory{
+					{
+						Created: "2024-03-20T10:00:00.000+0000",
+						Items: []domain.JiraChangeItem{
+							{
+								Field:      "status",
+								FromString: "To Do",
+								ToString:   "Done",
+							},
+						},
+					},
+				},
+			},
+		},
+		{
+			Key: "TEST-2",
+			Fields: domain.JiraFields{
+				Assignee: domain.JiraAssignee{
+					DisplayName: "test.user",
+				},
+				Summary: "Test Issue 2",
+				IssueType: domain.IssueType{
+					Name: "Task",
+				},
+				Status: domain.JiraStatus{
+					Name: "Done",
+				},
+			},
+			Changelog: domain.JiraChangelog{
+				Histories: []domain.JiraChangeHistory{
+					{
+						Created: "2024-03-20T10:00:00.000+0000",
+						Items: []domain.JiraChangeItem{
+							{
+								Field:      "status",
+								FromString: "To Do",
+								ToString:   "In Progress",
+							},
+						},
+					},
+					{
+						Created: "2024-03-20T15:00:00.000+0000",
+						Items: []domain.JiraChangeItem{
+							{
+								Field:      "status",
+								FromString: "In Progress",
+								ToString:   "Done",
+							},
+						},
+					},
+				},
+			},
+		},
+		{
+			Key: "TEST-3",
+			Fields: domain.JiraFields{
+				Assignee: domain.JiraAssignee{
+					DisplayName: "test.user",
+				},
+				Summary: "Test Issue 3",
+				IssueType: domain.IssueType{
+					Name: "Task",
+				},
+				Status: domain.JiraStatus{
+					Name: "Done",
+				},
+			},
+			Changelog: domain.JiraChangelog{
+				Histories: []domain.JiraChangeHistory{
+					{
+						Created: "2024-03-20T10:00:00.000+0000",
+						Items: []domain.JiraChangeItem{
+							{
+								Field:      "status",
+								FromString: "To Do",
+								ToString:   "Done",
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	// Set total hours for the day to 8
+	totalHoursByPerson := map[string]float64{
+		"test.user": 8.0,
+	}
+
+	results := processor.calculatePercentageLoad(team, issues, nil, totalHoursByPerson)
+	require.Len(t, results, 3)
+
+	// Calculate total percentage and verify individual percentages
+	totalPercentage := 0.0
+	for _, result := range results {
+		percentage := result["test.user"].(string)
+		// Remove the % sign and convert to float
+		value, err := strconv.ParseFloat(strings.TrimSuffix(percentage, "%"), 64)
+		require.NoError(t, err)
+		totalPercentage += value
+
+		// Each issue should have a reasonable percentage
+		assert.LessOrEqual(t, value, 100.0, "Individual percentage should not exceed 100%% for issue %s", result["issueKey"])
+		t.Logf("Issue %s: %.2f%%", result["issueKey"], value)
+	}
+
+	// Total percentage should not exceed 100%
+	assert.LessOrEqual(t, math.Floor(totalPercentage), 100.0, "Total percentage (%.2f%%) should not exceed 100%%", totalPercentage)
+	t.Logf("Total percentage: %.2f%%", totalPercentage)
+
+	// The second issue (TEST-2) should have more hours than the others since it was in progress for 5 hours
+	test2Percentage := func() float64 {
+		for _, result := range results {
+			if result["issueKey"] == "TEST-2" {
+				value, _ := strconv.ParseFloat(strings.TrimSuffix(result["test.user"].(string), "%"), 64)
+				return value
+			}
+		}
+		return 0
+	}()
+	assert.Greater(t, test2Percentage, 50.0, "Issue TEST-2 should have more than 50%% since it was in progress for 5 hours")
 }
