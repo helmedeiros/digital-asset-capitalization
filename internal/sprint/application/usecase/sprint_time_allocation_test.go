@@ -774,23 +774,47 @@ func TestGenerateCSV(t *testing.T) {
 		wantErr        bool
 	}{
 		{
+			name: "Single engineer team with dateStarted",
+			team: domain.Team{
+				Team: []string{"engineer1"},
+			},
+			results: []map[string]interface{}{
+				{
+					"sprint":        "Sprint 1",
+					"issueKey":      "TEST-1",
+					"issueType":     "Task",
+					"issueTitle":    "Test Task",
+					"workType":      "Development",
+					"assetName":     "cap-asset-booking",
+					"status":        "Done",
+					"dateStarted":   "2024-03-20",
+					"dateCompleted": "2024-03-21",
+					"engineer1":     "50.00%",
+				},
+			},
+			expectedHeader: `"sprint","issueKey","issueType","issueTitle","workType","assetName","status","dateStarted","dateCompleted","engineer1"`,
+			wantErr:        false,
+		},
+		{
 			name: "Single engineer team",
 			team: domain.Team{
 				Team: []string{"engineer1"},
 			},
 			results: []map[string]interface{}{
 				{
-					"sprint":     "Sprint 1",
-					"issueKey":   "TEST-1",
-					"issueType":  "Task",
-					"issueTitle": "Test Task",
-					"workType":   "Development",
-					"assetName":  "cap-asset-booking",
-					"status":     "Done",
-					"engineer1":  "50.00%",
+					"sprint":        "Sprint 1",
+					"issueKey":      "TEST-1",
+					"issueType":     "Task",
+					"issueTitle":    "Test Task",
+					"workType":      "Development",
+					"assetName":     "cap-asset-booking",
+					"status":        "Done",
+					"dateStarted":   "2024-03-20",
+					"dateCompleted": "2024-03-21",
+					"engineer1":     "50.00%",
 				},
 			},
-			expectedHeader: `"sprint","issueKey","issueType","issueTitle","workType","assetName","status","dateCompleted","engineer1"`,
+			expectedHeader: `"sprint","issueKey","issueType","issueTitle","workType","assetName","status","dateStarted","dateCompleted","engineer1"`,
 			wantErr:        false,
 		},
 		{
@@ -800,19 +824,21 @@ func TestGenerateCSV(t *testing.T) {
 			},
 			results: []map[string]interface{}{
 				{
-					"sprint":     "Sprint 1",
-					"issueKey":   "TEST-1",
-					"issueType":  "Task",
-					"issueTitle": "Test Task",
-					"workType":   "Development",
-					"assetName":  "cap-asset-booking",
-					"status":     "Done",
-					"engineer1":  "30.00%",
-					"engineer2":  "70.00%",
-					"engineer3":  "",
+					"sprint":        "Sprint 1",
+					"issueKey":      "TEST-1",
+					"issueType":     "Task",
+					"issueTitle":    "Test Task",
+					"workType":      "Development",
+					"assetName":     "cap-asset-booking",
+					"status":        "Done",
+					"dateStarted":   "2024-03-20",
+					"dateCompleted": "2024-03-21",
+					"engineer1":     "30.00%",
+					"engineer2":     "70.00%",
+					"engineer3":     "",
 				},
 			},
-			expectedHeader: `"sprint","issueKey","issueType","issueTitle","workType","assetName","status","dateCompleted","engineer1","engineer2","engineer3"`,
+			expectedHeader: `"sprint","issueKey","issueType","issueTitle","workType","assetName","status","dateStarted","dateCompleted","engineer1","engineer2","engineer3"`,
 			wantErr:        false,
 		},
 		{
@@ -822,16 +848,18 @@ func TestGenerateCSV(t *testing.T) {
 			},
 			results: []map[string]interface{}{
 				{
-					"sprint":     "Sprint 1",
-					"issueKey":   "TEST-1",
-					"issueType":  "Task",
-					"issueTitle": "Test Task",
-					"workType":   "Development",
-					"assetName":  "cap-asset-booking",
-					"status":     "Done",
+					"sprint":        "Sprint 1",
+					"issueKey":      "TEST-1",
+					"issueType":     "Task",
+					"issueTitle":    "Test Task",
+					"workType":      "Development",
+					"assetName":     "cap-asset-booking",
+					"status":        "Done",
+					"dateStarted":   "2024-03-20",
+					"dateCompleted": "2024-03-21",
 				},
 			},
-			expectedHeader: `"sprint","issueKey","issueType","issueTitle","workType","assetName","status","dateCompleted"`,
+			expectedHeader: `"sprint","issueKey","issueType","issueTitle","workType","assetName","status","dateStarted","dateCompleted"`,
 			wantErr:        false,
 		},
 		{
@@ -889,6 +917,211 @@ func TestGenerateCSV(t *testing.T) {
 					}
 				}
 			}
+		})
+	}
+}
+
+func TestTimeCalculations(t *testing.T) {
+	processor := &SprintTimeAllocationUseCase{}
+
+	tests := []struct {
+		name          string
+		issue         domain.JiraIssue
+		expectedStart time.Time
+		expectedEnd   time.Time
+		expectedHours float64
+		description   string
+	}{
+		{
+			name: "Direct to Done",
+			issue: domain.JiraIssue{
+				Key: "TEST-1",
+				Changelog: domain.JiraChangelog{
+					Histories: []domain.JiraChangeHistory{
+						{
+							Created: "2024-03-20T10:00:00.000+0000",
+							Items: []domain.JiraChangeItem{
+								{
+									Field:      "status",
+									FromString: "To Do",
+									ToString:   "Done",
+								},
+							},
+						},
+					},
+				},
+			},
+			expectedStart: time.Date(2024, 3, 20, 10, 0, 0, 0, time.UTC),
+			expectedEnd:   time.Date(2024, 3, 20, 10, 0, 0, 0, time.UTC),
+			expectedHours: 0,
+			description:   "Issue moved directly to Done without going through In Progress",
+		},
+		{
+			name: "Normal flow with In Progress",
+			issue: domain.JiraIssue{
+				Key: "TEST-2",
+				Changelog: domain.JiraChangelog{
+					Histories: []domain.JiraChangeHistory{
+						{
+							Created: "2024-03-20T10:00:00.000+0000",
+							Items: []domain.JiraChangeItem{
+								{
+									Field:      "status",
+									FromString: "To Do",
+									ToString:   "In Progress",
+								},
+							},
+						},
+						{
+							Created: "2024-03-21T15:00:00.000+0000",
+							Items: []domain.JiraChangeItem{
+								{
+									Field:      "status",
+									FromString: "In Progress",
+									ToString:   "Done",
+								},
+							},
+						},
+					},
+				},
+			},
+			expectedStart: time.Date(2024, 3, 20, 10, 0, 0, 0, time.UTC),
+			expectedEnd:   time.Date(2024, 3, 21, 15, 0, 0, 0, time.UTC),
+			expectedHours: 29,
+			description:   "Normal flow with In Progress state",
+		},
+		{
+			name: "Multiple In Progress periods",
+			issue: domain.JiraIssue{
+				Key: "TEST-3",
+				Changelog: domain.JiraChangelog{
+					Histories: []domain.JiraChangeHistory{
+						{
+							Created: "2024-03-20T10:00:00.000+0000",
+							Items: []domain.JiraChangeItem{
+								{
+									Field:      "status",
+									FromString: "To Do",
+									ToString:   "In Progress",
+								},
+							},
+						},
+						{
+							Created: "2024-03-20T12:00:00.000+0000",
+							Items: []domain.JiraChangeItem{
+								{
+									Field:      "status",
+									FromString: "In Progress",
+									ToString:   "Blocked",
+								},
+							},
+						},
+						{
+							Created: "2024-03-21T10:00:00.000+0000",
+							Items: []domain.JiraChangeItem{
+								{
+									Field:      "status",
+									FromString: "Blocked",
+									ToString:   "In Progress",
+								},
+							},
+						},
+						{
+							Created: "2024-03-21T15:00:00.000+0000",
+							Items: []domain.JiraChangeItem{
+								{
+									Field:      "status",
+									FromString: "In Progress",
+									ToString:   "Done",
+								},
+							},
+						},
+					},
+				},
+			},
+			expectedStart: time.Date(2024, 3, 20, 10, 0, 0, 0, time.UTC),
+			expectedEnd:   time.Date(2024, 3, 21, 15, 0, 0, 0, time.UTC),
+			expectedHours: 29,
+			description:   "Multiple In Progress periods with pauses",
+		},
+		{
+			name: "End time before start time",
+			issue: domain.JiraIssue{
+				Key: "TEST-4",
+				Changelog: domain.JiraChangelog{
+					Histories: []domain.JiraChangeHistory{
+						{
+							Created: "2024-03-21T15:00:00.000+0000",
+							Items: []domain.JiraChangeItem{
+								{
+									Field:      "status",
+									FromString: "To Do",
+									ToString:   "Done",
+								},
+							},
+						},
+						{
+							Created: "2024-03-20T10:00:00.000+0000",
+							Items: []domain.JiraChangeItem{
+								{
+									Field:      "status",
+									FromString: "To Do",
+									ToString:   "In Progress",
+								},
+							},
+						},
+					},
+				},
+			},
+			expectedStart: time.Date(2024, 3, 20, 10, 0, 0, 0, time.UTC),
+			expectedEnd:   time.Date(2024, 3, 21, 15, 0, 0, 0, time.UTC),
+			expectedHours: 29,
+			description:   "Changelog entries in reverse chronological order",
+		},
+		{
+			name: "Different timezone handling",
+			issue: domain.JiraIssue{
+				Key: "TEST-5",
+				Changelog: domain.JiraChangelog{
+					Histories: []domain.JiraChangeHistory{
+						{
+							Created: "2024-03-20T10:00:00.000+0100", // UTC+1
+							Items: []domain.JiraChangeItem{
+								{
+									Field:      "status",
+									FromString: "To Do",
+									ToString:   "In Progress",
+								},
+							},
+						},
+						{
+							Created: "2024-03-21T15:00:00.000-0700", // UTC-7
+							Items: []domain.JiraChangeItem{
+								{
+									Field:      "status",
+									FromString: "In Progress",
+									ToString:   "Done",
+								},
+							},
+						},
+					},
+				},
+			},
+			expectedStart: time.Date(2024, 3, 20, 9, 0, 0, 0, time.UTC),
+			expectedEnd:   time.Date(2024, 3, 21, 22, 0, 0, 0, time.UTC),
+			expectedHours: 37,
+			description:   "Different timezone handling",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			startTime, endTime := processor.getIssueTimeRange(tt.issue)
+			assert.Equal(t, tt.expectedStart, startTime, "Start time mismatch for %s", tt.description)
+			assert.Equal(t, tt.expectedEnd, endTime, "End time mismatch for %s", tt.description)
+
+			hours := processor.calculateWorkingHours(tt.issue.Key, nil, startTime, endTime)
+			assert.Equal(t, tt.expectedHours, hours, "Hours mismatch for %s", tt.description)
 		})
 	}
 }

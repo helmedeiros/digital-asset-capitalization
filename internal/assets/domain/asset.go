@@ -57,6 +57,8 @@ type Asset struct {
 	How string `json:"how"`
 	// Metrics defines how we measure success for this asset
 	Metrics string `json:"metrics"`
+	// DateStarted is when the asset development started
+	DateStarted time.Time `json:"date_started"`
 }
 
 // UnmarshalJSON implements the json.Unmarshaler interface
@@ -185,4 +187,14 @@ func generateID(name string) string {
 	hash.Write([]byte(name))
 	hash.Write([]byte(time.Now().String()))
 	return hex.EncodeToString(hash.Sum(nil))[:16]
+}
+
+// SetDateStarted sets the date when the asset development started
+func (a *Asset) SetDateStarted(date time.Time) error {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	a.DateStarted = date
+	a.UpdatedAt = time.Now()
+	a.Version++
+	return nil
 }

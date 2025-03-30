@@ -164,3 +164,19 @@ func TestGenerateID(t *testing.T) {
 	// Test ID length
 	assert.Len(t, id1, 16, "Expected ID length 16")
 }
+
+func TestDateStarted(t *testing.T) {
+	asset, err := NewAsset("test-asset", "Test description")
+	require.NoError(t, err)
+
+	// Initially dateStarted should be zero
+	assert.True(t, asset.DateStarted.IsZero(), "DateStarted should be zero initially")
+
+	// Set dateStarted
+	now := time.Now()
+	asset.SetDateStarted(now)
+
+	// Verify dateStarted was set correctly
+	assert.Equal(t, now, asset.DateStarted)
+	assert.Equal(t, 2, asset.Version)
+}

@@ -220,7 +220,14 @@ func (p *SprintTimeAllocationUseCase) getIssueTimeRange(issue domain.JiraIssue) 
 			}
 
 			// Parse the history timestamp and ensure UTC timezone
-			historyTime, _ := time.Parse("2006-01-02T15:04:05.000-0700", history.Created)
+			historyTime, err := time.Parse("2006-01-02T15:04:05.000-0700", history.Created)
+			if err != nil {
+				// If parsing fails, try RFC3339 format
+				historyTime, err = time.Parse(time.RFC3339, history.Created)
+				if err != nil {
+					continue
+				}
+			}
 			historyTime = historyTime.UTC()
 
 			// Look for transition into "In Progress" state
@@ -249,6 +256,12 @@ func (p *SprintTimeAllocationUseCase) getIssueTimeRange(issue domain.JiraIssue) 
 				inProgress = false
 			}
 		}
+	}
+
+	// Ensure endTime is not before startTime
+	if !endTime.IsZero() && !startTime.IsZero() && endTime.Before(startTime) {
+		// If endTime is before startTime, swap them
+		startTime, endTime = endTime, startTime
 	}
 
 	return startTime, endTime
@@ -291,6 +304,7 @@ func (p *SprintTimeAllocationUseCase) calculatePercentageLoad(team domain.Team, 
 		result["workType"] = issue.GetWorkType()
 		result["assetName"] = issue.GetAssetName()
 		result["status"] = issue.Fields.Status.Name
+		result["dateStarted"] = startTime.Format("2006-01-02")
 		result["dateCompleted"] = endTime.Format("2006-01-02")
 
 		for _, person := range team.Team {
@@ -305,7 +319,7 @@ func (p *SprintTimeAllocationUseCase) calculatePercentageLoad(team domain.Team, 
 }
 
 func (p *SprintTimeAllocationUseCase) generateCSV(team domain.Team, results []map[string]interface{}) (string, error) {
-	headers := []string{"sprint", "issueKey", "issueType", "issueTitle", "workType", "assetName", "status", "dateCompleted"}
+	headers := []string{"sprint", "issueKey", "issueType", "issueTitle", "workType", "assetName", "status", "dateStarted", "dateCompleted"}
 	headers = append(headers, team.Team...)
 
 	csvData, err := p.structArrayToCSVOrdered(results, headers)
@@ -364,8 +378,15 @@ func (p *SprintTimeAllocationUseCase) calculateWorkingHours(issueKey string, man
 	duration := endTime.Sub(startTime)
 	hours := duration.Hours()
 
+	// Ensure hours is not negative
+	if hours < 0 {
+		hours = 0
+	}
+
 	// Round to 2 decimal places
-	return float64(int(hours*100)) / 100
+	roundedHours := float64(int(hours*100)) / 100
+
+	return roundedHours
 }
 
 // structArrayToCSVOrdered converts a slice of maps to CSV format
