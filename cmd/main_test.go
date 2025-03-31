@@ -271,6 +271,33 @@ func TestRun(t *testing.T) {
 			args:    []string{"assetcap", "tasks", "classify", "--project", "FN", "--sprint", "Sprint 1"},
 			wantErr: true,
 		},
+		{
+			name:    "tasks show with asset option",
+			args:    []string{"assetcap", "tasks", "show", "--asset", "test-asset"},
+			wantErr: false,
+			wantOut: "Tasks for asset test-asset:\n" +
+				"----------------------------------------\n" +
+				"No tasks found\n",
+			setup: func() error {
+				if err := assetService.CreateAsset("test-asset", "Test description"); err != nil {
+					return err
+				}
+				task := &domain.Task{
+					Key:     "TEST-1",
+					Type:    "Story",
+					Summary: "Test Task",
+					Status:  "In Progress",
+					Labels:  []string{"cap-asset-test-asset"},
+				}
+				return taskService.GetLocalRepository().Save(context.Background(), task)
+			},
+		},
+		{
+			name:    "tasks show with non-existent asset",
+			args:    []string{"assetcap", "tasks", "show", "--asset", "non-existent"},
+			wantErr: true,
+			wantOut: "",
+		},
 	}
 
 	for _, tt := range tests {

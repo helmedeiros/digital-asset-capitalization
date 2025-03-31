@@ -114,26 +114,37 @@ func (uc *ClassifyTasksUseCase) Execute(ctx context.Context, input ClassifyTasks
 
 // GetTasks retrieves tasks for a project and sprint
 func (uc *ClassifyTasksUseCase) GetTasks(ctx context.Context, project, sprint string) ([]*domain.Task, error) {
-	// Try to find existing tasks in local repository
+	// Try to get tasks from local repository first
 	tasks, err := uc.localRepo.FindByProjectAndSprint(ctx, project, sprint)
 	if err != nil {
 		return nil, fmt.Errorf("failed to find existing tasks: %w", err)
 	}
 
-	// If no tasks found locally, fetch from remote
+	// If no tasks found locally, try to fetch from remote
 	if len(tasks) == 0 {
-		tasks, err = uc.remoteRepo.FindByProjectAndSprint(ctx, project, sprint)
+		remoteTasks, err := uc.remoteRepo.FindByProjectAndSprint(ctx, project, sprint)
 		if err != nil {
-			return nil, fmt.Errorf("failed to fetch tasks: %w", err)
+			return nil, fmt.Errorf("failed to fetch tasks from remote: %w", err)
 		}
 
-		// Save fetched tasks locally
-		for _, task := range tasks {
+		// Save remote tasks to local repository
+		for _, task := range remoteTasks {
 			if err := uc.localRepo.Save(ctx, task); err != nil {
 				return nil, fmt.Errorf("failed to save fetched task: %w", err)
 			}
 		}
+
+		return remoteTasks, nil
 	}
 
 	return tasks, nil
+}
+
+// GetAllTasks retrieves all tasks from the local repository
+func (uc *ClassifyTasksUseCase) GetAllTasks(ctx context.Context) ([]*domain.Task, error) {
+	return uc.localRepo.FindAll(ctx)
+}
+
+func (u *ClassifyTasksUseCase) GetLocalRepository() ports.TaskRepository {
+	return u.localRepo
 }

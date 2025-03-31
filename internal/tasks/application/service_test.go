@@ -9,6 +9,7 @@ import (
 	"github.com/helmedeiros/digital-asset-capitalization/internal/tasks/application/usecase/testutil"
 	"github.com/helmedeiros/digital-asset-capitalization/internal/tasks/domain"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestTasksService_FetchTasks(t *testing.T) {
@@ -303,6 +304,98 @@ func TestTasksService_ClassifyTasks(t *testing.T) {
 				assert.Error(t, err)
 			} else {
 				assert.NoError(t, err)
+			}
+		})
+	}
+}
+
+func TestTaskService_GetTasksByAsset(t *testing.T) {
+	// Set up mock dependencies
+	jiraRepo := testutil.NewMockTaskRepository()
+	localRepo := testutil.NewMockTaskRepository()
+	classifier := testutil.NewMockTaskClassifier()
+	userInput := testutil.NewMockUserInput()
+
+	// Create test tasks
+	tasks := []*domain.Task{
+		{
+			Key:     "TEST-1",
+			Type:    "Story",
+			Summary: "Test Task 1",
+			Status:  "In Progress",
+			Labels:  []string{"cap-asset-insurance", "cap-development"},
+		},
+		{
+			Key:     "TEST-2",
+			Type:    "Story",
+			Summary: "Test Task 2",
+			Status:  "In Progress",
+			Labels:  []string{"cap-asset-insurance", "cap-development"},
+		},
+		{
+			Key:     "TEST-3",
+			Type:    "Story",
+			Summary: "Test Task 3",
+			Status:  "In Progress",
+			Labels:  []string{"cap-asset-other", "cap-development"},
+		},
+	}
+
+	// Set up mock behavior for GetAllTasks
+	localRepo.SetFindAllFunc(func(ctx context.Context) ([]*domain.Task, error) {
+		return tasks, nil
+	})
+
+	// Create service
+	service := NewTasksService(jiraRepo, localRepo, classifier, userInput)
+
+	tests := []struct {
+		name      string
+		assetName string
+		wantCount int
+		wantErr   bool
+	}{
+		{
+			name:      "find tasks by asset name",
+			assetName: "Insurance",
+			wantCount: 2,
+			wantErr:   false,
+		},
+		{
+			name:      "find tasks by asset ID",
+			assetName: "cap-asset-insurance",
+			wantCount: 2,
+			wantErr:   false,
+		},
+		{
+			name:      "find tasks by full asset name",
+			assetName: "Insurance Platform",
+			wantCount: 2,
+			wantErr:   false,
+		},
+		{
+			name:      "no tasks found for asset",
+			assetName: "NonExistentAsset",
+			wantCount: 0,
+			wantErr:   false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := service.GetTasksByAsset(context.Background(), tt.assetName)
+			if tt.wantErr {
+				require.Error(t, err)
+				return
+			}
+			require.NoError(t, err)
+			assert.Len(t, got, tt.wantCount, "Expected %d tasks but got %d", tt.wantCount, len(got))
+
+			// Verify task contents if we expect tasks
+			if tt.wantCount > 0 {
+				for _, task := range got {
+					assert.Contains(t, task.Labels, "cap-asset-insurance", "Task should have insurance label")
+				}
 			}
 		})
 	}

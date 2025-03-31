@@ -15,7 +15,6 @@ import (
 	sprintinfra "github.com/helmedeiros/digital-asset-capitalization/internal/sprint/infrastructure"
 	tasksapp "github.com/helmedeiros/digital-asset-capitalization/internal/tasks/application"
 	"github.com/helmedeiros/digital-asset-capitalization/internal/tasks/application/usecase"
-	"github.com/helmedeiros/digital-asset-capitalization/internal/tasks/domain"
 	"github.com/helmedeiros/digital-asset-capitalization/internal/tasks/infrastructure/classifier"
 	cliui "github.com/helmedeiros/digital-asset-capitalization/internal/tasks/infrastructure/cli"
 	"github.com/helmedeiros/digital-asset-capitalization/internal/tasks/infrastructure/jira"
@@ -490,66 +489,72 @@ For more information about a command:
 					},
 					{
 						Name:  "show",
-						Usage: "Show tasks for a specific project and sprint",
+						Usage: "Show tasks for a project and sprint",
 						Action: func(ctx *cli.Context) error {
-							project := ctx.Value("project").(string)
-							sprint := ctx.Value("sprint").(string)
-							epic := ctx.String("epic")
-
-							tasks, err := taskService.GetTasks(context.Background(), project, sprint)
-							if err != nil {
-								return err
-							}
-
-							// Filter tasks by story if specified
-							if epic != "" {
-								var storyTasks []*domain.Task
-								for _, task := range tasks {
-									if task.Epic == epic {
-										storyTasks = append(storyTasks, task)
-									}
+							asset := ctx.String("asset")
+							if asset != "" {
+								// Check if asset exists
+								_, err := assetService.GetAsset(asset)
+								if err != nil {
+									return fmt.Errorf("asset not found: %s", asset)
 								}
-								tasks = storyTasks
+
+								tasks, err := taskService.GetTasksByAsset(ctx.Context, asset)
+								if err != nil {
+									return fmt.Errorf("failed to get tasks for asset %s: %w", asset, err)
+								}
+
+								fmt.Printf("Tasks for asset %s:\n", asset)
+								fmt.Println("----------------------------------------")
+								if len(tasks) == 0 {
+									fmt.Println("No tasks found")
+									return nil
+								}
+
+								for _, task := range tasks {
+									fmt.Printf("Key: %s\nType: %s\nSummary: %s\nStatus: %s\nEpic: %s\nWork Type: %s\nLabels: %v\n\n",
+										task.Key, task.Type, task.Summary, task.Status, task.Epic, task.WorkType, task.Labels)
+								}
+								return nil
 							}
 
-							// Display tasks
-							fmt.Printf("\nTasks for project %s, sprint %s:\n", project, sprint)
-							if epic != "" {
-								fmt.Printf("Filtered by epic: %s\n", epic)
+							project := ctx.String("project")
+							sprint := ctx.String("sprint")
+
+							if project == "" || sprint == "" {
+								return fmt.Errorf("both project and sprint flags are required")
 							}
+
+							tasks, err := taskService.GetTasks(ctx.Context, project, sprint)
+							if err != nil {
+								return fmt.Errorf("failed to get tasks: %w", err)
+							}
+
+							if len(tasks) == 0 {
+								fmt.Println("No tasks found")
+								return nil
+							}
+
+							fmt.Printf("\nTasks for project %s and sprint %s:\n", project, sprint)
 							fmt.Println("----------------------------------------")
 							for _, task := range tasks {
-								fmt.Printf("Key: %s\n", task.Key)
-								fmt.Printf("Type: %s\n", task.Type)
-								fmt.Printf("Summary: %s\n", task.Summary)
-								fmt.Printf("Status: %s\n", task.Status)
-								fmt.Printf("Epic: %s\n", task.Epic)
-								if task.WorkType != "" {
-									fmt.Printf("Work Type: %s\n", task.WorkType)
-								}
-								if len(task.Labels) > 0 {
-									fmt.Printf("Labels: %v\n", task.Labels)
-								}
-								fmt.Println("----------------------------------------")
+								fmt.Printf("Key: %s\nType: %s\nSummary: %s\nStatus: %s\nEpic: %s\nWork Type: %s\nLabels: %v\n\n",
+									task.Key, task.Type, task.Summary, task.Status, task.Epic, task.WorkType, task.Labels)
 							}
-
 							return nil
 						},
 						Flags: []cli.Flag{
 							&cli.StringFlag{
-								Name:     "project",
-								Usage:    "Project key (e.g., FN)",
-								Required: true,
+								Name:  "project",
+								Usage: "Project name",
 							},
 							&cli.StringFlag{
-								Name:     "sprint",
-								Usage:    "Sprint name (e.g., Penguins)",
-								Required: true,
+								Name:  "sprint",
+								Usage: "Sprint name",
 							},
 							&cli.StringFlag{
-								Name:  "epic",
-								Usage: "Filter tasks by epic number (e.g., FN-123)",
-								Value: "",
+								Name:  "asset",
+								Usage: "Asset name or ID to filter tasks",
 							},
 						},
 					},
