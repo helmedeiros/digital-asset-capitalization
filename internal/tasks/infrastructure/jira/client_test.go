@@ -871,3 +871,34 @@ func TestGetTasks(t *testing.T) {
 		})
 	}
 }
+
+func TestConvertToDomainTasks_WorkType(t *testing.T) {
+	client := &client{
+		httpClient: nil,
+		config:     nil,
+	}
+
+	// Create a test issue with labels
+	issue := api.Issue{
+		Key: "TEST-1",
+		Fields: api.Fields{
+			Summary: "Test task",
+			Project: api.Project{Key: "TEST"},
+			Sprint:  []api.Sprint{{Name: "Sprint 1", StartDate: "2025-01-01T00:00:00.000Z", EndDate: "2025-01-14T00:00:00.000Z"}},
+			Labels:  []string{"cap-development"},
+			Created: "2025-01-01T00:00:00.000Z",
+			Updated: "2025-01-01T00:00:00.000Z",
+		},
+	}
+
+	searchResp := api.SearchResult{
+		Issues: []api.Issue{issue},
+	}
+
+	tasks, err := client.convertToDomainTasks(searchResp, "Sprint 1")
+	assert.NoError(t, err)
+	assert.Len(t, tasks, 1)
+
+	task := tasks[0]
+	assert.Equal(t, domain.WorkTypeDevelopment, task.WorkType)
+}

@@ -40,6 +40,7 @@ type Fields struct {
 	Parent      *Issue                 `json:"parent"`
 	WorkType    string                 `json:"customfield_10014"`
 	AssetName   string                 `json:"customfield_10015"`
+	Labels      []string               `json:"labels"`
 	RawFields   map[string]interface{} `json:"-"`
 }
 

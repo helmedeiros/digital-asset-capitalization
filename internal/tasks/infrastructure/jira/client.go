@@ -245,10 +245,25 @@ func (c *client) convertToDomainTasks(searchResp api.SearchResult, sprint string
 		task.Status = mapJiraStatus(issue.Fields.Status.Name)
 		task.Type = mapJiraType(issue.Fields.IssueType.Name)
 		task.Priority = domain.TaskPriorityMedium // Default priority since it's not available in the API
-		task.Labels = []string{}                  // Labels will be populated from the API response
+		task.Labels = issue.Fields.Labels
 		task.Epic = epicKey
 		task.CreatedAt = created
 		task.UpdatedAt = updated
+
+		// Set work type from labels
+		for _, label := range issue.Fields.Labels {
+			switch label {
+			case "cap-maintenance":
+				task.WorkType = domain.WorkTypeMaintenance
+			case "cap-discovery":
+				task.WorkType = domain.WorkTypeDiscovery
+			case "cap-development":
+				task.WorkType = domain.WorkTypeDevelopment
+			}
+			if task.WorkType != "" {
+				break
+			}
+		}
 
 		tasks = append(tasks, task)
 	}
