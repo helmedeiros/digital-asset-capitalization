@@ -160,7 +160,7 @@ func TestClassifyTasksUseCase_Execute(t *testing.T) {
 				"TEST-2": domain.WorkTypeMaintenance,
 			},
 			expectedError: false,
-			expectedCalls: func(localRepo, remoteRepo *MockTaskRepository, classifier *MockTaskClassifier, userInput *MockUserInput) {
+			expectedCalls: func(localRepo, _ *MockTaskRepository, classifier *MockTaskClassifier, _ *MockUserInput) {
 				localRepo.On("FindByProjectAndSprint", ctx, "TEST", "Sprint 1").Return([]*domain.Task{
 					{Key: "TEST-1", Summary: "Task 1"},
 					{Key: "TEST-2", Summary: "Task 2"},
@@ -221,7 +221,7 @@ func TestClassifyTasksUseCase_Execute(t *testing.T) {
 				"TEST-2": domain.WorkTypeMaintenance,
 			},
 			expectedError: false,
-			expectedCalls: func(localRepo, remoteRepo *MockTaskRepository, classifier *MockTaskClassifier, userInput *MockUserInput) {
+			expectedCalls: func(localRepo, _ *MockTaskRepository, classifier *MockTaskClassifier, _ *MockUserInput) {
 				localRepo.On("FindByProjectAndSprint", ctx, "TEST", "Sprint 1").Return([]*domain.Task{
 					{Key: "TEST-1", Summary: "Task 1"},
 					{Key: "TEST-2", Summary: "Task 2"},
