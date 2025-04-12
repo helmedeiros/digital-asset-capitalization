@@ -26,7 +26,7 @@ func NewJSONStorage(dir, file string) *JSONStorage {
 }
 
 // Save persists a task
-func (s *JSONStorage) Save(ctx context.Context, task *domain.Task) error {
+func (s *JSONStorage) Save(_ context.Context, task *domain.Task) error {
 	if task == nil {
 		return fmt.Errorf("task cannot be nil")
 	}
@@ -45,7 +45,7 @@ func (s *JSONStorage) Save(ctx context.Context, task *domain.Task) error {
 }
 
 // FindByKey retrieves a task by its key
-func (s *JSONStorage) FindByKey(ctx context.Context, key string) (*domain.Task, error) {
+func (s *JSONStorage) FindByKey(_ context.Context, key string) (*domain.Task, error) {
 	if key == "" {
 		return nil, fmt.Errorf("task key cannot be empty")
 	}
@@ -64,7 +64,7 @@ func (s *JSONStorage) FindByKey(ctx context.Context, key string) (*domain.Task, 
 }
 
 // FindByProjectAndSprint retrieves tasks for a specific project and sprint
-func (s *JSONStorage) FindByProjectAndSprint(ctx context.Context, project, sprint string) ([]*domain.Task, error) {
+func (s *JSONStorage) FindByProjectAndSprint(_ context.Context, project, sprint string) ([]*domain.Task, error) {
 	tasks, err := s.loadTasks()
 	if err != nil {
 		return nil, fmt.Errorf("failed to load tasks: %w", err)
@@ -81,7 +81,7 @@ func (s *JSONStorage) FindByProjectAndSprint(ctx context.Context, project, sprin
 }
 
 // FindByProject retrieves all tasks for a specific project
-func (s *JSONStorage) FindByProject(ctx context.Context, project string) ([]*domain.Task, error) {
+func (s *JSONStorage) FindByProject(_ context.Context, project string) ([]*domain.Task, error) {
 	tasks, err := s.loadTasks()
 	if err != nil {
 		return nil, fmt.Errorf("failed to load tasks: %w", err)
@@ -98,7 +98,7 @@ func (s *JSONStorage) FindByProject(ctx context.Context, project string) ([]*dom
 }
 
 // FindBySprint retrieves all tasks for a specific sprint
-func (s *JSONStorage) FindBySprint(ctx context.Context, sprint string) ([]*domain.Task, error) {
+func (s *JSONStorage) FindBySprint(_ context.Context, sprint string) ([]*domain.Task, error) {
 	tasks, err := s.loadTasks()
 	if err != nil {
 		return nil, fmt.Errorf("failed to load tasks: %w", err)
@@ -115,7 +115,7 @@ func (s *JSONStorage) FindBySprint(ctx context.Context, sprint string) ([]*domai
 }
 
 // FindByPlatform retrieves all tasks for a specific platform
-func (s *JSONStorage) FindByPlatform(ctx context.Context, platform string) ([]*domain.Task, error) {
+func (s *JSONStorage) FindByPlatform(_ context.Context, platform string) ([]*domain.Task, error) {
 	tasks, err := s.loadTasks()
 	if err != nil {
 		return nil, fmt.Errorf("failed to load tasks: %w", err)
@@ -132,7 +132,7 @@ func (s *JSONStorage) FindByPlatform(ctx context.Context, platform string) ([]*d
 }
 
 // FindAll retrieves all tasks
-func (s *JSONStorage) FindAll(ctx context.Context) ([]*domain.Task, error) {
+func (s *JSONStorage) FindAll(_ context.Context) ([]*domain.Task, error) {
 	tasks, err := s.loadTasks()
 	if err != nil {
 		return nil, fmt.Errorf("failed to load tasks: %w", err)
@@ -147,7 +147,7 @@ func (s *JSONStorage) FindAll(ctx context.Context) ([]*domain.Task, error) {
 }
 
 // Delete removes a task
-func (s *JSONStorage) Delete(ctx context.Context, key string) error {
+func (s *JSONStorage) Delete(_ context.Context, key string) error {
 	if key == "" {
 		return fmt.Errorf("task key cannot be empty")
 	}
@@ -166,7 +166,7 @@ func (s *JSONStorage) Delete(ctx context.Context, key string) error {
 }
 
 // DeleteByProjectAndSprint removes all tasks for a specific project and sprint
-func (s *JSONStorage) DeleteByProjectAndSprint(ctx context.Context, project, sprint string) error {
+func (s *JSONStorage) DeleteByProjectAndSprint(_ context.Context, project, sprint string) error {
 	tasks, err := s.loadTasks()
 	if err != nil {
 		return fmt.Errorf("failed to load tasks: %w", err)
@@ -184,7 +184,7 @@ func (s *JSONStorage) DeleteByProjectAndSprint(ctx context.Context, project, spr
 }
 
 // UpdateLabels updates the labels of a task in the remote repository
-func (s *JSONStorage) UpdateLabels(ctx context.Context, taskKey string, labels []string) error {
+func (s *JSONStorage) UpdateLabels(_ context.Context, taskKey string, labels []string) error {
 	if taskKey == "" {
 		return fmt.Errorf("task key cannot be empty")
 	}
