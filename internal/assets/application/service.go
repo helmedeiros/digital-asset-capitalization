@@ -200,7 +200,7 @@ func (s *AssetService) SyncFromConfluence(spaceKey, label string, debug bool) (*
 					"Name":        asset.Name,
 					"Description": asset.Description,
 					"LaunchDate":  asset.LaunchDate.Format("2006-01-02"),
-					"Status":      string(asset.Status),
+					"Status":      asset.Status,
 					"DocLink":     asset.DocLink,
 					"Why":         asset.Why,
 					"Benefits":    asset.Benefits,

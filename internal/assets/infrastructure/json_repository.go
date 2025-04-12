@@ -91,7 +91,7 @@ func (r *JSONRepository) FindAll() ([]*domain.Asset, error) {
 		return nil, fmt.Errorf("failed to load assets: %w", err)
 	}
 
-	var result []*domain.Asset
+	var result = make([]*domain.Asset, 0, len(assets))
 	for _, asset := range assets {
 		result = append(result, asset)
 	}

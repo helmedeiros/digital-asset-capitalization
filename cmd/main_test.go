@@ -138,9 +138,9 @@ func captureOutput(f func() error) (string, error) {
 	outCh := make(chan string, 1)
 
 	go func() {
-		err := f()
+		funcErr := f()
 		w.Close()
-		errCh <- err
+		errCh <- funcErr
 	}()
 
 	go func() {
