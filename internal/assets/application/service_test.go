@@ -698,7 +698,7 @@ func TestEnrichAsset(t *testing.T) {
 			name:      "asset not found",
 			assetName: "non-existent",
 			field:     "description",
-			mockSetup: func(repo *MockAssetRepository, llama *MockLlamaClient, confluenceAdapter *MockConfluenceAdapter) {
+			mockSetup: func(repo *MockAssetRepository, _ *MockLlamaClient, confluenceAdapter *MockConfluenceAdapter) {
 				repo.On("FindByName", "non-existent").Return(nil, errors.New("not found"))
 				repo.On("FindByID", "non-existent").Return(nil, errors.New("not found"))
 			},

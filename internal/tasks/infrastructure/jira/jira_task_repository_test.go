@@ -123,7 +123,7 @@ func TestRepository_FindByProjectAndSprint(t *testing.T) {
 	t.Run("client error", func(t *testing.T) {
 		// Set up the mock client
 		mockClient := &mockClient{
-			fetchTasksFunc: func(ctx context.Context, project, sprint string) ([]*domain.Task, error) {
+			fetchTasksFunc: func(_ context.Context, _, sprint string) ([]*domain.Task, error) {
 				return nil, errors.New("client error")
 			},
 		}
@@ -136,7 +136,7 @@ func TestRepository_FindByProjectAndSprint(t *testing.T) {
 				Token:   "test-token",
 			}, nil
 		}
-		NewClient = func(config *Config) (Client, error) {
+		NewClient = func(_ *Config) (Client, error) {
 			return mockClient, nil
 		}
 
@@ -182,7 +182,7 @@ func TestRepository_FindByProjectAndSprint(t *testing.T) {
 				Token:   "test-token",
 			}, nil
 		}
-		NewClient = func(config *Config) (Client, error) {
+		NewClient = func(_ *Config) (Client, error) {
 			return mockClient, nil
 		}
 
@@ -217,7 +217,7 @@ func TestRepository_NotImplementedMethods(t *testing.T) {
 			Token:   "test-token",
 		}, nil
 	}
-	NewClient = func(config *Config) (Client, error) {
+	NewClient = func(_ *Config) (Client, error) {
 		return mockClient, nil
 	}
 
@@ -306,7 +306,7 @@ func TestJiraTaskRepository_UpdateLabels(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			// Create mock client
 			mockClient := &mockClient{
-				updateLabelsFunc: func(ctx context.Context, issueKey string, labels []string) error {
+				updateLabelsFunc: func(_ context.Context, issueKey string, labels []string) error {
 					return tt.mockError
 				},
 			}

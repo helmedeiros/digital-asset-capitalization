@@ -168,7 +168,7 @@ func TestJiraAdapter_ServerError(t *testing.T) {
 	defer cleanup()
 
 	// Create a test server that returns an error
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusInternalServerError)
 		w.Write([]byte(`{"error": "Internal Server Error"}`))
 	}))
@@ -192,7 +192,7 @@ func TestJiraAdapter_InvalidJSON(t *testing.T) {
 	defer cleanup()
 
 	// Create a test server that returns invalid JSON
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
 		w.Write([]byte(`{"invalid json`))
 	}))

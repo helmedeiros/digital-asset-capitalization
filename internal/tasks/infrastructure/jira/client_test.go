@@ -261,7 +261,7 @@ func TestClient_FetchTasks(t *testing.T) {
 	})
 
 	t.Run("server error", func(t *testing.T) {
-		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 			w.WriteHeader(http.StatusInternalServerError)
 			w.Write([]byte(`{"error": "Internal Server Error"}`))
 		}))
@@ -281,7 +281,7 @@ func TestClient_FetchTasks(t *testing.T) {
 	})
 
 	t.Run("invalid response", func(t *testing.T) {
-		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 			w.Write([]byte(`invalid json`))
 		}))
 		defer server.Close()
