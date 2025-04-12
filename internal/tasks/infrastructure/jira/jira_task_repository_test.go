@@ -123,7 +123,7 @@ func TestRepository_FindByProjectAndSprint(t *testing.T) {
 	t.Run("client error", func(t *testing.T) {
 		// Set up the mock client
 		mockClient := &mockClient{
-			fetchTasksFunc: func(_ context.Context, _, sprint string) ([]*domain.Task, error) {
+			fetchTasksFunc: func(_ context.Context, _, _ string) ([]*domain.Task, error) {
 				return nil, errors.New("client error")
 			},
 		}
@@ -306,7 +306,7 @@ func TestJiraTaskRepository_UpdateLabels(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			// Create mock client
 			mockClient := &mockClient{
-				updateLabelsFunc: func(_ context.Context, issueKey string, labels []string) error {
+				updateLabelsFunc: func(_ context.Context, _ string, labels []string) error {
 					return tt.mockError
 				},
 			}
