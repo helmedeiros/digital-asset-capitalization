@@ -147,6 +147,6 @@ func (uc *ClassifyTasksUseCase) GetAllTasks(ctx context.Context) ([]*domain.Task
 	return uc.localRepo.FindAll(ctx)
 }
 
-func (u *ClassifyTasksUseCase) GetLocalRepository() ports.TaskRepository {
-	return u.localRepo
+func (uc *ClassifyTasksUseCase) GetLocalRepository() ports.TaskRepository {
+	return uc.localRepo
 }

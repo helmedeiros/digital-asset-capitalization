@@ -66,32 +66,47 @@ func (m *mockClient) UpdateLabels(ctx context.Context, issueKey string, labels [
 }
 
 func TestNewRepository(t *testing.T) {
-	// Save the original functions and restore them after the test
+	// Save the original NewClient function and restore it after the test
 	originalNewClient := NewClient
-	originalNewConfig := NewConfig
-	defer func() {
-		NewClient = originalNewClient
-		NewConfig = originalNewConfig
-	}()
+	defer func() { NewClient = originalNewClient }()
 
-	// Create a mock client
-	mockClient := &mockClient{}
-
-	// Set up the mock functions
-	NewConfig = func() (*Config, error) {
-		return &Config{
-			BaseURL: "https://test.atlassian.net",
-			Email:   "test@example.com",
-			Token:   "test-token",
-		}, nil
+	tests := []struct {
+		name         string
+		mockSetup    func()
+		wantErr      bool
+		errorMessage string
+		wantInstance *TaskRepository
+	}{
+		{
+			name:         "successful setup",
+			mockSetup:    func() {},
+			wantErr:      false,
+			errorMessage: "",
+			wantInstance: nil,
+		},
+		{
+			name:         "client error",
+			mockSetup:    func() { NewClient = func(config *Config) (Client, error) { return nil, errors.New("client error") } },
+			wantErr:      true,
+			errorMessage: "failed to create Jira client: client error",
+			wantInstance: nil,
+		},
 	}
-	NewClient = func(config *Config) (Client, error) {
-		return mockClient, nil
-	}
 
-	repo, err := NewRepository()
-	require.NoError(t, err, "Should not return error")
-	assert.NotNil(t, repo, "Repository should not be nil")
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			tt.mockSetup()
+			repo, err := NewRepository()
+			if tt.wantErr {
+				assert.Error(t, err, "Should return error")
+				assert.Equal(t, tt.errorMessage, err.Error(), "Error message should match")
+				assert.Nil(t, repo, "Repository should be nil")
+			} else {
+				assert.NoError(t, err, "Should not return error")
+				assert.NotNil(t, repo, "Repository should not be nil")
+			}
+		})
+	}
 }
 
 func TestRepository_FindByProjectAndSprint(t *testing.T) {
@@ -297,7 +312,7 @@ func TestJiraTaskRepository_UpdateLabels(t *testing.T) {
 			}
 
 			// Create repository with mock client
-			repo := &JiraTaskRepository{
+			repo := &TaskRepository{
 				client: mockClient,
 			}
 

@@ -8,13 +8,13 @@ import (
 	"github.com/helmedeiros/digital-asset-capitalization/internal/tasks/domain/ports"
 )
 
-// JiraTaskRepository implements the ports.JiraTaskRepository interface for Jira
-type JiraTaskRepository struct {
+// TaskRepository implements the ports.JiraTaskRepository interface for Jira
+type TaskRepository struct {
 	client Client
 }
 
 // NewRepository creates a new Jira repository instance
-func NewRepository() (*JiraTaskRepository, error) {
+func NewRepository() (*TaskRepository, error) {
 	config, err := NewConfig()
 	if err != nil {
 		return nil, fmt.Errorf("failed to create Jira configuration: %w", err)
@@ -25,68 +25,68 @@ func NewRepository() (*JiraTaskRepository, error) {
 		return nil, fmt.Errorf("failed to create Jira client: %w", err)
 	}
 
-	return &JiraTaskRepository{
+	return &TaskRepository{
 		client: client,
 	}, nil
 }
 
 // Save saves or updates a task
-func (r *JiraTaskRepository) Save(ctx context.Context, task *domain.Task) error {
+func (r *TaskRepository) Save(ctx context.Context, task *domain.Task) error {
 	// TODO: Implement task saving in Jira
 	return fmt.Errorf("not implemented")
 }
 
 // FindByKey finds a task by its key
-func (r *JiraTaskRepository) FindByKey(ctx context.Context, key string) (*domain.Task, error) {
+func (r *TaskRepository) FindByKey(ctx context.Context, key string) (*domain.Task, error) {
 	// TODO: Implement task retrieval by key in Jira
 	return nil, fmt.Errorf("not implemented")
 }
 
 // FindByProjectAndSprint finds all tasks for a given project and sprint
-func (r *JiraTaskRepository) FindByProjectAndSprint(ctx context.Context, project, sprint string) ([]*domain.Task, error) {
+func (r *TaskRepository) FindByProjectAndSprint(ctx context.Context, project, sprint string) ([]*domain.Task, error) {
 	return r.client.FetchTasks(ctx, project, sprint)
 }
 
 // FindByProject finds all tasks for a given project
-func (r *JiraTaskRepository) FindByProject(ctx context.Context, project string) ([]*domain.Task, error) {
+func (r *TaskRepository) FindByProject(ctx context.Context, project string) ([]*domain.Task, error) {
 	// TODO: Implement task retrieval by project in Jira
 	return nil, fmt.Errorf("not implemented")
 }
 
 // FindBySprint finds all tasks for a given sprint
-func (r *JiraTaskRepository) FindBySprint(ctx context.Context, sprint string) ([]*domain.Task, error) {
+func (r *TaskRepository) FindBySprint(ctx context.Context, sprint string) ([]*domain.Task, error) {
 	// TODO: Implement task retrieval by sprint in Jira
 	return nil, fmt.Errorf("not implemented")
 }
 
 // FindByPlatform finds all tasks from a specific platform
-func (r *JiraTaskRepository) FindByPlatform(ctx context.Context, platform string) ([]*domain.Task, error) {
+func (r *TaskRepository) FindByPlatform(ctx context.Context, platform string) ([]*domain.Task, error) {
 	// TODO: Implement task retrieval by platform in Jira
 	return nil, fmt.Errorf("not implemented")
 }
 
 // FindAll returns all tasks
-func (r *JiraTaskRepository) FindAll(ctx context.Context) ([]*domain.Task, error) {
+func (r *TaskRepository) FindAll(ctx context.Context) ([]*domain.Task, error) {
 	// TODO: Implement all tasks retrieval in Jira
 	return nil, fmt.Errorf("not implemented")
 }
 
 // Delete deletes a task by its key
-func (r *JiraTaskRepository) Delete(ctx context.Context, key string) error {
+func (r *TaskRepository) Delete(ctx context.Context, key string) error {
 	// TODO: Implement task deletion in Jira
 	return fmt.Errorf("not implemented")
 }
 
 // DeleteByProjectAndSprint deletes all tasks for a given project and sprint
-func (r *JiraTaskRepository) DeleteByProjectAndSprint(ctx context.Context, project, sprint string) error {
+func (r *TaskRepository) DeleteByProjectAndSprint(ctx context.Context, project, sprint string) error {
 	// TODO: Implement task deletion by project and sprint in Jira
 	return fmt.Errorf("not implemented")
 }
 
 // UpdateLabels updates the labels of a task in the remote repository
-func (r *JiraTaskRepository) UpdateLabels(ctx context.Context, taskKey string, labels []string) error {
+func (r *TaskRepository) UpdateLabels(ctx context.Context, taskKey string, labels []string) error {
 	return r.client.UpdateLabels(ctx, taskKey, labels)
 }
 
 // Ensure Repository implements ports.Repository
-var _ ports.TaskRepository = (*JiraTaskRepository)(nil)
+var _ ports.TaskRepository = (*TaskRepository)(nil)
