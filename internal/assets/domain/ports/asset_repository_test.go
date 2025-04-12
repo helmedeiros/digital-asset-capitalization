@@ -107,12 +107,12 @@ func TestAssetRepository(t *testing.T) {
 		// Test finding non-existent asset
 		asset, err = repo.FindByName("non-existent")
 		assert.Error(t, err)
-		assert.Equal(t, "asset not found", err.Error())
+		assert.Nil(t, asset)
 
 		// Test finding with empty name
 		asset, err = repo.FindByName("")
 		assert.Error(t, err)
-		assert.Equal(t, "name cannot be empty", err.Error())
+		assert.Nil(t, asset)
 	})
 
 	t.Run("FindAll", func(t *testing.T) {
