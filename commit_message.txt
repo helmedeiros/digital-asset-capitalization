@@ -1,0 +1,8 @@
+fix: resolve linter issues and improve code quality
+
+- Fix unused variable 'workingHours' in sprint_time_allocation.go by adding it to the result map
+- Pre-allocate assets slice in confluence adapter to improve performance
+- Fix shadowed error variable in confluence adapter by using decodeErr
+- Remove unnecessary string conversion in assets service
+- Delete unused generateID function in assets service
+- Update Config field names in jira task repository test to use uppercase naming convention

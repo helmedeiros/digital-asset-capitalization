@@ -56,9 +56,11 @@ func (uc *ClassifyTasksUseCase) Execute(ctx context.Context, input ClassifyTasks
 
 		if shouldFetch {
 			// Fetch tasks from the platform
-			fetchedTasks, err := uc.remoteRepo.FindByProjectAndSprint(ctx, input.Project, input.Sprint)
-			if err != nil {
-				return fmt.Errorf("failed to fetch tasks: %w", err)
+			var fetchedTasks []*domain.Task
+			var fetchErr error
+			fetchedTasks, fetchErr = uc.remoteRepo.FindByProjectAndSprint(ctx, input.Project, input.Sprint)
+			if fetchErr != nil {
+				return fmt.Errorf("failed to fetch tasks: %w", fetchErr)
 			}
 
 			// Save fetched tasks to repository

@@ -175,7 +175,7 @@ func (a *Adapter) FetchAssets(ctx context.Context) ([]*domain.Asset, error) {
 	}
 
 	// Convert pages to assets
-	var assets []*domain.Asset
+	var assets = make([]*domain.Asset, 0, len(result.Results))
 	for _, page := range result.Results {
 		// Fetch page content
 		contentURL := fmt.Sprintf("%s/wiki/rest/api/content/%s?expand=body.storage,version,metadata.labels",
@@ -213,11 +213,9 @@ func (a *Adapter) FetchAssets(ctx context.Context) ([]*domain.Asset, error) {
 		}
 
 		var contentPage ConfluencePage
-		if err := json.NewDecoder(bytes.NewReader(contentBody)).Decode(&contentPage); err != nil {
-			if a.config.Debug {
-				fmt.Printf("Warning: failed to decode content for page %s: %v\n", page.Title, err)
-			}
-			continue
+		var decodeErr error
+		if decodeErr = json.NewDecoder(bytes.NewReader(contentBody)).Decode(&contentPage); decodeErr != nil {
+			return nil, fmt.Errorf("failed to decode content page: %w", decodeErr)
 		}
 
 		if a.config.Debug {

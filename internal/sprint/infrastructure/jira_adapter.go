@@ -153,7 +153,7 @@ func convertChangelog(changelog domain.JiraChangelog) ports.JiraChangelog {
 
 // convertToPortIssues converts domain JiraIssue to port JiraIssue
 func (a *JiraAdapter) convertToPortIssues(issues []domain.JiraIssue) []ports.JiraIssue {
-	var portIssues []ports.JiraIssue
+	var portIssues = make([]ports.JiraIssue, 0, len(issues))
 
 	for _, issue := range issues {
 		portIssue := ports.JiraIssue{

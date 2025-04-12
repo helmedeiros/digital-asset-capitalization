@@ -46,10 +46,10 @@ func TestAssetConcurrentOperations(t *testing.T) {
 	t.Run("concurrent description updates", func(t *testing.T) {
 		wg.Add(concurrentOperations)
 		for i := 0; i < concurrentOperations; i++ {
-			go func(i int) {
+			go func() {
 				defer wg.Done()
 				_ = asset.UpdateDescription("New Description")
-			}(i)
+			}()
 		}
 		wg.Wait()
 
