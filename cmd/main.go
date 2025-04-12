@@ -100,7 +100,7 @@ For more information about a command:
 					{
 						Name:  "bash",
 						Usage: "Generate bash completion script",
-						Action: func(c *cli.Context) error {
+						Action: func(_ *cli.Context) error {
 							fmt.Println(completion.GetBashCompletion())
 							return nil
 						},
@@ -108,7 +108,7 @@ For more information about a command:
 					{
 						Name:  "zsh",
 						Usage: "Generate zsh completion script",
-						Action: func(c *cli.Context) error {
+						Action: func(_ *cli.Context) error {
 							fmt.Println(completion.GetZshCompletion())
 							return nil
 						},
@@ -116,7 +116,7 @@ For more information about a command:
 					{
 						Name:  "fish",
 						Usage: "Generate fish completion script",
-						Action: func(c *cli.Context) error {
+						Action: func(_ *cli.Context) error {
 							fmt.Println(completion.GetFishCompletion())
 							return nil
 						},
@@ -198,7 +198,7 @@ For more information about a command:
 					{
 						Name:  "list",
 						Usage: "List all assets",
-						Action: func(ctx *cli.Context) error {
+						Action: func(_ *cli.Context) error {
 							assets, err := assetService.ListAssets()
 							if err != nil {
 								return err
