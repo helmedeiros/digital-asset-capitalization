@@ -1,4 +1,10 @@
-.PHONY: test test-cover test-cover-detail test-race test-watch test-all test-all-detail install completion lint lint-fix
+.PHONY: test test-cover test-cover-detail test-race test-watch test-all test-all-detail install completion lint lint-fix check pre-push
+
+# Run all checks (lint + test)
+check: lint test
+
+# Run pre-push checks
+pre-push: check
 
 # Run tests with gotestsum
 test:
