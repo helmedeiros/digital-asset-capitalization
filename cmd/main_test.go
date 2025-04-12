@@ -21,8 +21,16 @@ import (
 func setupTestEnvironment(t *testing.T) func() {
 	t.Helper()
 
-	// Save original stdout
+	// Save original stdout and environment variables
 	oldStdout := os.Stdout
+	oldJiraBaseURL := os.Getenv("JIRA_BASE_URL")
+	oldJiraEmail := os.Getenv("JIRA_EMAIL")
+	oldJiraToken := os.Getenv("JIRA_TOKEN")
+
+	// Set up test environment variables
+	os.Setenv("JIRA_BASE_URL", "https://test.atlassian.net")
+	os.Setenv("JIRA_EMAIL", "test@example.com")
+	os.Setenv("JIRA_TOKEN", "test-token")
 
 	// Create test directory
 	testDir := filepath.Join("testdata", t.Name())
@@ -106,8 +114,11 @@ func setupTestEnvironment(t *testing.T) func() {
 	taskService = tasksapp.NewTasksService(jiraRepo, localRepo, classifier, userInput)
 
 	return func() {
-		// Restore original stdout
+		// Restore original stdout and environment variables
 		os.Stdout = oldStdout
+		os.Setenv("JIRA_BASE_URL", oldJiraBaseURL)
+		os.Setenv("JIRA_EMAIL", oldJiraEmail)
+		os.Setenv("JIRA_TOKEN", oldJiraToken)
 
 		// Restore original working directory
 		err := os.Chdir(oldWd)

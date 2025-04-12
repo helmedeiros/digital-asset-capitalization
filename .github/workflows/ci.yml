@@ -27,6 +27,7 @@ jobs:
           JIRA_BASE_URL: "https://test.atlassian.net"
           JIRA_USERNAME: "test@example.com"
           JIRA_API_TOKEN: "test-token"
+          JIRA_EMAIL: "test@example.com"
         run: go test -v ./...
 
       - name: Install golangci-lint
