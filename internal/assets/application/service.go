@@ -2,8 +2,6 @@ package application
 
 import (
 	"context"
-	"crypto/sha256"
-	"encoding/hex"
 	"fmt"
 	"net/url"
 	"os"
@@ -259,14 +257,6 @@ func validateRequiredFields(asset *domain.Asset) []string {
 	}
 
 	return missingFields
-}
-
-// generateID creates a unique ID for the asset based on its name and timestamp
-func generateID(name string) string {
-	hash := sha256.New()
-	hash.Write([]byte(name))
-	hash.Write([]byte(time.Now().String()))
-	return hex.EncodeToString(hash.Sum(nil))[:16]
 }
 
 // EnrichAsset enriches a specific field of an asset using LLaMA 3

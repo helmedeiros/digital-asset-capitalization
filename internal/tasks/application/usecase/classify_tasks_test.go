@@ -279,8 +279,8 @@ func TestGetTasks(t *testing.T) {
 		uc := NewClassifyTasksUseCase(mockLocalRepo, mockRemoteRepo, mockClassifier, mockUserInput)
 
 		// Arrange
-		project := "TEST"
-		sprint := "Sprint 1"
+		project := testProject
+		sprint := testSprint
 		expectedTasks := []*domain.Task{
 			{
 				Key:     "TEST-1",
@@ -314,8 +314,8 @@ func TestGetTasks(t *testing.T) {
 		uc := NewClassifyTasksUseCase(mockLocalRepo, mockRemoteRepo, mockClassifier, mockUserInput)
 
 		// Arrange
-		project := "TEST"
-		sprint := "Sprint 1"
+		project := testProject
+		sprint := testSprint
 		remoteTasks := []*domain.Task{
 			{
 				Key:     "TEST-1",
@@ -353,8 +353,8 @@ func TestGetTasks(t *testing.T) {
 		uc := NewClassifyTasksUseCase(mockLocalRepo, mockRemoteRepo, mockClassifier, mockUserInput)
 
 		// Arrange
-		project := "TEST"
-		sprint := "Sprint 1"
+		project := testProject
+		sprint := testSprint
 
 		mockLocalRepo.On("FindByProjectAndSprint", ctx, project, sprint).
 			Return(nil, fmt.Errorf("repository error")).Once()
@@ -381,8 +381,8 @@ func TestGetTasks(t *testing.T) {
 		uc := NewClassifyTasksUseCase(mockLocalRepo, mockRemoteRepo, mockClassifier, mockUserInput)
 
 		// Arrange
-		project := "TEST"
-		sprint := "Sprint 1"
+		project := testProject
+		sprint := testSprint
 
 		mockLocalRepo.On("FindByProjectAndSprint", ctx, project, sprint).
 			Return([]*domain.Task{}, nil).Once()
@@ -411,8 +411,8 @@ func TestGetTasks(t *testing.T) {
 		uc := NewClassifyTasksUseCase(mockLocalRepo, mockRemoteRepo, mockClassifier, mockUserInput)
 
 		// Arrange
-		project := "TEST"
-		sprint := "Sprint 1"
+		project := testProject
+		sprint := testSprint
 		remoteTasks := []*domain.Task{
 			{
 				Key:     "TEST-1",

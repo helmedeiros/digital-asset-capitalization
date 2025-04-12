@@ -17,26 +17,6 @@ type JiraConfigTestCase struct {
 	ErrType error
 }
 
-// setupEnvVars sets up environment variables for a test and returns a cleanup function
-func setupEnvVars(vars map[string]string) func() {
-	// Clear all relevant environment variables
-	os.Unsetenv("JIRA_BASE_URL")
-	os.Unsetenv("JIRA_EMAIL")
-	os.Unsetenv("JIRA_TOKEN")
-
-	// Set test env vars
-	for k, v := range vars {
-		os.Setenv(k, v)
-	}
-
-	// Return cleanup function
-	return func() {
-		os.Unsetenv("JIRA_BASE_URL")
-		os.Unsetenv("JIRA_EMAIL")
-		os.Unsetenv("JIRA_TOKEN")
-	}
-}
-
 func TestNewJiraConfig(t *testing.T) {
 	// Save current env vars
 	oldBaseURL := os.Getenv(envJiraBaseURL)
