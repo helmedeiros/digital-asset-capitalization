@@ -8,9 +8,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/helmedeiros/digital-asset-capitalization/internal/tasks/domain"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/helmedeiros/digital-asset-capitalization/internal/tasks/domain"
 )
 
 // MockHTTPClient is a mock implementation of HTTPClient
@@ -79,9 +80,9 @@ func TestNewRepository(t *testing.T) {
 	// Set up the mock functions
 	NewConfig = func() (*Config, error) {
 		return &Config{
-			baseURL: "https://test.atlassian.net",
-			email:   "test@example.com",
-			token:   "test-token",
+			BaseURL: "https://test.atlassian.net",
+			Email:   "test@example.com",
+			Token:   "test-token",
 		}, nil
 	}
 	NewClient = func(config *Config) (Client, error) {
@@ -115,9 +116,9 @@ func TestRepository_FindByProjectAndSprint(t *testing.T) {
 		// Set up the mock functions
 		NewConfig = func() (*Config, error) {
 			return &Config{
-				baseURL: "https://test.atlassian.net",
-				email:   "test@example.com",
-				token:   "test-token",
+				BaseURL: "https://test.atlassian.net",
+				Email:   "test@example.com",
+				Token:   "test-token",
 			}, nil
 		}
 		NewClient = func(config *Config) (Client, error) {
@@ -161,9 +162,9 @@ func TestRepository_FindByProjectAndSprint(t *testing.T) {
 		// Set up the mock functions
 		NewConfig = func() (*Config, error) {
 			return &Config{
-				baseURL: "https://test.atlassian.net",
-				email:   "test@example.com",
-				token:   "test-token",
+				BaseURL: "https://test.atlassian.net",
+				Email:   "test@example.com",
+				Token:   "test-token",
 			}, nil
 		}
 		NewClient = func(config *Config) (Client, error) {
@@ -196,9 +197,9 @@ func TestRepository_NotImplementedMethods(t *testing.T) {
 	// Set up the mock functions
 	NewConfig = func() (*Config, error) {
 		return &Config{
-			baseURL: "https://test.atlassian.net",
-			email:   "test@example.com",
-			token:   "test-token",
+			BaseURL: "https://test.atlassian.net",
+			Email:   "test@example.com",
+			Token:   "test-token",
 		}, nil
 	}
 	NewClient = func(config *Config) (Client, error) {
