@@ -49,9 +49,9 @@ func (uc *ClassifyTasksUseCase) Execute(ctx context.Context, input ClassifyTasks
 
 	// If no tasks found, ask user if they want to fetch them
 	if len(tasks) == 0 {
-		shouldFetch, err := uc.userInput.Confirm("No tasks found for project %s and sprint %s. Would you like to fetch them?", input.Project, input.Sprint)
-		if err != nil {
-			return fmt.Errorf("failed to get user confirmation: %w", err)
+		shouldFetch, confirmErr := uc.userInput.Confirm("No tasks found for project %s and sprint %s. Would you like to fetch them?", input.Project, input.Sprint)
+		if confirmErr != nil {
+			return fmt.Errorf("failed to get user confirmation: %w", confirmErr)
 		}
 
 		if shouldFetch {

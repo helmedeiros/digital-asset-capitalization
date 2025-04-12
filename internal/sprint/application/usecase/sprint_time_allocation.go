@@ -13,6 +13,12 @@ import (
 	"github.com/helmedeiros/digital-asset-capitalization/internal/sprint/infrastructure"
 )
 
+const (
+	issueTypeSubTask = "Sub-task"
+	statusDone       = "Done"
+	statusWontDo     = "Won't Do"
+)
+
 // SprintTimeAllocationUseCase handles the processing of Jira issues and time calculations
 type SprintTimeAllocationUseCase struct {
 	config   *config.JiraConfig
@@ -358,6 +364,7 @@ func (p *SprintTimeAllocationUseCase) calculatePercentageLoad(team domain.Team, 
 		result["assetName"] = issue.GetAssetName()
 		result["status"] = issue.Fields.Status.Name
 		result["dateStarted"] = startTime.Format("2006-01-02")
+		result["workingHours"] = workingHours
 
 		// Only set completion date if the issue is actually completed
 		if issue.Fields.Status.Name == "Done" || issue.Fields.Status.Name == "Won't Do" {
@@ -489,4 +496,41 @@ func JiraDoer(project string, sprint string, override string) (string, error) {
 		return "", err
 	}
 	return processor.Process()
+}
+
+func (p *SprintTimeAllocationUseCase) processIssue(issue domain.JiraIssue, team domain.Team) (map[string]interface{}, error) {
+	if issue.Fields.IssueType.Name == issueTypeSubTask {
+		return nil, nil
+	}
+
+	startTime, endTime := p.getIssueTimeRange(issue)
+	if startTime.IsZero() {
+		return nil, nil
+	}
+
+	workingHours := p.calculateWorkingHours(issue.Key, nil, startTime, endTime)
+
+	result := make(map[string]interface{})
+	result["sprint"] = p.sprint
+	result["issueKey"] = issue.Key
+	result["issueType"] = issue.Fields.IssueType.Name
+	result["issueTitle"] = issue.Fields.Summary
+	result["workType"] = issue.GetWorkType()
+	result["assetName"] = issue.GetAssetName()
+	result["status"] = issue.Fields.Status.Name
+	result["dateStarted"] = startTime.Format("2006-01-02")
+	result["workingHours"] = workingHours
+
+	// Only set completion date if the issue is actually completed
+	if issue.Fields.Status.Name == "Done" || issue.Fields.Status.Name == "Won't Do" {
+		result["dateCompleted"] = endTime.Format("2006-01-02")
+	} else {
+		result["dateCompleted"] = ""
+	}
+
+	for _, person := range team.Team {
+		result[person] = ""
+	}
+
+	return result, nil
 }

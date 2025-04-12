@@ -103,10 +103,7 @@ func (a *JiraAdapter) GetSprintIssues(sprint *domain.Sprint) ([]ports.JiraIssue,
 	}
 
 	portIssues := make([]ports.JiraIssue, 0, len(issues))
-	for _, issue := range issues {
-		portIssues = append(portIssues, issue)
-	}
-
+	portIssues = append(portIssues, issues...)
 	return portIssues, nil
 }
 
