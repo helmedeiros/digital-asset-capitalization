@@ -1,4 +1,4 @@
-.PHONY: test test-cover test-cover-detail test-race test-watch test-all test-all-detail install completion
+.PHONY: test test-cover test-cover-detail test-race test-watch test-all test-all-detail install completion lint lint-fix
 
 # Run tests with gotestsum
 test:
@@ -65,6 +65,19 @@ completion:
 	@echo "Fish completion saved to completions/assetcap.fish"
 	@echo "To use it, copy to the fish completions directory:"
 	@echo "  cp completions/assetcap.fish ~/.config/fish/completions/"
+
+# Install golangci-lint if not present
+install-lint:
+	@which golangci-lint > /dev/null || \
+		(curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b $(shell go env GOPATH)/bin v1.55.2)
+
+# Run linters
+lint: install-lint
+	golangci-lint run ./...
+
+# Run linters and fix issues where possible
+lint-fix: install-lint
+	golangci-lint run --fix ./...
 
 # Install the assetcap command
 install:
