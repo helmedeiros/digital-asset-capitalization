@@ -34,7 +34,7 @@ func TestTasksService_FetchTasks(t *testing.T) {
 			setup: func() {
 				remoteRepo.Reset()
 				localRepo.Reset()
-				remoteRepo.SetFindByProjectAndSprintFunc(func(_ context.Context, _, sprint string) ([]*domain.Task, error) {
+				remoteRepo.SetFindByProjectAndSprintFunc(func(_ context.Context, _, _ string) ([]*domain.Task, error) {
 					return []*domain.Task{
 						{
 							Key:     "PROJ-1",
@@ -75,7 +75,7 @@ func TestTasksService_FetchTasks(t *testing.T) {
 			platform: "JIRA",
 			setup: func() {
 				remoteRepo.Reset()
-				remoteRepo.SetFindByProjectAndSprintFunc(func(_ context.Context, _, sprint string) ([]*domain.Task, error) {
+				remoteRepo.SetFindByProjectAndSprintFunc(func(_ context.Context, _, _ string) ([]*domain.Task, error) {
 					return nil, errors.New("repository error")
 				})
 			},
@@ -89,7 +89,7 @@ func TestTasksService_FetchTasks(t *testing.T) {
 			setup: func() {
 				remoteRepo.Reset()
 				localRepo.Reset()
-				remoteRepo.SetFindByProjectAndSprintFunc(func(_ context.Context, _, sprint string) ([]*domain.Task, error) {
+				remoteRepo.SetFindByProjectAndSprintFunc(func(_ context.Context, _, _ string) ([]*domain.Task, error) {
 					return []*domain.Task{
 						{
 							Key:     "PROJ-1",
@@ -146,7 +146,7 @@ func TestTasksService_ClassifyTasks(t *testing.T) {
 				userInput.Reset()
 
 				// Setup local repo to return existing tasks
-				localRepo.SetFindByProjectAndSprintFunc(func(ctx context.Context, _, sprint string) ([]*domain.Task, error) {
+				localRepo.SetFindByProjectAndSprintFunc(func(_ context.Context, _, _ string) ([]*domain.Task, error) {
 					return []*domain.Task{
 						{
 							Key:     "PROJ-1",
@@ -186,7 +186,7 @@ func TestTasksService_ClassifyTasks(t *testing.T) {
 				userInput.Reset()
 
 				// Setup local repo to return no tasks
-				localRepo.SetFindByProjectAndSprintFunc(func(_ context.Context, _, sprint string) ([]*domain.Task, error) {
+				localRepo.SetFindByProjectAndSprintFunc(func(_ context.Context, _, _ string) ([]*domain.Task, error) {
 					return []*domain.Task{}, nil
 				})
 
@@ -196,7 +196,7 @@ func TestTasksService_ClassifyTasks(t *testing.T) {
 				})
 
 				// Setup remote repo to return tasks
-				remoteRepo.SetFindByProjectAndSprintFunc(func(_ context.Context, _, sprint string) ([]*domain.Task, error) {
+				remoteRepo.SetFindByProjectAndSprintFunc(func(_ context.Context, _, _ string) ([]*domain.Task, error) {
 					return []*domain.Task{
 						{
 							Key:     "PROJ-1",
@@ -235,7 +235,7 @@ func TestTasksService_ClassifyTasks(t *testing.T) {
 				userInput.Reset()
 
 				// Setup local repo to return no tasks
-				localRepo.SetFindByProjectAndSprintFunc(func(_ context.Context, _, sprint string) ([]*domain.Task, error) {
+				localRepo.SetFindByProjectAndSprintFunc(func(_ context.Context, _, _ string) ([]*domain.Task, error) {
 					return []*domain.Task{}, nil
 				})
 
@@ -258,7 +258,7 @@ func TestTasksService_ClassifyTasks(t *testing.T) {
 				userInput.Reset()
 
 				// Setup local repo to return existing tasks
-				localRepo.SetFindByProjectAndSprintFunc(func(_ context.Context, _, sprint string) ([]*domain.Task, error) {
+				localRepo.SetFindByProjectAndSprintFunc(func(_ context.Context, _, _ string) ([]*domain.Task, error) {
 					return []*domain.Task{
 						{
 							Key:     "PROJ-1",
@@ -271,7 +271,7 @@ func TestTasksService_ClassifyTasks(t *testing.T) {
 				})
 
 				// Setup classifier to return error
-				classifier.SetClassifyTasksFunc(func(tasks []*domain.Task) (map[string]domain.WorkType, error) {
+				classifier.SetClassifyTasksFunc(func(_ []*domain.Task) (map[string]domain.WorkType, error) {
 					return nil, errors.New("classification error")
 				})
 			},
@@ -289,7 +289,7 @@ func TestTasksService_ClassifyTasks(t *testing.T) {
 				userInput.Reset()
 
 				// Setup local repo to return error
-				localRepo.SetFindByProjectAndSprintFunc(func(ctx context.Context, _, sprint string) ([]*domain.Task, error) {
+				localRepo.SetFindByProjectAndSprintFunc(func(_ context.Context, _, _ string) ([]*domain.Task, error) {
 					return nil, errors.New("repository error")
 				})
 			},
@@ -343,7 +343,7 @@ func TestTaskService_GetTasksByAsset(t *testing.T) {
 	}
 
 	// Set up mock behavior for GetAllTasks
-	localRepo.SetFindAllFunc(func(ctx context.Context) ([]*domain.Task, error) {
+	localRepo.SetFindAllFunc(func(_ context.Context) ([]*domain.Task, error) {
 		return tasks, nil
 	})
 
