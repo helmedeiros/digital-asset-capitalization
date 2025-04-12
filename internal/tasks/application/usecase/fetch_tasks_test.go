@@ -55,7 +55,7 @@ func TestFetchTasksUseCase(t *testing.T) {
 					assert.Equal(t, "Sprint 1", sprint)
 					return testTasks, nil
 				})
-				localRepo.SetSaveFunc(func(ctx context.Context, task *domain.Task) error {
+				localRepo.SetSaveFunc(func(_ context.Context, task *domain.Task) error {
 					assert.Equal(t, testTasks[0].Key, task.Key)
 					return nil
 				})
@@ -84,7 +84,7 @@ func TestFetchTasksUseCase(t *testing.T) {
 			sprint:   "Sprint 1",
 			platform: "jira",
 			setupMock: func() {
-				remoteRepo.SetFindByProjectAndSprintFunc(func(ctx context.Context, project, sprint string) ([]*domain.Task, error) {
+				remoteRepo.SetFindByProjectAndSprintFunc(func(_ context.Context, _, _ string) ([]*domain.Task, error) {
 					return nil, errors.New("repository error")
 				})
 			},
@@ -97,11 +97,11 @@ func TestFetchTasksUseCase(t *testing.T) {
 			sprint:   "Sprint 1",
 			platform: "jira",
 			setupMock: func() {
-				remoteRepo.SetFindByProjectAndSprintFunc(func(ctx context.Context, project, sprint string) ([]*domain.Task, error) {
+				remoteRepo.SetFindByProjectAndSprintFunc(func(_ context.Context, _, _ string) ([]*domain.Task, error) {
 					return testTasks, nil
 				})
-				localRepo.SetSaveFunc(func(ctx context.Context, task *domain.Task) error {
-					return errors.New("save error")
+				localRepo.SetSaveFunc(func(_ context.Context, _ *domain.Task) error {
+					return errors.New("repository error")
 				})
 			},
 			wantErr: true,
