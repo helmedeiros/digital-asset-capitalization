@@ -50,7 +50,7 @@ func TestFetchTasksUseCase(t *testing.T) {
 			sprint:   "Sprint 1",
 			platform: "jira",
 			setupMock: func() {
-				remoteRepo.SetFindByProjectAndSprintFunc(func(ctx context.Context, project, sprint string) ([]*domain.Task, error) {
+				remoteRepo.SetFindByProjectAndSprintFunc(func(_ context.Context, project, sprint string) ([]*domain.Task, error) {
 					assert.Equal(t, "TEST", project)
 					assert.Equal(t, "Sprint 1", sprint)
 					return testTasks, nil
