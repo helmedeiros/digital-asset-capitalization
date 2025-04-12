@@ -55,17 +55,17 @@ func (m *MockAssetRepository) Delete(name string) error {
 	return args.Error(0)
 }
 
-// MockLLAMAClient is a mock implementation of LLAMAClient
-type MockLLAMAClient struct {
+// MockLlamaClient is a mock implementation of LlamaClient
+type MockLlamaClient struct {
 	mock.Mock
 }
 
-func (m *MockLLAMAClient) EnrichContent(content, field string, asset *domain.Asset) (string, error) {
+func (m *MockLlamaClient) EnrichContent(content, field string, asset *domain.Asset) (string, error) {
 	args := m.Called(content, field, asset)
 	return args.String(0), args.Error(1)
 }
 
-func (m *MockLLAMAClient) Close() error {
+func (m *MockLlamaClient) Close() error {
 	args := m.Called()
 	return args.Error(0)
 }
@@ -621,14 +621,14 @@ func TestEnrichAsset(t *testing.T) {
 		name          string
 		assetName     string
 		field         string
-		mockSetup     func(*MockAssetRepository, *MockLLAMAClient, *MockConfluenceAdapter)
+		mockSetup     func(*MockAssetRepository, *MockLlamaClient, *MockConfluenceAdapter)
 		expectedError string
 	}{
 		{
 			name:      "successful enrichment",
 			assetName: "test-asset",
 			field:     "description",
-			mockSetup: func(repo *MockAssetRepository, llama *MockLLAMAClient, confluenceAdapter *MockConfluenceAdapter) {
+			mockSetup: func(repo *MockAssetRepository, llama *MockLlamaClient, confluenceAdapter *MockConfluenceAdapter) {
 				repo.On("FindByName", "test-asset").Return(&domain.Asset{
 					ID:          "123",
 					Name:        "test-asset",
@@ -697,7 +697,7 @@ func TestEnrichAsset(t *testing.T) {
 			name:      "asset not found",
 			assetName: "non-existent",
 			field:     "description",
-			mockSetup: func(repo *MockAssetRepository, llama *MockLLAMAClient, confluenceAdapter *MockConfluenceAdapter) {
+			mockSetup: func(repo *MockAssetRepository, llama *MockLlamaClient, confluenceAdapter *MockConfluenceAdapter) {
 				repo.On("FindByName", "non-existent").Return(nil, errors.New("not found"))
 				repo.On("FindByID", "non-existent").Return(nil, errors.New("not found"))
 			},
@@ -707,7 +707,7 @@ func TestEnrichAsset(t *testing.T) {
 			name:      "missing DocLink",
 			assetName: "test-asset",
 			field:     "description",
-			mockSetup: func(repo *MockAssetRepository, llama *MockLLAMAClient, confluenceAdapter *MockConfluenceAdapter) {
+			mockSetup: func(repo *MockAssetRepository, llama *MockLlamaClient, confluenceAdapter *MockConfluenceAdapter) {
 				repo.On("FindByName", "test-asset").Return(&domain.Asset{
 					ID:          "123",
 					Name:        "test-asset",
@@ -723,7 +723,7 @@ func TestEnrichAsset(t *testing.T) {
 			name:      "unsupported field",
 			assetName: "test-asset",
 			field:     "unsupported",
-			mockSetup: func(repo *MockAssetRepository, llama *MockLLAMAClient, confluenceAdapter *MockConfluenceAdapter) {
+			mockSetup: func(repo *MockAssetRepository, llama *MockLlamaClient, confluenceAdapter *MockConfluenceAdapter) {
 				repo.On("FindByName", "test-asset").Return(&domain.Asset{
 					ID:          "123",
 					Name:        "test-asset",
@@ -793,16 +793,16 @@ func TestEnrichAsset(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			mockRepo := new(MockAssetRepository)
-			mockLLAMA := new(MockLLAMAClient)
+			mockLlama := new(MockLlamaClient)
 			mockConfluence := new(MockConfluenceAdapter)
 
 			if tt.mockSetup != nil {
-				tt.mockSetup(mockRepo, mockLLAMA, mockConfluence)
+				tt.mockSetup(mockRepo, mockLlama, mockConfluence)
 			}
 
 			service := &AssetService{
 				repo:       mockRepo,
-				llama:      mockLLAMA,
+				llama:      mockLlama,
 				confluence: mockConfluence,
 			}
 
@@ -816,7 +816,7 @@ func TestEnrichAsset(t *testing.T) {
 
 			assert.NoError(t, err)
 			mockRepo.AssertExpectations(t)
-			mockLLAMA.AssertExpectations(t)
+			mockLlama.AssertExpectations(t)
 			mockConfluence.AssertExpectations(t)
 		})
 	}

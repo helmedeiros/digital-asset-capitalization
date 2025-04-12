@@ -7,8 +7,8 @@ import (
 	"github.com/helmedeiros/digital-asset-capitalization/internal/assets/infrastructure/confluence"
 )
 
-// LLAMAClient defines the interface for LLaMA operations
-type LLAMAClient interface {
+// LlamaClient defines the interface for LLaMA operations
+type LlamaClient interface {
 	// EnrichContent enriches the given content for the specified field
 	EnrichContent(content, field string, asset *domain.Asset) (string, error)
 	// Close closes the client connection

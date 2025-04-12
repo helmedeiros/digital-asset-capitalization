@@ -26,7 +26,7 @@ if [[ "$OSTYPE" == "darwin"* ]]; then
 
     # Pull LLaMA model
     echo "Pulling LLaMA model..."
-    ollama pull llama2
+    ollama pull llama3
 
 elif [[ "$OSTYPE" == "linux-gnu"* ]]; then
     # Linux
@@ -48,7 +48,7 @@ elif [[ "$OSTYPE" == "linux-gnu"* ]]; then
 
     # Pull LLaMA model
     echo "Pulling LLaMA model..."
-    ollama pull llama2
+    ollama pull llama3
 else
     echo "Unsupported operating system: $OSTYPE"
     exit 1
