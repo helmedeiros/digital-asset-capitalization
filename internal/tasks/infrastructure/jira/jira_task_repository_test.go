@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"os"
 	"testing"
 	"time"
 
@@ -70,6 +71,23 @@ func TestNewRepository(t *testing.T) {
 	originalNewClient := NewClient
 	defer func() { NewClient = originalNewClient }()
 
+	// Save original env vars
+	origBaseURL := os.Getenv(envJiraBaseURL)
+	origEmail := os.Getenv(envJiraEmail)
+	origToken := os.Getenv(envJiraToken)
+
+	// Restore env vars after test
+	defer func() {
+		os.Setenv(envJiraBaseURL, origBaseURL)
+		os.Setenv(envJiraEmail, origEmail)
+		os.Setenv(envJiraToken, origToken)
+	}()
+
+	// Set default environment variables for all tests
+	os.Setenv(envJiraBaseURL, "https://test.atlassian.net")
+	os.Setenv(envJiraEmail, "test@example.com")
+	os.Setenv(envJiraToken, "test-token")
+
 	tests := []struct {
 		name         string
 		mockSetup    func()
@@ -78,15 +96,19 @@ func TestNewRepository(t *testing.T) {
 		wantInstance *TaskRepository
 	}{
 		{
-			name:         "successful setup",
-			mockSetup:    func() {},
+			name: "successful setup",
+			mockSetup: func() {
+				// No additional setup needed as environment variables are already set
+			},
 			wantErr:      false,
 			errorMessage: "",
 			wantInstance: nil,
 		},
 		{
-			name:         "client error",
-			mockSetup:    func() { NewClient = func(_ *Config) (Client, error) { return nil, errors.New("client error") } },
+			name: "client error",
+			mockSetup: func() {
+				NewClient = func(_ *Config) (Client, error) { return nil, errors.New("client error") }
+			},
 			wantErr:      true,
 			errorMessage: "failed to create Jira client: client error",
 			wantInstance: nil,
