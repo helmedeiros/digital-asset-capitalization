@@ -87,7 +87,7 @@ func setupTestEnvironment(t *testing.T) func() {
 	})
 
 	// Set up mock behavior for repositories
-	jiraRepo.SetFindByProjectAndSprintFunc(func(_ context.Context, project, sprint string) ([]*domain.Task, error) {
+	jiraRepo.SetFindByProjectAndSprintFunc(func(_ context.Context, _, _ string) ([]*domain.Task, error) {
 		return []*domain.Task{
 			{
 				Key:     "TEST-1",
@@ -99,7 +99,7 @@ func setupTestEnvironment(t *testing.T) func() {
 		}, nil
 	})
 
-	localRepo.SetSaveFunc(func(_ context.Context, task *domain.Task) error {
+	localRepo.SetSaveFunc(func(_ context.Context, _ *domain.Task) error {
 		return nil
 	})
 
