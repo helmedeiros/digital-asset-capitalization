@@ -20,7 +20,7 @@ import (
 // AssetService handles business logic for asset management
 type AssetService struct {
 	repo       ports.AssetRepository
-	llama      ports.LLAMAClient
+	llama      ports.LlamaClient
 	confluence ports.ConfluenceAdapter
 }
 
