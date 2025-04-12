@@ -72,7 +72,7 @@ func TestCLIUserInput_Confirm(t *testing.T) {
 			reader := strings.NewReader(tt.input)
 
 			// Create CLIUserInput with test reader and writer
-			ui := &CLIUserInput{
+			ui := &UserInput{
 				reader: bufio.NewReader(reader),
 			}
 
