@@ -7,20 +7,20 @@ import (
 	"strings"
 )
 
-// CLIUserInput implements UserInput interface for command-line interaction
-type CLIUserInput struct {
+// UserInput implements UserInput interface for command-line interaction
+type UserInput struct {
 	reader *bufio.Reader
 }
 
-// NewCLIUserInput creates a new CLIUserInput instance
-func NewCLIUserInput() *CLIUserInput {
-	return &CLIUserInput{
+// NewUserInput creates a new UserInput instance
+func NewUserInput() *UserInput {
+	return &UserInput{
 		reader: bufio.NewReader(os.Stdin),
 	}
 }
 
 // Confirm asks the user for a yes/no confirmation via command line
-func (ui *CLIUserInput) Confirm(format string, args ...interface{}) (bool, error) {
+func (ui *UserInput) Confirm(format string, args ...interface{}) (bool, error) {
 	// Print the formatted message
 	fmt.Printf(format+" (y/n): ", args...)
 
