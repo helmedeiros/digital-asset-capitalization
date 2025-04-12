@@ -54,7 +54,7 @@ func (m *mockRepository) FindByProject(_ context.Context, project string) ([]*do
 	return tasks, nil
 }
 
-func (m *mockRepository) FindBySprint(ctx context.Context, sprint string) ([]*domain.Task, error) {
+func (m *mockRepository) FindBySprint(_ context.Context, sprint string) ([]*domain.Task, error) {
 	var tasks []*domain.Task
 	for _, task := range m.tasks {
 		if task.Sprint == sprint {
@@ -64,7 +64,7 @@ func (m *mockRepository) FindBySprint(ctx context.Context, sprint string) ([]*do
 	return tasks, nil
 }
 
-func (m *mockRepository) FindByPlatform(ctx context.Context, platform string) ([]*domain.Task, error) {
+func (m *mockRepository) FindByPlatform(_ context.Context, platform string) ([]*domain.Task, error) {
 	var tasks []*domain.Task
 	for _, task := range m.tasks {
 		if task.Platform == platform {
@@ -74,7 +74,7 @@ func (m *mockRepository) FindByPlatform(ctx context.Context, platform string) ([
 	return tasks, nil
 }
 
-func (m *mockRepository) FindAll(ctx context.Context) ([]*domain.Task, error) {
+func (m *mockRepository) FindAll(_ context.Context) ([]*domain.Task, error) {
 	tasks := make([]*domain.Task, 0, len(m.tasks))
 	for _, task := range m.tasks {
 		tasks = append(tasks, task)
@@ -82,12 +82,12 @@ func (m *mockRepository) FindAll(ctx context.Context) ([]*domain.Task, error) {
 	return tasks, nil
 }
 
-func (m *mockRepository) Delete(ctx context.Context, key string) error {
+func (m *mockRepository) Delete(_ context.Context, key string) error {
 	delete(m.tasks, key)
 	return nil
 }
 
-func (m *mockRepository) DeleteByProjectAndSprint(ctx context.Context, project, sprint string) error {
+func (m *mockRepository) DeleteByProjectAndSprint(_ context.Context, project, sprint string) error {
 	for key, task := range m.tasks {
 		if task.Project == project && task.Sprint == sprint {
 			delete(m.tasks, key)
@@ -97,7 +97,7 @@ func (m *mockRepository) DeleteByProjectAndSprint(ctx context.Context, project, 
 }
 
 // UpdateLabels updates the labels of a task in the remote repository
-func (m *mockRepository) UpdateLabels(ctx context.Context, taskKey string, labels []string) error {
+func (m *mockRepository) UpdateLabels(_ context.Context, taskKey string, labels []string) error {
 	if taskKey == "" {
 		return fmt.Errorf("task key cannot be empty")
 	}
