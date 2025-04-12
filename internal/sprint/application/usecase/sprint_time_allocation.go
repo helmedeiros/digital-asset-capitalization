@@ -3,7 +3,6 @@ package usecase
 import (
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
 	"net/http"
 	"os"
 	"time"
@@ -42,7 +41,7 @@ func NewSprintTimeAllocationUseCase(project, sprint, override string) (*SprintTi
 	}
 
 	for _, path := range paths {
-		teamsData, teamsErr = ioutil.ReadFile(path)
+		teamsData, teamsErr = os.ReadFile(path)
 		if teamsErr == nil {
 			break
 		}
@@ -50,22 +49,22 @@ func NewSprintTimeAllocationUseCase(project, sprint, override string) (*SprintTi
 
 	if teamsErr != nil {
 		// If no file is found, create a default teams.json in the .assetcap directory
-		if err := os.MkdirAll(".assetcap", 0755); err != nil {
-			return nil, fmt.Errorf("failed to create .assetcap directory: %w", err)
+		if mkdirErr := os.MkdirAll(".assetcap", 0755); mkdirErr != nil {
+			return nil, fmt.Errorf("failed to create .assetcap directory: %w", mkdirErr)
 		}
 		teamsData = []byte(`{
 			"FN": {
 				"team": ["helio.medeiros", "julio.medeiros"]
 			}
 		}`)
-		if err := ioutil.WriteFile(".assetcap/teams.json", teamsData, 0644); err != nil {
-			return nil, fmt.Errorf("failed to create default teams.json: %w", err)
+		if writeErr := os.WriteFile(".assetcap/teams.json", teamsData, 0644); writeErr != nil {
+			return nil, fmt.Errorf("failed to write teams file: %w", writeErr)
 		}
 	}
 
 	var teams domain.TeamMap
-	if err := json.Unmarshal(teamsData, &teams); err != nil {
-		return nil, fmt.Errorf("error unmarshaling teams data: %w", err)
+	if unmarshalErr := json.Unmarshal(teamsData, &teams); unmarshalErr != nil {
+		return nil, fmt.Errorf("failed to unmarshal teams data: %w", unmarshalErr)
 	}
 
 	// Create Jira adapter

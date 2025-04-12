@@ -8,13 +8,14 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
 	assetsapp "github.com/helmedeiros/digital-asset-capitalization/internal/assets/application"
 	"github.com/helmedeiros/digital-asset-capitalization/internal/assets/infrastructure"
 	tasksapp "github.com/helmedeiros/digital-asset-capitalization/internal/tasks/application"
 	"github.com/helmedeiros/digital-asset-capitalization/internal/tasks/application/usecase/testutil"
 	"github.com/helmedeiros/digital-asset-capitalization/internal/tasks/domain"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
 const testAssetsFile = "assets.json"

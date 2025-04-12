@@ -14,11 +14,11 @@ const (
 	envJiraToken   = "JIRA_TOKEN"
 )
 
-// Config holds the configuration for Jira API
+// Config holds the configuration for the JIRA client
 type Config struct {
-	baseURL string
-	email   string
-	token   string
+	BaseURL string
+	Email   string
+	Token   string
 }
 
 // ConfigFactory is a function type for creating new Jira configurations
@@ -34,9 +34,9 @@ func newConfig() (*Config, error) {
 	token := os.Getenv("JIRA_TOKEN")
 
 	config := &Config{
-		baseURL: baseURL,
-		email:   email,
-		token:   token,
+		BaseURL: baseURL,
+		Email:   email,
+		Token:   token,
 	}
 
 	if err := config.Validate(); err != nil {
@@ -59,11 +59,11 @@ func (c *Config) Validate() error {
 
 // validateBaseURL checks if the base URL is present and valid
 func (c *Config) validateBaseURL() error {
-	if c.baseURL == "" {
+	if c.BaseURL == "" {
 		return ErrMissingBaseURL
 	}
 
-	parsedURL, err := url.Parse(c.baseURL)
+	parsedURL, err := url.Parse(c.BaseURL)
 	if err != nil || !strings.HasPrefix(parsedURL.Scheme, "http") {
 		return ErrInvalidBaseURL
 	}
@@ -73,10 +73,10 @@ func (c *Config) validateBaseURL() error {
 
 // validateCredentials checks if the email and token are present
 func (c *Config) validateCredentials() error {
-	if c.email == "" {
+	if c.Email == "" {
 		return ErrMissingEmail
 	}
-	if c.token == "" {
+	if c.Token == "" {
 		return ErrMissingToken
 	}
 	return nil
@@ -84,21 +84,21 @@ func (c *Config) validateCredentials() error {
 
 // GetBaseURL returns the configured Jira base URL
 func (c *Config) GetBaseURL() string {
-	return c.baseURL
+	return c.BaseURL
 }
 
 // GetEmail returns the configured Jira user email
 func (c *Config) GetEmail() string {
-	return c.email
+	return c.Email
 }
 
 // GetToken returns the configured Jira API token
 func (c *Config) GetToken() string {
-	return c.token
+	return c.Token
 }
 
 // GetAuthHeader returns the base64 encoded authentication header for Jira API
 func (c *Config) GetAuthHeader() string {
-	authString := fmt.Sprintf("%s:%s", c.email, c.token)
+	authString := fmt.Sprintf("%s:%s", c.Email, c.Token)
 	return "Basic " + base64.StdEncoding.EncodeToString([]byte(authString))
 }

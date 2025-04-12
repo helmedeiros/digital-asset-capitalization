@@ -3,8 +3,9 @@ package classifier
 import (
 	"testing"
 
-	"github.com/helmedeiros/digital-asset-capitalization/internal/tasks/domain"
 	"github.com/stretchr/testify/assert"
+
+	"github.com/helmedeiros/digital-asset-capitalization/internal/tasks/domain"
 )
 
 func TestRandomClassifier_ClassifyTask(t *testing.T) {

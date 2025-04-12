@@ -12,10 +12,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/helmedeiros/digital-asset-capitalization/internal/tasks/domain"
-	"github.com/helmedeiros/digital-asset-capitalization/internal/tasks/infrastructure/jira/api"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/helmedeiros/digital-asset-capitalization/internal/tasks/domain"
+	"github.com/helmedeiros/digital-asset-capitalization/internal/tasks/infrastructure/jira/api"
 )
 
 type mockHTTPClient struct {
@@ -46,9 +47,9 @@ func createMockResponse(t *testing.T, statusCode int, body interface{}) *http.Re
 
 func TestNewClient(t *testing.T) {
 	config := &Config{
-		baseURL: "https://test.atlassian.net",
-		email:   "test@example.com",
-		token:   "test-token",
+		BaseURL: "http://localhost:8080",
+		Email:   "test@example.com",
+		Token:   "test-token",
 	}
 
 	client, err := NewClient(config)
@@ -61,9 +62,9 @@ func TestClient_FetchTasks(t *testing.T) {
 
 	t.Run("empty project", func(t *testing.T) {
 		config := &Config{
-			baseURL: "https://test.atlassian.net",
-			email:   "test@example.com",
-			token:   "test-token",
+			BaseURL: "http://localhost:8080",
+			Email:   "test@example.com",
+			Token:   "test-token",
 		}
 		client, err := NewClient(config)
 		require.NoError(t, err, "Should not return error")
@@ -229,9 +230,9 @@ func TestClient_FetchTasks(t *testing.T) {
 		defer server.Close()
 
 		config := &Config{
-			baseURL: server.URL,
-			email:   "test@example.com",
-			token:   "test-token",
+			BaseURL: server.URL,
+			Email:   "test@example.com",
+			Token:   "test-token",
 		}
 		client, err := NewClient(config)
 		require.NoError(t, err, "Should not return error")
@@ -278,9 +279,9 @@ func TestClient_FetchTasks(t *testing.T) {
 		defer server.Close()
 
 		config := &Config{
-			baseURL: server.URL,
-			email:   "test@example.com",
-			token:   "test-token",
+			BaseURL: server.URL,
+			Email:   "test@example.com",
+			Token:   "test-token",
 		}
 		client, err := NewClient(config)
 		require.NoError(t, err, "Should not return error")
@@ -297,9 +298,9 @@ func TestClient_FetchTasks(t *testing.T) {
 		defer server.Close()
 
 		config := &Config{
-			baseURL: server.URL,
-			email:   "test@example.com",
-			token:   "test-token",
+			BaseURL: server.URL,
+			Email:   "test@example.com",
+			Token:   "test-token",
 		}
 		client, err := NewClient(config)
 		require.NoError(t, err, "Should not return error")
@@ -527,9 +528,9 @@ func TestFetchTasksWithMultipleSprints(t *testing.T) {
 	mockClient := &client{
 		httpClient: &mockHTTPClient{},
 		config: &Config{
-			baseURL: "https://test.atlassian.net",
-			email:   "test@example.com",
-			token:   "test-token",
+			BaseURL: "http://localhost:8080",
+			Email:   "test@example.com",
+			Token:   "test-token",
 		},
 	}
 

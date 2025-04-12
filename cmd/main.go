@@ -7,6 +7,8 @@ import (
 	"os"
 	"strings"
 
+	"github.com/urfave/cli/v2"
+
 	assetsapp "github.com/helmedeiros/digital-asset-capitalization/internal/assets/application"
 	"github.com/helmedeiros/digital-asset-capitalization/internal/assets/domain/ports"
 	assetsinfra "github.com/helmedeiros/digital-asset-capitalization/internal/assets/infrastructure"
@@ -19,7 +21,6 @@ import (
 	cliui "github.com/helmedeiros/digital-asset-capitalization/internal/tasks/infrastructure/cli"
 	"github.com/helmedeiros/digital-asset-capitalization/internal/tasks/infrastructure/jira"
 	"github.com/helmedeiros/digital-asset-capitalization/internal/tasks/infrastructure/storage"
-	"github.com/urfave/cli/v2"
 )
 
 const (

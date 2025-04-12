@@ -10,10 +10,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/helmedeiros/digital-asset-capitalization/internal/sprint/domain"
-	"github.com/helmedeiros/digital-asset-capitalization/internal/sprint/domain/ports"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/helmedeiros/digital-asset-capitalization/internal/sprint/domain"
+	"github.com/helmedeiros/digital-asset-capitalization/internal/sprint/domain/ports"
 )
 
 func setupTestEnv(t *testing.T) func() {

@@ -97,7 +97,17 @@ func (a *JiraAdapter) GetIssuesForTeamMember(member string) ([]ports.JiraIssue, 
 
 // GetSprintIssues retrieves all issues in a sprint
 func (a *JiraAdapter) GetSprintIssues(sprint *domain.Sprint) ([]ports.JiraIssue, error) {
-	return a.GetIssuesForSprint(sprint.Project, sprint.ID)
+	issues, err := a.GetIssuesForSprint(sprint.Project, sprint.ID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get issues for sprint %s: %w", sprint.ID, err)
+	}
+
+	portIssues := make([]ports.JiraIssue, 0, len(issues))
+	for _, issue := range issues {
+		portIssues = append(portIssues, issue)
+	}
+
+	return portIssues, nil
 }
 
 // GetTeamIssues retrieves all issues for a team

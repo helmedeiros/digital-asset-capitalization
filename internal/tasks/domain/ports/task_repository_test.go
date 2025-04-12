@@ -5,9 +5,10 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/helmedeiros/digital-asset-capitalization/internal/tasks/domain"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/helmedeiros/digital-asset-capitalization/internal/tasks/domain"
 )
 
 // mockRepository implements the Repository interface for testing
