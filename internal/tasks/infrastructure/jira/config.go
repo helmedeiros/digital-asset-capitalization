@@ -29,9 +29,9 @@ var NewConfig ConfigFactory = newConfig
 
 // newConfig creates a new Jira configuration instance
 func newConfig() (*Config, error) {
-	baseURL := os.Getenv("JIRA_BASE_URL")
-	email := os.Getenv("JIRA_EMAIL")
-	token := os.Getenv("JIRA_TOKEN")
+	baseURL := os.Getenv(envJiraBaseURL)
+	email := os.Getenv(envJiraEmail)
+	token := os.Getenv(envJiraToken)
 
 	config := &Config{
 		BaseURL: baseURL,

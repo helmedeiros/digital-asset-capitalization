@@ -124,15 +124,15 @@ func (uc *ClassifyTasksUseCase) GetTasks(ctx context.Context, project, sprint st
 
 	// If no tasks found locally, try to fetch from remote
 	if len(tasks) == 0 {
-		remoteTasks, err := uc.remoteRepo.FindByProjectAndSprint(ctx, project, sprint)
-		if err != nil {
-			return nil, fmt.Errorf("failed to fetch tasks from remote: %w", err)
+		remoteTasks, fetchErr := uc.remoteRepo.FindByProjectAndSprint(ctx, project, sprint)
+		if fetchErr != nil {
+			return nil, fmt.Errorf("failed to fetch tasks from remote: %w", fetchErr)
 		}
 
 		// Save remote tasks to local repository
 		for _, task := range remoteTasks {
-			if err := uc.localRepo.Save(ctx, task); err != nil {
-				return nil, fmt.Errorf("failed to save fetched task: %w", err)
+			if saveErr := uc.localRepo.Save(ctx, task); saveErr != nil {
+				return nil, fmt.Errorf("failed to save fetched task: %w", saveErr)
 			}
 		}
 

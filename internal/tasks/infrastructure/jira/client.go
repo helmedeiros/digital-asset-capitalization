@@ -397,7 +397,7 @@ func (c *JiraClient) GetTasks(project string, sprint string) ([]api.JiraIssue, e
 		return nil, fmt.Errorf("error decoding response: %v", err)
 	}
 
-	var tasks []api.JiraIssue
+	var tasks = make([]api.JiraIssue, 0, len(result.Issues))
 	for _, issue := range result.Issues {
 		task := api.JiraIssue{
 			Key:     issue.Key,
