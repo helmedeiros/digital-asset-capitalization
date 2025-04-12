@@ -3,8 +3,8 @@ package infrastructure
 import (
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
 	"net/url"
+	"os"
 
 	"github.com/helmedeiros/digital-asset-capitalization/internal/sprint/config"
 	"github.com/helmedeiros/digital-asset-capitalization/internal/sprint/domain"
@@ -31,10 +31,10 @@ func NewJiraAdapter(teamsFilePath string) (*JiraAdapter, error) {
 	var teamsData []byte
 
 	// Try to read teams.json from the specified path
-	teamsData, err = ioutil.ReadFile(teamsFilePath)
+	teamsData, err = os.ReadFile(teamsFilePath)
 	if err != nil {
 		// Try to use teams.json.template as fallback
-		teamsData, err = ioutil.ReadFile(teamsFilePath + ".template")
+		teamsData, err = os.ReadFile(teamsFilePath + ".template")
 		if err != nil {
 			// Create a default teams.json file
 			teamsData = []byte(`{
@@ -42,7 +42,7 @@ func NewJiraAdapter(teamsFilePath string) (*JiraAdapter, error) {
 					"team": ["helio.medeiros", "julio.medeiros"]
 				}
 			}`)
-			err = ioutil.WriteFile(teamsFilePath, teamsData, 0644)
+			err = os.WriteFile(teamsFilePath, teamsData, 0644)
 			if err != nil {
 				return nil, fmt.Errorf("failed to create default teams.json: %w", err)
 			}

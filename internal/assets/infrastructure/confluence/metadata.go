@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"log"
 	"regexp"
-	"strconv"
 	"strings"
 	"time"
 
@@ -384,14 +383,6 @@ func extractAssetIdentifier(content string) string {
 	}
 
 	return ""
-}
-
-func mustParseInt(s string) int {
-	i, err := strconv.Atoi(s)
-	if err != nil {
-		return 0
-	}
-	return i
 }
 
 func parseDate(dateStr string) (time.Time, error) {
