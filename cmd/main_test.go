@@ -82,12 +82,12 @@ func setupTestEnvironment(t *testing.T) func() {
 	})
 
 	// Set up mock behavior for user input
-	userInput.SetConfirmFunc(func(prompt string, args ...interface{}) (bool, error) {
+	userInput.SetConfirmFunc(func(_ string, _ ...interface{}) (bool, error) {
 		return true, nil
 	})
 
 	// Set up mock behavior for repositories
-	jiraRepo.SetFindByProjectAndSprintFunc(func(ctx context.Context, project, sprint string) ([]*domain.Task, error) {
+	jiraRepo.SetFindByProjectAndSprintFunc(func(_ context.Context, project, sprint string) ([]*domain.Task, error) {
 		return []*domain.Task{
 			{
 				Key:     "TEST-1",
@@ -99,7 +99,7 @@ func setupTestEnvironment(t *testing.T) func() {
 		}, nil
 	})
 
-	localRepo.SetSaveFunc(func(ctx context.Context, task *domain.Task) error {
+	localRepo.SetSaveFunc(func(_ context.Context, task *domain.Task) error {
 		return nil
 	})
 
