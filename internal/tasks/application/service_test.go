@@ -34,7 +34,7 @@ func TestTasksService_FetchTasks(t *testing.T) {
 			setup: func() {
 				remoteRepo.Reset()
 				localRepo.Reset()
-				remoteRepo.SetFindByProjectAndSprintFunc(func(_ context.Context, project, sprint string) ([]*domain.Task, error) {
+				remoteRepo.SetFindByProjectAndSprintFunc(func(_ context.Context, _, sprint string) ([]*domain.Task, error) {
 					return []*domain.Task{
 						{
 							Key:     "PROJ-1",
@@ -75,7 +75,7 @@ func TestTasksService_FetchTasks(t *testing.T) {
 			platform: "JIRA",
 			setup: func() {
 				remoteRepo.Reset()
-				remoteRepo.SetFindByProjectAndSprintFunc(func(_ context.Context, project, sprint string) ([]*domain.Task, error) {
+				remoteRepo.SetFindByProjectAndSprintFunc(func(_ context.Context, _, sprint string) ([]*domain.Task, error) {
 					return nil, errors.New("repository error")
 				})
 			},
@@ -89,7 +89,7 @@ func TestTasksService_FetchTasks(t *testing.T) {
 			setup: func() {
 				remoteRepo.Reset()
 				localRepo.Reset()
-				remoteRepo.SetFindByProjectAndSprintFunc(func(_ context.Context, project, sprint string) ([]*domain.Task, error) {
+				remoteRepo.SetFindByProjectAndSprintFunc(func(_ context.Context, _, sprint string) ([]*domain.Task, error) {
 					return []*domain.Task{
 						{
 							Key:     "PROJ-1",
@@ -100,7 +100,7 @@ func TestTasksService_FetchTasks(t *testing.T) {
 						},
 					}, nil
 				})
-				localRepo.SetSaveFunc(func(_ context.Context, task *domain.Task) error {
+				localRepo.SetSaveFunc(func(_ context.Context, _ *domain.Task) error {
 					return errors.New("save error")
 				})
 			},
@@ -146,7 +146,7 @@ func TestTasksService_ClassifyTasks(t *testing.T) {
 				userInput.Reset()
 
 				// Setup local repo to return existing tasks
-				localRepo.SetFindByProjectAndSprintFunc(func(ctx context.Context, project, sprint string) ([]*domain.Task, error) {
+				localRepo.SetFindByProjectAndSprintFunc(func(ctx context.Context, _, sprint string) ([]*domain.Task, error) {
 					return []*domain.Task{
 						{
 							Key:     "PROJ-1",
@@ -186,17 +186,17 @@ func TestTasksService_ClassifyTasks(t *testing.T) {
 				userInput.Reset()
 
 				// Setup local repo to return no tasks
-				localRepo.SetFindByProjectAndSprintFunc(func(_ context.Context, project, sprint string) ([]*domain.Task, error) {
+				localRepo.SetFindByProjectAndSprintFunc(func(_ context.Context, _, sprint string) ([]*domain.Task, error) {
 					return []*domain.Task{}, nil
 				})
 
 				// Setup user input to confirm fetching
-				userInput.SetConfirmFunc(func(_ string, args ...interface{}) (bool, error) {
+				userInput.SetConfirmFunc(func(_ string, _ ...interface{}) (bool, error) {
 					return true, nil
 				})
 
 				// Setup remote repo to return tasks
-				remoteRepo.SetFindByProjectAndSprintFunc(func(_ context.Context, project, sprint string) ([]*domain.Task, error) {
+				remoteRepo.SetFindByProjectAndSprintFunc(func(_ context.Context, _, sprint string) ([]*domain.Task, error) {
 					return []*domain.Task{
 						{
 							Key:     "PROJ-1",
@@ -235,12 +235,12 @@ func TestTasksService_ClassifyTasks(t *testing.T) {
 				userInput.Reset()
 
 				// Setup local repo to return no tasks
-				localRepo.SetFindByProjectAndSprintFunc(func(_ context.Context, project, sprint string) ([]*domain.Task, error) {
+				localRepo.SetFindByProjectAndSprintFunc(func(_ context.Context, _, sprint string) ([]*domain.Task, error) {
 					return []*domain.Task{}, nil
 				})
 
 				// Setup user input to decline fetching
-				userInput.SetConfirmFunc(func(_ string, args ...interface{}) (bool, error) {
+				userInput.SetConfirmFunc(func(_ string, _ ...interface{}) (bool, error) {
 					return false, nil
 				})
 			},
@@ -258,7 +258,7 @@ func TestTasksService_ClassifyTasks(t *testing.T) {
 				userInput.Reset()
 
 				// Setup local repo to return existing tasks
-				localRepo.SetFindByProjectAndSprintFunc(func(_ context.Context, project, sprint string) ([]*domain.Task, error) {
+				localRepo.SetFindByProjectAndSprintFunc(func(_ context.Context, _, sprint string) ([]*domain.Task, error) {
 					return []*domain.Task{
 						{
 							Key:     "PROJ-1",
@@ -289,7 +289,7 @@ func TestTasksService_ClassifyTasks(t *testing.T) {
 				userInput.Reset()
 
 				// Setup local repo to return error
-				localRepo.SetFindByProjectAndSprintFunc(func(ctx context.Context, project, sprint string) ([]*domain.Task, error) {
+				localRepo.SetFindByProjectAndSprintFunc(func(ctx context.Context, _, sprint string) ([]*domain.Task, error) {
 					return nil, errors.New("repository error")
 				})
 			},
