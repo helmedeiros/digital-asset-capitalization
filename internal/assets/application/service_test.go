@@ -76,12 +76,12 @@ type MockConfluenceAdapter struct {
 	mock.Mock
 }
 
-func (m *MockConfluenceAdapter) FetchPage(ctx context.Context, pageID string) (*confluence.ConfluencePage, error) {
+func (m *MockConfluenceAdapter) FetchPage(ctx context.Context, pageID string) (*confluence.Page, error) {
 	args := m.Called(ctx, pageID)
 	if args.Get(0) == nil {
 		return nil, args.Error(1)
 	}
-	return args.Get(0).(*confluence.ConfluencePage), args.Error(1)
+	return args.Get(0).(*confluence.Page), args.Error(1)
 }
 
 var _ ports.ConfluenceAdapter = (*MockConfluenceAdapter)(nil)
@@ -640,7 +640,7 @@ func TestEnrichAsset(t *testing.T) {
 					Version:     1,
 				}, nil)
 
-				confluenceAdapter.On("FetchPage", mock.Anything, "123456").Return(&confluence.ConfluencePage{
+				confluenceAdapter.On("FetchPage", mock.Anything, "123456").Return(&confluence.Page{
 					ID:    "123456",
 					Title: "Test Page",
 					Space: struct {
@@ -735,7 +735,7 @@ func TestEnrichAsset(t *testing.T) {
 					Version:     1,
 				}, nil)
 
-				confluenceAdapter.On("FetchPage", mock.Anything, "123456").Return(&confluence.ConfluencePage{
+				confluenceAdapter.On("FetchPage", mock.Anything, "123456").Return(&confluence.Page{
 					ID:    "123456",
 					Title: "Test Page",
 					Space: struct {

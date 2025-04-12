@@ -15,8 +15,8 @@ import (
 	"github.com/helmedeiros/digital-asset-capitalization/internal/assets/domain"
 )
 
-// ConfluencePage represents a page in Confluence
-type ConfluencePage struct {
+// Page represents a page in Confluence
+type Page struct {
 	ID    string `json:"id"`
 	Title string `json:"title"`
 	Space struct {
@@ -44,7 +44,7 @@ type ConfluencePage struct {
 
 // ConfluenceResponse represents the response from the Confluence API
 type ConfluenceResponse struct {
-	Results []ConfluencePage `json:"results"`
+	Results []Page `json:"results"`
 	Links   struct {
 		Next string `json:"next"`
 	} `json:"_links"`
@@ -212,7 +212,7 @@ func (a *Adapter) FetchAssets(ctx context.Context) ([]*domain.Asset, error) {
 			continue
 		}
 
-		var contentPage ConfluencePage
+		var contentPage Page
 		var decodeErr error
 		if decodeErr = json.NewDecoder(bytes.NewReader(contentBody)).Decode(&contentPage); decodeErr != nil {
 			return nil, fmt.Errorf("failed to decode content page: %w", decodeErr)
@@ -239,7 +239,7 @@ func (a *Adapter) FetchAssets(ctx context.Context) ([]*domain.Asset, error) {
 }
 
 // convertPageToAsset converts a Confluence page to an Asset
-func (a *Adapter) convertPageToAsset(page ConfluencePage) (*domain.Asset, error) {
+func (a *Adapter) convertPageToAsset(page Page) (*domain.Asset, error) {
 	metadata, err := a.extractMetadata(page.Body.Storage.Value)
 	if err != nil {
 		return nil, fmt.Errorf("failed to extract metadata: %w", err)
@@ -299,7 +299,7 @@ func (a *Adapter) convertPageToAsset(page ConfluencePage) (*domain.Asset, error)
 }
 
 // FetchPage retrieves a single page from Confluence by its ID
-func (a *Adapter) FetchPage(ctx context.Context, pageID string) (*ConfluencePage, error) {
+func (a *Adapter) FetchPage(ctx context.Context, pageID string) (*Page, error) {
 	baseURL := strings.TrimRight(a.config.BaseURL, "/")
 	url := fmt.Sprintf("%s/wiki/rest/api/content/%s?expand=body.storage,version,metadata.labels",
 		baseURL, pageID)
@@ -324,7 +324,7 @@ func (a *Adapter) FetchPage(ctx context.Context, pageID string) (*ConfluencePage
 		return nil, fmt.Errorf("unexpected status code: %d, body: %s", resp.StatusCode, string(body))
 	}
 
-	var page ConfluencePage
+	var page Page
 	if err := json.NewDecoder(resp.Body).Decode(&page); err != nil {
 		return nil, fmt.Errorf("failed to decode response: %v", err)
 	}

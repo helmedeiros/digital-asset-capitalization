@@ -311,14 +311,14 @@ func TestFetchAssets(t *testing.T) {
 func TestConvertPageToAsset(t *testing.T) {
 	tests := []struct {
 		name          string
-		page          ConfluencePage
+		page          Page
 		config        *Config
 		expectedAsset *domain.Asset
 		expectError   bool
 	}{
 		{
 			name: "successful conversion with full URL",
-			page: ConfluencePage{
+			page: Page{
 				ID:    "test-id",
 				Title: "Test Asset",
 				Space: struct {
@@ -367,7 +367,7 @@ func TestConvertPageToAsset(t *testing.T) {
 		},
 		{
 			name: "successful conversion with relative URL",
-			page: ConfluencePage{
+			page: Page{
 				ID:    "test-id",
 				Title: "Test Asset",
 				Space: struct {
@@ -416,7 +416,7 @@ func TestConvertPageToAsset(t *testing.T) {
 		},
 		{
 			name: "successful conversion with relative URL containing wiki",
-			page: ConfluencePage{
+			page: Page{
 				ID:    "test-id",
 				Title: "Test Asset",
 				Space: struct {
@@ -465,7 +465,7 @@ func TestConvertPageToAsset(t *testing.T) {
 		},
 		{
 			name: "invalid content",
-			page: ConfluencePage{
+			page: Page{
 				ID:    "test-id",
 				Title: "Test Asset",
 				Body: struct {

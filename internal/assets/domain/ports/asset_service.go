@@ -18,7 +18,7 @@ type LlamaClient interface {
 // ConfluenceAdapter defines the interface for Confluence operations
 type ConfluenceAdapter interface {
 	// FetchPage fetches a page from Confluence
-	FetchPage(ctx context.Context, pageID string) (*confluence.ConfluencePage, error)
+	FetchPage(ctx context.Context, pageID string) (*confluence.Page, error)
 }
 
 // AssetService defines the interface for asset management operations
