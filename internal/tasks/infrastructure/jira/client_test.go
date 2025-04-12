@@ -763,7 +763,7 @@ func TestGetSprintFieldID(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			client := &JiraClient{
+			client := &HTTPClientImpl{
 				client:  &http.Client{Transport: tt.mock},
 				baseURL: tt.baseURL,
 				auth:    tt.auth,
@@ -839,7 +839,7 @@ func TestGetTasks(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			client := &JiraClient{
+			client := &HTTPClientImpl{
 				client:  &http.Client{Transport: tt.mock},
 				baseURL: tt.baseURL,
 				auth:    tt.auth,

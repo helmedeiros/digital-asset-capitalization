@@ -321,7 +321,7 @@ func (c *client) FetchTasks(ctx context.Context, project, sprint string) ([]*dom
 	return c.convertToDomainTasks(searchResp, sprint)
 }
 
-type JiraClient struct {
+type HTTPClientImpl struct {
 	client  *http.Client
 	baseURL string
 	auth    string
@@ -336,7 +336,7 @@ type Field struct {
 	} `json:"schema"`
 }
 
-func (c *JiraClient) getSprintFieldID() (string, error) {
+func (c *HTTPClientImpl) getSprintFieldID() (string, error) {
 	url := fmt.Sprintf("%s/rest/api/2/field", c.baseURL)
 	req, err := http.NewRequest("GET", url, nil)
 	if err != nil {
@@ -366,7 +366,7 @@ func (c *JiraClient) getSprintFieldID() (string, error) {
 	return "", fmt.Errorf("sprint field not found")
 }
 
-func (c *JiraClient) GetTasks(project string, sprint string) ([]api.JiraIssue, error) {
+func (c *HTTPClientImpl) GetTasks(project string, sprint string) ([]api.JiraIssue, error) {
 	jql := fmt.Sprintf("project = %s", project)
 	if sprint != "" {
 		jql = fmt.Sprintf("%s AND sprint in ('%s')", jql, sprint)
