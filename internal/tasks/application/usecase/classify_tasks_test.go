@@ -5,9 +5,15 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/helmedeiros/digital-asset-capitalization/internal/tasks/domain"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
+
+	"github.com/helmedeiros/digital-asset-capitalization/internal/tasks/domain"
+)
+
+const (
+	testProject = "TEST"
+	testSprint  = "Sprint 1"
 )
 
 // MockTaskRepository is a mock implementation of TaskRepository
@@ -140,8 +146,9 @@ func TestClassifyTasksUseCase_Execute(t *testing.T) {
 		{
 			name: "successfully classify existing tasks",
 			input: ClassifyTasksInput{
-				Project: "TEST",
-				Sprint:  "Sprint 1",
+				Project: testProject,
+				Sprint:  testSprint,
+				DryRun:  false,
 			},
 			existingTasks: []*domain.Task{
 				{Key: "TEST-1", Summary: "Task 1"},
@@ -168,8 +175,9 @@ func TestClassifyTasksUseCase_Execute(t *testing.T) {
 		{
 			name: "fetch and classify new tasks",
 			input: ClassifyTasksInput{
-				Project: "TEST",
-				Sprint:  "Sprint 2",
+				Project: testProject,
+				Sprint:  testSprint,
+				DryRun:  false,
 			},
 			existingTasks: nil,
 			shouldFetch:   true,
@@ -183,9 +191,9 @@ func TestClassifyTasksUseCase_Execute(t *testing.T) {
 			},
 			expectedError: false,
 			expectedCalls: func(localRepo, remoteRepo *MockTaskRepository, classifier *MockTaskClassifier, userInput *MockUserInput) {
-				localRepo.On("FindByProjectAndSprint", ctx, "TEST", "Sprint 2").Return(nil, nil)
+				localRepo.On("FindByProjectAndSprint", ctx, "TEST", "Sprint 1").Return(nil, nil)
 				userInput.On("Confirm", mock.Anything, mock.Anything).Return(true, nil)
-				remoteRepo.On("FindByProjectAndSprint", ctx, "TEST", "Sprint 2").Return([]*domain.Task{
+				remoteRepo.On("FindByProjectAndSprint", ctx, "TEST", "Sprint 1").Return([]*domain.Task{
 					{Key: "TEST-3", Summary: "Task 3"},
 					{Key: "TEST-4", Summary: "Task 4"},
 				}, nil)
@@ -199,8 +207,8 @@ func TestClassifyTasksUseCase_Execute(t *testing.T) {
 		{
 			name: "dry run classification",
 			input: ClassifyTasksInput{
-				Project: "TEST",
-				Sprint:  "Sprint 1",
+				Project: testProject,
+				Sprint:  testSprint,
 				DryRun:  true,
 			},
 			existingTasks: []*domain.Task{

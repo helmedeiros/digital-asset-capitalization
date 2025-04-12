@@ -91,36 +91,36 @@ func TestConfig_Validate(t *testing.T) {
 		{
 			name: "valid config",
 			config: &Config{
-				baseURL: "https://test.atlassian.net",
-				email:   "test@example.com",
-				token:   "test-token",
+				BaseURL: "https://test.atlassian.net",
+				Email:   "test@example.com",
+				Token:   "test-token",
 			},
 			wantErr: false,
 		},
 		{
 			name: "invalid base URL",
 			config: &Config{
-				baseURL: "invalid-url",
-				email:   "test@example.com",
-				token:   "test-token",
+				BaseURL: "invalid-url",
+				Email:   "test@example.com",
+				Token:   "test-token",
 			},
 			wantErr: true,
 		},
 		{
 			name: "empty email",
 			config: &Config{
-				baseURL: "https://test.atlassian.net",
-				email:   "",
-				token:   "test-token",
+				BaseURL: "https://test.atlassian.net",
+				Email:   "",
+				Token:   "test-token",
 			},
 			wantErr: true,
 		},
 		{
 			name: "empty token",
 			config: &Config{
-				baseURL: "https://test.atlassian.net",
-				email:   "test@example.com",
-				token:   "",
+				BaseURL: "https://test.atlassian.net",
+				Email:   "test@example.com",
+				Token:   "",
 			},
 			wantErr: true,
 		},
@@ -148,21 +148,21 @@ func TestConfig_ValidateBaseURL(t *testing.T) {
 		{
 			name: "valid URL",
 			config: &Config{
-				baseURL: "https://test.atlassian.net",
+				BaseURL: "https://test.atlassian.net",
 			},
 			wantErr: false,
 		},
 		{
 			name: "invalid URL",
 			config: &Config{
-				baseURL: "invalid-url",
+				BaseURL: "invalid-url",
 			},
 			wantErr: true,
 		},
 		{
 			name: "empty URL",
 			config: &Config{
-				baseURL: "",
+				BaseURL: "",
 			},
 			wantErr: true,
 		},
@@ -190,32 +190,32 @@ func TestConfig_ValidateCredentials(t *testing.T) {
 		{
 			name: "valid credentials",
 			config: &Config{
-				email: "test@example.com",
-				token: "test-token",
+				Email: "test@example.com",
+				Token: "test-token",
 			},
 			wantErr: false,
 		},
 		{
 			name: "empty email",
 			config: &Config{
-				email: "",
-				token: "test-token",
+				Email: "",
+				Token: "test-token",
 			},
 			wantErr: true,
 		},
 		{
 			name: "empty token",
 			config: &Config{
-				email: "test@example.com",
-				token: "",
+				Email: "test@example.com",
+				Token: "",
 			},
 			wantErr: true,
 		},
 		{
 			name: "both empty",
 			config: &Config{
-				email: "",
-				token: "",
+				Email: "",
+				Token: "",
 			},
 			wantErr: true,
 		},

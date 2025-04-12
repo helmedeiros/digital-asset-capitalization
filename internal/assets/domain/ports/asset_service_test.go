@@ -4,8 +4,9 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/helmedeiros/digital-asset-capitalization/internal/assets/domain"
 	"github.com/stretchr/testify/assert"
+
+	"github.com/helmedeiros/digital-asset-capitalization/internal/assets/domain"
 )
 
 // MockAssetService is a mock implementation of AssetService for testing

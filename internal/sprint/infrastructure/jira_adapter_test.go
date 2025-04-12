@@ -8,9 +8,10 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/helmedeiros/digital-asset-capitalization/internal/sprint/domain"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/helmedeiros/digital-asset-capitalization/internal/sprint/domain"
 )
 
 func setupTestEnv(t *testing.T) func() {

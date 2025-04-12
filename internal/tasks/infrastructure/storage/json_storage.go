@@ -138,7 +138,7 @@ func (s *JSONStorage) FindAll(ctx context.Context) ([]*domain.Task, error) {
 		return nil, fmt.Errorf("failed to load tasks: %w", err)
 	}
 
-	var result []*domain.Task
+	result := make([]*domain.Task, 0, len(tasks))
 	for _, task := range tasks {
 		result = append(result, task)
 	}

@@ -5,8 +5,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/helmedeiros/digital-asset-capitalization/internal/assets/domain"
 	"github.com/stretchr/testify/assert"
+
+	"github.com/helmedeiros/digital-asset-capitalization/internal/assets/domain"
 )
 
 // MockAssetRepository is a mock implementation of AssetRepository for testing

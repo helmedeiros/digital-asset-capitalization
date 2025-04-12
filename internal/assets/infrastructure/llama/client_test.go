@@ -6,9 +6,10 @@ import (
 	"os"
 	"testing"
 
-	"github.com/helmedeiros/digital-asset-capitalization/internal/assets/domain"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/helmedeiros/digital-asset-capitalization/internal/assets/domain"
 )
 
 func TestNewClient(t *testing.T) {

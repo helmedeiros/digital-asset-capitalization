@@ -3,7 +3,7 @@ package confluence
 import (
 	"bytes"
 	"fmt"
-	"io"
+	"log"
 	"regexp"
 	"strconv"
 	"strings"
@@ -198,10 +198,12 @@ func extractText(n *html.Node) string {
 
 // renderNode renders a node back to HTML
 func renderNode(n *html.Node) string {
-	var buf bytes.Buffer
-	w := io.Writer(&buf)
-	html.Render(w, n)
-	return buf.String()
+	w := &bytes.Buffer{}
+	if err := html.Render(w, n); err != nil {
+		log.Printf("Warning: failed to render HTML: %v", err)
+		return ""
+	}
+	return w.String()
 }
 
 // cleanHTML removes HTML tags and decodes entities
