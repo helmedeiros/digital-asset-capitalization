@@ -1,10 +1,11 @@
 package usecase
 
 import (
+	"encoding/csv"
 	"encoding/json"
 	"fmt"
-	"net/http"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/helmedeiros/digital-asset-capitalization/internal/sprint/config"
@@ -124,7 +125,7 @@ func (p *SprintTimeAllocationUseCase) fetchIssues() ([]domain.JiraIssue, error) 
 		return nil, fmt.Errorf("failed to fetch sprint issues: %w", err)
 	}
 
-	var domainIssues []domain.JiraIssue
+	var domainIssues = make([]domain.JiraIssue, 0, len(issues))
 	for _, issue := range issues {
 		domainIssue := domain.JiraIssue{
 			Key: issue.Key,
@@ -198,7 +199,7 @@ func (p *SprintTimeAllocationUseCase) calculateTotalHours(team domain.Team, issu
 		}
 
 		// Skip Sub-tasks
-		if issue.Fields.IssueType.Name == "Sub-task" {
+		if issue.Fields.IssueType.Name == issueTypeSubTask {
 			continue
 		}
 
@@ -250,7 +251,7 @@ func (p *SprintTimeAllocationUseCase) getIssueTimeRange(issue domain.JiraIssue) 
 			}
 
 			// Look for transition to "Done" or "Won't Do" state
-			if item.ToString == "Done" || item.ToString == "Won't Do" {
+			if item.ToString == statusDone || item.ToString == statusWontDo {
 				endTime = historyTime
 				// If we weren't in progress, use the completion time as start time
 				if !inProgress && startTime.IsZero() {
@@ -260,7 +261,7 @@ func (p *SprintTimeAllocationUseCase) getIssueTimeRange(issue domain.JiraIssue) 
 
 			// If moving out of "In Progress" to a non-Done state, consider this a pause
 			if inProgress && item.FromString == "In Progress" &&
-				item.ToString != "Done" && item.ToString != "Won't Do" {
+				item.ToString != statusDone && item.ToString != statusWontDo {
 				// Calculate working hours up to this point and add to total
 				p.calculateWorkingHours(issue.Key, nil, startTime, historyTime)
 				inProgress = false
@@ -278,7 +279,7 @@ func (p *SprintTimeAllocationUseCase) getIssueTimeRange(issue domain.JiraIssue) 
 }
 
 func (p *SprintTimeAllocationUseCase) calculatePercentageLoad(team domain.Team, issues []domain.JiraIssue, manualAdjustments map[string]float64, totalHoursByPerson map[string]float64) []map[string]interface{} {
-	var results []map[string]interface{}
+	var results = make([]map[string]interface{}, 0, len(issues))
 	personHours := make(map[string]float64) // Track total hours per person
 
 	// First pass: calculate raw hours and percentages
@@ -290,7 +291,7 @@ func (p *SprintTimeAllocationUseCase) calculatePercentageLoad(team domain.Team, 
 		}
 
 		// Skip Sub-tasks
-		if issue.Fields.IssueType.Name == "Sub-task" {
+		if issue.Fields.IssueType.Name == issueTypeSubTask {
 			continue
 		}
 
@@ -310,7 +311,7 @@ func (p *SprintTimeAllocationUseCase) calculatePercentageLoad(team domain.Team, 
 
 		// For percentage calculations, ensure a minimum of 1 hour for completed issues in the same day
 		if workingHours < 1 && startTime.Year() == endTime.Year() && startTime.Month() == endTime.Month() && startTime.Day() == endTime.Day() &&
-			(issue.Fields.Status.Name == "Done" || issue.Fields.Status.Name == "Won't Do") {
+			(issue.Fields.Status.Name == statusDone || issue.Fields.Status.Name == statusWontDo) {
 			workingHours = 1
 		}
 
@@ -326,7 +327,7 @@ func (p *SprintTimeAllocationUseCase) calculatePercentageLoad(team domain.Team, 
 		}
 
 		// Skip Sub-tasks
-		if issue.Fields.IssueType.Name == "Sub-task" {
+		if issue.Fields.IssueType.Name == issueTypeSubTask {
 			continue
 		}
 
@@ -343,7 +344,7 @@ func (p *SprintTimeAllocationUseCase) calculatePercentageLoad(team domain.Team, 
 
 		// For percentage calculations, ensure a minimum of 1 hour for completed issues in the same day
 		if workingHours < 1 && startTime.Year() == endTime.Year() && startTime.Month() == endTime.Month() && startTime.Day() == endTime.Day() &&
-			(issue.Fields.Status.Name == "Done" || issue.Fields.Status.Name == "Won't Do") {
+			(issue.Fields.Status.Name == statusDone || issue.Fields.Status.Name == statusWontDo) {
 			workingHours = 1
 		}
 
@@ -367,7 +368,7 @@ func (p *SprintTimeAllocationUseCase) calculatePercentageLoad(team domain.Team, 
 		result["workingHours"] = workingHours
 
 		// Only set completion date if the issue is actually completed
-		if issue.Fields.Status.Name == "Done" || issue.Fields.Status.Name == "Won't Do" {
+		if issue.Fields.Status.Name == statusDone || issue.Fields.Status.Name == statusWontDo {
 			result["dateCompleted"] = endTime.Format("2006-01-02")
 		} else {
 			result["dateCompleted"] = ""
@@ -394,41 +395,6 @@ func (p *SprintTimeAllocationUseCase) generateCSV(team domain.Team, results []ma
 	}
 
 	return csvData, nil
-}
-
-// getJiraIssues retrieves issues from the Jira API
-func (p *SprintTimeAllocationUseCase) getJiraIssues(jiraURL, authHeader string) ([]domain.JiraIssue, error) {
-	client := &http.Client{
-		Timeout: time.Second * 10,
-	}
-
-	req, err := http.NewRequest("GET", jiraURL, nil)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create request: %w", err)
-	}
-
-	req.Header.Set("Authorization", authHeader)
-	req.Header.Set("Accept", "application/json")
-
-	resp, err := client.Do(req)
-	if err != nil {
-		return nil, fmt.Errorf("failed to send request: %w", err)
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("unexpected status code: %d", resp.StatusCode)
-	}
-
-	var response struct {
-		Issues []domain.JiraIssue `json:"issues"`
-	}
-
-	if err := json.NewDecoder(resp.Body).Decode(&response); err != nil {
-		return nil, fmt.Errorf("failed to decode response: %w", err)
-	}
-
-	return response.Issues, nil
 }
 
 // calculateWorkingHours calculates the working hours for an issue
@@ -461,32 +427,49 @@ func (p *SprintTimeAllocationUseCase) structArrayToCSVOrdered(data []map[string]
 		return "", nil
 	}
 
-	// Create CSV header
-	csv := ""
-	for i, header := range headers {
-		if i > 0 {
-			csv += ","
-		}
-		csv += fmt.Sprintf("%q", header)
-	}
-	csv += "\n"
+	buffer := &strings.Builder{}
+	writer := csv.NewWriter(buffer)
 
-	// Add data rows
+	// Configure writer
+	writer.UseCRLF = false
+	writer.Comma = ','
+
+	// Write headers
+	if err := writer.Write(headers); err != nil {
+		return "", err
+	}
+
+	// Write data
 	for _, row := range data {
+		record := make([]string, len(headers))
 		for i, header := range headers {
-			if i > 0 {
-				csv += ","
+			if val, ok := row[header]; ok {
+				record[i] = fmt.Sprintf("%v", val)
 			}
-			value := row[header]
-			if value == nil {
-				value = ""
-			}
-			csv += fmt.Sprintf("%q", value)
 		}
-		csv += "\n"
+		if err := writer.Write(record); err != nil {
+			return "", err
+		}
 	}
 
-	return csv, nil
+	writer.Flush()
+	if err := writer.Error(); err != nil {
+		return "", err
+	}
+
+	// Add quotes to all fields
+	lines := strings.Split(buffer.String(), "\n")
+	for i, line := range lines {
+		if line == "" {
+			continue
+		}
+		fields := strings.Split(line, ",")
+		for j, field := range fields {
+			fields[j] = fmt.Sprintf("%q", field)
+		}
+		lines[i] = strings.Join(fields, ",")
+	}
+	return strings.Join(lines, "\n"), nil
 }
 
 // JiraDoer is the main entry point for processing Jira issues
@@ -496,41 +479,4 @@ func JiraDoer(project string, sprint string, override string) (string, error) {
 		return "", err
 	}
 	return processor.Process()
-}
-
-func (p *SprintTimeAllocationUseCase) processIssue(issue domain.JiraIssue, team domain.Team) (map[string]interface{}, error) {
-	if issue.Fields.IssueType.Name == issueTypeSubTask {
-		return nil, nil
-	}
-
-	startTime, endTime := p.getIssueTimeRange(issue)
-	if startTime.IsZero() {
-		return nil, nil
-	}
-
-	workingHours := p.calculateWorkingHours(issue.Key, nil, startTime, endTime)
-
-	result := make(map[string]interface{})
-	result["sprint"] = p.sprint
-	result["issueKey"] = issue.Key
-	result["issueType"] = issue.Fields.IssueType.Name
-	result["issueTitle"] = issue.Fields.Summary
-	result["workType"] = issue.GetWorkType()
-	result["assetName"] = issue.GetAssetName()
-	result["status"] = issue.Fields.Status.Name
-	result["dateStarted"] = startTime.Format("2006-01-02")
-	result["workingHours"] = workingHours
-
-	// Only set completion date if the issue is actually completed
-	if issue.Fields.Status.Name == "Done" || issue.Fields.Status.Name == "Won't Do" {
-		result["dateCompleted"] = endTime.Format("2006-01-02")
-	} else {
-		result["dateCompleted"] = ""
-	}
-
-	for _, person := range team.Team {
-		result[person] = ""
-	}
-
-	return result, nil
 }
