@@ -86,7 +86,7 @@ func TestNewRepository(t *testing.T) {
 		},
 		{
 			name:         "client error",
-			mockSetup:    func() { NewClient = func(config *Config) (Client, error) { return nil, errors.New("client error") } },
+			mockSetup:    func() { NewClient = func(_ *Config) (Client, error) { return nil, errors.New("client error") } },
 			wantErr:      true,
 			errorMessage: "failed to create Jira client: client error",
 			wantInstance: nil,
