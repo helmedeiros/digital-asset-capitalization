@@ -20,7 +20,7 @@ func NewRandomClassifier() *RandomClassifier {
 }
 
 // ClassifyTask randomly assigns a work type to a task
-func (c *RandomClassifier) ClassifyTask(task *domain.Task) (domain.WorkType, error) {
+func (c *RandomClassifier) ClassifyTask(_ *domain.Task) (domain.WorkType, error) {
 	workTypes := []domain.WorkType{
 		domain.WorkTypeMaintenance,
 		domain.WorkTypeDiscovery,
