@@ -27,14 +27,14 @@ func (m *mockRepository) Save(_ context.Context, task *domain.Task) error {
 	return nil
 }
 
-func (m *mockRepository) FindByKey(ctx context.Context, key string) (*domain.Task, error) {
+func (m *mockRepository) FindByKey(_ context.Context, key string) (*domain.Task, error) {
 	if task, exists := m.tasks[key]; exists {
 		return task, nil
 	}
 	return nil, nil
 }
 
-func (m *mockRepository) FindByProjectAndSprint(ctx context.Context, project, sprint string) ([]*domain.Task, error) {
+func (m *mockRepository) FindByProjectAndSprint(_ context.Context, project, sprint string) ([]*domain.Task, error) {
 	var tasks []*domain.Task
 	for _, task := range m.tasks {
 		if task.Project == project && task.Sprint == sprint {
@@ -44,7 +44,7 @@ func (m *mockRepository) FindByProjectAndSprint(ctx context.Context, project, sp
 	return tasks, nil
 }
 
-func (m *mockRepository) FindByProject(ctx context.Context, project string) ([]*domain.Task, error) {
+func (m *mockRepository) FindByProject(_ context.Context, project string) ([]*domain.Task, error) {
 	var tasks []*domain.Task
 	for _, task := range m.tasks {
 		if task.Project == project {

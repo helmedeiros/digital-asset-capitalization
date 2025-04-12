@@ -42,24 +42,24 @@ type Page struct {
 	} `json:"metadata"`
 }
 
-// ConfluenceResponse represents the response from the Confluence API
-type ConfluenceResponse struct {
+// Response represents the response from the Confluence API
+type Response struct {
 	Results []Page `json:"results"`
 	Links   struct {
 		Next string `json:"next"`
 	} `json:"_links"`
 }
 
-// ConfluenceSpace represents a space in Confluence
-type ConfluenceSpace struct {
+// Space represents a space in Confluence
+type Space struct {
 	ID   string `json:"id"`
 	Key  string `json:"key"`
 	Name string `json:"name"`
 }
 
-// ConfluenceSpaceResponse represents the response from the Confluence API for spaces
-type ConfluenceSpaceResponse struct {
-	Results []ConfluenceSpace `json:"results"`
+// SpaceResponse represents the response from the Confluence API for spaces
+type SpaceResponse struct {
+	Results []Space `json:"results"`
 }
 
 // Adapter handles communication with Confluence API
@@ -107,7 +107,7 @@ func (a *Adapter) getSpaceID(ctx context.Context) (string, error) {
 		return "", fmt.Errorf("unexpected status code: %d, body: %s", resp.StatusCode, string(body))
 	}
 
-	var result ConfluenceSpaceResponse
+	var result SpaceResponse
 	if err := json.NewDecoder(bytes.NewReader(body)).Decode(&result); err != nil {
 		return "", fmt.Errorf("failed to decode response: %v", err)
 	}
@@ -165,7 +165,7 @@ func (a *Adapter) FetchAssets(ctx context.Context) ([]*domain.Asset, error) {
 		return nil, fmt.Errorf("unexpected status code: %d, body: %s", resp.StatusCode, string(body))
 	}
 
-	var result ConfluenceResponse
+	var result Response
 	if err := json.NewDecoder(bytes.NewReader(body)).Decode(&result); err != nil {
 		return nil, fmt.Errorf("failed to decode response: %v", err)
 	}
