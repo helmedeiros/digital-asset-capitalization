@@ -81,19 +81,19 @@ type mockJiraPort struct {
 	err    error
 }
 
-func (m *mockJiraPort) GetIssuesForSprint(project, sprintID string) ([]ports.JiraIssue, error) {
+func (m *mockJiraPort) GetIssuesForSprint(_, _ string) ([]ports.JiraIssue, error) {
 	return m.issues, m.err
 }
 
-func (m *mockJiraPort) GetIssuesForTeamMember(member string) ([]ports.JiraIssue, error) {
+func (m *mockJiraPort) GetIssuesForTeamMember(_ string) ([]ports.JiraIssue, error) {
 	return m.issues, m.err
 }
 
-func (m *mockJiraPort) GetSprintIssues(sprint *domain.Sprint) ([]ports.JiraIssue, error) {
+func (m *mockJiraPort) GetSprintIssues(_ *domain.Sprint) ([]ports.JiraIssue, error) {
 	return m.issues, m.err
 }
 
-func (m *mockJiraPort) GetTeamIssues(team *domain.Team) ([]ports.JiraIssue, error) {
+func (m *mockJiraPort) GetTeamIssues(_ *domain.Team) ([]ports.JiraIssue, error) {
 	return m.issues, m.err
 }
 
@@ -102,7 +102,7 @@ func TestSprintService_ProcessJiraIssues(t *testing.T) {
 	defer cleanup()
 
 	// Create a test server
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
 		json.NewEncoder(w).Encode(map[string]interface{}{
 			"issues": []map[string]interface{}{
@@ -174,7 +174,7 @@ func TestSprintService_ProcessSprint(t *testing.T) {
 	defer cleanup()
 
 	// Create a test server
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
 		json.NewEncoder(w).Encode(map[string]interface{}{
 			"issues": []map[string]interface{}{
@@ -268,7 +268,7 @@ func TestSprintService_ProcessTeamIssues(t *testing.T) {
 	defer cleanup()
 
 	// Create a test server
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
 		json.NewEncoder(w).Encode(map[string]interface{}{
 			"issues": []map[string]interface{}{

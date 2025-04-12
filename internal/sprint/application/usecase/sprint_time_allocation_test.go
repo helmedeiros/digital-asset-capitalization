@@ -87,7 +87,7 @@ func TestJiraDoer_WithManualAdjustments(t *testing.T) {
 	defer cleanup()
 
 	// Create a test server
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
 		json.NewEncoder(w).Encode(map[string]interface{}{
 			"issues": []map[string]interface{}{
@@ -283,7 +283,7 @@ func TestJiraProcessor_GetIssueTimeRange(t *testing.T) {
 	defer cleanup()
 
 	// Create a test server
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
 		json.NewEncoder(w).Encode(map[string]interface{}{
 			"issues": []map[string]interface{}{
