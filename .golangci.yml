@@ -1,7 +1,7 @@
 linters:
   enable:
     - gofmt
-    - golint
+    - revive
     - govet
     - errcheck
     - staticcheck
@@ -13,24 +13,23 @@ linters:
     - misspell
     - unparam
     - prealloc
+    - shadow
 
 linters-settings:
-  govet:
-    check-shadowing: true
-  golint:
-    min-confidence: 0.8
   gofmt:
     simplify: true
   goimports:
     local-prefixes: github.com/helmedeiros/digital-asset-capitalization
+  revive:
+    min-confidence: 0.8
 
 run:
   deadline: 5m
   tests: true
-  skip-dirs:
-    - testutil
 
 issues:
+  exclude-dirs:
+    - testutil
   exclude-rules:
     - path: _test\.go
       linters:
