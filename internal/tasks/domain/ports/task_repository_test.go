@@ -22,7 +22,7 @@ func newMockRepository() *mockRepository {
 	}
 }
 
-func (m *mockRepository) Save(ctx context.Context, task *domain.Task) error {
+func (m *mockRepository) Save(_ context.Context, task *domain.Task) error {
 	m.tasks[task.Key] = task
 	return nil
 }
