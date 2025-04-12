@@ -65,8 +65,8 @@ func (uc *ClassifyTasksUseCase) Execute(ctx context.Context, input ClassifyTasks
 
 			// Save fetched tasks to repository
 			for _, task := range fetchedTasks {
-				if err := uc.localRepo.Save(ctx, task); err != nil {
-					return fmt.Errorf("failed to save fetched task %s: %w", task.Key, err)
+				if saveErr := uc.localRepo.Save(ctx, task); saveErr != nil {
+					return fmt.Errorf("failed to save fetched task %s: %w", task.Key, saveErr)
 				}
 			}
 			tasks = fetchedTasks

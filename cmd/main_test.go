@@ -18,8 +18,6 @@ import (
 	"github.com/helmedeiros/digital-asset-capitalization/internal/tasks/domain"
 )
 
-const testAssetsFile = "assets.json"
-
 func setupTestEnvironment(t *testing.T) func() {
 	t.Helper()
 

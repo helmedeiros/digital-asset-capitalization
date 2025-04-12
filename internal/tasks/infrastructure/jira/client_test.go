@@ -1,7 +1,6 @@
 package jira
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -33,16 +32,6 @@ func (m *mockHTTPClient) Do(req *http.Request) (*http.Response, error) {
 		return resp, nil
 	}
 	return nil, fmt.Errorf("no mock response for URL: %s", url)
-}
-
-func createMockResponse(t *testing.T, statusCode int, body interface{}) *http.Response {
-	jsonBytes, err := json.Marshal(body)
-	require.NoError(t, err, "Failed to marshal mock response")
-
-	return &http.Response{
-		StatusCode: statusCode,
-		Body:       io.NopCloser(bytes.NewReader(jsonBytes)),
-	}
 }
 
 func TestNewClient(t *testing.T) {

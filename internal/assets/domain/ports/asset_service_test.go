@@ -113,7 +113,7 @@ func TestAssetService(t *testing.T) {
 		assert.Equal(t, "test-asset", asset.Name)
 
 		// Test non-existent asset
-		asset, err = service.GetAsset("non-existent")
+		_, err = service.GetAsset("non-existent")
 		assert.Error(t, err)
 		assert.Equal(t, "asset not found", err.Error())
 	})
