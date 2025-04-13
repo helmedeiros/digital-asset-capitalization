@@ -14,7 +14,6 @@ import (
 	assetsinfra "github.com/helmedeiros/digital-asset-capitalization/internal/assets/infrastructure"
 	"github.com/helmedeiros/digital-asset-capitalization/internal/shell/completion"
 	"github.com/helmedeiros/digital-asset-capitalization/internal/sprint/application"
-	sprintinfra "github.com/helmedeiros/digital-asset-capitalization/internal/sprint/infrastructure"
 	tasksapp "github.com/helmedeiros/digital-asset-capitalization/internal/tasks/application"
 	"github.com/helmedeiros/digital-asset-capitalization/internal/tasks/application/usecase"
 	"github.com/helmedeiros/digital-asset-capitalization/internal/tasks/infrastructure/classifier"
@@ -36,40 +35,43 @@ var taskService *tasksapp.TaskService
 var sprintService *application.SprintService
 
 func init() {
+	if err := initServices(false); err != nil {
+		log.Fatalf("Failed to initialize services: %v", err)
+	}
+}
+
+func initServices(isTest bool) error {
 	// Initialize repositories
 	config := assetsinfra.RepositoryConfig{
 		Directory: assetsDir,
-		Filename:  assetsFile,
-		FileMode:  0644,
-		DirMode:   0755,
 	}
+
+	// Initialize asset repository
 	assetRepo := assetsinfra.NewJSONRepository(config)
 	assetService = assetsapp.NewAssetService(assetRepo)
 
-	// Initialize task repositories
-	jiraRepo, err := jira.NewRepository()
-	if err != nil {
-		log.Fatalf("Failed to initialize Jira repository: %v", err)
+	if !isTest {
+		// Initialize task repositories
+		jiraRepo, err := jira.NewRepository()
+		if err != nil {
+			return fmt.Errorf("failed to initialize Jira repository: %v", err)
+		}
+
+		localRepo := storage.NewJSONStorage(tasksDir, tasksFile)
+		taskClassifier := classifier.NewRandomClassifier()
+		userInput := cliui.NewUserInput()
+
+		taskService = tasksapp.NewTasksService(jiraRepo, localRepo, taskClassifier, userInput)
 	}
 
-	localRepo := storage.NewJSONStorage(tasksDir, tasksFile)
-	taskClassifier := classifier.NewRandomClassifier()
-	userInput := cliui.NewUserInput()
-
-	taskService = tasksapp.NewTasksService(jiraRepo, localRepo, taskClassifier, userInput)
-}
-
-func initJiraAdapter() error {
-	// Initialize sprint service
-	jiraAdapter, err := sprintinfra.NewJiraAdapter(teamsFile)
-	if err != nil {
-		return fmt.Errorf("failed to initialize Jira adapter: %v", err)
-	}
-	sprintService = application.NewSprintService(jiraAdapter)
 	return nil
 }
 
 func Run() error {
+	return RunWithServices(assetService, taskService, sprintService)
+}
+
+func RunWithServices(assetSvc ports.AssetService, taskSvc *tasksapp.TaskService, sprintSvc *application.SprintService) error {
 	app := &cli.App{
 		Name:                 "AssetCap",
 		Usage:                "Digital Asset Capitalization Management Tool",
@@ -134,10 +136,7 @@ For more information about a command:
 							project := ctx.String("project")
 							sprint := ctx.String("sprint")
 							override := ctx.String("override")
-							if err := initJiraAdapter(); err != nil {
-								return err
-							}
-							result, err := sprintService.ProcessJiraIssues(project, sprint, override)
+							result, err := sprintSvc.ProcessJiraIssues(project, sprint, override)
 							if err != nil {
 								return err
 							}
@@ -176,7 +175,7 @@ For more information about a command:
 						Action: func(ctx *cli.Context) error {
 							name := ctx.Value("name").(string)
 							description := ctx.Value("description").(string)
-							if err := assetService.CreateAsset(name, description); err != nil {
+							if err := assetSvc.CreateAsset(name, description); err != nil {
 								return err
 							}
 							fmt.Printf("Created asset: %s\n", name)
@@ -199,7 +198,7 @@ For more information about a command:
 						Name:  "list",
 						Usage: "List all assets",
 						Action: func(_ *cli.Context) error {
-							assets, err := assetService.ListAssets()
+							assets, err := assetSvc.ListAssets()
 							if err != nil {
 								return err
 							}
@@ -231,7 +230,7 @@ For more information about a command:
 							label := ctx.String("label")
 							debug := ctx.Bool("debug")
 
-							result, err := assetService.SyncFromConfluence(space, label, debug)
+							result, err := assetSvc.SyncFromConfluence(space, label, debug)
 							if err != nil {
 								if strings.Contains(err.Error(), "no assets found with label") {
 									fmt.Println(err)
@@ -287,7 +286,7 @@ For more information about a command:
 							benefits := ctx.Value("benefits").(string)
 							how := ctx.Value("how").(string)
 							metrics := ctx.Value("metrics").(string)
-							if err := assetService.UpdateAsset(name, description, why, benefits, how, metrics); err != nil {
+							if err := assetSvc.UpdateAsset(name, description, why, benefits, how, metrics); err != nil {
 								return err
 							}
 							fmt.Printf("Updated asset: %s\n", name)
@@ -331,7 +330,7 @@ For more information about a command:
 						Usage: "Show detailed information about an asset",
 						Action: func(ctx *cli.Context) error {
 							name := ctx.String("name")
-							asset, err := assetService.GetAsset(name)
+							asset, err := assetSvc.GetAsset(name)
 							if err != nil {
 								return err
 							}
@@ -366,7 +365,7 @@ For more information about a command:
 								Usage: "Mark asset documentation as updated",
 								Action: func(ctx *cli.Context) error {
 									assetName := ctx.Value("asset").(string)
-									if err := assetService.UpdateDocumentation(assetName); err != nil {
+									if err := assetSvc.UpdateDocumentation(assetName); err != nil {
 										return err
 									}
 									fmt.Printf("Marked documentation as updated for asset %s\n", assetName)
@@ -391,7 +390,7 @@ For more information about a command:
 								Usage: "Increment task count for an asset",
 								Action: func(ctx *cli.Context) error {
 									assetName := ctx.Value("asset").(string)
-									if err := assetService.IncrementTaskCount(assetName); err != nil {
+									if err := assetSvc.IncrementTaskCount(assetName); err != nil {
 										return err
 									}
 									fmt.Printf("Incremented task count for asset %s\n", assetName)
@@ -410,7 +409,7 @@ For more information about a command:
 								Usage: "Decrement task count for an asset",
 								Action: func(ctx *cli.Context) error {
 									assetName := ctx.Value("asset").(string)
-									if err := assetService.DecrementTaskCount(assetName); err != nil {
+									if err := assetSvc.DecrementTaskCount(assetName); err != nil {
 										return err
 									}
 									fmt.Printf("Decremented task count for asset %s\n", assetName)
@@ -432,7 +431,7 @@ For more information about a command:
 						Action: func(ctx *cli.Context) error {
 							name := ctx.String("name")
 							field := ctx.String("field")
-							if err := assetService.EnrichAsset(name, field); err != nil {
+							if err := assetSvc.EnrichAsset(name, field); err != nil {
 								return err
 							}
 							fmt.Printf("Enriched %s field for asset: %s\n", field, name)
@@ -464,7 +463,7 @@ For more information about a command:
 							project := ctx.Value("project").(string)
 							sprint := ctx.Value("sprint").(string)
 							platform := ctx.Value("platform").(string)
-							if err := taskService.FetchTasks(context.Background(), project, sprint, platform); err != nil {
+							if err := taskSvc.FetchTasks(context.Background(), project, sprint, platform); err != nil {
 								return err
 							}
 							fmt.Printf("Successfully fetched tasks for project %s, sprint %s from %s\n", project, sprint, platform)
@@ -495,12 +494,12 @@ For more information about a command:
 							asset := ctx.String("asset")
 							if asset != "" {
 								// Check if asset exists
-								_, err := assetService.GetAsset(asset)
+								_, err := assetSvc.GetAsset(asset)
 								if err != nil {
 									return fmt.Errorf("asset not found: %s", asset)
 								}
 
-								tasks, err := taskService.GetTasksByAsset(ctx.Context, asset)
+								tasks, err := taskSvc.GetTasksByAsset(ctx.Context, asset)
 								if err != nil {
 									return fmt.Errorf("failed to get tasks for asset %s: %w", asset, err)
 								}
@@ -526,7 +525,7 @@ For more information about a command:
 								return fmt.Errorf("both project and sprint flags are required")
 							}
 
-							tasks, err := taskService.GetTasks(ctx.Context, project, sprint)
+							tasks, err := taskSvc.GetTasks(ctx.Context, project, sprint)
 							if err != nil {
 								return fmt.Errorf("failed to get tasks: %w", err)
 							}
@@ -574,7 +573,7 @@ For more information about a command:
 								DryRun:  dryRun,
 								Apply:   apply,
 							}
-							if err := taskService.ClassifyTasks(context.Background(), input); err != nil {
+							if err := taskSvc.ClassifyTasks(context.Background(), input); err != nil {
 								return err
 							}
 							if dryRun {

@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -42,9 +43,15 @@ func NewSprintTimeAllocationUseCase(project, sprint, override string) (*SprintTi
 	var teamsData []byte
 	var teamsErr error
 
+	// Get the assetcap home directory
+	assetcapHome := os.Getenv("ASSETCAP_HOME")
+	if assetcapHome == "" {
+		assetcapHome = "."
+	}
+
 	// Try different paths for teams.json
 	paths := []string{
-		".assetcap/teams.json", // .assetcap directory
+		filepath.Join(assetcapHome, ".assetcap", "teams.json"), // .assetcap directory
 	}
 
 	for _, path := range paths {
@@ -56,7 +63,8 @@ func NewSprintTimeAllocationUseCase(project, sprint, override string) (*SprintTi
 
 	if teamsErr != nil {
 		// If no file is found, create a default teams.json in the .assetcap directory
-		if mkdirErr := os.MkdirAll(".assetcap", 0755); mkdirErr != nil {
+		teamsDir := filepath.Join(assetcapHome, ".assetcap")
+		if mkdirErr := os.MkdirAll(teamsDir, 0755); mkdirErr != nil {
 			return nil, fmt.Errorf("failed to create .assetcap directory: %w", mkdirErr)
 		}
 		teamsData = []byte(`{
@@ -64,7 +72,8 @@ func NewSprintTimeAllocationUseCase(project, sprint, override string) (*SprintTi
 				"team": ["helio.medeiros", "julio.medeiros"]
 			}
 		}`)
-		if writeErr := os.WriteFile(".assetcap/teams.json", teamsData, 0644); writeErr != nil {
+		teamsPath := filepath.Join(teamsDir, "teams.json")
+		if writeErr := os.WriteFile(teamsPath, teamsData, 0644); writeErr != nil {
 			return nil, fmt.Errorf("failed to write teams file: %w", writeErr)
 		}
 	}
@@ -75,7 +84,8 @@ func NewSprintTimeAllocationUseCase(project, sprint, override string) (*SprintTi
 	}
 
 	// Create Jira adapter
-	jiraAdapter, err := infrastructure.NewJiraAdapter(".assetcap/teams.json")
+	teamsPath := filepath.Join(assetcapHome, ".assetcap", "teams.json")
+	jiraAdapter, err := infrastructure.NewJiraAdapter(teamsPath)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create Jira adapter: %w", err)
 	}
