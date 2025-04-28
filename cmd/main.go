@@ -9,6 +9,7 @@ import (
 
 	"github.com/urfave/cli/v2"
 
+	"github.com/helmedeiros/digital-asset-capitalization/internal/appports"
 	assetsapp "github.com/helmedeiros/digital-asset-capitalization/internal/assets/application"
 	"github.com/helmedeiros/digital-asset-capitalization/internal/assets/domain/ports"
 	assetsinfra "github.com/helmedeiros/digital-asset-capitalization/internal/assets/infrastructure"
@@ -17,6 +18,7 @@ import (
 	sprintinfra "github.com/helmedeiros/digital-asset-capitalization/internal/sprint/infrastructure"
 	tasksapp "github.com/helmedeiros/digital-asset-capitalization/internal/tasks/application"
 	"github.com/helmedeiros/digital-asset-capitalization/internal/tasks/application/usecase"
+	taskports "github.com/helmedeiros/digital-asset-capitalization/internal/tasks/domain/ports"
 	"github.com/helmedeiros/digital-asset-capitalization/internal/tasks/infrastructure/classifier"
 	cliui "github.com/helmedeiros/digital-asset-capitalization/internal/tasks/infrastructure/cli"
 	"github.com/helmedeiros/digital-asset-capitalization/internal/tasks/infrastructure/jira"
@@ -31,9 +33,11 @@ const (
 	teamsFile  = "teams.json"
 )
 
-var assetService ports.AssetService
-var taskService *tasksapp.TaskService
-var sprintService *application.SprintService
+var (
+	assetService  ports.AssetService
+	taskService   appports.TaskService
+	sprintService appports.SprintService
+)
 
 func init() {
 	// Initialize repositories
@@ -47,14 +51,21 @@ func init() {
 	assetService = assetsapp.NewAssetService(assetRepo)
 
 	// Initialize task repositories
-	jiraRepo, err := jira.NewRepository()
+	var jiraRepo taskports.TaskRepository
+	var err error
+	jiraRepo, err = jira.NewRepository()
 	if err != nil {
 		log.Fatalf("Failed to initialize Jira repository: %v", err)
 	}
 
-	localRepo := storage.NewJSONStorage(tasksDir, tasksFile)
-	taskClassifier := classifier.NewRandomClassifier()
-	userInput := cliui.NewUserInput()
+	var localRepo taskports.TaskRepository
+	localRepo = storage.NewJSONStorage(tasksDir, tasksFile)
+
+	var taskClassifier taskports.TaskClassifier
+	taskClassifier = classifier.NewRandomClassifier()
+
+	var userInput taskports.UserInput
+	userInput = cliui.NewUserInput()
 
 	taskService = tasksapp.NewTasksService(jiraRepo, localRepo, taskClassifier, userInput)
 }
