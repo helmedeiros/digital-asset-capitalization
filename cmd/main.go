@@ -9,15 +9,15 @@ import (
 
 	"github.com/urfave/cli/v2"
 
-	"github.com/helmedeiros/digital-asset-capitalization/internal/appports"
 	assetsapp "github.com/helmedeiros/digital-asset-capitalization/internal/assets/application"
 	"github.com/helmedeiros/digital-asset-capitalization/internal/assets/domain/ports"
 	assetsinfra "github.com/helmedeiros/digital-asset-capitalization/internal/assets/infrastructure"
 	"github.com/helmedeiros/digital-asset-capitalization/internal/shell/completion"
 	"github.com/helmedeiros/digital-asset-capitalization/internal/sprint/application"
+	sprintports "github.com/helmedeiros/digital-asset-capitalization/internal/sprint/domain/ports"
 	sprintinfra "github.com/helmedeiros/digital-asset-capitalization/internal/sprint/infrastructure"
 	tasksapp "github.com/helmedeiros/digital-asset-capitalization/internal/tasks/application"
-	"github.com/helmedeiros/digital-asset-capitalization/internal/tasks/application/usecase"
+	"github.com/helmedeiros/digital-asset-capitalization/internal/tasks/domain"
 	taskports "github.com/helmedeiros/digital-asset-capitalization/internal/tasks/domain/ports"
 	"github.com/helmedeiros/digital-asset-capitalization/internal/tasks/infrastructure/classifier"
 	cliui "github.com/helmedeiros/digital-asset-capitalization/internal/tasks/infrastructure/cli"
@@ -35,8 +35,8 @@ const (
 
 var (
 	assetService  ports.AssetService
-	taskService   appports.TaskService
-	sprintService appports.SprintService
+	taskService   taskports.TaskService
+	sprintService sprintports.SprintService
 )
 
 func init() {
@@ -58,14 +58,11 @@ func init() {
 		log.Fatalf("Failed to initialize Jira repository: %v", err)
 	}
 
-	var localRepo taskports.TaskRepository
-	localRepo = storage.NewJSONStorage(tasksDir, tasksFile)
+	localRepo := storage.NewJSONStorage(tasksDir, tasksFile)
 
-	var taskClassifier taskports.TaskClassifier
-	taskClassifier = classifier.NewRandomClassifier()
+	taskClassifier := classifier.NewRandomClassifier()
 
-	var userInput taskports.UserInput
-	userInput = cliui.NewUserInput()
+	userInput := cliui.NewUserInput()
 
 	taskService = tasksapp.NewTasksService(jiraRepo, localRepo, taskClassifier, userInput)
 }
@@ -579,7 +576,7 @@ For more information about a command:
 							platform := ctx.Value("platform").(string)
 							dryRun := ctx.Value("dry-run").(bool)
 							apply := ctx.Value("apply").(bool)
-							input := usecase.ClassifyTasksInput{
+							input := domain.ClassifyTasksInput{
 								Project: project,
 								Sprint:  sprint,
 								DryRun:  dryRun,
