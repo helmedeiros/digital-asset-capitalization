@@ -8,7 +8,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/helmedeiros/digital-asset-capitalization/internal/tasks/application/usecase"
 	"github.com/helmedeiros/digital-asset-capitalization/internal/tasks/application/usecase/testutil"
 	"github.com/helmedeiros/digital-asset-capitalization/internal/tasks/domain"
 )
@@ -130,15 +129,17 @@ func TestTasksService_ClassifyTasks(t *testing.T) {
 
 	tests := []struct {
 		name    string
-		input   usecase.ClassifyTasksInput
+		input   domain.ClassifyTasksInput
 		setup   func()
 		wantErr bool
 	}{
 		{
 			name: "successful classification",
-			input: usecase.ClassifyTasksInput{
-				Project: "PROJ",
+			input: domain.ClassifyTasksInput{
+				Project: "TEST",
 				Sprint:  "Sprint 1",
+				DryRun:  false,
+				Apply:   true,
 			},
 			setup: func() {
 				localRepo.Reset()
@@ -176,9 +177,11 @@ func TestTasksService_ClassifyTasks(t *testing.T) {
 		},
 		{
 			name: "no tasks found, user chooses to fetch",
-			input: usecase.ClassifyTasksInput{
+			input: domain.ClassifyTasksInput{
 				Project: "PROJ",
 				Sprint:  "Sprint 1",
+				DryRun:  false,
+				Apply:   true,
 			},
 			setup: func() {
 				localRepo.Reset()
@@ -225,9 +228,11 @@ func TestTasksService_ClassifyTasks(t *testing.T) {
 		},
 		{
 			name: "no tasks found, user chooses not to fetch",
-			input: usecase.ClassifyTasksInput{
+			input: domain.ClassifyTasksInput{
 				Project: "PROJ",
 				Sprint:  "Sprint 1",
+				DryRun:  false,
+				Apply:   false,
 			},
 			setup: func() {
 				localRepo.Reset()
@@ -248,9 +253,11 @@ func TestTasksService_ClassifyTasks(t *testing.T) {
 		},
 		{
 			name: "classifier error",
-			input: usecase.ClassifyTasksInput{
+			input: domain.ClassifyTasksInput{
 				Project: "PROJ",
 				Sprint:  "Sprint 1",
+				DryRun:  false,
+				Apply:   true,
 			},
 			setup: func() {
 				localRepo.Reset()
@@ -279,9 +286,11 @@ func TestTasksService_ClassifyTasks(t *testing.T) {
 		},
 		{
 			name: "local repository error",
-			input: usecase.ClassifyTasksInput{
+			input: domain.ClassifyTasksInput{
 				Project: "PROJ",
 				Sprint:  "Sprint 1",
+				DryRun:  false,
+				Apply:   true,
 			},
 			setup: func() {
 				localRepo.Reset()

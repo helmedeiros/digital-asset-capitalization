@@ -8,14 +8,6 @@ import (
 	"github.com/helmedeiros/digital-asset-capitalization/internal/tasks/domain/ports"
 )
 
-// ClassifyTasksInput represents the input parameters for classifying tasks
-type ClassifyTasksInput struct {
-	Project string
-	Sprint  string
-	DryRun  bool
-	Apply   bool
-}
-
 // ClassifyTasksUseCase handles the classification of tasks for a project/sprint
 type ClassifyTasksUseCase struct {
 	localRepo  ports.TaskRepository
@@ -40,7 +32,7 @@ func NewClassifyTasksUseCase(
 }
 
 // Execute runs the task classification process
-func (uc *ClassifyTasksUseCase) Execute(ctx context.Context, input ClassifyTasksInput) error {
+func (uc *ClassifyTasksUseCase) Execute(ctx context.Context, input domain.ClassifyTasksInput) error {
 	// First, try to find existing tasks for the project/sprint
 	tasks, err := uc.localRepo.FindByProjectAndSprint(ctx, input.Project, input.Sprint)
 	if err != nil {

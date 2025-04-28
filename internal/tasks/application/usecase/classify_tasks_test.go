@@ -135,7 +135,7 @@ func TestClassifyTasksUseCase_Execute(t *testing.T) {
 
 	tests := []struct {
 		name          string
-		input         ClassifyTasksInput
+		input         domain.ClassifyTasksInput
 		existingTasks []*domain.Task
 		shouldFetch   bool
 		fetchedTasks  []*domain.Task
@@ -145,10 +145,11 @@ func TestClassifyTasksUseCase_Execute(t *testing.T) {
 	}{
 		{
 			name: "successfully classify existing tasks",
-			input: ClassifyTasksInput{
+			input: domain.ClassifyTasksInput{
 				Project: testProject,
 				Sprint:  testSprint,
 				DryRun:  false,
+				Apply:   true,
 			},
 			existingTasks: []*domain.Task{
 				{Key: "TEST-1", Summary: "Task 1"},
@@ -160,7 +161,7 @@ func TestClassifyTasksUseCase_Execute(t *testing.T) {
 				"TEST-2": domain.WorkTypeMaintenance,
 			},
 			expectedError: false,
-			expectedCalls: func(localRepo, _ *MockTaskRepository, classifier *MockTaskClassifier, _ *MockUserInput) {
+			expectedCalls: func(localRepo, remoteRepo *MockTaskRepository, classifier *MockTaskClassifier, _ *MockUserInput) {
 				localRepo.On("FindByProjectAndSprint", ctx, "TEST", "Sprint 1").Return([]*domain.Task{
 					{Key: "TEST-1", Summary: "Task 1"},
 					{Key: "TEST-2", Summary: "Task 2"},
@@ -170,14 +171,17 @@ func TestClassifyTasksUseCase_Execute(t *testing.T) {
 					"TEST-2": domain.WorkTypeMaintenance,
 				}, nil)
 				localRepo.On("Save", ctx, mock.Anything).Return(nil).Times(2)
+				remoteRepo.On("UpdateLabels", ctx, "TEST-1", []string{"cap-development"}).Return(nil)
+				remoteRepo.On("UpdateLabels", ctx, "TEST-2", []string{"cap-maintenance"}).Return(nil)
 			},
 		},
 		{
 			name: "fetch and classify new tasks",
-			input: ClassifyTasksInput{
+			input: domain.ClassifyTasksInput{
 				Project: testProject,
 				Sprint:  testSprint,
 				DryRun:  false,
+				Apply:   true,
 			},
 			existingTasks: nil,
 			shouldFetch:   true,
@@ -202,14 +206,17 @@ func TestClassifyTasksUseCase_Execute(t *testing.T) {
 					"TEST-3": domain.WorkTypeDiscovery,
 					"TEST-4": domain.WorkTypeDevelopment,
 				}, nil)
+				remoteRepo.On("UpdateLabels", ctx, "TEST-3", []string{"cap-discovery"}).Return(nil)
+				remoteRepo.On("UpdateLabels", ctx, "TEST-4", []string{"cap-development"}).Return(nil)
 			},
 		},
 		{
 			name: "dry run classification",
-			input: ClassifyTasksInput{
+			input: domain.ClassifyTasksInput{
 				Project: testProject,
 				Sprint:  testSprint,
 				DryRun:  true,
+				Apply:   false,
 			},
 			existingTasks: []*domain.Task{
 				{Key: "TEST-1", Summary: "Task 1"},
