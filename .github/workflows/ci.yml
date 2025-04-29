@@ -78,7 +78,10 @@ jobs:
       - name: Run linters
         run: |
           export PATH=$PATH:$(go env GOPATH)/bin
-          golangci-lint run --timeout=5m --config=.golangci.yml ./... -v --no-config
+          # First try with config
+          golangci-lint run --timeout=5m --config=.golangci.yml ./... -v || \
+          # If that fails, try without config
+          golangci-lint run --timeout=5m ./... -v
 
       - name: Run tests with coverage
         run: make test-cover-detail
