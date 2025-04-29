@@ -8,20 +8,20 @@ import (
 	"github.com/helmedeiros/digital-asset-capitalization/internal/sprint/domain/ports"
 )
 
-// SprintService handles sprint-related operations
-type SprintService struct {
+// SprintServiceImpl handles sprint-related operations
+type SprintServiceImpl struct {
 	jiraPort ports.JiraPort
 }
 
 // NewSprintService creates a new sprint service
-func NewSprintService(jiraPort ports.JiraPort) *SprintService {
-	return &SprintService{
+func NewSprintService(jiraPort ports.JiraPort) SprintService {
+	return &SprintServiceImpl{
 		jiraPort: jiraPort,
 	}
 }
 
 // ProcessSprint processes a sprint and its issues
-func (s *SprintService) ProcessSprint(project string, sprint *domain.Sprint) error {
+func (s *SprintServiceImpl) ProcessSprint(project string, sprint *domain.Sprint) error {
 	// Set the project field
 	sprint.Project = project
 
@@ -42,7 +42,7 @@ func (s *SprintService) ProcessSprint(project string, sprint *domain.Sprint) err
 }
 
 // ProcessTeamIssues processes issues for a team
-func (s *SprintService) ProcessTeamIssues(team *domain.Team) error {
+func (s *SprintServiceImpl) ProcessTeamIssues(team *domain.Team) error {
 	// Get all issues for the team
 	issues, err := s.jiraPort.GetTeamIssues(team)
 	if err != nil {
@@ -60,7 +60,7 @@ func (s *SprintService) ProcessTeamIssues(team *domain.Team) error {
 }
 
 // ProcessJiraIssues processes Jira issues and returns CSV data
-func (s *SprintService) ProcessJiraIssues(project, sprint, override string) (string, error) {
+func (s *SprintServiceImpl) ProcessJiraIssues(project, sprint, override string) (string, error) {
 	processor, err := usecase.NewSprintTimeAllocationUseCase(project, sprint, override)
 	if err != nil {
 		return "", fmt.Errorf("failed to create Jira processor: %w", err)

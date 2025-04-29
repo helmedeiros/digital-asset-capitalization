@@ -12,8 +12,7 @@ import (
 	assetsapp "github.com/helmedeiros/digital-asset-capitalization/internal/assets/application"
 	assetsinfra "github.com/helmedeiros/digital-asset-capitalization/internal/assets/infrastructure"
 	"github.com/helmedeiros/digital-asset-capitalization/internal/shell/completion"
-	"github.com/helmedeiros/digital-asset-capitalization/internal/sprint/application"
-	sprintports "github.com/helmedeiros/digital-asset-capitalization/internal/sprint/domain/ports"
+	sprintapp "github.com/helmedeiros/digital-asset-capitalization/internal/sprint/application"
 	sprintinfra "github.com/helmedeiros/digital-asset-capitalization/internal/sprint/infrastructure"
 	tasksapp "github.com/helmedeiros/digital-asset-capitalization/internal/tasks/application"
 	"github.com/helmedeiros/digital-asset-capitalization/internal/tasks/domain"
@@ -35,7 +34,7 @@ const (
 var (
 	assetService  assetsapp.AssetService
 	taskService   tasksapp.TaskService
-	sprintService sprintports.SprintService
+	sprintService sprintapp.SprintService
 )
 
 func init() {
@@ -72,7 +71,7 @@ func initJiraAdapter() error {
 	if err != nil {
 		return fmt.Errorf("failed to initialize Jira adapter: %v", err)
 	}
-	sprintService = application.NewSprintService(jiraAdapter)
+	sprintService = sprintapp.NewSprintService(jiraAdapter)
 	return nil
 }
 
