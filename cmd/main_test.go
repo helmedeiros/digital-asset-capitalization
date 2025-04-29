@@ -259,7 +259,7 @@ func TestRun(t *testing.T) {
 		{
 			name: "list assets after creation",
 			args: []string{"assets", "list"},
-			setup: func(mas *MockAssetService, _ *MockTaskService, mss *MockSprintService) {
+			setup: func(mas *MockAssetService, _ *MockTaskService, _ *MockSprintService) {
 				mas.On("ListAssets").Return([]*assetsdomain.Asset{
 					{
 						ID:          "cap-asset-test",
@@ -273,7 +273,7 @@ func TestRun(t *testing.T) {
 		{
 			name: "update documentation",
 			args: []string{"assets", "documentation", "update", "--asset", "test"},
-			setup: func(mas *MockAssetService, mts *MockTaskService, mss *MockSprintService) {
+			setup: func(mas *MockAssetService, _ *MockTaskService, _ *MockSprintService) {
 				mas.On("GetAsset", "test").Return(&assetsdomain.Asset{
 					ID:          "cap-asset-test",
 					Name:        "Test Asset",
@@ -286,7 +286,7 @@ func TestRun(t *testing.T) {
 		{
 			name: "increment task count",
 			args: []string{"assets", "tasks", "increment", "--asset", "test"},
-			setup: func(mas *MockAssetService, mts *MockTaskService, mss *MockSprintService) {
+			setup: func(mas *MockAssetService, _ *MockTaskService, _ *MockSprintService) {
 				mas.On("GetAsset", "test").Return(&assetsdomain.Asset{
 					ID:          "cap-asset-test",
 					Name:        "Test Asset",
@@ -299,7 +299,7 @@ func TestRun(t *testing.T) {
 		{
 			name: "decrement task count",
 			args: []string{"assets", "tasks", "decrement", "--asset", "test"},
-			setup: func(mas *MockAssetService, mts *MockTaskService, mss *MockSprintService) {
+			setup: func(mas *MockAssetService, _ *MockTaskService, _ *MockSprintService) {
 				mas.On("GetAsset", "test").Return(&assetsdomain.Asset{
 					ID:          "cap-asset-test",
 					Name:        "Test Asset",
@@ -312,21 +312,21 @@ func TestRun(t *testing.T) {
 		{
 			name: "show help",
 			args: []string{"--help"},
-			setup: func(mas *MockAssetService, mts *MockTaskService, mss *MockSprintService) {
+			setup: func(_ *MockAssetService, _ *MockTaskService, _ *MockSprintService) {
 			},
 			wantErr: false,
 		},
 		{
 			name: "missing required flag",
 			args: []string{"assets", "create"},
-			setup: func(mas *MockAssetService, mts *MockTaskService, mss *MockSprintService) {
+			setup: func(_ *MockAssetService, _ *MockTaskService, _ *MockSprintService) {
 			},
 			wantErr: true,
 		},
 		{
 			name: "sprint allocate with required flags",
 			args: []string{"sprint", "allocate", "--project", "TEST", "--sprint", "Sprint1"},
-			setup: func(mas *MockAssetService, mts *MockTaskService, mss *MockSprintService) {
+			setup: func(_ *MockAssetService, _ *MockTaskService, mss *MockSprintService) {
 				mss.On("ProcessJiraIssues", "TEST", "Sprint1", "").Return("Allocation result", nil)
 			},
 			wantErr: false,
@@ -334,7 +334,7 @@ func TestRun(t *testing.T) {
 		{
 			name: "sprint allocate with override",
 			args: []string{"sprint", "allocate", "--project", "TEST", "--sprint", "Sprint1", "--override", "{\"ISSUE-1\": 6}"},
-			setup: func(mas *MockAssetService, mts *MockTaskService, mss *MockSprintService) {
+			setup: func(_ *MockAssetService, _ *MockTaskService, mss *MockSprintService) {
 				mss.On("ProcessJiraIssues", "TEST", "Sprint1", "{\"ISSUE-1\": 6}").Return("Allocation result", nil)
 			},
 			wantErr: false,
@@ -342,28 +342,28 @@ func TestRun(t *testing.T) {
 		{
 			name: "sprint allocate missing project",
 			args: []string{"sprint", "allocate", "--sprint", "Sprint1", "--platform", "jira"},
-			setup: func(mas *MockAssetService, mts *MockTaskService, mss *MockSprintService) {
+			setup: func(_ *MockAssetService, _ *MockTaskService, _ *MockSprintService) {
 			},
 			wantErr: true,
 		},
 		{
 			name: "sprint allocate missing sprint",
 			args: []string{"sprint", "allocate", "--project", "TEST", "--platform", "jira"},
-			setup: func(mas *MockAssetService, mts *MockTaskService, mss *MockSprintService) {
+			setup: func(_ *MockAssetService, _ *MockTaskService, _ *MockSprintService) {
 			},
 			wantErr: true,
 		},
 		{
 			name: "shell completion commands",
 			args: []string{"completion", "bash"},
-			setup: func(mas *MockAssetService, mts *MockTaskService, mss *MockSprintService) {
+			setup: func(_ *MockAssetService, _ *MockTaskService, _ *MockSprintService) {
 			},
 			wantErr: false,
 		},
 		{
 			name: "tasks classify with required flags",
 			args: []string{"tasks", "classify", "--project", "TEST", "--sprint", "Sprint1", "--platform", "jira"},
-			setup: func(mas *MockAssetService, mts *MockTaskService, mss *MockSprintService) {
+			setup: func(_ *MockAssetService, mts *MockTaskService, _ *MockSprintService) {
 				mts.On("ClassifyTasks", mock.Anything, tasksdomain.ClassifyTasksInput{
 					Project: "TEST",
 					Sprint:  "Sprint1",
@@ -376,28 +376,28 @@ func TestRun(t *testing.T) {
 		{
 			name: "tasks classify missing project",
 			args: []string{"tasks", "classify", "--sprint", "Sprint1", "--platform", "jira"},
-			setup: func(mas *MockAssetService, mts *MockTaskService, mss *MockSprintService) {
+			setup: func(_ *MockAssetService, _ *MockTaskService, _ *MockSprintService) {
 			},
 			wantErr: true,
 		},
 		{
 			name: "tasks classify missing sprint",
 			args: []string{"tasks", "classify", "--project", "TEST", "--platform", "jira"},
-			setup: func(mas *MockAssetService, mts *MockTaskService, mss *MockSprintService) {
+			setup: func(_ *MockAssetService, _ *MockTaskService, _ *MockSprintService) {
 			},
 			wantErr: true,
 		},
 		{
 			name: "tasks classify missing platform",
 			args: []string{"tasks", "classify", "--project", "TEST", "--sprint", "Sprint1"},
-			setup: func(mas *MockAssetService, mts *MockTaskService, mss *MockSprintService) {
+			setup: func(_ *MockAssetService, _ *MockTaskService, _ *MockSprintService) {
 			},
 			wantErr: true,
 		},
 		{
 			name: "tasks show with asset option",
 			args: []string{"tasks", "show", "--asset", "test"},
-			setup: func(mas *MockAssetService, mts *MockTaskService, mss *MockSprintService) {
+			setup: func(mas *MockAssetService, mts *MockTaskService, _ *MockSprintService) {
 				mas.On("GetAsset", "test").Return(&assetsdomain.Asset{
 					ID:          "cap-asset-test",
 					Name:        "Test Asset",
@@ -410,7 +410,7 @@ func TestRun(t *testing.T) {
 		{
 			name: "tasks show with non-existent asset",
 			args: []string{"tasks", "show", "--asset", "nonexistent"},
-			setup: func(mas *MockAssetService, mts *MockTaskService, mss *MockSprintService) {
+			setup: func(mas *MockAssetService, _ *MockTaskService, _ *MockSprintService) {
 				mas.On("GetAsset", "nonexistent").Return(nil, fmt.Errorf("asset not found"))
 			},
 			wantErr: true,
@@ -418,7 +418,7 @@ func TestRun(t *testing.T) {
 		{
 			name: "show asset",
 			args: []string{"assets", "show", "--name", "test"},
-			setup: func(mas *MockAssetService, mts *MockTaskService, mss *MockSprintService) {
+			setup: func(mas *MockAssetService, _ *MockTaskService, _ *MockSprintService) {
 				mas.On("GetAsset", "test").Return(&assetsdomain.Asset{
 					ID:          "cap-asset-test",
 					Name:        "Test Asset",
@@ -430,7 +430,7 @@ func TestRun(t *testing.T) {
 		{
 			name: "show non-existent asset",
 			args: []string{"assets", "show", "--name", "nonexistent"},
-			setup: func(mas *MockAssetService, mts *MockTaskService, mss *MockSprintService) {
+			setup: func(mas *MockAssetService, _ *MockTaskService, _ *MockSprintService) {
 				mas.On("GetAsset", "nonexistent").Return(nil, fmt.Errorf("asset not found"))
 			},
 			wantErr: true,
