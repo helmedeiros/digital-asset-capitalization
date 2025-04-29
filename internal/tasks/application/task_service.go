@@ -1,9 +1,10 @@
-package ports
+package application
 
 import (
 	"context"
 
 	"github.com/helmedeiros/digital-asset-capitalization/internal/tasks/domain"
+	"github.com/helmedeiros/digital-asset-capitalization/internal/tasks/domain/ports"
 )
 
 // TaskService defines the interface for task management operations
@@ -21,5 +22,5 @@ type TaskService interface {
 	GetTasksByAsset(ctx context.Context, assetName string) ([]*domain.Task, error)
 
 	// GetLocalRepository returns the local task repository
-	GetLocalRepository() TaskRepository
+	GetLocalRepository() ports.TaskRepository
 }

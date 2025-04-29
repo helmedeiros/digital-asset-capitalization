@@ -34,7 +34,7 @@ const (
 
 var (
 	assetService  assetsapp.AssetService
-	taskService   taskports.TaskService
+	taskService   tasksapp.TaskService
 	sprintService sprintports.SprintService
 )
 
