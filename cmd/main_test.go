@@ -243,7 +243,7 @@ func TestRun(t *testing.T) {
 		{
 			name: "create asset",
 			args: []string{"assets", "create", "--name", "Test Asset", "--description", "Test Description"},
-			setup: func(mas *MockAssetService, mts *MockTaskService, mss *MockSprintService) {
+			setup: func(mas *MockAssetService, _ *MockTaskService, _ *MockSprintService) {
 				mas.On("CreateAsset", "Test Asset", "Test Description").Return(nil)
 			},
 			wantErr: false,
@@ -251,7 +251,7 @@ func TestRun(t *testing.T) {
 		{
 			name: "list empty assets",
 			args: []string{"assets", "list"},
-			setup: func(mas *MockAssetService, mts *MockTaskService, mss *MockSprintService) {
+			setup: func(mas *MockAssetService, _ *MockTaskService, _ *MockSprintService) {
 				mas.On("ListAssets").Return([]*assetsdomain.Asset{}, nil)
 			},
 			wantErr: false,
@@ -259,7 +259,7 @@ func TestRun(t *testing.T) {
 		{
 			name: "list assets after creation",
 			args: []string{"assets", "list"},
-			setup: func(mas *MockAssetService, mts *MockTaskService, mss *MockSprintService) {
+			setup: func(mas *MockAssetService, _ *MockTaskService, mss *MockSprintService) {
 				mas.On("ListAssets").Return([]*assetsdomain.Asset{
 					{
 						ID:          "cap-asset-test",
