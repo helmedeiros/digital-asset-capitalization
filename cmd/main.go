@@ -31,51 +31,24 @@ const (
 	teamsFile  = "teams.json"
 )
 
-var (
+// App holds all the application dependencies
+type App struct {
 	assetService  assetsapp.AssetService
 	taskService   tasksapp.TaskService
 	sprintService sprintapp.SprintService
-)
-
-func init() {
-	// Initialize repositories
-	config := assetsinfra.RepositoryConfig{
-		Directory: assetsDir,
-		Filename:  assetsFile,
-		FileMode:  0644,
-		DirMode:   0755,
-	}
-	assetRepo := assetsinfra.NewJSONRepository(config)
-	assetService = assetsapp.NewAssetService(assetRepo)
-
-	// Initialize task repositories
-	var jiraRepo taskports.TaskRepository
-	var err error
-	jiraRepo, err = jira.NewRepository()
-	if err != nil {
-		log.Fatalf("Failed to initialize Jira repository: %v", err)
-	}
-
-	localRepo := storage.NewJSONStorage(tasksDir, tasksFile)
-
-	taskClassifier := classifier.NewRandomClassifier()
-
-	userInput := cliui.NewUserInput()
-
-	taskService = tasksapp.NewTasksService(jiraRepo, localRepo, taskClassifier, userInput)
 }
 
-func initJiraAdapter() error {
-	// Initialize sprint service
-	jiraAdapter, err := sprintinfra.NewJiraAdapter(teamsFile)
-	if err != nil {
-		return fmt.Errorf("failed to initialize Jira adapter: %v", err)
+// NewApp creates a new App instance with the given dependencies
+func NewApp(assetService assetsapp.AssetService, taskService tasksapp.TaskService, sprintService sprintapp.SprintService) *App {
+	return &App{
+		assetService:  assetService,
+		taskService:   taskService,
+		sprintService: sprintService,
 	}
-	sprintService = sprintapp.NewSprintService(jiraAdapter)
-	return nil
 }
 
-func Run() error {
+// Run executes the CLI application
+func (a *App) Run() error {
 	app := &cli.App{
 		Name:                 "AssetCap",
 		Usage:                "Digital Asset Capitalization Management Tool",
@@ -140,10 +113,7 @@ For more information about a command:
 							project := ctx.String("project")
 							sprint := ctx.String("sprint")
 							override := ctx.String("override")
-							if err := initJiraAdapter(); err != nil {
-								return err
-							}
-							result, err := sprintService.ProcessJiraIssues(project, sprint, override)
+							result, err := a.sprintService.ProcessJiraIssues(project, sprint, override)
 							if err != nil {
 								return err
 							}
@@ -180,9 +150,9 @@ For more information about a command:
 						Name:  "create",
 						Usage: "Create a new asset",
 						Action: func(ctx *cli.Context) error {
-							name := ctx.Value("name").(string)
-							description := ctx.Value("description").(string)
-							if err := assetService.CreateAsset(name, description); err != nil {
+							name := ctx.String("name")
+							description := ctx.String("description")
+							if err := a.assetService.CreateAsset(name, description); err != nil {
 								return err
 							}
 							fmt.Printf("Created asset: %s\n", name)
@@ -205,7 +175,7 @@ For more information about a command:
 						Name:  "list",
 						Usage: "List all assets",
 						Action: func(_ *cli.Context) error {
-							assets, err := assetService.ListAssets()
+							assets, err := a.assetService.ListAssets()
 							if err != nil {
 								return err
 							}
@@ -237,7 +207,7 @@ For more information about a command:
 							label := ctx.String("label")
 							debug := ctx.Bool("debug")
 
-							result, err := assetService.SyncFromConfluence(space, label, debug)
+							result, err := a.assetService.SyncFromConfluence(space, label, debug)
 							if err != nil {
 								if strings.Contains(err.Error(), "no assets found with label") {
 									fmt.Println(err)
@@ -293,7 +263,7 @@ For more information about a command:
 							benefits := ctx.Value("benefits").(string)
 							how := ctx.Value("how").(string)
 							metrics := ctx.Value("metrics").(string)
-							if err := assetService.UpdateAsset(name, description, why, benefits, how, metrics); err != nil {
+							if err := a.assetService.UpdateAsset(name, description, why, benefits, how, metrics); err != nil {
 								return err
 							}
 							fmt.Printf("Updated asset: %s\n", name)
@@ -337,7 +307,7 @@ For more information about a command:
 						Usage: "Show detailed information about an asset",
 						Action: func(ctx *cli.Context) error {
 							name := ctx.String("name")
-							asset, err := assetService.GetAsset(name)
+							asset, err := a.assetService.GetAsset(name)
 							if err != nil {
 								return err
 							}
@@ -371,8 +341,13 @@ For more information about a command:
 								Name:  "update",
 								Usage: "Mark asset documentation as updated",
 								Action: func(ctx *cli.Context) error {
-									assetName := ctx.Value("asset").(string)
-									if err := assetService.UpdateDocumentation(assetName); err != nil {
+									assetName := ctx.String("asset")
+									// First check if the asset exists
+									_, err := a.assetService.GetAsset(assetName)
+									if err != nil {
+										return err
+									}
+									if err := a.assetService.UpdateDocumentation(assetName); err != nil {
 										return err
 									}
 									fmt.Printf("Marked documentation as updated for asset %s\n", assetName)
@@ -396,8 +371,13 @@ For more information about a command:
 								Name:  "increment",
 								Usage: "Increment task count for an asset",
 								Action: func(ctx *cli.Context) error {
-									assetName := ctx.Value("asset").(string)
-									if err := assetService.IncrementTaskCount(assetName); err != nil {
+									assetName := ctx.String("asset")
+									// First check if the asset exists
+									_, err := a.assetService.GetAsset(assetName)
+									if err != nil {
+										return err
+									}
+									if err := a.assetService.IncrementTaskCount(assetName); err != nil {
 										return err
 									}
 									fmt.Printf("Incremented task count for asset %s\n", assetName)
@@ -415,8 +395,13 @@ For more information about a command:
 								Name:  "decrement",
 								Usage: "Decrement task count for an asset",
 								Action: func(ctx *cli.Context) error {
-									assetName := ctx.Value("asset").(string)
-									if err := assetService.DecrementTaskCount(assetName); err != nil {
+									assetName := ctx.String("asset")
+									// First check if the asset exists
+									_, err := a.assetService.GetAsset(assetName)
+									if err != nil {
+										return err
+									}
+									if err := a.assetService.DecrementTaskCount(assetName); err != nil {
 										return err
 									}
 									fmt.Printf("Decremented task count for asset %s\n", assetName)
@@ -438,7 +423,7 @@ For more information about a command:
 						Action: func(ctx *cli.Context) error {
 							name := ctx.String("name")
 							field := ctx.String("field")
-							if err := assetService.EnrichAsset(name, field); err != nil {
+							if err := a.assetService.EnrichAsset(name, field); err != nil {
 								return err
 							}
 							fmt.Printf("Enriched %s field for asset: %s\n", field, name)
@@ -470,7 +455,7 @@ For more information about a command:
 							project := ctx.Value("project").(string)
 							sprint := ctx.Value("sprint").(string)
 							platform := ctx.Value("platform").(string)
-							if err := taskService.FetchTasks(context.Background(), project, sprint, platform); err != nil {
+							if err := a.taskService.FetchTasks(context.Background(), project, sprint, platform); err != nil {
 								return err
 							}
 							fmt.Printf("Successfully fetched tasks for project %s, sprint %s from %s\n", project, sprint, platform)
@@ -501,12 +486,12 @@ For more information about a command:
 							asset := ctx.String("asset")
 							if asset != "" {
 								// Check if asset exists
-								_, err := assetService.GetAsset(asset)
+								_, err := a.assetService.GetAsset(asset)
 								if err != nil {
 									return fmt.Errorf("asset not found: %s", asset)
 								}
 
-								tasks, err := taskService.GetTasksByAsset(ctx.Context, asset)
+								tasks, err := a.taskService.GetTasksByAsset(ctx.Context, asset)
 								if err != nil {
 									return fmt.Errorf("failed to get tasks for asset %s: %w", asset, err)
 								}
@@ -532,7 +517,7 @@ For more information about a command:
 								return fmt.Errorf("both project and sprint flags are required")
 							}
 
-							tasks, err := taskService.GetTasks(ctx.Context, project, sprint)
+							tasks, err := a.taskService.GetTasks(ctx.Context, project, sprint)
 							if err != nil {
 								return fmt.Errorf("failed to get tasks: %w", err)
 							}
@@ -580,7 +565,7 @@ For more information about a command:
 								DryRun:  dryRun,
 								Apply:   apply,
 							}
-							if err := taskService.ClassifyTasks(context.Background(), input); err != nil {
+							if err := a.taskService.ClassifyTasks(context.Background(), input); err != nil {
 								return err
 							}
 							if dryRun {
@@ -628,8 +613,48 @@ For more information about a command:
 	return app.Run(os.Args)
 }
 
+// initializeApp creates a new App instance with all dependencies
+func initializeApp() (*App, error) {
+	// Initialize repositories
+	config := assetsinfra.RepositoryConfig{
+		Directory: assetsDir,
+		Filename:  assetsFile,
+		FileMode:  0644,
+		DirMode:   0755,
+	}
+	assetRepo := assetsinfra.NewJSONRepository(config)
+	assetService := assetsapp.NewAssetService(assetRepo)
+
+	// Initialize task repositories
+	var jiraRepo taskports.TaskRepository
+	var err error
+	jiraRepo, err = jira.NewRepository()
+	if err != nil {
+		return nil, fmt.Errorf("failed to initialize Jira repository: %v", err)
+	}
+
+	localRepo := storage.NewJSONStorage(tasksDir, tasksFile)
+	taskClassifier := classifier.NewRandomClassifier()
+	userInput := cliui.NewUserInput()
+	taskService := tasksapp.NewTasksService(jiraRepo, localRepo, taskClassifier, userInput)
+
+	// Initialize sprint service
+	jiraAdapter, err := sprintinfra.NewJiraAdapter(teamsFile)
+	if err != nil {
+		return nil, fmt.Errorf("failed to initialize Jira adapter: %v", err)
+	}
+	sprintService := sprintapp.NewSprintService(jiraAdapter)
+
+	return NewApp(assetService, taskService, sprintService), nil
+}
+
 func main() {
-	if err := Run(); err != nil {
+	app, err := initializeApp()
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	if err := app.Run(); err != nil {
 		log.Fatal(err)
 	}
 }
