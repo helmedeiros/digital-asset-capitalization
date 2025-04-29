@@ -10,37 +10,37 @@ import (
 	"github.com/helmedeiros/digital-asset-capitalization/internal/tasks/domain/ports"
 )
 
-// TaskService provides all task-related operations
-type TaskService struct {
+// TaskServiceImpl provides all task-related operations
+type TaskServiceImpl struct {
 	fetchTasksUseCase    *usecase.FetchTasksUseCase
 	classifyTasksUseCase *usecase.ClassifyTasksUseCase
 }
 
 // NewTasksService creates a new TasksService
-func NewTasksService(remoteRepo, localRepo ports.TaskRepository, classifier ports.TaskClassifier, userInput ports.UserInput) *TaskService {
-	return &TaskService{
+func NewTasksService(remoteRepo, localRepo ports.TaskRepository, classifier ports.TaskClassifier, userInput ports.UserInput) TaskService {
+	return &TaskServiceImpl{
 		fetchTasksUseCase:    usecase.NewFetchTasksUseCase(remoteRepo, localRepo),
 		classifyTasksUseCase: usecase.NewClassifyTasksUseCase(localRepo, remoteRepo, classifier, userInput),
 	}
 }
 
 // FetchTasks fetches tasks from a platform
-func (s *TaskService) FetchTasks(ctx context.Context, project, sprint, platform string) error {
+func (s *TaskServiceImpl) FetchTasks(ctx context.Context, project, sprint, platform string) error {
 	return s.fetchTasksUseCase.Execute(ctx, project, sprint, platform)
 }
 
 // ClassifyTasks classifies tasks for a project and sprint
-func (s *TaskService) ClassifyTasks(ctx context.Context, input domain.ClassifyTasksInput) error {
+func (s *TaskServiceImpl) ClassifyTasks(ctx context.Context, input domain.ClassifyTasksInput) error {
 	return s.classifyTasksUseCase.Execute(ctx, input)
 }
 
 // GetTasks retrieves tasks for a project and sprint
-func (s *TaskService) GetTasks(ctx context.Context, project, sprint string) ([]*domain.Task, error) {
+func (s *TaskServiceImpl) GetTasks(ctx context.Context, project, sprint string) ([]*domain.Task, error) {
 	return s.classifyTasksUseCase.GetTasks(ctx, project, sprint)
 }
 
 // GetTasksByAsset retrieves tasks associated with a specific asset
-func (s *TaskService) GetTasksByAsset(ctx context.Context, assetName string) ([]*domain.Task, error) {
+func (s *TaskServiceImpl) GetTasksByAsset(ctx context.Context, assetName string) ([]*domain.Task, error) {
 	tasks, err := s.classifyTasksUseCase.GetAllTasks(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get tasks: %w", err)
@@ -67,6 +67,6 @@ func (s *TaskService) GetTasksByAsset(ctx context.Context, assetName string) ([]
 	return assetTasks, nil
 }
 
-func (s *TaskService) GetLocalRepository() ports.TaskRepository {
+func (s *TaskServiceImpl) GetLocalRepository() ports.TaskRepository {
 	return s.classifyTasksUseCase.GetLocalRepository()
 }
