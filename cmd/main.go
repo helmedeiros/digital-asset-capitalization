@@ -10,7 +10,6 @@ import (
 	"github.com/urfave/cli/v2"
 
 	assetsapp "github.com/helmedeiros/digital-asset-capitalization/internal/assets/application"
-	"github.com/helmedeiros/digital-asset-capitalization/internal/assets/domain/ports"
 	assetsinfra "github.com/helmedeiros/digital-asset-capitalization/internal/assets/infrastructure"
 	"github.com/helmedeiros/digital-asset-capitalization/internal/shell/completion"
 	"github.com/helmedeiros/digital-asset-capitalization/internal/sprint/application"
@@ -34,7 +33,7 @@ const (
 )
 
 var (
-	assetService  ports.AssetService
+	assetService  assetsapp.AssetService
 	taskService   taskports.TaskService
 	sprintService sprintports.SprintService
 )

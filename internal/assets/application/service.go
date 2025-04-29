@@ -16,14 +16,14 @@ import (
 )
 
 // AssetService handles business logic for asset management
-type AssetService struct {
+type AssetServiceImpl struct {
 	repo       ports.AssetRepository
-	llama      ports.LlamaClient
-	confluence ports.ConfluenceAdapter
+	llama      LlamaClient
+	confluence ConfluenceAdapter
 }
 
 // NewAssetService creates a new AssetService instance
-func NewAssetService(repo ports.AssetRepository) ports.AssetService {
+func NewAssetService(repo ports.AssetRepository) AssetService {
 	llamaConfig := llama.DefaultConfig()
 	llamaClient, err := llama.NewClient(llamaConfig)
 	if err != nil {
@@ -37,7 +37,7 @@ func NewAssetService(repo ports.AssetRepository) ports.AssetService {
 	config.Token = os.Getenv("JIRA_TOKEN")
 	confluenceAdapter := confluence.NewAdapter(config)
 
-	return &AssetService{
+	return &AssetServiceImpl{
 		repo:       repo,
 		llama:      llamaClient,
 		confluence: confluenceAdapter,
@@ -45,7 +45,7 @@ func NewAssetService(repo ports.AssetRepository) ports.AssetService {
 }
 
 // CreateAsset creates a new asset with the given name and description
-func (s *AssetService) CreateAsset(name, description string) error {
+func (s *AssetServiceImpl) CreateAsset(name, description string) error {
 	// Check if asset already exists by name
 	if _, err := s.repo.FindByName(name); err == nil {
 		return fmt.Errorf("asset with name '%s' already exists", name)
@@ -76,12 +76,12 @@ func (s *AssetService) CreateAsset(name, description string) error {
 }
 
 // ListAssets returns all assets in the repository
-func (s *AssetService) ListAssets() ([]*domain.Asset, error) {
+func (s *AssetServiceImpl) ListAssets() ([]*domain.Asset, error) {
 	return s.repo.FindAll()
 }
 
 // GetAsset returns an asset by name or ID
-func (s *AssetService) GetAsset(identifier string) (*domain.Asset, error) {
+func (s *AssetServiceImpl) GetAsset(identifier string) (*domain.Asset, error) {
 	// First try to find by name
 	asset, err := s.repo.FindByName(identifier)
 	if err == nil {
@@ -97,12 +97,12 @@ func (s *AssetService) GetAsset(identifier string) (*domain.Asset, error) {
 }
 
 // DeleteAsset deletes an asset by name
-func (s *AssetService) DeleteAsset(name string) error {
+func (s *AssetServiceImpl) DeleteAsset(name string) error {
 	return s.repo.Delete(name)
 }
 
 // UpdateAsset updates an asset's description
-func (s *AssetService) UpdateAsset(name, description, why, benefits, how, metrics string) error {
+func (s *AssetServiceImpl) UpdateAsset(name, description, why, benefits, how, metrics string) error {
 	if description == "" {
 		return fmt.Errorf("asset description cannot be empty")
 	}
@@ -122,7 +122,7 @@ func (s *AssetService) UpdateAsset(name, description, why, benefits, how, metric
 }
 
 // UpdateDocumentation marks the documentation for an asset as updated
-func (s *AssetService) UpdateDocumentation(assetName string) error {
+func (s *AssetServiceImpl) UpdateDocumentation(assetName string) error {
 	asset, err := s.repo.FindByName(assetName)
 	if err != nil {
 		return fmt.Errorf("asset not found")
@@ -133,7 +133,7 @@ func (s *AssetService) UpdateDocumentation(assetName string) error {
 }
 
 // IncrementTaskCount increments the task count for an asset
-func (s *AssetService) IncrementTaskCount(name string) error {
+func (s *AssetServiceImpl) IncrementTaskCount(name string) error {
 	asset, err := s.repo.FindByName(name)
 	if err != nil {
 		return fmt.Errorf("asset not found")
@@ -145,7 +145,7 @@ func (s *AssetService) IncrementTaskCount(name string) error {
 }
 
 // DecrementTaskCount decrements the task count for an asset
-func (s *AssetService) DecrementTaskCount(name string) error {
+func (s *AssetServiceImpl) DecrementTaskCount(name string) error {
 	asset, err := s.repo.FindByName(name)
 	if err != nil {
 		return fmt.Errorf("asset not found")
@@ -160,7 +160,7 @@ func (s *AssetService) DecrementTaskCount(name string) error {
 }
 
 // SyncFromConfluence fetches assets from Confluence and updates the local repository
-func (s *AssetService) SyncFromConfluence(spaceKey, label string, debug bool) (*domain.SyncResult, error) {
+func (s *AssetServiceImpl) SyncFromConfluence(spaceKey, label string, debug bool) (*domain.SyncResult, error) {
 	config := confluence.DefaultConfig()
 
 	// Get configuration from environment variables
@@ -260,7 +260,7 @@ func validateRequiredFields(asset *domain.Asset) []string {
 }
 
 // EnrichAsset enriches a specific field of an asset using LLaMA 3
-func (s *AssetService) EnrichAsset(name, field string) error {
+func (s *AssetServiceImpl) EnrichAsset(name, field string) error {
 	asset, err := s.GetAsset(name)
 	if err != nil {
 		return fmt.Errorf("failed to get asset: %w", err)
