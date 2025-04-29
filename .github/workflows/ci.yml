@@ -16,24 +16,18 @@ jobs:
         with:
           fetch-depth: 0
 
-      # Add unique cache key based on current timestamp and commit hash
-      - name: Generate cache key
-        id: cache-key
-        run: |
-          echo "timestamp=$(date +%s)" >> $GITHUB_OUTPUT
-          echo "commit-hash=$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
-
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
-          go-version-file: "go.mod"
-          check-latest: true
-          cache: true
-          cache-dependency-path: |
-            go.sum
-            go.mod
-          # Force new cache with timestamp
-          cache-key: go-cache-${{ steps.cache-key.outputs.timestamp }}-${{ steps.cache-key.outputs.commit-hash }}
+          go-version: "1.24.1" # Exact version match
+          check-latest: false # Don't auto-update to newer patch versions
+          cache: false # Disable cache temporarily
+
+      - name: Set Go environment
+        run: |
+          go env -w GOTOOLCHAIN=local
+          echo "GOTOOLCHAIN=local" >> $GITHUB_ENV
+          echo "GO111MODULE=on" >> $GITHUB_ENV
 
       - name: Debug Go environment
         run: |
@@ -71,17 +65,16 @@ jobs:
           which golangci-lint
           echo "GOPATH: $(go env GOPATH)"
           echo "PATH: $PATH"
-          echo "Cache locations:"
-          echo "Go cache: $(go env GOCACHE)"
-          echo "Go mod cache: $(go env GOMODCACHE)"
+          echo "GOTOOLCHAIN: $(go env GOTOOLCHAIN)"
+          echo "GO111MODULE: $(go env GO111MODULE)"
 
       - name: Run linters
+        env:
+          GOTOOLCHAIN: local
+          GO111MODULE: on
         run: |
           export PATH=$PATH:$(go env GOPATH)/bin
-          # First try with config
-          golangci-lint run --timeout=5m --config=.golangci.yml ./... -v || \
-          # If that fails, try without config
-          golangci-lint run --timeout=5m ./... -v
+          golangci-lint run --timeout=5m --config=.golangci.yml ./... -v
 
       - name: Run tests with coverage
         run: make test-cover-detail
