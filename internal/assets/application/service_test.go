@@ -13,7 +13,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/helmedeiros/digital-asset-capitalization/internal/assets/domain"
-	"github.com/helmedeiros/digital-asset-capitalization/internal/assets/domain/ports"
 	"github.com/helmedeiros/digital-asset-capitalization/internal/assets/infrastructure/confluence"
 )
 
@@ -84,7 +83,7 @@ func (m *MockConfluenceAdapter) FetchPage(ctx context.Context, pageID string) (*
 	return args.Get(0).(*confluence.Page), args.Error(1)
 }
 
-var _ ports.ConfluenceAdapter = (*MockConfluenceAdapter)(nil)
+var _ ConfluenceAdapter = (*MockConfluenceAdapter)(nil)
 
 func TestCreateAsset(t *testing.T) {
 	tests := []struct {
@@ -801,7 +800,7 @@ func TestEnrichAsset(t *testing.T) {
 				tt.mockSetup(mockRepo, mockLlama, mockConfluence)
 			}
 
-			service := &AssetService{
+			service := &AssetServiceImpl{
 				repo:       mockRepo,
 				llama:      mockLlama,
 				confluence: mockConfluence,
