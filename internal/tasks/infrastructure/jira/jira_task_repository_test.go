@@ -66,9 +66,13 @@ func (m *mockClient) UpdateLabels(ctx context.Context, issueKey string, labels [
 }
 
 func TestNewRepository(t *testing.T) {
-	// Save the original NewClient function and restore it after the test
+	// Save the original functions and restore them after the test
 	originalNewClient := NewClient
-	defer func() { NewClient = originalNewClient }()
+	originalNewConfig := NewConfig
+	defer func() {
+		NewClient = originalNewClient
+		NewConfig = originalNewConfig
+	}()
 
 	tests := []struct {
 		name         string
@@ -78,15 +82,32 @@ func TestNewRepository(t *testing.T) {
 		wantInstance *TaskRepository
 	}{
 		{
-			name:         "successful setup",
-			mockSetup:    func() {},
+			name: "successful setup",
+			mockSetup: func() {
+				NewConfig = func() (*Config, error) {
+					return &Config{
+						BaseURL: "https://test.atlassian.net",
+						Email:   "test@example.com",
+						Token:   "test-token",
+					}, nil
+				}
+			},
 			wantErr:      false,
 			errorMessage: "",
 			wantInstance: nil,
 		},
 		{
-			name:         "client error",
-			mockSetup:    func() { NewClient = func(_ *Config) (Client, error) { return nil, errors.New("client error") } },
+			name: "client error",
+			mockSetup: func() {
+				NewConfig = func() (*Config, error) {
+					return &Config{
+						BaseURL: "https://test.atlassian.net",
+						Email:   "test@example.com",
+						Token:   "test-token",
+					}, nil
+				}
+				NewClient = func(_ *Config) (Client, error) { return nil, errors.New("client error") }
+			},
 			wantErr:      true,
 			errorMessage: "failed to create Jira client: client error",
 			wantInstance: nil,
