@@ -1,5 +1,7 @@
 # Digital Asset Capitalization Tool
 
+[![Test Coverage](https://img.shields.io/endpoint?url=https://gist.githubusercontent.com/helmedeiros/your-gist-id/raw/go-coverage.json)](https://github.com/helmedeiros/digital-asset-capitalization/actions)
+
 A tool to manage digital assets and calculate time allocation for tasks across different assets.
 
 ## Overview
