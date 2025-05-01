@@ -1,5 +1,6 @@
 name: CI
 
+# Workflow to run tests and update coverage badge
 on:
   push:
     branches: ["**"]
