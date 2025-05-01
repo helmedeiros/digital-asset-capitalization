@@ -11,6 +11,9 @@ jobs:
   run-tests:
     name: Run Tests
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      gists: write
     steps:
       - uses: actions/checkout@v4
 
@@ -53,4 +56,5 @@ jobs:
           filename: go-coverage.json
           label: coverage
           message: ${{ steps.test.outputs.coverage }}%
-          color: green
+          color: >-
+            ${{ steps.test.outputs.coverage > 90 && 'green' || steps.test.outputs.coverage > 80 && 'yellow' || 'red' }}
