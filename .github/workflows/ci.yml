@@ -7,13 +7,14 @@ on:
   pull_request:
     branches: ["**"]
 
+permissions:
+  contents: read
+  gists: write
+
 jobs:
   run-tests:
     name: Run Tests
     runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      gists: write
     steps:
       - uses: actions/checkout@v4
 
