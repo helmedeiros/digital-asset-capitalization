@@ -23,6 +23,7 @@ jobs:
         run: go mod download
 
       - name: Run tests with coverage
+        id: test
         run: |
           go test -v -coverprofile=coverage.out ./...
           go tool cover -func=coverage.out | tee coverage.txt
