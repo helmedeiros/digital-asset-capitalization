@@ -7,7 +7,13 @@ on:
   pull_request:
     branches: ["**"]
 
-permissions: write-all
+# Minimal required permissions
+permissions:
+  contents: read
+  statuses: write
+  checks: write
+  pull-requests: write
+  actions: read
 
 jobs:
   run-tests:
@@ -48,12 +54,13 @@ jobs:
 
       - name: Update coverage badge
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-        uses: schneegans/dynamic-badges-action@v1.6.0
+        uses: schneegans/dynamic-badges-action@v1.4.0
         with:
           auth: ${{ secrets.GIST_SECRET }}
           gistID: f811420c5b31e6c4d54855df77a88527
           filename: go-coverage.json
           label: coverage
-          message: ${{ steps.test.outputs.coverage }}%
-          color: >-
-            ${{ steps.test.outputs.coverage > 90 && 'green' || steps.test.outputs.coverage > 80 && 'yellow' || 'red' }}
+          message: "${{ steps.test.outputs.coverage }}%"
+          color: "${{ steps.test.outputs.coverage > 90 && 'success' || steps.test.outputs.coverage > 80 && 'yellow' || 'critical' }}"
+          isError: false
+          namedLogo: go
