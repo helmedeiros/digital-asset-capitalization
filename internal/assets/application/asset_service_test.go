@@ -92,7 +92,7 @@ func (m *MockAssetService) DecrementTaskCount(name string) error {
 	return errors.New("asset not found")
 }
 
-func (m *MockAssetService) SyncFromConfluence(_, label string, debug bool) (*domain.SyncResult, error) {
+func (m *MockAssetService) SyncFromConfluence(_, _ string, debug bool) (*domain.SyncResult, error) {
 	// Mock implementation for testing
 	return &domain.SyncResult{
 		SyncedAssets:    []*domain.Asset{},
