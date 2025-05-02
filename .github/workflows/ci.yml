@@ -9,12 +9,11 @@ on:
 
 # Minimal required permissions
 permissions:
-  contents: read # Required for checkout
-  statuses: write # Required for reporting status
-  checks: write # Required for reporting test results
-  pull-requests: write # Required for commenting on PRs
-  actions: read # Required for downloading artifacts
-  gists: write # Required for updating coverage badge
+  contents: read
+  statuses: write
+  checks: write
+  pull-requests: write
+  actions: read
 
 jobs:
   run-tests:
@@ -57,7 +56,7 @@ jobs:
         # Temporarily run on all pushes and PRs for debugging
         uses: schneegans/dynamic-badges-action@v1.6.0
         with:
-          auth: ${{ secrets.GIST_SECRET }}
+          auth: ${{ secrets.GIST_TOKEN }}
           gistID: f811420c5b31e6c4d54855df77a88527
           filename: go-coverage.json
           label: coverage
