@@ -12,6 +12,7 @@ The Digital Asset Capitalization Tool helps organizations track and manage digit
 - Time allocation tracking for tasks
 - Documentation management
 - Task classification and management
+- AI-powered asset enrichment and keyword generation
 
 The tool automatically calculates time allocation for tasks in each sprint and helps manage the capitalization of digital assets.
 
@@ -40,7 +41,34 @@ assetcap assets documentation update --asset "Frontend App"
 # Manage task counts
 assetcap assets tasks increment --asset "Frontend App"
 assetcap assets tasks decrement --asset "Frontend App"
+
+# Generate keywords for an asset using LLaMA 3
+assetcap assets keywords --name "Frontend App"
 ```
+
+### Asset Keywords
+
+The tool can automatically generate relevant keywords for your assets using LLaMA 3:
+
+```bash
+# Generate keywords for an asset
+assetcap assets keywords --name "Frontend App"
+```
+
+The keyword generation:
+
+- Uses LLaMA 3 to analyze the asset's content
+- Generates 5-10 relevant technical keywords
+- Considers the asset's name, description, purpose, benefits, and implementation details
+- Helps with asset discoverability and task classification
+- Keywords are used for matching tasks to assets
+
+The generated keywords are:
+
+- Technical and domain-specific
+- Single words or short phrases (2-3 words max)
+- Automatically cleaned and normalized
+- Stored with the asset for future reference
 
 ### Task Management
 
@@ -87,7 +115,7 @@ The tool:
 
 - Go 1.21 or later
 - Git
-- Ollama (for asset enrichment)
+- Ollama (for asset enrichment and keyword generation)
 
 ### Installing Dependencies
 

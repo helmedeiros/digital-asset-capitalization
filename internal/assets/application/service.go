@@ -12,10 +12,11 @@ import (
 	"github.com/helmedeiros/digital-asset-capitalization/internal/assets/domain"
 	"github.com/helmedeiros/digital-asset-capitalization/internal/assets/domain/ports"
 	"github.com/helmedeiros/digital-asset-capitalization/internal/assets/infrastructure/confluence"
+	"github.com/helmedeiros/digital-asset-capitalization/internal/assets/infrastructure/keywords"
 	"github.com/helmedeiros/digital-asset-capitalization/internal/assets/infrastructure/llama"
 )
 
-// AssetService handles business logic for asset management
+// AssetServiceImpl implements the AssetService interface
 type AssetServiceImpl struct {
 	repo       ports.AssetRepository
 	llama      LlamaClient
@@ -221,18 +222,99 @@ func (s *AssetServiceImpl) SyncFromConfluence(spaceKey, label string, debug bool
 	return result, nil
 }
 
-// validateRequiredFields checks if all required fields are present in the asset
+// EnrichAsset enriches a specific field of an asset using LLaMA 3
+func (s *AssetServiceImpl) EnrichAsset(name, field string) error {
+	// Get the asset
+	asset, err := s.GetAsset(name)
+	if err != nil {
+		return fmt.Errorf("failed to get asset: %w", err)
+	}
+
+	// Get the content to enrich based on the field
+	var content string
+	switch field {
+	case "description":
+		content = asset.Description
+	case "why":
+		content = asset.Why
+	case "benefits":
+		content = asset.Benefits
+	case "how":
+		content = asset.How
+	case "metrics":
+		content = asset.Metrics
+	default:
+		return fmt.Errorf("failed to enrich content: unsupported field for enrichment: %s", field)
+	}
+
+	// Enrich the content
+	enrichedContent, err := s.llama.EnrichContent(content, field, asset)
+	if err != nil {
+		return fmt.Errorf("failed to enrich content: %w", err)
+	}
+
+	// Update the asset with the enriched content
+	switch field {
+	case "description":
+		asset.Description = enrichedContent
+	case "why":
+		asset.Why = enrichedContent
+	case "benefits":
+		asset.Benefits = enrichedContent
+	case "how":
+		asset.How = enrichedContent
+	case "metrics":
+		asset.Metrics = enrichedContent
+	}
+
+	asset.UpdatedAt = time.Now()
+	asset.Version++
+
+	// Save the updated asset
+	return s.repo.Save(asset)
+}
+
+// GenerateKeywords generates keywords for an asset using LLaMA
+func (s *AssetServiceImpl) GenerateKeywords(name string) error {
+	// Get the asset
+	asset, err := s.GetAsset(name)
+	if err != nil {
+		return fmt.Errorf("failed to get asset: %w", err)
+	}
+
+	// Create keyword generator
+	generator := keywords.NewGenerator(s.llama)
+
+	// Generate keywords
+	generatedKeywords, err := generator.GenerateKeywords(asset)
+	if err != nil {
+		return fmt.Errorf("failed to generate keywords: %w", err)
+	}
+
+	// Update asset with new keywords
+	asset.Keywords = generatedKeywords
+	asset.UpdatedAt = time.Now()
+	asset.Version++
+
+	// Save the updated asset
+	if err := s.repo.Save(asset); err != nil {
+		return fmt.Errorf("failed to save asset: %w", err)
+	}
+	return nil
+}
+
+// Helper function to validate required fields
 func validateRequiredFields(asset *domain.Asset) []string {
 	var missingFields []string
 
-	if asset.ID == "" {
-		missingFields = append(missingFields, "ID")
-	}
 	if asset.Name == "" {
 		missingFields = append(missingFields, "Name")
 	}
 	if asset.Description == "" {
 		missingFields = append(missingFields, "Description")
+	}
+	if asset.ID == "" {
+		missingFields = append(missingFields, "ID")
 	}
 	if asset.LaunchDate.IsZero() {
 		missingFields = append(missingFields, "LaunchDate")
@@ -243,106 +325,23 @@ func validateRequiredFields(asset *domain.Asset) []string {
 	if asset.DocLink == "" {
 		missingFields = append(missingFields, "DocLink")
 	}
-	if asset.Why == "" {
-		missingFields = append(missingFields, "Why")
-	}
-	if asset.Benefits == "" {
-		missingFields = append(missingFields, "Benefits")
-	}
-	if asset.How == "" {
-		missingFields = append(missingFields, "How")
-	}
-	if asset.Metrics == "" {
-		missingFields = append(missingFields, "Metrics")
-	}
 
 	return missingFields
 }
 
-// EnrichAsset enriches a specific field of an asset using LLaMA 3
-func (s *AssetServiceImpl) EnrichAsset(name, field string) error {
-	asset, err := s.GetAsset(name)
-	if err != nil {
-		return fmt.Errorf("failed to get asset: %w", err)
-	}
-
-	// Get the content from the DocLink
-	if asset.DocLink == "" {
-		return fmt.Errorf("asset has no DocLink")
-	}
-
-	if s.llama == nil {
-		return fmt.Errorf("LLaMA client not initialized")
-	}
-
-	// Extract page ID from DocLink
-	pageID := extractPageIDFromDocLink(asset.DocLink)
-	if pageID == "" {
-		return fmt.Errorf("could not extract page ID from DocLink: %s", asset.DocLink)
-	}
-
-	// Fetch page content
-	page, err := s.confluence.FetchPage(context.Background(), pageID)
-	if err != nil {
-		return fmt.Errorf("failed to fetch page content: %w", err)
-	}
-
-	// Extract content from the page
-	content := page.Body.Storage.Value
-
-	enrichedContent, err := s.llama.EnrichContent(content, field, asset)
-	if err != nil {
-		return fmt.Errorf("failed to enrich content: %w", err)
-	}
-
-	// Update the asset based on the field
-	switch field {
-	case "description":
-		asset.Description = enrichedContent
-	default:
-		return fmt.Errorf("unsupported field for enrichment: %s", field)
-	}
-
-	asset.UpdatedAt = time.Now()
-	asset.Version++
-	return s.repo.Save(asset)
-}
-
-// extractPageIDFromDocLink extracts the page ID from a Confluence DocLink
+// Helper function to extract page ID from Confluence doc link
 func extractPageIDFromDocLink(docLink string) string {
-	// Handle different URL formats:
-	// 1. https://domain.com/wiki/spaces/SPACE/pages/123456
-	// 2. /wiki/spaces/SPACE/pages/123456
-	// 3. /spaces/SPACE/pages/123456
-	// 4. https://goeuro.atlassian.net/wiki/spaces/MZN/pages/2876997643/Omio+Flex
-
-	// First, try to parse the URL
-	u, err := url.Parse(docLink)
+	parsedURL, err := url.Parse(docLink)
 	if err != nil {
 		return ""
 	}
 
-	// Split the path into parts
-	parts := strings.Split(u.Path, "/")
-
-	// Find the index of "pages" in the path
-	pagesIndex := -1
-	for i, part := range parts {
-		if part == "pages" {
-			pagesIndex = i
-			break
+	// Extract page ID from URL path
+	pathParts := strings.Split(parsedURL.Path, "/")
+	for i, part := range pathParts {
+		if part == "pages" && i+1 < len(pathParts) {
+			return pathParts[i+1]
 		}
-	}
-
-	// If we found "pages", the next part should be the page ID
-	if pagesIndex >= 0 && pagesIndex+1 < len(parts) {
-		// The page ID is the next part after "pages"
-		pageID := parts[pagesIndex+1]
-		// If there are more parts (like a title), only take the ID part
-		if strings.Contains(pageID, "+") {
-			pageID = strings.Split(pageID, "+")[0]
-		}
-		return pageID
 	}
 
 	return ""

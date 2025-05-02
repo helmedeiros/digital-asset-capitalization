@@ -54,11 +54,16 @@ func (m *MockAssetService) DeleteAsset(name string) error {
 	return nil
 }
 
-func (m *MockAssetService) UpdateAsset(name, description string) error {
+func (m *MockAssetService) UpdateAsset(name, description, why, benefits, how, metrics string) error {
 	if _, exists := m.assets[name]; !exists {
 		return errors.New("asset not found")
 	}
-	m.assets[name].Description = description
+	asset := m.assets[name]
+	asset.Description = description
+	asset.Why = why
+	asset.Benefits = benefits
+	asset.How = how
+	asset.Metrics = metrics
 	return nil
 }
 
@@ -85,6 +90,30 @@ func (m *MockAssetService) DecrementTaskCount(name string) error {
 		return nil
 	}
 	return errors.New("asset not found")
+}
+
+func (m *MockAssetService) SyncFromConfluence(_, _ string, _ bool) (*domain.SyncResult, error) {
+	// Mock implementation for testing
+	return &domain.SyncResult{
+		SyncedAssets:    []*domain.Asset{},
+		NotSyncedAssets: []*domain.NotSyncedAsset{},
+	}, nil
+}
+
+func (m *MockAssetService) EnrichAsset(name, _ string) error {
+	if _, exists := m.assets[name]; !exists {
+		return errors.New("asset not found")
+	}
+	return nil
+}
+
+func (m *MockAssetService) GenerateKeywords(name string) error {
+	if _, exists := m.assets[name]; !exists {
+		return errors.New("asset not found")
+	}
+	// Mock implementation for testing
+	m.assets[name].Keywords = []string{"test", "mock", "keyword"}
+	return nil
 }
 
 func TestAssetService(t *testing.T) {
@@ -119,14 +148,18 @@ func TestAssetService(t *testing.T) {
 	})
 
 	t.Run("UpdateAsset", func(t *testing.T) {
-		err := service.UpdateAsset("test-asset", "Updated Description")
+		err := service.UpdateAsset("test-asset", "Updated Description", "Why", "Benefits", "How", "Metrics")
 		assert.NoError(t, err)
 
 		asset, _ := service.GetAsset("test-asset")
 		assert.Equal(t, "Updated Description", asset.Description)
+		assert.Equal(t, "Why", asset.Why)
+		assert.Equal(t, "Benefits", asset.Benefits)
+		assert.Equal(t, "How", asset.How)
+		assert.Equal(t, "Metrics", asset.Metrics)
 
 		// Test updating non-existent asset
-		err = service.UpdateAsset("non-existent", "New Description")
+		err = service.UpdateAsset("non-existent", "New Description", "", "", "", "")
 		assert.Error(t, err)
 		assert.Equal(t, "asset not found", err.Error())
 	})
@@ -176,6 +209,48 @@ func TestAssetService(t *testing.T) {
 
 		// Test non-existent asset
 		err = service.UpdateDocumentation("non-existent")
+		assert.Error(t, err)
+		assert.Equal(t, "asset not found", err.Error())
+	})
+
+	t.Run("SyncFromConfluence", func(t *testing.T) {
+		result, err := service.SyncFromConfluence("TEST", "test-label", false)
+		assert.NoError(t, err)
+		assert.NotNil(t, result)
+		assert.Empty(t, result.SyncedAssets)
+		assert.Empty(t, result.NotSyncedAssets)
+	})
+
+	t.Run("EnrichAsset", func(t *testing.T) {
+		// Create a test asset
+		service.CreateAsset("enrich-asset", "Test Description")
+
+		// Test successful enrichment
+		err := service.EnrichAsset("enrich-asset", "description")
+		assert.NoError(t, err)
+
+		// Test non-existent asset
+		err = service.EnrichAsset("non-existent", "description")
+		assert.Error(t, err)
+		assert.Equal(t, "asset not found", err.Error())
+	})
+
+	t.Run("GenerateKeywords", func(t *testing.T) {
+		// Create a test asset
+		service.CreateAsset("keyword-asset", "Test Description")
+
+		// Test successful keyword generation
+		err := service.GenerateKeywords("keyword-asset")
+		assert.NoError(t, err)
+
+		// Verify keywords were generated
+		asset, _ := service.GetAsset("keyword-asset")
+		assert.NotNil(t, asset.Keywords)
+		assert.Len(t, asset.Keywords, 3)
+		assert.Equal(t, []string{"test", "mock", "keyword"}, asset.Keywords)
+
+		// Test non-existent asset
+		err = service.GenerateKeywords("non-existent")
 		assert.Error(t, err)
 		assert.Equal(t, "asset not found", err.Error())
 	})
