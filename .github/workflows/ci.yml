@@ -53,7 +53,7 @@ jobs:
         run: golangci-lint run
 
       - name: Update coverage badge
-        # Temporarily run on all pushes and PRs for debugging
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         uses: schneegans/dynamic-badges-action@v1.4.0
         with:
           auth: ${{ secrets.GIST_SECRET }}
