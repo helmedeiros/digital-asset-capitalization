@@ -100,7 +100,7 @@ func (m *MockAssetService) SyncFromConfluence(_, _ string, _ bool) (*domain.Sync
 	}, nil
 }
 
-func (m *MockAssetService) EnrichAsset(name, field string) error {
+func (m *MockAssetService) EnrichAsset(name, _ string) error {
 	if _, exists := m.assets[name]; !exists {
 		return errors.New("asset not found")
 	}

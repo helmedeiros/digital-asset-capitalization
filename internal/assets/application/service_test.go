@@ -628,7 +628,7 @@ func TestEnrichAsset(t *testing.T) {
 			name:      "successful enrichment",
 			assetName: "test-asset",
 			field:     "description",
-			mockSetup: func(repo *MockAssetRepository, llama *MockLlamaClient, confluenceAdapter *MockConfluenceAdapter) {
+			mockSetup: func(repo *MockAssetRepository, llama *MockLlamaClient, _ *MockConfluenceAdapter) {
 				asset := &domain.Asset{
 					ID:          "123",
 					Name:        "test-asset",
@@ -659,7 +659,7 @@ func TestEnrichAsset(t *testing.T) {
 			name:      "missing_DocLink",
 			assetName: "test-asset",
 			field:     "description",
-			mockSetup: func(repo *MockAssetRepository, llama *MockLlamaClient, confluenceAdapter *MockConfluenceAdapter) {
+			mockSetup: func(repo *MockAssetRepository, llama *MockLlamaClient, _ *MockConfluenceAdapter) {
 				asset := &domain.Asset{
 					ID:          "123",
 					Name:        "test-asset",
@@ -861,7 +861,7 @@ func TestGenerateKeywords(t *testing.T) {
 		{
 			name:      "asset not found",
 			assetName: "non-existent",
-			setupMocks: func(repo *MockAssetRepository, llama *MockLlamaClient) {
+			setupMocks: func(repo *MockAssetRepository, _ *MockLlamaClient) {
 				repo.On("FindByName", "non-existent").Return(nil, assert.AnError)
 				repo.On("FindByID", "non-existent").Return(nil, assert.AnError)
 			},
