@@ -320,6 +320,9 @@ For more information about a command:
 							fmt.Printf("Created: %s\n", asset.CreatedAt.Format("2006-01-02 15:04:05"))
 							fmt.Printf("Updated: %s\n", asset.UpdatedAt.Format("2006-01-02 15:04:05"))
 							fmt.Printf("Task Count: %d\n", asset.AssociatedTaskCount)
+							if len(asset.Keywords) > 0 {
+								fmt.Printf("Keywords: %s\n", strings.Join(asset.Keywords, ", "))
+							}
 							if asset.DocLink != "" {
 								fmt.Printf("DocLink: %s\n", asset.DocLink)
 							}
@@ -438,6 +441,30 @@ For more information about a command:
 							&cli.StringFlag{
 								Name:     "field",
 								Usage:    "Field to enrich (e.g., description)",
+								Required: true,
+							},
+						},
+					},
+					{
+						Name:  "keywords",
+						Usage: "Generate keywords for an asset using LLaMA 3",
+						Action: func(ctx *cli.Context) error {
+							name := ctx.String("name")
+							// Check if asset exists
+							_, err := a.assetService.GetAsset(name)
+							if err != nil {
+								return fmt.Errorf("asset not found: %s", name)
+							}
+							if err := a.assetService.GenerateKeywords(name); err != nil {
+								return err
+							}
+							fmt.Printf("Generated keywords for asset: %s\n", name)
+							return nil
+						},
+						Flags: []cli.Flag{
+							&cli.StringFlag{
+								Name:     "name",
+								Usage:    "Asset name or ID",
 								Required: true,
 							},
 						},
