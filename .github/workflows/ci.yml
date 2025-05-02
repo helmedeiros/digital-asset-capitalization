@@ -7,7 +7,14 @@ on:
   pull_request:
     branches: ["**"]
 
-permissions: write-all
+# Minimal required permissions
+permissions:
+  contents: read # Required for checkout
+  statuses: write # Required for reporting status
+  checks: write # Required for reporting test results
+  pull-requests: write # Required for commenting on PRs
+  actions: read # Required for downloading artifacts
+  gists: write # Required for updating coverage badge
 
 jobs:
   run-tests:
