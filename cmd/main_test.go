@@ -70,6 +70,11 @@ func (m *MockAssetService) DecrementTaskCount(name string) error {
 	return args.Error(0)
 }
 
+func (m *MockAssetService) GenerateKeywords(name string) error {
+	args := m.Called(name)
+	return args.Error(0)
+}
+
 func (m *MockAssetService) EnrichAsset(name, field string) error {
 	args := m.Called(name, field)
 	return args.Error(0)
@@ -432,6 +437,34 @@ func TestRun(t *testing.T) {
 			args: []string{"assets", "show", "--name", "nonexistent"},
 			setup: func(mas *MockAssetService, _ *MockTaskService, _ *MockSprintService) {
 				mas.On("GetAsset", "nonexistent").Return(nil, fmt.Errorf("asset not found"))
+			},
+			wantErr: true,
+		},
+		{
+			name: "generate keywords for existing asset",
+			args: []string{"assets", "keywords", "--name", "test"},
+			setup: func(mas *MockAssetService, _ *MockTaskService, _ *MockSprintService) {
+				mas.On("GetAsset", "test").Return(&assetsdomain.Asset{
+					ID:          "cap-asset-test",
+					Name:        "Test Asset",
+					Description: "Test Description",
+				}, nil)
+				mas.On("GenerateKeywords", "test").Return(nil)
+			},
+			wantErr: false,
+		},
+		{
+			name: "generate keywords for non-existent asset",
+			args: []string{"assets", "keywords", "--name", "nonexistent"},
+			setup: func(mas *MockAssetService, _ *MockTaskService, _ *MockSprintService) {
+				mas.On("GetAsset", "nonexistent").Return(nil, fmt.Errorf("asset not found"))
+			},
+			wantErr: true,
+		},
+		{
+			name: "generate keywords missing name flag",
+			args: []string{"assets", "keywords"},
+			setup: func(_ *MockAssetService, _ *MockTaskService, _ *MockSprintService) {
 			},
 			wantErr: true,
 		},

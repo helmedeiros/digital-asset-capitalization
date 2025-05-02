@@ -43,4 +43,6 @@ type AssetService interface {
 	SyncFromConfluence(spaceKey, label string, debug bool) (*domain.SyncResult, error)
 	// EnrichAsset enriches a specific field of an asset using LLaMA 3
 	EnrichAsset(name, field string) error
+	// GenerateKeywords generates keywords for an asset using LLaMA
+	GenerateKeywords(name string) error
 }

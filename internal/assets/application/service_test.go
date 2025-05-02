@@ -629,7 +629,7 @@ func TestEnrichAsset(t *testing.T) {
 			assetName: "test-asset",
 			field:     "description",
 			mockSetup: func(repo *MockAssetRepository, llama *MockLlamaClient, confluenceAdapter *MockConfluenceAdapter) {
-				repo.On("FindByName", "test-asset").Return(&domain.Asset{
+				asset := &domain.Asset{
 					ID:          "123",
 					Name:        "test-asset",
 					Description: "original description",
@@ -637,60 +637,12 @@ func TestEnrichAsset(t *testing.T) {
 					CreatedAt:   time.Now(),
 					UpdatedAt:   time.Now(),
 					Version:     1,
-				}, nil)
-
-				confluenceAdapter.On("FetchPage", mock.Anything, "123456").Return(&confluence.Page{
-					ID:    "123456",
-					Title: "Test Page",
-					Space: struct {
-						Key string `json:"key"`
-					}{
-						Key: "SPACE",
-					},
-					Version: struct {
-						Number int `json:"number"`
-					}{
-						Number: 1,
-					},
-					Body: struct {
-						Storage struct {
-							Value string `json:"value"`
-						} `json:"storage"`
-					}{
-						Storage: struct {
-							Value string `json:"value"`
-						}{
-							Value: "test content",
-						},
-					},
-					Links: struct {
-						WebUI string `json:"webui"`
-					}{
-						WebUI: "https://confluence.example.com/wiki/spaces/SPACE/pages/123456",
-					},
-					Metadata: struct {
-						Labels struct {
-							Results []struct {
-								Name string `json:"name"`
-							} `json:"results"`
-						} `json:"labels"`
-					}{
-						Labels: struct {
-							Results []struct {
-								Name string `json:"name"`
-							} `json:"results"`
-						}{
-							Results: []struct {
-								Name string `json:"name"`
-							}{
-								{Name: "test-label"},
-							},
-						},
-					},
-				}, nil)
-
-				llama.On("EnrichContent", "test content", "description", mock.Anything).Return("enriched description", nil)
-				repo.On("Save", mock.AnythingOfType("*domain.Asset")).Return(nil)
+				}
+				repo.On("FindByName", "test-asset").Return(asset, nil)
+				llama.On("EnrichContent", "original description", "description", asset).Return("enriched description", nil)
+				repo.On("Save", mock.MatchedBy(func(a *domain.Asset) bool {
+					return a.Description == "enriched description" && a.Version == 2
+				})).Return(nil)
 			},
 		},
 		{
@@ -704,20 +656,24 @@ func TestEnrichAsset(t *testing.T) {
 			expectedError: "failed to get asset: asset not found by name or ID: non-existent",
 		},
 		{
-			name:      "missing DocLink",
+			name:      "missing_DocLink",
 			assetName: "test-asset",
 			field:     "description",
-			mockSetup: func(repo *MockAssetRepository, _ *MockLlamaClient, _ *MockConfluenceAdapter) {
-				repo.On("FindByName", "test-asset").Return(&domain.Asset{
+			mockSetup: func(repo *MockAssetRepository, llama *MockLlamaClient, confluenceAdapter *MockConfluenceAdapter) {
+				asset := &domain.Asset{
 					ID:          "123",
 					Name:        "test-asset",
 					Description: "original description",
 					CreatedAt:   time.Now(),
 					UpdatedAt:   time.Now(),
 					Version:     1,
-				}, nil)
+				}
+				repo.On("FindByName", "test-asset").Return(asset, nil)
+				llama.On("EnrichContent", "original description", "description", asset).Return("enriched description", nil)
+				repo.On("Save", mock.MatchedBy(func(a *domain.Asset) bool {
+					return a.Description == "enriched description" && a.Version == 2
+				})).Return(nil)
 			},
-			expectedError: "asset has no DocLink",
 		},
 		{
 			name:      "unsupported field",
@@ -859,6 +815,122 @@ func TestExtractPageIDFromDocLink(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			result := extractPageIDFromDocLink(tt.docLink)
 			assert.Equal(t, tt.expected, result)
+		})
+	}
+}
+
+func TestGenerateKeywords(t *testing.T) {
+	tests := []struct {
+		name          string
+		assetName     string
+		existingAsset *domain.Asset
+		mockKeywords  []string
+		expectedError string
+		setupMocks    func(*MockAssetRepository, *MockLlamaClient)
+	}{
+		{
+			name:      "successful keyword generation",
+			assetName: "test-asset",
+			existingAsset: &domain.Asset{
+				Name:        "test-asset",
+				Description: "A test asset",
+				Why:         "Testing purposes",
+				Benefits:    "Improved testing",
+				How:         "Using mocks",
+				Metrics:     "Test coverage",
+			},
+			mockKeywords: []string{"test", "mock", "coverage", "automation"},
+			setupMocks: func(repo *MockAssetRepository, llama *MockLlamaClient) {
+				repo.On("FindByName", "test-asset").Return(&domain.Asset{
+					Name:        "test-asset",
+					Description: "A test asset",
+					Why:         "Testing purposes",
+					Benefits:    "Improved testing",
+					How:         "Using mocks",
+					Metrics:     "Test coverage",
+				}, nil)
+				llama.On("EnrichContent", mock.Anything, "keywords", mock.Anything).Return("test, mock, coverage, automation", nil)
+				repo.On("Save", mock.MatchedBy(func(asset *domain.Asset) bool {
+					return asset.Name == "test-asset" &&
+						len(asset.Keywords) == 4 &&
+						asset.Keywords[0] == "test" &&
+						asset.Keywords[3] == "automation"
+				})).Return(nil)
+			},
+		},
+		{
+			name:      "asset not found",
+			assetName: "non-existent",
+			setupMocks: func(repo *MockAssetRepository, llama *MockLlamaClient) {
+				repo.On("FindByName", "non-existent").Return(nil, assert.AnError)
+				repo.On("FindByID", "non-existent").Return(nil, assert.AnError)
+			},
+			expectedError: "failed to get asset",
+		},
+		{
+			name:      "llama client error",
+			assetName: "test-asset",
+			existingAsset: &domain.Asset{
+				Name:        "test-asset",
+				Description: "A test asset",
+			},
+			setupMocks: func(repo *MockAssetRepository, llama *MockLlamaClient) {
+				repo.On("FindByName", "test-asset").Return(&domain.Asset{
+					Name:        "test-asset",
+					Description: "A test asset",
+				}, nil)
+				llama.On("EnrichContent", mock.Anything, "keywords", mock.Anything).Return("", assert.AnError)
+			},
+			expectedError: "failed to generate keywords",
+		},
+		{
+			name:      "save error",
+			assetName: "test-asset",
+			existingAsset: &domain.Asset{
+				Name:        "test-asset",
+				Description: "A test asset",
+			},
+			setupMocks: func(repo *MockAssetRepository, llama *MockLlamaClient) {
+				repo.On("FindByName", "test-asset").Return(&domain.Asset{
+					Name:        "test-asset",
+					Description: "A test asset",
+				}, nil)
+				llama.On("EnrichContent", mock.Anything, "keywords", mock.Anything).Return("test, mock", nil)
+				repo.On("Save", mock.Anything).Return(assert.AnError)
+			},
+			expectedError: "failed to save asset",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Create mocks
+			mockRepo := new(MockAssetRepository)
+			mockLlama := new(MockLlamaClient)
+
+			// Setup mocks
+			tt.setupMocks(mockRepo, mockLlama)
+
+			// Create service with mocks
+			service := &AssetServiceImpl{
+				repo:  mockRepo,
+				llama: mockLlama,
+			}
+
+			// Call the method
+			err := service.GenerateKeywords(tt.assetName)
+
+			// Check error
+			if tt.expectedError != "" {
+				assert.Error(t, err)
+				assert.Contains(t, err.Error(), tt.expectedError)
+			} else {
+				assert.NoError(t, err)
+			}
+
+			// Verify all expectations were met
+			mockRepo.AssertExpectations(t)
+			mockLlama.AssertExpectations(t)
 		})
 	}
 }

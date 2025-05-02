@@ -442,6 +442,30 @@ For more information about a command:
 							},
 						},
 					},
+					{
+						Name:  "keywords",
+						Usage: "Generate keywords for an asset using LLaMA 3",
+						Action: func(ctx *cli.Context) error {
+							name := ctx.String("name")
+							// Check if asset exists
+							_, err := a.assetService.GetAsset(name)
+							if err != nil {
+								return fmt.Errorf("asset not found: %s", name)
+							}
+							if err := a.assetService.GenerateKeywords(name); err != nil {
+								return err
+							}
+							fmt.Printf("Generated keywords for asset: %s\n", name)
+							return nil
+						},
+						Flags: []cli.Flag{
+							&cli.StringFlag{
+								Name:     "name",
+								Usage:    "Asset name or ID",
+								Required: true,
+							},
+						},
+					},
 				},
 			},
 			{
