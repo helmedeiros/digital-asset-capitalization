@@ -63,3 +63,5 @@ jobs:
           message: ${{ steps.test.outputs.coverage }}%
           color: >-
             ${{ steps.test.outputs.coverage > 90 && 'green' || steps.test.outputs.coverage > 80 && 'yellow' || 'red' }}
+          isError: false
+          namedLogo: go
