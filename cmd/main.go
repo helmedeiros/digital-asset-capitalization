@@ -320,6 +320,9 @@ For more information about a command:
 							fmt.Printf("Created: %s\n", asset.CreatedAt.Format("2006-01-02 15:04:05"))
 							fmt.Printf("Updated: %s\n", asset.UpdatedAt.Format("2006-01-02 15:04:05"))
 							fmt.Printf("Task Count: %d\n", asset.AssociatedTaskCount)
+							if len(asset.Keywords) > 0 {
+								fmt.Printf("Keywords: %v\n", asset.Keywords)
+							}
 							if asset.DocLink != "" {
 								fmt.Printf("DocLink: %s\n", asset.DocLink)
 							}
