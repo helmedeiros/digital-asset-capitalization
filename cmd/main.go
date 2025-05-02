@@ -321,7 +321,7 @@ For more information about a command:
 							fmt.Printf("Updated: %s\n", asset.UpdatedAt.Format("2006-01-02 15:04:05"))
 							fmt.Printf("Task Count: %d\n", asset.AssociatedTaskCount)
 							if len(asset.Keywords) > 0 {
-								fmt.Printf("Keywords: %v\n", asset.Keywords)
+								fmt.Printf("Keywords: %s\n", strings.Join(asset.Keywords, ", "))
 							}
 							if asset.DocLink != "" {
 								fmt.Printf("DocLink: %s\n", asset.DocLink)
