@@ -42,7 +42,7 @@ func (c *ContentBasedAssetClassifier) ClassifyTaskAsset(task *taskdomain.Task) (
 
 // ClassifyTasksAssets determines the related asset for multiple tasks
 func (c *ContentBasedAssetClassifier) ClassifyTasksAssets(tasks []*taskdomain.Task) ([]*ports.AssetClassificationResult, error) {
-	var results []*ports.AssetClassificationResult
+	results := make([]*ports.AssetClassificationResult, 0, len(tasks))
 
 	for _, task := range tasks {
 		result, err := c.ClassifyTaskAsset(task)

@@ -72,7 +72,7 @@ func (c *ComprehensiveClassificationChain) ClassifyTasks(tasks []*taskdomain.Tas
 	}
 
 	// Step 3: Combine results
-	var results []*ports.ComprehensiveClassificationResult
+	results := make([]*ports.ComprehensiveClassificationResult, 0, len(tasks))
 	for i, task := range tasks {
 		var assetResult *ports.AssetClassificationResult
 		if i < len(assetResults) {
@@ -164,11 +164,7 @@ func (c *ComprehensiveClassificationChain) containsBugKeywords(task *taskdomain.
 		}
 	}
 
-	if task.Type == taskdomain.TaskTypeBug {
-		return true
-	}
-
-	return false
+	return task.Type == taskdomain.TaskTypeBug
 }
 
 // containsAPIKeywords checks if task contains API-related keywords
