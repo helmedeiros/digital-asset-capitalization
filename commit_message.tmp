@@ -1,50 +1,60 @@
-feat(tasks): implement content-based asset classifier with TDD approach
+feat(tasks): implement comprehensive classification chain for asset+worktype orchestration
 
-This commit introduces a sophisticated asset classification system that identifies
-which digital asset a task belongs to based on content analysis, keywords, and epic information.
+This commit creates a sophisticated classification chain system that orchestrates both
+asset classification and work type classification to provide comprehensive task analysis.
 
 ## Key Features Implemented
 
-### Asset Classification System
-- **AssetClassifier interface**: Defines contract for asset classification
-- **AssetClassificationResult**: Rich result object with confidence scoring and reasoning
-- **ContentBasedAssetClassifier**: Advanced implementation using multiple matching strategies
+### Classification Chain Architecture
+- **ClassificationChain interface**: Defines contract for multi-classifier orchestration
+- **ComprehensiveClassificationResult**: Rich result combining asset and work type information
+- **ComprehensiveClassificationChain**: Production-ready implementation managing both classifiers
 
-### Classification Logic
-1. **Explicit asset labels** (90% confidence): `cap-asset-*` label matching
-2. **Asset name matches** (90% confidence): Exact asset name in task content
-3. **Epic name matches** (80% confidence): Asset name in epic name
-4. **Keyword matches** (40-70% confidence): Asset keywords in task content/epic
-5. **Partial name matches** (30-50% confidence): Individual words from asset name
+### Advanced Orchestration Logic
+1. **Asset Classification First**: Identifies which digital asset the task belongs to
+2. **Work Type Classification**: Determines capitalization category (development/discovery/maintenance)
+3. **Intelligent Reasoning**: Generates human-readable explanations for classifications
+4. **Error Handling**: Graceful failure management across multiple classifiers
 
-### Confidence Scoring & Reasoning
-- Multi-factor scoring with diminishing returns
-- Confidence boosting for multiple match types
-- Detailed reasoning for classification decisions
-- Fallback mechanisms for edge cases
+### Enhanced Work Type Reasoning
+- **Content-aware explanations**: "spike/research task detected", "bug fix for Payment Gateway"
+- **Asset-contextual reasons**: Links work type decisions to specific assets
+- **Fallback descriptions**: Provides meaningful explanations even for edge cases
 
 ### Comprehensive Test Coverage
-- **25 test cases** covering all classification scenarios
-- **TDD approach**: Tests written first, implementation follows
-- **Edge case handling**: Nil tasks, empty assets, repository errors
-- **Content analysis**: Case insensitive, keyword matching, epic analysis
-- **Batch operations**: Multiple task classification support
+- **12 test cases** covering orchestration scenarios
+- **Error propagation testing**: Asset classifier errors, work type classifier errors, combined failures
+- **Edge case handling**: Nil tasks, empty lists, minimal task data
+- **Batch operation support**: Multi-task classification with result aggregation
 
 ## Technical Implementation
 
-### Content Analysis
-- Case-insensitive string matching across summary, description, and epic
-- Asset keyword cross-referencing with task content
-- Label-based explicit asset assignment (`cap-asset-*` pattern)
-- Multiple match type detection and confidence boosting
+### Classification Flow
+```
+Task → Asset Classifier → Asset Result (with confidence)
+   ↓
+Task → Work Type Classifier → Work Type Result
+   ↓
+Comprehensive Result = Asset + Work Type + Reasoning
+```
 
-### Error Handling
-- Graceful repository error handling
-- Nil task validation
-- Empty asset list handling
-- Fallback confidence scoring
+### Intelligent Reasoning Engine
+- **Discovery work**: Detects research keywords (spike, poc, investigation)
+- **Maintenance work**: Identifies bug fixes and asset-specific maintenance
+- **Development work**: Recognizes API development and feature implementation
 
-This implementation provides the foundation for intelligent task-to-asset assignment
-that will enhance the asset capitalization classification chain.
+### Error Resilience
+- Step-by-step validation with detailed error context
+- Graceful handling of classifier failures
+- Meaningful error messages for troubleshooting
 
-All 682 tests passing including 25 new asset classifier tests.
+### Batch Processing Optimization
+- Efficient batch operations for multiple tasks
+- Result correlation by task key
+- Default fallback handling for missing results
+
+This implementation provides the foundation for intelligent, comprehensive task classification
+that combines the best of content analysis (asset identification) with business rule logic
+(work type determination) in a cohesive, production-ready system.
+
+All 694 tests passing including 12 new classification chain tests.
