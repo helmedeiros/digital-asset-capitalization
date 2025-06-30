@@ -10,3 +10,12 @@ type TaskClassifier interface {
 	// ClassifyTasks determines the work type for multiple tasks
 	ClassifyTasks(tasks []*domain.Task) (map[string]domain.WorkType, error)
 }
+
+// ComprehensiveTaskClassifier extends TaskClassifier to support comprehensive classification results
+// This allows access to both work type and asset assignment information
+type ComprehensiveTaskClassifier interface {
+	TaskClassifier
+
+	// ClassifyTasksComprehensive returns detailed classification results including asset assignments
+	ClassifyTasksComprehensive(tasks []*domain.Task) ([]*ComprehensiveClassificationResult, error)
+}

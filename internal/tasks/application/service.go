@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"strings"
 
+	assetsapp "github.com/helmedeiros/digital-asset-capitalization/internal/assets/application"
 	"github.com/helmedeiros/digital-asset-capitalization/internal/tasks/application/usecase"
 	"github.com/helmedeiros/digital-asset-capitalization/internal/tasks/domain"
 	"github.com/helmedeiros/digital-asset-capitalization/internal/tasks/domain/ports"
@@ -17,10 +18,10 @@ type TaskServiceImpl struct {
 }
 
 // NewTasksService creates a new TasksService
-func NewTasksService(remoteRepo, localRepo ports.TaskRepository, classifier ports.TaskClassifier, userInput ports.UserInput) TaskService {
+func NewTasksService(remoteRepo, localRepo ports.TaskRepository, classifier ports.TaskClassifier, userInput ports.UserInput, assetService assetsapp.AssetService) TaskService {
 	return &TaskServiceImpl{
 		fetchTasksUseCase:    usecase.NewFetchTasksUseCase(remoteRepo, localRepo),
-		classifyTasksUseCase: usecase.NewClassifyTasksUseCase(localRepo, remoteRepo, classifier, userInput),
+		classifyTasksUseCase: usecase.NewClassifyTasksUseCase(localRepo, remoteRepo, classifier, userInput, assetService),
 	}
 }
 

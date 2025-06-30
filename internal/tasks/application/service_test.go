@@ -15,7 +15,8 @@ import (
 func TestTasksService_FetchTasks(t *testing.T) {
 	remoteRepo := testutil.NewMockTaskRepository()
 	localRepo := testutil.NewMockTaskRepository()
-	service := NewTasksService(remoteRepo, localRepo, nil, nil)
+	assetService := testutil.NewMockAssetService()
+	service := NewTasksService(remoteRepo, localRepo, nil, nil, assetService)
 
 	tests := []struct {
 		name     string
@@ -125,7 +126,8 @@ func TestTasksService_ClassifyTasks(t *testing.T) {
 	localRepo := testutil.NewMockTaskRepository()
 	classifier := testutil.NewMockTaskClassifier()
 	userInput := testutil.NewMockUserInput()
-	service := NewTasksService(remoteRepo, localRepo, classifier, userInput)
+	assetService := testutil.NewMockAssetService()
+	service := NewTasksService(remoteRepo, localRepo, classifier, userInput, assetService)
 
 	tests := []struct {
 		name    string
@@ -357,7 +359,8 @@ func TestTaskService_GetTasksByAsset(t *testing.T) {
 	})
 
 	// Create service
-	service := NewTasksService(jiraRepo, localRepo, classifier, userInput)
+	assetService := testutil.NewMockAssetService()
+	service := NewTasksService(jiraRepo, localRepo, classifier, userInput, assetService)
 
 	tests := []struct {
 		name      string
