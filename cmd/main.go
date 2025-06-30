@@ -661,7 +661,7 @@ func initializeApp() (*App, error) {
 	}
 
 	localRepo := storage.NewJSONStorage(tasksDir, tasksFile)
-	taskClassifier := classifier.NewRandomClassifier()
+	taskClassifier := classifier.NewBusinessRulesClassifier(assetRepo)
 	userInput := cliui.NewUserInput()
 	taskService := tasksapp.NewTasksService(jiraRepo, localRepo, taskClassifier, userInput)
 
