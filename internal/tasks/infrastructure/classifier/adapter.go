@@ -13,7 +13,7 @@ type ComprehensiveClassifierAdapter struct {
 }
 
 // NewComprehensiveClassifierAdapter creates a new adapter for the comprehensive classification chain
-func NewComprehensiveClassifierAdapter(chain ports.ClassificationChain) ports.TaskClassifier {
+func NewComprehensiveClassifierAdapter(chain ports.ClassificationChain) ports.ComprehensiveTaskClassifier {
 	return &ComprehensiveClassifierAdapter{
 		chain: chain,
 	}
@@ -44,4 +44,10 @@ func (a *ComprehensiveClassifierAdapter) ClassifyTasks(tasks []*taskdomain.Task)
 	}
 
 	return workTypes, nil
+}
+
+// ClassifyTasksComprehensive implements ComprehensiveTaskClassifier.ClassifyTasksComprehensive
+// by directly delegating to the comprehensive chain to return full classification results
+func (a *ComprehensiveClassifierAdapter) ClassifyTasksComprehensive(tasks []*taskdomain.Task) ([]*ports.ComprehensiveClassificationResult, error) {
+	return a.chain.ClassifyTasks(tasks)
 }

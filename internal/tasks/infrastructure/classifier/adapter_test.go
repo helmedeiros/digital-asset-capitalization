@@ -229,3 +229,100 @@ func TestComprehensiveClassifierAdapter_ClassifyTasks(t *testing.T) {
 		})
 	}
 }
+
+func TestComprehensiveClassifierAdapter_ClassifyTasksComprehensive(t *testing.T) {
+	tasks := []*taskdomain.Task{
+		{
+			Key:         "TEST-1",
+			Summary:     "Fix Payment Gateway bug",
+			Description: "Resolve timeout issue",
+		},
+		{
+			Key:         "TEST-2",
+			Summary:     "Research new features",
+			Description: "Investigate capabilities",
+			Labels:      []string{"research"},
+		},
+	}
+
+	comprehensiveResults := []*ports.ComprehensiveClassificationResult{
+		{
+			Task: tasks[0],
+			Asset: &ports.AssetClassificationResult{
+				Asset: &assetdomain.Asset{
+					Name:        "Payment Gateway",
+					Description: "Processes payments",
+				},
+				Confidence: 0.9,
+				Reason:     "asset name match in summary",
+			},
+			WorkType:       taskdomain.WorkTypeMaintenance,
+			WorkTypeReason: "bug fix for Payment Gateway",
+		},
+		{
+			Task: tasks[1],
+			Asset: &ports.AssetClassificationResult{
+				Asset:      nil,
+				Confidence: 0.1,
+				Reason:     "no matching asset found",
+			},
+			WorkType:       taskdomain.WorkTypeDiscovery,
+			WorkTypeReason: "spike/research task detected",
+		},
+	}
+
+	tests := []struct {
+		name                 string
+		tasks                []*taskdomain.Task
+		comprehensiveResults []*ports.ComprehensiveClassificationResult
+		chainError           error
+		expectError          bool
+	}{
+		{
+			name:                 "successful comprehensive classification",
+			tasks:                tasks,
+			comprehensiveResults: comprehensiveResults,
+			chainError:           nil,
+			expectError:          false,
+		},
+		{
+			name:                 "chain classification error",
+			tasks:                tasks,
+			comprehensiveResults: nil,
+			chainError:           assert.AnError,
+			expectError:          true,
+		},
+		{
+			name:                 "empty task list",
+			tasks:                []*taskdomain.Task{},
+			comprehensiveResults: []*ports.ComprehensiveClassificationResult{},
+			chainError:           nil,
+			expectError:          false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Setup mock
+			mockChain := new(MockClassificationChain)
+			mockChain.On("ClassifyTasks", tt.tasks).Return(tt.comprehensiveResults, tt.chainError)
+
+			// Create adapter
+			adapter := NewComprehensiveClassifierAdapter(mockChain)
+
+			// Execute
+			results, err := adapter.ClassifyTasksComprehensive(tt.tasks)
+
+			// Verify
+			if tt.expectError {
+				assert.Error(t, err)
+				assert.Nil(t, results)
+			} else {
+				assert.NoError(t, err)
+				assert.Equal(t, tt.comprehensiveResults, results)
+			}
+
+			mockChain.AssertExpectations(t)
+		})
+	}
+}

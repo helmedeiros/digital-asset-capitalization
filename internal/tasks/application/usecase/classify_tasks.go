@@ -67,20 +67,15 @@ func (uc *ClassifyTasksUseCase) Execute(ctx context.Context, input domain.Classi
 		}
 	}
 
-	// Classify all tasks
+	// Preview classifications if in dry run mode
+	if input.DryRun {
+		return uc.previewClassifications(tasks)
+	}
+
+	// Classify all tasks for actual execution
 	workTypes, err := uc.classifier.ClassifyTasks(tasks)
 	if err != nil {
 		return fmt.Errorf("failed to classify tasks: %w", err)
-	}
-
-	// Preview classifications if in dry run mode
-	if input.DryRun {
-		fmt.Println("\nPreview of task classifications:")
-		for _, task := range tasks {
-			workType := workTypes[task.Key]
-			fmt.Printf("- %s: %s (%s)\n", task.Key, workType, task.Summary)
-		}
-		return nil
 	}
 
 	// Update tasks with their classifications
@@ -100,6 +95,46 @@ func (uc *ClassifyTasksUseCase) Execute(ctx context.Context, input domain.Classi
 			if err := uc.remoteRepo.UpdateLabels(ctx, task.Key, []string{string(workType)}); err != nil {
 				return fmt.Errorf("failed to apply labels to task %s: %w", task.Key, err)
 			}
+		}
+	}
+
+	return nil
+}
+
+// previewClassifications shows classification preview with enhanced output when comprehensive results are available
+func (uc *ClassifyTasksUseCase) previewClassifications(tasks []*domain.Task) error {
+	fmt.Println("\nPreview of task classifications:")
+
+	// Check if classifier supports comprehensive results
+	if comprehensiveClassifier, ok := uc.classifier.(ports.ComprehensiveTaskClassifier); ok {
+		// Use comprehensive classification for detailed preview
+		results, err := comprehensiveClassifier.ClassifyTasksComprehensive(tasks)
+		if err != nil {
+			return fmt.Errorf("failed to classify tasks comprehensively: %w", err)
+		}
+
+		for _, result := range results {
+			assetInfo := "No asset assigned"
+			if result.Asset != nil && result.Asset.Asset != nil {
+				assetInfo = fmt.Sprintf("Asset: %s (%.0f%% confidence)", result.Asset.Asset.Name, result.Asset.Confidence*100)
+			}
+
+			fmt.Printf("- %s: %s | %s (%s)\n",
+				result.Task.Key,
+				result.WorkType,
+				assetInfo,
+				result.Task.Summary)
+		}
+	} else {
+		// Fallback to simple classification for backward compatibility
+		workTypes, err := uc.classifier.ClassifyTasks(tasks)
+		if err != nil {
+			return fmt.Errorf("failed to classify tasks: %w", err)
+		}
+
+		for _, task := range tasks {
+			workType := workTypes[task.Key]
+			fmt.Printf("- %s: %s (%s)\n", task.Key, workType, task.Summary)
 		}
 	}
 
