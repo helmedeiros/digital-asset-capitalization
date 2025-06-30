@@ -1,55 +1,50 @@
-feat(tasks): implement business rules classifier with comprehensive test coverage
+feat(tasks): implement content-based asset classifier with TDD approach
 
-BREAKING CHANGE: Replace RandomClassifier with BusinessRulesClassifier for deterministic task classification
-
-This commit implements a production-ready business rules classifier that follows the exact specifications
-defined in the project requirements. The new classifier replaces the random classification approach with
-a deterministic, rule-based system that properly categorizes development tasks for asset capitalization.
+This commit introduces a sophisticated asset classification system that identifies
+which digital asset a task belongs to based on content analysis, keywords, and epic information.
 
 ## Key Features Implemented
 
-### Business Logic Classification Rules
-- **Rule 1**: Spike/research tasks → cap-discovery
-- **Rule 2**: Tasks within 6 months of asset launch or pre-100% rollout → cap-development
-- **Rule 3**: Tasks adding new API/inventory (including insurance domain) → cap-development
-- **Rule 4**: Bug fixes for assets launched >6 months ago → cap-maintenance
+### Asset Classification System
+- **AssetClassifier interface**: Defines contract for asset classification
+- **AssetClassificationResult**: Rich result object with confidence scoring and reasoning
+- **ContentBasedAssetClassifier**: Advanced implementation using multiple matching strategies
 
-### Enhanced Domain Support
-- Added comprehensive insurance/benefits domain keywords: rule, model, insurance, policy,
-  coverage, eligibility, benefit, plan
-- Improved content analysis for financial services and insurance product development
-- Extended inventory classification to support complex business domains
+### Classification Logic
+1. **Explicit asset labels** (90% confidence): `cap-asset-*` label matching
+2. **Asset name matches** (90% confidence): Exact asset name in task content
+3. **Epic name matches** (80% confidence): Asset name in epic name
+4. **Keyword matches** (40-70% confidence): Asset keywords in task content/epic
+5. **Partial name matches** (30-50% confidence): Individual words from asset name
 
-### Production Quality Implementation
-- **Comprehensive test coverage**: 65.5% overall, near 100% on critical functions
-- **Robust error handling**: Graceful fallbacks when asset repository is unavailable
-- **Edge case coverage**: Nil pointer protection, empty content handling
-- **668 tests passing**: All existing functionality preserved
+### Confidence Scoring & Reasoning
+- Multi-factor scoring with diminishing returns
+- Confidence boosting for multiple match types
+- Detailed reasoning for classification decisions
+- Fallback mechanisms for edge cases
 
-## Technical Improvements
+### Comprehensive Test Coverage
+- **25 test cases** covering all classification scenarios
+- **TDD approach**: Tests written first, implementation follows
+- **Edge case handling**: Nil tasks, empty assets, repository errors
+- **Content analysis**: Case insensitive, keyword matching, epic analysis
+- **Batch operations**: Multiple task classification support
 
-### Bug Fixes
-- Fixed nil pointer dereference in `taskMatchesAsset` function
-- Added proper nil checking for asset parameters throughout the classifier
+## Technical Implementation
 
-### Test Coverage Achievement
-- `ClassifyTask`: 100% coverage
-- `findRelatedAsset`: 100% coverage
-- `taskMatchesAsset`: 93.3% coverage (improved from 38.5%)
-- `isBugOrFixPastRollout`: 100% coverage
-- All core classification functions: 100% coverage
+### Content Analysis
+- Case-insensitive string matching across summary, description, and epic
+- Asset keyword cross-referencing with task content
+- Label-based explicit asset assignment (`cap-asset-*` pattern)
+- Multiple match type detection and confidence boosting
 
-### Architecture Enhancement
-- Maintained clean architecture principles
-- Asset-aware classification using repository pattern
-- Deterministic output for audit compliance
-- Content-based fallback classification when asset lookup fails
+### Error Handling
+- Graceful repository error handling
+- Nil task validation
+- Empty asset list handling
+- Fallback confidence scoring
 
-## Impact
-This change transforms the classification system from random assignment to business-rule-based
-classification, making the tool production-ready for actual asset capitalization workflows.
-The enhanced insurance domain support specifically improves classification accuracy for
-financial services development tasks.
+This implementation provides the foundation for intelligent task-to-asset assignment
+that will enhance the asset capitalization classification chain.
 
-The comprehensive test suite ensures reliability and maintainability, while the graceful
-error handling provides resilience in production environments.
+All 682 tests passing including 25 new asset classifier tests.
