@@ -1,7 +1,7 @@
 .vscode
 .idea
 cover.out
-coverage.out
+coverage.*
 testdata/
 teams.json
 *.csv
