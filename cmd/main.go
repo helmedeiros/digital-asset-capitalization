@@ -676,7 +676,7 @@ func initializeApp() (*App, error) {
 	taskClassifier := classifier.NewComprehensiveClassifierAdapter(classificationChain)
 
 	userInput := cliui.NewUserInput()
-	taskService := tasksapp.NewTasksService(jiraRepo, localRepo, taskClassifier, userInput)
+	taskService := tasksapp.NewTasksService(jiraRepo, localRepo, taskClassifier, userInput, assetService)
 
 	// Initialize sprint service
 	jiraAdapter, err := sprintinfra.NewJiraAdapter(teamsFile)

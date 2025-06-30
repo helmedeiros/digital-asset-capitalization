@@ -4,16 +4,18 @@ import (
 	"context"
 	"fmt"
 
+	assetsapp "github.com/helmedeiros/digital-asset-capitalization/internal/assets/application"
 	"github.com/helmedeiros/digital-asset-capitalization/internal/tasks/domain"
 	"github.com/helmedeiros/digital-asset-capitalization/internal/tasks/domain/ports"
 )
 
 // ClassifyTasksUseCase handles the classification of tasks for a project/sprint
 type ClassifyTasksUseCase struct {
-	localRepo  ports.TaskRepository
-	remoteRepo ports.TaskRepository
-	classifier ports.TaskClassifier
-	userInput  ports.UserInput
+	localRepo    ports.TaskRepository
+	remoteRepo   ports.TaskRepository
+	classifier   ports.TaskClassifier
+	userInput    ports.UserInput
+	assetService assetsapp.AssetService
 }
 
 // NewClassifyTasksUseCase creates a new instance of ClassifyTasksUseCase
@@ -22,12 +24,14 @@ func NewClassifyTasksUseCase(
 	remoteRepo ports.TaskRepository,
 	classifier ports.TaskClassifier,
 	userInput ports.UserInput,
+	assetService assetsapp.AssetService,
 ) *ClassifyTasksUseCase {
 	return &ClassifyTasksUseCase{
-		localRepo:  localRepo,
-		remoteRepo: remoteRepo,
-		classifier: classifier,
-		userInput:  userInput,
+		localRepo:    localRepo,
+		remoteRepo:   remoteRepo,
+		classifier:   classifier,
+		userInput:    userInput,
+		assetService: assetService,
 	}
 }
 
@@ -102,7 +106,13 @@ func (uc *ClassifyTasksUseCase) Execute(ctx context.Context, input domain.Classi
 }
 
 // previewClassifications shows classification preview with enhanced output when comprehensive results are available
+// Includes intelligent asset syncing when unassigned tasks are detected
 func (uc *ClassifyTasksUseCase) previewClassifications(tasks []*domain.Task) error {
+	return uc.previewClassificationsWithRetry(tasks, false)
+}
+
+// previewClassificationsWithRetry handles the classification preview with optional asset sync retry
+func (uc *ClassifyTasksUseCase) previewClassificationsWithRetry(tasks []*domain.Task, hasTriedSync bool) error {
 	fmt.Println("\nPreview of task classifications:")
 
 	// Check if classifier supports comprehensive results
@@ -113,10 +123,14 @@ func (uc *ClassifyTasksUseCase) previewClassifications(tasks []*domain.Task) err
 			return fmt.Errorf("failed to classify tasks comprehensively: %w", err)
 		}
 
+		// Count unassigned tasks
+		var unassignedTasks []string
 		for _, result := range results {
 			assetInfo := "No asset assigned"
 			if result.Asset != nil && result.Asset.Asset != nil {
 				assetInfo = fmt.Sprintf("Asset: %s (%.0f%% confidence)", result.Asset.Asset.Name, result.Asset.Confidence*100)
+			} else {
+				unassignedTasks = append(unassignedTasks, result.Task.Key)
 			}
 
 			fmt.Printf("- %s: %s | %s (%s)\n",
@@ -124,6 +138,34 @@ func (uc *ClassifyTasksUseCase) previewClassifications(tasks []*domain.Task) err
 				result.WorkType,
 				assetInfo,
 				result.Task.Summary)
+		}
+
+		// If there are unassigned tasks and we haven't tried syncing yet, offer to sync assets
+		if len(unassignedTasks) > 0 && !hasTriedSync {
+			fmt.Printf("\nFound %d task(s) without asset assignments: %v\n", len(unassignedTasks), unassignedTasks)
+
+			shouldSync, confirmErr := uc.userInput.Confirm("Would you like to sync assets from Confluence to potentially improve classification?")
+			if confirmErr != nil {
+				return fmt.Errorf("failed to get user confirmation for asset sync: %w", confirmErr)
+			}
+
+			if shouldSync {
+				fmt.Println("Syncing assets from Confluence...")
+
+				// Sync assets with default parameters (CAP space, cap-asset label)
+				syncResult, syncErr := uc.assetService.SyncFromConfluence("CAP", "cap-asset", false)
+				if syncErr != nil {
+					fmt.Printf("Warning: Asset sync failed: %v\n", syncErr)
+					fmt.Println("Continuing with current classification results...")
+				} else {
+					fmt.Printf("Asset sync completed: %d assets synced, %d not synced\n",
+						len(syncResult.SyncedAssets), len(syncResult.NotSyncedAssets))
+
+					// Re-run classification with updated assets (only once to avoid loops)
+					fmt.Println("\nRe-running classification with updated assets...")
+					return uc.previewClassificationsWithRetry(tasks, true)
+				}
+			}
 		}
 	} else {
 		// Fallback to simple classification for backward compatibility

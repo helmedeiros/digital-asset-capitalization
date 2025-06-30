@@ -8,6 +8,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 
+	"github.com/helmedeiros/digital-asset-capitalization/internal/tasks/application/usecase/testutil"
 	"github.com/helmedeiros/digital-asset-capitalization/internal/tasks/domain"
 )
 
@@ -253,7 +254,8 @@ func TestClassifyTasksUseCase_Execute(t *testing.T) {
 			tt.expectedCalls(localRepo, remoteRepo, classifier, userInput)
 
 			// Create use case
-			uc := NewClassifyTasksUseCase(localRepo, remoteRepo, classifier, userInput)
+			assetService := testutil.NewMockAssetService()
+			uc := NewClassifyTasksUseCase(localRepo, remoteRepo, classifier, userInput, assetService)
 
 			// Execute use case
 			err := uc.Execute(ctx, tt.input)
@@ -283,7 +285,8 @@ func TestGetTasks(t *testing.T) {
 		mockUserInput := new(MockUserInput)
 
 		// Create use case
-		uc := NewClassifyTasksUseCase(mockLocalRepo, mockRemoteRepo, mockClassifier, mockUserInput)
+		assetService := testutil.NewMockAssetService()
+		uc := NewClassifyTasksUseCase(mockLocalRepo, mockRemoteRepo, mockClassifier, mockUserInput, assetService)
 
 		// Arrange
 		project := testProject
@@ -318,7 +321,8 @@ func TestGetTasks(t *testing.T) {
 		mockUserInput := new(MockUserInput)
 
 		// Create use case
-		uc := NewClassifyTasksUseCase(mockLocalRepo, mockRemoteRepo, mockClassifier, mockUserInput)
+		assetService := testutil.NewMockAssetService()
+		uc := NewClassifyTasksUseCase(mockLocalRepo, mockRemoteRepo, mockClassifier, mockUserInput, assetService)
 
 		// Arrange
 		project := testProject
@@ -357,7 +361,8 @@ func TestGetTasks(t *testing.T) {
 		mockUserInput := new(MockUserInput)
 
 		// Create use case
-		uc := NewClassifyTasksUseCase(mockLocalRepo, mockRemoteRepo, mockClassifier, mockUserInput)
+		assetService := testutil.NewMockAssetService()
+		uc := NewClassifyTasksUseCase(mockLocalRepo, mockRemoteRepo, mockClassifier, mockUserInput, assetService)
 
 		// Arrange
 		project := testProject
@@ -385,7 +390,8 @@ func TestGetTasks(t *testing.T) {
 		mockUserInput := new(MockUserInput)
 
 		// Create use case
-		uc := NewClassifyTasksUseCase(mockLocalRepo, mockRemoteRepo, mockClassifier, mockUserInput)
+		assetService := testutil.NewMockAssetService()
+		uc := NewClassifyTasksUseCase(mockLocalRepo, mockRemoteRepo, mockClassifier, mockUserInput, assetService)
 
 		// Arrange
 		project := testProject
@@ -415,7 +421,8 @@ func TestGetTasks(t *testing.T) {
 		mockUserInput := new(MockUserInput)
 
 		// Create use case
-		uc := NewClassifyTasksUseCase(mockLocalRepo, mockRemoteRepo, mockClassifier, mockUserInput)
+		assetService := testutil.NewMockAssetService()
+		uc := NewClassifyTasksUseCase(mockLocalRepo, mockRemoteRepo, mockClassifier, mockUserInput, assetService)
 
 		// Arrange
 		project := testProject
