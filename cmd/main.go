@@ -661,7 +661,20 @@ func initializeApp() (*App, error) {
 	}
 
 	localRepo := storage.NewJSONStorage(tasksDir, tasksFile)
-	taskClassifier := classifier.NewBusinessRulesClassifier(assetRepo)
+
+	// Initialize comprehensive classification system
+	// Asset classifier for determining which asset a task belongs to
+	assetClassifier := classifier.NewContentBasedAssetClassifier(assetRepo)
+
+	// Work type classifier for determining capitalization category
+	workTypeClassifier := classifier.NewBusinessRulesClassifier(assetRepo)
+
+	// Comprehensive classification chain that orchestrates both classifiers
+	classificationChain := classifier.NewComprehensiveClassificationChain(assetClassifier, workTypeClassifier)
+
+	// Create adapter to bridge comprehensive results with existing use case interface
+	taskClassifier := classifier.NewComprehensiveClassifierAdapter(classificationChain)
+
 	userInput := cliui.NewUserInput()
 	taskService := tasksapp.NewTasksService(jiraRepo, localRepo, taskClassifier, userInput)
 
