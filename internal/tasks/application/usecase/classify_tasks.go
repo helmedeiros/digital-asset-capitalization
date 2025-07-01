@@ -83,6 +83,10 @@ func (uc *ClassifyTasksUseCase) Execute(ctx context.Context, input domain.Classi
 	}
 
 	// Update tasks with their classifications
+	fmt.Printf("\n📝 APPLYING CLASSIFICATIONS\n")
+	fmt.Printf("═══════════════════════════════════════════════════════════════\n")
+
+	successCount := 0
 	for _, task := range tasks {
 		workType := workTypes[task.Key]
 		if err := task.UpdateWorkType(workType); err != nil {
@@ -96,10 +100,25 @@ func (uc *ClassifyTasksUseCase) Execute(ctx context.Context, input domain.Classi
 
 		// Apply labels to Jira if requested
 		if input.Apply {
-			if err := uc.remoteRepo.UpdateLabels(ctx, task.Key, []string{string(workType)}); err != nil {
+			labels := []string{string(workType)}
+			fmt.Printf("  🏷️  %s → %s", task.Key, workType)
+
+			if err := uc.remoteRepo.UpdateLabels(ctx, task.Key, labels); err != nil {
+				fmt.Printf(" ❌ Failed to update JIRA\n")
 				return fmt.Errorf("failed to apply labels to task %s: %w", task.Key, err)
 			}
+			fmt.Printf(" ✅ Applied to JIRA\n")
+		} else {
+			fmt.Printf("  💾 %s → %s (saved locally)\n", task.Key, workType)
 		}
+		successCount++
+	}
+
+	fmt.Printf("\n✅ Successfully processed %d tasks\n", successCount)
+	if input.Apply {
+		fmt.Printf("🎯 All work type labels have been written to JIRA\n")
+	} else {
+		fmt.Printf("💾 Classifications saved locally (use --apply to write to JIRA)\n")
 	}
 
 	return nil
@@ -108,6 +127,9 @@ func (uc *ClassifyTasksUseCase) Execute(ctx context.Context, input domain.Classi
 // previewClassifications shows classification preview with enhanced output when comprehensive results are available
 // Includes intelligent asset syncing when unassigned tasks are detected
 func (uc *ClassifyTasksUseCase) previewClassifications(tasks []*domain.Task) error {
+	fmt.Printf("\n🔍 CLASSIFICATION PREVIEW\n")
+	fmt.Printf("═══════════════════════════════════════════════════════════════\n")
+	fmt.Printf("Found %d task(s) to classify\n\n", len(tasks))
 	return uc.previewClassificationsWithRetry(tasks, false)
 }
 
@@ -123,21 +145,50 @@ func (uc *ClassifyTasksUseCase) previewClassificationsWithRetry(tasks []*domain.
 			return fmt.Errorf("failed to classify tasks comprehensively: %w", err)
 		}
 
-		// Count unassigned tasks
+		// Group results by work type for better organization
+		workTypeGroups := make(map[domain.WorkType][]*ports.ComprehensiveClassificationResult)
 		var unassignedTasks []string
+
 		for _, result := range results {
-			assetInfo := "No asset assigned"
-			if result.Asset != nil && result.Asset.Asset != nil {
-				assetInfo = fmt.Sprintf("Asset: %s (%.0f%% confidence)", result.Asset.Asset.Name, result.Asset.Confidence*100)
-			} else {
+			workTypeGroups[result.WorkType] = append(workTypeGroups[result.WorkType], result)
+			if result.Asset == nil || result.Asset.Asset == nil {
 				unassignedTasks = append(unassignedTasks, result.Task.Key)
 			}
+		}
 
-			fmt.Printf("- %s: %s | %s (%s)\n",
-				result.Task.Key,
-				result.WorkType,
-				assetInfo,
-				result.Task.Summary)
+		// Display results grouped by work type
+		for workType, groupResults := range workTypeGroups {
+			fmt.Printf("📋 %s (%d tasks)\n", formatWorkType(workType), len(groupResults))
+			fmt.Printf("─────────────────────────────────────────────────────────────\n")
+
+			for _, result := range groupResults {
+				fmt.Printf("  🎯 %s: %s\n", result.Task.Key, result.Task.Summary)
+
+				// Show asset association
+				if result.Asset != nil && result.Asset.Asset != nil {
+					fmt.Printf("     💼 Asset: %s (%.0f%% confidence)\n", result.Asset.Asset.Name, result.Asset.Confidence*100)
+					if result.Asset.Reason != "" {
+						fmt.Printf("     📝 Match: %s\n", result.Asset.Reason)
+					}
+				} else {
+					fmt.Printf("     ❌ Asset: No assignment found\n")
+				}
+
+				// Show work type reasoning
+				if result.WorkTypeReason != "" {
+					fmt.Printf("     🔍 Reason: %s\n", result.WorkTypeReason)
+				}
+
+				// Show task metadata
+				fmt.Printf("     📊 Type: %s | Status: %s", result.Task.Type, result.Task.Status)
+				if result.Task.Epic != "" {
+					fmt.Printf(" | Epic: %s", result.Task.Epic)
+				}
+				if len(result.Task.Labels) > 0 {
+					fmt.Printf(" | Labels: %v", result.Task.Labels)
+				}
+				fmt.Printf("\n\n")
+			}
 		}
 
 		// If there are unassigned tasks and we haven't tried syncing yet, offer to sync assets
@@ -218,4 +269,18 @@ func (uc *ClassifyTasksUseCase) GetAllTasks(ctx context.Context) ([]*domain.Task
 
 func (uc *ClassifyTasksUseCase) GetLocalRepository() ports.TaskRepository {
 	return uc.localRepo
+}
+
+// formatWorkType formats work type for display
+func formatWorkType(workType domain.WorkType) string {
+	switch workType {
+	case domain.WorkTypeDiscovery:
+		return "🔍 DISCOVERY"
+	case domain.WorkTypeDevelopment:
+		return "🚀 DEVELOPMENT"
+	case domain.WorkTypeMaintenance:
+		return "🔧 MAINTENANCE"
+	default:
+		return "❓ UNKNOWN"
+	}
 }
