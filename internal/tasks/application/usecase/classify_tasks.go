@@ -3,6 +3,7 @@ package usecase
 import (
 	"context"
 	"fmt"
+	"sort"
 
 	assetsapp "github.com/helmedeiros/digital-asset-capitalization/internal/assets/application"
 	"github.com/helmedeiros/digital-asset-capitalization/internal/tasks/domain"
@@ -86,6 +87,11 @@ func (uc *ClassifyTasksUseCase) Execute(ctx context.Context, input domain.Classi
 	fmt.Printf("\n📝 APPLYING CLASSIFICATIONS\n")
 	fmt.Printf("═══════════════════════════════════════════════════════════════\n")
 
+	// Sort tasks alphabetically for consistent processing order
+	sort.Slice(tasks, func(i, j int) bool {
+		return tasks[i].Key < tasks[j].Key
+	})
+
 	successCount := 0
 	for _, task := range tasks {
 		workType := workTypes[task.Key]
@@ -158,6 +164,11 @@ func (uc *ClassifyTasksUseCase) previewClassificationsWithRetry(tasks []*domain.
 
 		// Display results grouped by work type
 		for workType, groupResults := range workTypeGroups {
+			// Sort tasks within each group alphabetically by task key
+			sort.Slice(groupResults, func(i, j int) bool {
+				return groupResults[i].Task.Key < groupResults[j].Task.Key
+			})
+
 			fmt.Printf("📋 %s (%d tasks)\n", formatWorkType(workType), len(groupResults))
 			fmt.Printf("─────────────────────────────────────────────────────────────\n")
 
@@ -193,6 +204,9 @@ func (uc *ClassifyTasksUseCase) previewClassificationsWithRetry(tasks []*domain.
 
 		// If there are unassigned tasks and we haven't tried syncing yet, offer to sync assets
 		if len(unassignedTasks) > 0 && !hasTriedSync {
+			// Sort unassigned tasks alphabetically for consistent display
+			sort.Strings(unassignedTasks)
+
 			fmt.Printf("\nFound %d task(s) without asset assignments: %v\n", len(unassignedTasks), unassignedTasks)
 
 			shouldSync, confirmErr := uc.userInput.Confirm("Would you like to sync assets from Confluence to potentially improve classification?")
@@ -224,6 +238,11 @@ func (uc *ClassifyTasksUseCase) previewClassificationsWithRetry(tasks []*domain.
 		if err != nil {
 			return fmt.Errorf("failed to classify tasks: %w", err)
 		}
+
+		// Sort tasks alphabetically for consistent display
+		sort.Slice(tasks, func(i, j int) bool {
+			return tasks[i].Key < tasks[j].Key
+		})
 
 		for _, task := range tasks {
 			workType := workTypes[task.Key]
