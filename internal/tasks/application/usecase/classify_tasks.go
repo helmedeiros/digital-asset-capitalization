@@ -3,6 +3,8 @@ package usecase
 import (
 	"context"
 	"fmt"
+	"sort"
+	"strings"
 
 	assetsapp "github.com/helmedeiros/digital-asset-capitalization/internal/assets/application"
 	"github.com/helmedeiros/digital-asset-capitalization/internal/tasks/domain"
@@ -76,15 +78,47 @@ func (uc *ClassifyTasksUseCase) Execute(ctx context.Context, input domain.Classi
 		return uc.previewClassifications(tasks)
 	}
 
-	// Classify all tasks for actual execution
-	workTypes, err := uc.classifier.ClassifyTasks(tasks)
-	if err != nil {
-		return fmt.Errorf("failed to classify tasks: %w", err)
+	// Update tasks with their classifications
+	fmt.Printf("\n📝 APPLYING CLASSIFICATIONS\n")
+	fmt.Printf("═══════════════════════════════════════════════════════════════\n")
+
+	// Sort tasks alphabetically for consistent processing order
+	sort.Slice(tasks, func(i, j int) bool {
+		return tasks[i].Key < tasks[j].Key
+	})
+
+	// Use comprehensive classification to get both work type and asset information
+	var classificationResults []*ports.ComprehensiveClassificationResult
+	if comprehensiveClassifier, ok := uc.classifier.(ports.ComprehensiveTaskClassifier); ok {
+		results, err := comprehensiveClassifier.ClassifyTasksComprehensive(tasks)
+		if err != nil {
+			return fmt.Errorf("failed to classify tasks comprehensively: %w", err)
+		}
+		classificationResults = results
+	} else {
+		// Fallback to simple classification if comprehensive is not available
+		workTypes, err := uc.classifier.ClassifyTasks(tasks)
+		if err != nil {
+			return fmt.Errorf("failed to classify tasks: %w", err)
+		}
+
+		// Convert simple results to comprehensive format
+		classificationResults = make([]*ports.ComprehensiveClassificationResult, 0, len(tasks))
+		for _, task := range tasks {
+			result := &ports.ComprehensiveClassificationResult{
+				Task:     task,
+				WorkType: workTypes[task.Key],
+				Asset:    nil, // No asset information in simple classification
+			}
+			classificationResults = append(classificationResults, result)
+		}
 	}
 
-	// Update tasks with their classifications
-	for _, task := range tasks {
-		workType := workTypes[task.Key]
+	successCount := 0
+	for _, result := range classificationResults {
+		task := result.Task
+		workType := result.WorkType
+
 		if err := task.UpdateWorkType(workType); err != nil {
 			return fmt.Errorf("failed to update work type for task %s: %w", task.Key, err)
 		}
@@ -96,10 +130,30 @@ func (uc *ClassifyTasksUseCase) Execute(ctx context.Context, input domain.Classi
 
 		// Apply labels to Jira if requested
 		if input.Apply {
-			if err := uc.remoteRepo.UpdateLabels(ctx, task.Key, []string{string(workType)}); err != nil {
+			// Build new labels preserving existing ones but updating work type and asset
+			newLabels := uc.buildUpdatedLabels(task.Labels, workType, result.Asset)
+
+			fmt.Printf("  🏷️  %s → %s", task.Key, workType)
+			if result.Asset != nil && result.Asset.Asset != nil {
+				fmt.Printf(" + %s", uc.getAssetLabel(result.Asset.Asset.Name))
+			}
+
+			if err := uc.remoteRepo.UpdateLabels(ctx, task.Key, newLabels); err != nil {
+				fmt.Printf(" ❌ Failed to update JIRA\n")
 				return fmt.Errorf("failed to apply labels to task %s: %w", task.Key, err)
 			}
+			fmt.Printf(" ✅ Applied to JIRA\n")
+		} else {
+			fmt.Printf("  💾 %s → %s (saved locally)\n", task.Key, workType)
 		}
+		successCount++
+	}
+
+	fmt.Printf("\n✅ Successfully processed %d tasks\n", successCount)
+	if input.Apply {
+		fmt.Printf("🎯 All work type and asset labels have been written to JIRA\n")
+	} else {
+		fmt.Printf("💾 Classifications saved locally (use --apply to write to JIRA)\n")
 	}
 
 	return nil
@@ -108,6 +162,9 @@ func (uc *ClassifyTasksUseCase) Execute(ctx context.Context, input domain.Classi
 // previewClassifications shows classification preview with enhanced output when comprehensive results are available
 // Includes intelligent asset syncing when unassigned tasks are detected
 func (uc *ClassifyTasksUseCase) previewClassifications(tasks []*domain.Task) error {
+	fmt.Printf("\n🔍 CLASSIFICATION PREVIEW\n")
+	fmt.Printf("═══════════════════════════════════════════════════════════════\n")
+	fmt.Printf("Found %d task(s) to classify\n\n", len(tasks))
 	return uc.previewClassificationsWithRetry(tasks, false)
 }
 
@@ -123,25 +180,62 @@ func (uc *ClassifyTasksUseCase) previewClassificationsWithRetry(tasks []*domain.
 			return fmt.Errorf("failed to classify tasks comprehensively: %w", err)
 		}
 
-		// Count unassigned tasks
+		// Group results by work type for better organization
+		workTypeGroups := make(map[domain.WorkType][]*ports.ComprehensiveClassificationResult)
 		var unassignedTasks []string
+
 		for _, result := range results {
-			assetInfo := "No asset assigned"
-			if result.Asset != nil && result.Asset.Asset != nil {
-				assetInfo = fmt.Sprintf("Asset: %s (%.0f%% confidence)", result.Asset.Asset.Name, result.Asset.Confidence*100)
-			} else {
+			workTypeGroups[result.WorkType] = append(workTypeGroups[result.WorkType], result)
+			if result.Asset == nil || result.Asset.Asset == nil {
 				unassignedTasks = append(unassignedTasks, result.Task.Key)
 			}
+		}
 
-			fmt.Printf("- %s: %s | %s (%s)\n",
-				result.Task.Key,
-				result.WorkType,
-				assetInfo,
-				result.Task.Summary)
+		// Display results grouped by work type
+		for workType, groupResults := range workTypeGroups {
+			// Sort tasks within each group alphabetically by task key
+			sort.Slice(groupResults, func(i, j int) bool {
+				return groupResults[i].Task.Key < groupResults[j].Task.Key
+			})
+
+			fmt.Printf("📋 %s (%d tasks)\n", formatWorkType(workType), len(groupResults))
+			fmt.Printf("─────────────────────────────────────────────────────────────\n")
+
+			for _, result := range groupResults {
+				fmt.Printf("  🎯 %s: %s\n", result.Task.Key, result.Task.Summary)
+
+				// Show asset association
+				if result.Asset != nil && result.Asset.Asset != nil {
+					fmt.Printf("     💼 Asset: %s (%.0f%% confidence)\n", result.Asset.Asset.Name, result.Asset.Confidence*100)
+					if result.Asset.Reason != "" {
+						fmt.Printf("     📝 Match: %s\n", result.Asset.Reason)
+					}
+				} else {
+					fmt.Printf("     ❌ Asset: No assignment found\n")
+				}
+
+				// Show work type reasoning
+				if result.WorkTypeReason != "" {
+					fmt.Printf("     🔍 Reason: %s\n", result.WorkTypeReason)
+				}
+
+				// Show task metadata
+				fmt.Printf("     📊 Type: %s | Status: %s", result.Task.Type, result.Task.Status)
+				if result.Task.Epic != "" {
+					fmt.Printf(" | Epic: %s", result.Task.Epic)
+				}
+				if len(result.Task.Labels) > 0 {
+					fmt.Printf(" | Labels: %v", result.Task.Labels)
+				}
+				fmt.Printf("\n\n")
+			}
 		}
 
 		// If there are unassigned tasks and we haven't tried syncing yet, offer to sync assets
 		if len(unassignedTasks) > 0 && !hasTriedSync {
+			// Sort unassigned tasks alphabetically for consistent display
+			sort.Strings(unassignedTasks)
+
 			fmt.Printf("\nFound %d task(s) without asset assignments: %v\n", len(unassignedTasks), unassignedTasks)
 
 			shouldSync, confirmErr := uc.userInput.Confirm("Would you like to sync assets from Confluence to potentially improve classification?")
@@ -173,6 +267,11 @@ func (uc *ClassifyTasksUseCase) previewClassificationsWithRetry(tasks []*domain.
 		if err != nil {
 			return fmt.Errorf("failed to classify tasks: %w", err)
 		}
+
+		// Sort tasks alphabetically for consistent display
+		sort.Slice(tasks, func(i, j int) bool {
+			return tasks[i].Key < tasks[j].Key
+		})
 
 		for _, task := range tasks {
 			workType := workTypes[task.Key]
@@ -218,4 +317,57 @@ func (uc *ClassifyTasksUseCase) GetAllTasks(ctx context.Context) ([]*domain.Task
 
 func (uc *ClassifyTasksUseCase) GetLocalRepository() ports.TaskRepository {
 	return uc.localRepo
+}
+
+// formatWorkType formats work type for display
+func formatWorkType(workType domain.WorkType) string {
+	switch workType {
+	case domain.WorkTypeDiscovery:
+		return "🔍 DISCOVERY"
+	case domain.WorkTypeDevelopment:
+		return "🚀 DEVELOPMENT"
+	case domain.WorkTypeMaintenance:
+		return "🔧 MAINTENANCE"
+	default:
+		return "❓ UNKNOWN"
+	}
+}
+
+// buildUpdatedLabels builds new labels preserving existing ones but updating work type and asset
+func (uc *ClassifyTasksUseCase) buildUpdatedLabels(existingLabels []string, workType domain.WorkType, assetResult *ports.AssetClassificationResult) []string {
+	// Pre-allocate with estimated capacity: existing labels + work type + potential asset label
+	newLabels := make([]string, 0, len(existingLabels)+2)
+
+	// Keep all labels except old work type and asset labels
+	for _, label := range existingLabels {
+		// Skip old work type labels
+		if label == "cap-development" || label == "cap-maintenance" || label == "cap-discovery" {
+			continue
+		}
+		// Skip old asset labels
+		if strings.HasPrefix(label, "cap-asset-") {
+			continue
+		}
+		// Keep all other labels
+		newLabels = append(newLabels, label)
+	}
+
+	// Add new work type label
+	newLabels = append(newLabels, string(workType))
+
+	// Add new asset label if available
+	if assetResult != nil && assetResult.Asset != nil {
+		assetLabel := uc.getAssetLabel(assetResult.Asset.Name)
+		newLabels = append(newLabels, assetLabel)
+	}
+
+	return newLabels
+}
+
+// getAssetLabel formats asset name into proper asset label format
+func (uc *ClassifyTasksUseCase) getAssetLabel(assetName string) string {
+	// Convert asset name to lowercase and replace spaces with hyphens for label format
+	labelName := strings.ToLower(assetName)
+	labelName = strings.ReplaceAll(labelName, " ", "-")
+	return fmt.Sprintf("cap-asset-%s", labelName)
 }

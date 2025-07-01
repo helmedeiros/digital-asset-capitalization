@@ -257,16 +257,16 @@ For more information about a command:
 						Name:  "update",
 						Usage: "Update an asset's description",
 						Action: func(ctx *cli.Context) error {
-							name := ctx.Value("name").(string)
-							description := ctx.Value("description").(string)
-							why := ctx.Value("why").(string)
-							benefits := ctx.Value("benefits").(string)
-							how := ctx.Value("how").(string)
-							metrics := ctx.Value("metrics").(string)
+							name := ctx.String("name")
+							description := ctx.String("description")
+							why := ctx.String("why")
+							benefits := ctx.String("benefits")
+							how := ctx.String("how")
+							metrics := ctx.String("metrics")
 							if err := a.assetService.UpdateAsset(name, description, why, benefits, how, metrics); err != nil {
 								return err
 							}
-							fmt.Printf("Updated asset: %s\n", name)
+							fmt.Printf("✓ Updated asset: %s\n", name)
 							return nil
 						},
 						Flags: []cli.Flag{
@@ -479,13 +479,13 @@ For more information about a command:
 						Name:  "fetch",
 						Usage: "Fetch tasks from a platform (e.g., Jira)",
 						Action: func(ctx *cli.Context) error {
-							project := ctx.Value("project").(string)
-							sprint := ctx.Value("sprint").(string)
-							platform := ctx.Value("platform").(string)
+							project := ctx.String("project")
+							sprint := ctx.String("sprint")
+							platform := ctx.String("platform")
 							if err := a.taskService.FetchTasks(context.Background(), project, sprint, platform); err != nil {
 								return err
 							}
-							fmt.Printf("Successfully fetched tasks for project %s, sprint %s from %s\n", project, sprint, platform)
+							fmt.Printf("✓ Successfully fetched tasks for project %s, sprint %s from %s\n", project, sprint, platform)
 							return nil
 						},
 						Flags: []cli.Flag{
@@ -581,11 +581,11 @@ For more information about a command:
 						Name:  "classify",
 						Usage: "Classify tasks for a specific project and sprint",
 						Action: func(ctx *cli.Context) error {
-							project := ctx.Value("project").(string)
-							sprint := ctx.Value("sprint").(string)
-							platform := ctx.Value("platform").(string)
-							dryRun := ctx.Value("dry-run").(bool)
-							apply := ctx.Value("apply").(bool)
+							project := ctx.String("project")
+							sprint := ctx.String("sprint")
+							platform := ctx.String("platform")
+							dryRun := ctx.Bool("dry-run")
+							apply := ctx.Bool("apply")
 							input := domain.ClassifyTasksInput{
 								Project: project,
 								Sprint:  sprint,
@@ -596,11 +596,14 @@ For more information about a command:
 								return err
 							}
 							if dryRun {
-								fmt.Printf("Preview: Would classify tasks for project %s, sprint %s from %s\n", project, sprint, platform)
+								fmt.Printf("✓ Classification preview completed for project %s, sprint %s\n", project, sprint)
+								fmt.Printf("  Use --apply to write classifications to %s\n", platform)
 							} else if apply {
-								fmt.Printf("Successfully classified and applied labels to tasks for project %s, sprint %s from %s\n", project, sprint, platform)
+								fmt.Printf("✓ Successfully classified and applied labels to tasks for project %s, sprint %s\n", project, sprint)
+								fmt.Printf("  Labels written to %s with work types and asset associations\n", platform)
 							} else {
-								fmt.Printf("Successfully classified tasks for project %s, sprint %s from %s\n", project, sprint, platform)
+								fmt.Printf("✓ Successfully classified tasks for project %s, sprint %s\n", project, sprint)
+								fmt.Printf("  Classifications saved locally. Use --apply to write to %s\n", platform)
 							}
 							return nil
 						},
