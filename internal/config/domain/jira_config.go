@@ -113,13 +113,13 @@ func (c *JiraConfig) AuthHeader() string {
 func (c *JiraConfig) String() string {
 	maskedToken := "***"
 	if len(c.token) > 0 {
-		maskedToken = c.token[:min(3, len(c.token))] + "***"
+		maskedToken = c.token[:minInt(3, len(c.token))] + "***"
 	}
 	return fmt.Sprintf("JiraConfig{BaseURL: %s, Email: %s, Token: %s}", c.baseURL, c.email, maskedToken)
 }
 
-// min returns the minimum of two integers
-func min(a, b int) int {
+// minInt returns the minimum of two integers
+func minInt(a, b int) int {
 	if a < b {
 		return a
 	}
