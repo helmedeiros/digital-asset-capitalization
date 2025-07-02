@@ -1,0 +1,310 @@
+package infrastructure
+
+import (
+	"encoding/json"
+	"os"
+	"path/filepath"
+	"testing"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
+	"github.com/helmedeiros/digital-asset-capitalization/internal/config/domain"
+)
+
+func TestNewFileRepository(t *testing.T) {
+	repo := NewFileRepository("/test/config")
+
+	assert.NotNil(t, repo)
+	assert.Equal(t, "/test/config", repo.configDir)
+}
+
+func TestFileRepository_InitializeConfigDirectory(t *testing.T) {
+	t.Run("should create directory successfully", func(t *testing.T) {
+		tempDir := t.TempDir()
+		configDir := filepath.Join(tempDir, "test-config")
+		repo := NewFileRepository(configDir)
+
+		err := repo.InitializeConfigDirectory()
+
+		require.NoError(t, err)
+
+		// Verify directory was created
+		stat, err := os.Stat(configDir)
+		require.NoError(t, err)
+		assert.True(t, stat.IsDir())
+	})
+}
+
+func TestFileRepository_ConfigExists(t *testing.T) {
+	t.Run("should return false when no config files exist", func(t *testing.T) {
+		tempDir := t.TempDir()
+		repo := NewFileRepository(tempDir)
+
+		exists, err := repo.ConfigExists()
+
+		require.NoError(t, err)
+		assert.False(t, exists)
+	})
+
+	t.Run("should return true when jira config exists", func(t *testing.T) {
+		tempDir := t.TempDir()
+		repo := NewFileRepository(tempDir)
+
+		// Create jira.json file
+		jiraPath := filepath.Join(tempDir, "jira.json")
+		err := os.WriteFile(jiraPath, []byte(`{"base_url":"test"}`), 0644)
+		require.NoError(t, err)
+
+		exists, err := repo.ConfigExists()
+
+		require.NoError(t, err)
+		assert.True(t, exists)
+	})
+
+	t.Run("should return true when teams config exists", func(t *testing.T) {
+		tempDir := t.TempDir()
+		repo := NewFileRepository(tempDir)
+
+		// Create teams.json file
+		teamsPath := filepath.Join(tempDir, "teams.json")
+		err := os.WriteFile(teamsPath, []byte(`{"FN":{"team":["test"]}}`), 0644)
+		require.NoError(t, err)
+
+		exists, err := repo.ConfigExists()
+
+		require.NoError(t, err)
+		assert.True(t, exists)
+	})
+}
+
+func TestFileRepository_JiraConfig(t *testing.T) {
+	t.Run("should save and load jira config successfully", func(t *testing.T) {
+		tempDir := t.TempDir()
+		repo := NewFileRepository(tempDir)
+
+		// Create test config
+		originalConfig, err := domain.NewJiraConfig(
+			"https://test.atlassian.net",
+			"test@example.com",
+			"test-token",
+		)
+		require.NoError(t, err)
+
+		// Save config
+		err = repo.SaveJiraConfig(originalConfig)
+		require.NoError(t, err)
+
+		// Load config
+		loadedConfig, err := repo.LoadJiraConfig()
+		require.NoError(t, err)
+
+		// Verify config matches
+		assert.Equal(t, originalConfig.BaseURL(), loadedConfig.BaseURL())
+		assert.Equal(t, originalConfig.Email(), loadedConfig.Email())
+		assert.Equal(t, originalConfig.Token(), loadedConfig.Token())
+	})
+
+	t.Run("should return error when jira config file doesn't exist", func(t *testing.T) {
+		tempDir := t.TempDir()
+		repo := NewFileRepository(tempDir)
+
+		_, err := repo.LoadJiraConfig()
+
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "jira configuration not found")
+	})
+
+	t.Run("should return error when jira config file is invalid JSON", func(t *testing.T) {
+		tempDir := t.TempDir()
+		repo := NewFileRepository(tempDir)
+
+		// Create invalid JSON file
+		jiraPath := filepath.Join(tempDir, "jira.json")
+		err := os.WriteFile(jiraPath, []byte(`{invalid json`), 0644)
+		require.NoError(t, err)
+
+		_, err = repo.LoadJiraConfig()
+
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "failed to parse jira config")
+	})
+
+	t.Run("should create directories when saving config", func(t *testing.T) {
+		tempDir := t.TempDir()
+		configDir := filepath.Join(tempDir, "nested", "config")
+		repo := NewFileRepository(configDir)
+
+		config, err := domain.NewJiraConfig(
+			"https://test.atlassian.net",
+			"test@example.com",
+			"test-token",
+		)
+		require.NoError(t, err)
+
+		err = repo.SaveJiraConfig(config)
+		require.NoError(t, err)
+
+		// Verify file was created
+		jiraPath := filepath.Join(configDir, "jira.json")
+		_, err = os.Stat(jiraPath)
+		require.NoError(t, err)
+	})
+}
+
+func TestFileRepository_TeamConfig(t *testing.T) {
+	t.Run("should save and load team config with format transformation", func(t *testing.T) {
+		tempDir := t.TempDir()
+		repo := NewFileRepository(tempDir)
+
+		// Create test team config in domain format
+		teams := map[string][]string{
+			"FN": {"helio.medeiros", "alice.smith"},
+			"BE": {"bob.jones"},
+		}
+		originalConfig, err := domain.NewTeamConfig(teams)
+		require.NoError(t, err)
+
+		// Save config
+		err = repo.SaveTeamConfig(originalConfig)
+		require.NoError(t, err)
+
+		// Verify file format matches existing pattern
+		teamsPath := filepath.Join(tempDir, "teams.json")
+		data, err := os.ReadFile(teamsPath)
+		require.NoError(t, err)
+
+		var fileFormat map[string]struct {
+			Team []string `json:"team"`
+		}
+		err = json.Unmarshal(data, &fileFormat)
+		require.NoError(t, err)
+
+		assert.Equal(t, []string{"helio.medeiros", "alice.smith"}, fileFormat["FN"].Team)
+		assert.Equal(t, []string{"bob.jones"}, fileFormat["BE"].Team)
+
+		// Load config
+		loadedConfig, err := repo.LoadTeamConfig()
+		require.NoError(t, err)
+
+		// Verify domain format matches
+		fnTeam, exists := loadedConfig.GetTeam("FN")
+		require.True(t, exists)
+		assert.Equal(t, []string{"helio.medeiros", "alice.smith"}, fnTeam)
+
+		beTeam, exists := loadedConfig.GetTeam("BE")
+		require.True(t, exists)
+		assert.Equal(t, []string{"bob.jones"}, beTeam)
+	})
+
+	t.Run("should load existing teams.json format correctly", func(t *testing.T) {
+		tempDir := t.TempDir()
+		repo := NewFileRepository(tempDir)
+
+		// Create file in existing format
+		existingFormat := map[string]struct {
+			Team []string `json:"team"`
+		}{
+			"FN": {Team: []string{"Ahmed Naser", "Georgii Maltsev", "Helio Medeiros"}},
+			"MZ": {Team: []string{"Viktor Kovarik", "Pernelle Naidoo"}},
+		}
+
+		data, err := json.MarshalIndent(existingFormat, "", "  ")
+		require.NoError(t, err)
+
+		teamsPath := filepath.Join(tempDir, "teams.json")
+		err = os.WriteFile(teamsPath, data, 0644)
+		require.NoError(t, err)
+
+		// Load config
+		config, err := repo.LoadTeamConfig()
+		require.NoError(t, err)
+
+		// Verify transformation worked
+		fnTeam, exists := config.GetTeam("FN")
+		require.True(t, exists)
+		assert.Contains(t, fnTeam, "Ahmed Naser")
+		assert.Contains(t, fnTeam, "Georgii Maltsev")
+		assert.Contains(t, fnTeam, "Helio Medeiros")
+
+		mzTeam, exists := config.GetTeam("MZ")
+		require.True(t, exists)
+		assert.Contains(t, mzTeam, "Viktor Kovarik")
+		assert.Contains(t, mzTeam, "Pernelle Naidoo")
+
+		// Verify team membership
+		assert.True(t, config.IsTeamMember("FN", "Ahmed Naser"))
+		assert.True(t, config.IsTeamMember("MZ", "Viktor Kovarik"))
+		assert.False(t, config.IsTeamMember("FN", "Viktor Kovarik"))
+	})
+
+	t.Run("should return error when teams config file doesn't exist", func(t *testing.T) {
+		tempDir := t.TempDir()
+		repo := NewFileRepository(tempDir)
+
+		_, err := repo.LoadTeamConfig()
+
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "team configuration not found")
+	})
+
+	t.Run("should return error when teams config file is invalid JSON", func(t *testing.T) {
+		tempDir := t.TempDir()
+		repo := NewFileRepository(tempDir)
+
+		// Create invalid JSON file
+		teamsPath := filepath.Join(tempDir, "teams.json")
+		err := os.WriteFile(teamsPath, []byte(`{invalid json`), 0644)
+		require.NoError(t, err)
+
+		_, err = repo.LoadTeamConfig()
+
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "failed to parse team config")
+	})
+}
+
+func TestFileRepository_EdgeCases(t *testing.T) {
+	t.Run("should handle empty team config", func(t *testing.T) {
+		tempDir := t.TempDir()
+		repo := NewFileRepository(tempDir)
+
+		// Create empty team config
+		emptyConfig, err := domain.NewTeamConfig(map[string][]string{})
+		require.NoError(t, err)
+
+		// Save and load
+		err = repo.SaveTeamConfig(emptyConfig)
+		require.NoError(t, err)
+
+		loadedConfig, err := repo.LoadTeamConfig()
+		require.NoError(t, err)
+
+		assert.True(t, loadedConfig.IsEmpty())
+		assert.Empty(t, loadedConfig.GetProjects())
+	})
+
+	t.Run("should handle atomic file operations", func(t *testing.T) {
+		tempDir := t.TempDir()
+		repo := NewFileRepository(tempDir)
+
+		config, err := domain.NewJiraConfig(
+			"https://test.atlassian.net",
+			"test@example.com",
+			"test-token",
+		)
+		require.NoError(t, err)
+
+		// Save config
+		err = repo.SaveJiraConfig(config)
+		require.NoError(t, err)
+
+		// Verify no temporary files remain
+		entries, err := os.ReadDir(tempDir)
+		require.NoError(t, err)
+
+		for _, entry := range entries {
+			assert.False(t, filepath.Ext(entry.Name()) == ".tmp", "Temporary file should not exist: %s", entry.Name())
+		}
+	})
+}
