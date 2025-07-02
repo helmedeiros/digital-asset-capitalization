@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/helmedeiros/digital-asset-capitalization/internal/config/application/service"
 	"github.com/helmedeiros/digital-asset-capitalization/internal/tasks/domain"
 	"github.com/helmedeiros/digital-asset-capitalization/internal/tasks/domain/ports"
 )
@@ -13,8 +14,33 @@ type TaskRepository struct {
 	client Client
 }
 
-// NewRepository creates a new Jira repository instance
-func NewRepository() (*TaskRepository, error) {
+// NewRepository creates a new Jira repository instance using shared configuration
+func NewRepository(configService *service.ConfigService) (*TaskRepository, error) {
+	jiraConfig, err := configService.GetJiraConfig()
+	if err != nil {
+		return nil, fmt.Errorf("failed to get Jira configuration: %w", err)
+	}
+
+	// Convert domain JiraConfig to infrastructure Config
+	config := &Config{
+		BaseURL: jiraConfig.BaseURL(),
+		Email:   jiraConfig.Email(),
+		Token:   jiraConfig.Token(),
+	}
+
+	client, err := NewClient(config)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create Jira client: %w", err)
+	}
+
+	return &TaskRepository{
+		client: client,
+	}, nil
+}
+
+// NewRepositoryLegacy creates a new Jira repository instance using legacy environment variables
+// Deprecated: Use NewRepository with ConfigService instead
+func NewRepositoryLegacy() (*TaskRepository, error) {
 	config, err := NewConfig()
 	if err != nil {
 		return nil, fmt.Errorf("failed to create Jira configuration: %w", err)

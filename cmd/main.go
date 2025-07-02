@@ -5,12 +5,16 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"path/filepath"
 	"strings"
 
 	"github.com/urfave/cli/v2"
 
 	assetsapp "github.com/helmedeiros/digital-asset-capitalization/internal/assets/application"
 	assetsinfra "github.com/helmedeiros/digital-asset-capitalization/internal/assets/infrastructure"
+	"github.com/helmedeiros/digital-asset-capitalization/internal/config/application/service"
+	"github.com/helmedeiros/digital-asset-capitalization/internal/config/application/usecase"
+	configinfra "github.com/helmedeiros/digital-asset-capitalization/internal/config/infrastructure"
 	"github.com/helmedeiros/digital-asset-capitalization/internal/shell/completion"
 	sprintapp "github.com/helmedeiros/digital-asset-capitalization/internal/sprint/application"
 	sprintinfra "github.com/helmedeiros/digital-asset-capitalization/internal/sprint/infrastructure"
@@ -24,6 +28,7 @@ import (
 )
 
 const (
+	configDir  = ".assetcap"
 	assetsDir  = ".assetcap"
 	assetsFile = "assets.json"
 	tasksDir   = ".assetcap"
@@ -36,6 +41,21 @@ type App struct {
 	assetService  assetsapp.AssetService
 	taskService   tasksapp.TaskService
 	sprintService sprintapp.SprintService
+	configService ConfigService
+}
+
+// ConfigService interface for configuration operations
+type ConfigService interface {
+	InitializeConfig(interactive bool) (*usecase.InitializeConfigResult, error)
+}
+
+// configServiceImpl implements ConfigService
+type configServiceImpl struct {
+	initializeConfig *usecase.InitializeConfig
+}
+
+func (c *configServiceImpl) InitializeConfig(interactive bool) (*usecase.InitializeConfigResult, error) {
+	return c.initializeConfig.Execute(interactive)
 }
 
 // NewApp creates a new App instance with the given dependencies
@@ -44,6 +64,17 @@ func NewApp(assetService assetsapp.AssetService, taskService tasksapp.TaskServic
 		assetService:  assetService,
 		taskService:   taskService,
 		sprintService: sprintService,
+		configService: nil, // Will be set in initializeApp
+	}
+}
+
+// NewAppWithConfigService creates a new App instance with config service for testing
+func NewAppWithConfigService(assetService assetsapp.AssetService, taskService tasksapp.TaskService, sprintService sprintapp.SprintService, configService ConfigService) *App {
+	return &App{
+		assetService:  assetService,
+		taskService:   taskService,
+		sprintService: sprintService,
+		configService: configService,
 	}
 }
 
@@ -56,6 +87,10 @@ func (a *App) Run() error {
 		UsageText: `assetcap [global options] command [command options] [arguments...]
 
 COMMANDS:
+   config             Manage configuration settings
+     init            Initialize configuration interactively
+     show            Show current configuration
+     validate        Validate current configuration
    assets              Manage digital assets
      create           Create a new asset
      list            List all assets
@@ -637,30 +672,195 @@ For more information about a command:
 					},
 				},
 			},
+			{
+				Name:  "config",
+				Usage: "Manage configuration settings",
+				Subcommands: []*cli.Command{
+					{
+						Name:  "init",
+						Usage: "Initialize configuration",
+						Action: func(ctx *cli.Context) error {
+							if a.configService == nil {
+								return fmt.Errorf("configuration service not available")
+							}
+
+							interactive := !ctx.Bool("non-interactive")
+
+							// Set environment variables if provided via flags
+							jiraURL := ctx.String("jira-url")
+							jiraEmail := ctx.String("jira-email")
+							jiraToken := ctx.String("jira-token")
+
+							if jiraURL != "" {
+								os.Setenv("JIRA_BASE_URL", jiraURL)
+							}
+							if jiraEmail != "" {
+								os.Setenv("JIRA_EMAIL", jiraEmail)
+							}
+							if jiraToken != "" {
+								os.Setenv("JIRA_TOKEN", jiraToken)
+							}
+
+							result, err := a.configService.InitializeConfig(interactive)
+							if err != nil {
+								return err
+							}
+
+							fmt.Println(result.Message)
+							return nil
+						},
+						Flags: []cli.Flag{
+							&cli.BoolFlag{
+								Name:  "non-interactive",
+								Usage: "Run in non-interactive mode (requires environment variables)",
+								Value: false,
+							},
+							&cli.StringFlag{
+								Name:  "jira-url",
+								Usage: "Jira base URL (e.g., https://company.atlassian.net)",
+							},
+							&cli.StringFlag{
+								Name:  "jira-email",
+								Usage: "Jira email address",
+							},
+							&cli.StringFlag{
+								Name:  "jira-token",
+								Usage: "Jira API token",
+							},
+						},
+					},
+					{
+						Name:  "show",
+						Usage: "Show current configuration",
+						Action: func(_ *cli.Context) error {
+							fmt.Println("Current Configuration:")
+							fmt.Println("=====================")
+
+							// Show environment variables (masked)
+							jiraURL := os.Getenv("JIRA_BASE_URL")
+							jiraEmail := os.Getenv("JIRA_EMAIL")
+							jiraToken := os.Getenv("JIRA_TOKEN")
+
+							fmt.Printf("JIRA_BASE_URL: %s\n", jiraURL)
+							fmt.Printf("JIRA_EMAIL: %s\n", jiraEmail)
+							if jiraToken != "" {
+								fmt.Printf("JIRA_TOKEN: %s\n", maskToken(jiraToken))
+							} else {
+								fmt.Printf("JIRA_TOKEN: <not set>\n")
+							}
+
+							// Show teams.json if it exists
+							teamsPath := filepath.Join(configDir, teamsFile)
+							if _, err := os.Stat(teamsPath); err == nil {
+								fmt.Printf("\nTeam Configuration: %s exists\n", teamsPath)
+							} else {
+								fmt.Printf("\nTeam Configuration: %s not found\n", teamsPath)
+							}
+
+							return nil
+						},
+					},
+					{
+						Name:  "validate",
+						Usage: "Validate current configuration",
+						Action: func(_ *cli.Context) error {
+							fmt.Println("Validating Configuration...")
+
+							var errors []string
+
+							// Check environment variables
+							jiraURL := os.Getenv("JIRA_BASE_URL")
+							jiraEmail := os.Getenv("JIRA_EMAIL")
+							jiraToken := os.Getenv("JIRA_TOKEN")
+
+							if jiraURL == "" {
+								errors = append(errors, "JIRA_BASE_URL is not set")
+							}
+							if jiraEmail == "" {
+								errors = append(errors, "JIRA_EMAIL is not set")
+							}
+							if jiraToken == "" {
+								errors = append(errors, "JIRA_TOKEN is not set")
+							}
+
+							// Check teams.json
+							teamsPath := filepath.Join(configDir, teamsFile)
+							if _, err := os.Stat(teamsPath); err != nil {
+								errors = append(errors, fmt.Sprintf("%s file not found", teamsPath))
+							}
+
+							if len(errors) > 0 {
+								fmt.Println("❌ Configuration validation failed:")
+								for _, err := range errors {
+									fmt.Printf("  - %s\n", err)
+								}
+								return fmt.Errorf("configuration validation failed")
+							}
+
+							fmt.Println("✅ Configuration is valid")
+							return nil
+						},
+					},
+				},
+			},
 		},
 	}
 
 	return app.Run(os.Args)
 }
 
+// maskToken masks sensitive token information for display
+func maskToken(token string) string {
+	if len(token) <= 4 {
+		return "****"
+	}
+	return token[:4] + "..." + token[len(token)-4:]
+}
+
 // initializeApp creates a new App instance with all dependencies
 func initializeApp() (*App, error) {
+	// Initialize shared configuration service first
+	configRepo := configinfra.NewFileRepository(configDir)
+	envProvider := configinfra.NewEnvironmentProvider()
+	userInteraction := configinfra.NewCLIUserInteraction()
+	initializeConfigUseCase := usecase.NewInitializeConfig(configRepo, envProvider, userInteraction)
+	sharedConfigService := service.NewConfigService(configRepo)
+
 	// Initialize repositories
-	config := assetsinfra.RepositoryConfig{
+	repoConfig := assetsinfra.RepositoryConfig{
 		Directory: assetsDir,
 		Filename:  assetsFile,
 		FileMode:  0644,
 		DirMode:   0755,
 	}
-	assetRepo := assetsinfra.NewJSONRepository(config)
-	assetService := assetsapp.NewAssetService(assetRepo)
+	assetRepo := assetsinfra.NewJSONRepository(repoConfig)
 
-	// Initialize task repositories
+	// Try to use shared configuration, fallback to legacy if config doesn't exist
+	var assetService assetsapp.AssetService
+	if configExists, _ := sharedConfigService.ConfigExists(); configExists {
+		assetService = assetsapp.NewAssetService(assetRepo, sharedConfigService)
+	} else {
+		assetService = assetsapp.NewAssetServiceLegacy(assetRepo)
+	}
+
+	// Initialize task repositories with graceful fallback
 	var jiraRepo taskports.TaskRepository
 	var err error
-	jiraRepo, err = jira.NewRepository()
-	if err != nil {
-		return nil, fmt.Errorf("failed to initialize Jira repository: %v", err)
+
+	if configExists, _ := sharedConfigService.ConfigExists(); configExists {
+		jiraRepo, err = jira.NewRepository(sharedConfigService)
+		if err != nil {
+			// Fallback to legacy if shared config fails
+			jiraRepo, err = jira.NewRepositoryLegacy()
+			if err != nil {
+				return nil, fmt.Errorf("failed to initialize Jira repository: %v", err)
+			}
+		}
+	} else {
+		jiraRepo, err = jira.NewRepositoryLegacy()
+		if err != nil {
+			return nil, fmt.Errorf("failed to initialize Jira repository: %v", err)
+		}
 	}
 
 	localRepo := storage.NewJSONStorage(tasksDir, tasksFile)
@@ -682,13 +882,20 @@ func initializeApp() (*App, error) {
 	taskService := tasksapp.NewTasksService(jiraRepo, localRepo, taskClassifier, userInput, assetService)
 
 	// Initialize sprint service
-	jiraAdapter, err := sprintinfra.NewJiraAdapter(teamsFile)
+	jiraAdapter, err := sprintinfra.NewJiraAdapter()
 	if err != nil {
 		return nil, fmt.Errorf("failed to initialize Jira adapter: %v", err)
 	}
 	sprintService := sprintapp.NewSprintService(jiraAdapter)
 
-	return NewApp(assetService, taskService, sprintService), nil
+	// Initialize config service for CLI
+	configService := &configServiceImpl{
+		initializeConfig: initializeConfigUseCase,
+	}
+
+	app := NewApp(assetService, taskService, sprintService)
+	app.configService = configService
+	return app, nil
 }
 
 func main() {

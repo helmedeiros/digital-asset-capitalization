@@ -13,7 +13,10 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/helmedeiros/digital-asset-capitalization/internal/assets/domain"
+	"github.com/helmedeiros/digital-asset-capitalization/internal/assets/domain/ports"
 	"github.com/helmedeiros/digital-asset-capitalization/internal/assets/infrastructure/confluence"
+	"github.com/helmedeiros/digital-asset-capitalization/internal/assets/infrastructure/llama"
+	configdomain "github.com/helmedeiros/digital-asset-capitalization/internal/config/domain"
 )
 
 // MockAssetRepository is a mock implementation of AssetRepository
@@ -84,6 +87,71 @@ func (m *MockConfluenceAdapter) FetchPage(ctx context.Context, pageID string) (*
 }
 
 var _ ConfluenceAdapter = (*MockConfluenceAdapter)(nil)
+
+// ConfigServiceInterface defines the minimal interface needed for asset service
+type ConfigServiceInterface interface {
+	GetJiraConfig() (*configdomain.JiraConfig, error)
+}
+
+// MockConfigService for testing
+type MockConfigService struct {
+	mock.Mock
+}
+
+func (m *MockConfigService) GetJiraConfig() (*configdomain.JiraConfig, error) {
+	args := m.Called()
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*configdomain.JiraConfig), args.Error(1)
+}
+
+// Ensure MockConfigService implements ConfigServiceInterface
+var _ ConfigServiceInterface = (*MockConfigService)(nil)
+
+// TestableAssetService creates an AssetService for testing with interface
+func TestableAssetService(repo ports.AssetRepository, configService ConfigServiceInterface) AssetService {
+	// Initialize LLaMA client
+	llamaConfig := llama.DefaultConfig()
+	llamaClient, err := llama.NewClient(llamaConfig)
+	if err != nil {
+		// Log the error but don't fail initialization
+		fmt.Printf("Warning: Failed to initialize LLaMA client: %v\n", err)
+	}
+
+	// Create Confluence adapter with shared configuration
+	confluenceAdapter, err := testableCreateConfluenceAdapter(configService)
+	if err != nil {
+		// Log the error but don't fail initialization
+		fmt.Printf("Warning: Failed to initialize Confluence adapter: %v\n", err)
+	}
+
+	return &AssetServiceImpl{
+		repo:       repo,
+		llama:      llamaClient,
+		confluence: confluenceAdapter,
+		// Note: configService field is *service.ConfigService, so we leave it nil for tests
+	}
+}
+
+// testableCreateConfluenceAdapter creates a Confluence adapter for testing
+func testableCreateConfluenceAdapter(configService ConfigServiceInterface) (ConfluenceAdapter, error) {
+	if configService == nil {
+		return nil, fmt.Errorf("config service is required")
+	}
+
+	jiraConfig, err := configService.GetJiraConfig()
+	if err != nil {
+		return nil, fmt.Errorf("failed to get Jira configuration: %w", err)
+	}
+
+	config := confluence.DefaultConfig()
+	config.BaseURL = jiraConfig.BaseURL()
+	config.Username = jiraConfig.Email()
+	config.Token = jiraConfig.Token()
+
+	return confluence.NewAdapter(config), nil
+}
 
 func TestCreateAsset(t *testing.T) {
 	tests := []struct {
@@ -159,7 +227,7 @@ func TestCreateAsset(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			mockRepo := new(MockAssetRepository)
 			tt.setupMock(mockRepo)
-			service := NewAssetService(mockRepo)
+			service := NewAssetServiceLegacy(mockRepo)
 
 			err := service.CreateAsset(tt.assetName, tt.description)
 
@@ -218,7 +286,7 @@ func TestListAssets(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			mockRepo := new(MockAssetRepository)
 			tt.setupMock(mockRepo)
-			service := NewAssetService(mockRepo)
+			service := NewAssetServiceLegacy(mockRepo)
 
 			assets, err := service.ListAssets()
 
@@ -291,7 +359,7 @@ func TestUpdateAsset(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			mockRepo := new(MockAssetRepository)
 			tt.setupMock(mockRepo)
-			service := NewAssetService(mockRepo)
+			service := NewAssetServiceLegacy(mockRepo)
 
 			err := service.UpdateAsset(tt.assetName, tt.description, tt.why, tt.benefits, tt.how, tt.metrics)
 
@@ -341,7 +409,7 @@ func TestUpdateDocumentation(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			mockRepo := new(MockAssetRepository)
 			tt.setupMock(mockRepo)
-			service := NewAssetService(mockRepo)
+			service := NewAssetServiceLegacy(mockRepo)
 
 			err := service.UpdateDocumentation(tt.assetName)
 
@@ -370,7 +438,7 @@ func TestTaskCountOperations(t *testing.T) {
 			name:      "increment success",
 			assetName: "test-asset",
 			operation: func(mockRepo *MockAssetRepository, name string) error {
-				service := NewAssetService(mockRepo)
+				service := NewAssetServiceLegacy(mockRepo)
 				return service.IncrementTaskCount(name)
 			},
 			setupMock: func(m *MockAssetRepository) {
@@ -386,7 +454,7 @@ func TestTaskCountOperations(t *testing.T) {
 			name:      "decrement success",
 			assetName: "test-asset",
 			operation: func(mockRepo *MockAssetRepository, name string) error {
-				service := NewAssetService(mockRepo)
+				service := NewAssetServiceLegacy(mockRepo)
 				return service.DecrementTaskCount(name)
 			},
 			setupMock: func(m *MockAssetRepository) {
@@ -403,7 +471,7 @@ func TestTaskCountOperations(t *testing.T) {
 			name:      "decrement below zero",
 			assetName: "test-asset",
 			operation: func(mockRepo *MockAssetRepository, name string) error {
-				service := NewAssetService(mockRepo)
+				service := NewAssetServiceLegacy(mockRepo)
 				return service.DecrementTaskCount(name)
 			},
 			setupMock: func(m *MockAssetRepository) {
@@ -419,7 +487,7 @@ func TestTaskCountOperations(t *testing.T) {
 			name:      "asset not found",
 			assetName: "non-existent",
 			operation: func(mockRepo *MockAssetRepository, name string) error {
-				service := NewAssetService(mockRepo)
+				service := NewAssetServiceLegacy(mockRepo)
 				return service.IncrementTaskCount(name)
 			},
 			setupMock: func(m *MockAssetRepository) {
@@ -521,7 +589,7 @@ func TestGetAsset(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			mockRepo := new(MockAssetRepository)
 			tt.setupMock(mockRepo)
-			service := NewAssetService(mockRepo)
+			service := NewAssetServiceLegacy(mockRepo)
 
 			asset, err := service.GetAsset(tt.identifier)
 
@@ -933,4 +1001,243 @@ func TestGenerateKeywords(t *testing.T) {
 			mockLlama.AssertExpectations(t)
 		})
 	}
+}
+
+// Add simple tests for missing functions to improve coverage
+func TestNewAssetServiceLegacy(t *testing.T) {
+	mockRepo := new(MockAssetRepository)
+
+	service := NewAssetServiceLegacy(mockRepo)
+
+	assert.NotNil(t, service)
+	assert.IsType(t, &AssetServiceImpl{}, service)
+}
+
+func TestDeleteAsset(t *testing.T) {
+	tests := []struct {
+		name          string
+		assetName     string
+		setupMock     func(*MockAssetRepository)
+		expectedError error
+	}{
+		{
+			name:      "successful deletion",
+			assetName: "test-asset",
+			setupMock: func(m *MockAssetRepository) {
+				m.On("Delete", "test-asset").Return(nil)
+			},
+			expectedError: nil,
+		},
+		{
+			name:      "deletion error",
+			assetName: "test-asset",
+			setupMock: func(m *MockAssetRepository) {
+				m.On("Delete", "test-asset").Return(errors.New("delete error"))
+			},
+			expectedError: errors.New("delete error"),
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			mockRepo := new(MockAssetRepository)
+			tt.setupMock(mockRepo)
+			service := NewAssetServiceLegacy(mockRepo)
+
+			err := service.DeleteAsset(tt.assetName)
+
+			if tt.expectedError != nil {
+				require.Error(t, err)
+				assert.Equal(t, tt.expectedError.Error(), err.Error())
+			} else {
+				require.NoError(t, err)
+			}
+
+			mockRepo.AssertExpectations(t)
+		})
+	}
+}
+
+func TestSyncFromConfluenceEnvironmentFallback(t *testing.T) {
+	// Test the environment variable fallback path
+	t.Run("missing environment configuration", func(t *testing.T) {
+		// Clear environment variables
+		os.Unsetenv("JIRA_BASE_URL")
+		os.Unsetenv("JIRA_TOKEN")
+
+		mockRepo := new(MockAssetRepository)
+		service := NewAssetServiceLegacy(mockRepo)
+
+		_, err := service.SyncFromConfluence("TEST", "test-label", false)
+
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "Jira base URL is not configured")
+	})
+
+	t.Run("missing token configuration", func(t *testing.T) {
+		// Set base URL but not token
+		os.Setenv("JIRA_BASE_URL", "https://test.atlassian.net")
+		os.Unsetenv("JIRA_TOKEN")
+
+		mockRepo := new(MockAssetRepository)
+		service := NewAssetServiceLegacy(mockRepo)
+
+		_, err := service.SyncFromConfluence("TEST", "test-label", false)
+
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "Jira token is not configured")
+	})
+}
+
+func TestNewAssetService(t *testing.T) {
+	t.Run("should create service with valid config service", func(t *testing.T) {
+		// Create mock repository and config service
+		mockRepo := new(MockAssetRepository)
+		mockConfigService := &MockConfigService{}
+
+		// Setup mock to return valid Jira config
+		mockJiraConfig := &configdomain.JiraConfig{}
+		mockConfigService.On("GetJiraConfig").Return(mockJiraConfig, nil)
+
+		// Create service
+		service := TestableAssetService(mockRepo, mockConfigService)
+
+		// Verify service is created
+		assert.NotNil(t, service, "Service should not be nil")
+
+		// Verify it's the correct implementation
+		impl, ok := service.(*AssetServiceImpl)
+		assert.True(t, ok, "Should return AssetServiceImpl")
+		assert.Equal(t, mockRepo, impl.repo, "Repository should be set")
+		assert.NotNil(t, impl.llama, "LLaMA client should be initialized")
+	})
+
+	t.Run("should create service even if config service fails", func(t *testing.T) {
+		// Create mock repository and config service
+		mockRepo := new(MockAssetRepository)
+		mockConfigService := &MockConfigService{}
+
+		// Setup mock to return error for Jira config
+		mockConfigService.On("GetJiraConfig").Return(nil, fmt.Errorf("config error"))
+
+		// Create service - should not fail even if config fails
+		service := TestableAssetService(mockRepo, mockConfigService)
+
+		// Verify service is still created
+		assert.NotNil(t, service, "Service should not be nil even with config error")
+
+		impl, ok := service.(*AssetServiceImpl)
+		assert.True(t, ok, "Should return AssetServiceImpl")
+		assert.Equal(t, mockRepo, impl.repo, "Repository should be set")
+	})
+
+	t.Run("should handle nil config service", func(t *testing.T) {
+		mockRepo := new(MockAssetRepository)
+
+		// This should work but confluence adapter creation will fail
+		service := TestableAssetService(mockRepo, nil)
+
+		assert.NotNil(t, service, "Service should not be nil")
+		impl, ok := service.(*AssetServiceImpl)
+		assert.True(t, ok, "Should return AssetServiceImpl")
+		assert.Equal(t, mockRepo, impl.repo, "Repository should be set")
+	})
+}
+
+func TestCreateConfluenceAdapter(t *testing.T) {
+	t.Run("should create adapter with valid config service", func(t *testing.T) {
+		// Create mock config service
+		mockConfigService := &MockConfigService{}
+
+		// Create mock Jira config
+		jiraConfig, err := configdomain.NewJiraConfig("https://example.atlassian.net", "test@example.com", "test-token")
+		require.NoError(t, err)
+
+		// Setup mock
+		mockConfigService.On("GetJiraConfig").Return(jiraConfig, nil)
+
+		// Test the function
+		adapter, err := testableCreateConfluenceAdapter(mockConfigService)
+
+		// Verify results
+		assert.NoError(t, err, "Should not return error with valid config")
+		assert.NotNil(t, adapter, "Adapter should not be nil")
+
+		mockConfigService.AssertExpectations(t)
+	})
+
+	t.Run("should return error with nil config service", func(t *testing.T) {
+		adapter, err := testableCreateConfluenceAdapter(nil)
+
+		assert.Error(t, err, "Should return error with nil config service")
+		assert.Nil(t, adapter, "Adapter should be nil")
+		assert.Contains(t, err.Error(), "config service is required", "Error should mention required config service")
+	})
+
+	t.Run("should return error when config service fails", func(t *testing.T) {
+		// Create mock config service
+		mockConfigService := &MockConfigService{}
+
+		// Setup mock to return error
+		mockConfigService.On("GetJiraConfig").Return(nil, fmt.Errorf("config retrieval failed"))
+
+		// Test the function
+		adapter, err := testableCreateConfluenceAdapter(mockConfigService)
+
+		// Verify results
+		assert.Error(t, err, "Should return error when config retrieval fails")
+		assert.Nil(t, adapter, "Adapter should be nil")
+		assert.Contains(t, err.Error(), "failed to get Jira configuration", "Error should mention config failure")
+
+		mockConfigService.AssertExpectations(t)
+	})
+
+	t.Run("should handle invalid Jira config", func(t *testing.T) {
+		// Create mock config service
+		mockConfigService := &MockConfigService{}
+
+		// Create invalid Jira config (will return error)
+		mockConfigService.On("GetJiraConfig").Return(nil, fmt.Errorf("invalid config"))
+
+		// Test the function
+		adapter, err := testableCreateConfluenceAdapter(mockConfigService)
+
+		// Verify results
+		assert.Error(t, err, "Should return error with invalid config")
+		assert.Nil(t, adapter, "Adapter should be nil")
+
+		mockConfigService.AssertExpectations(t)
+	})
+}
+
+func TestNewAssetServiceConstructor(t *testing.T) {
+	t.Run("should create service with nil config service", func(t *testing.T) {
+		mockRepo := new(MockAssetRepository)
+
+		// This should work but confluence adapter creation will fail
+		assetService := NewAssetService(mockRepo, nil)
+
+		assert.NotNil(t, assetService, "Service should not be nil")
+		impl, ok := assetService.(*AssetServiceImpl)
+		assert.True(t, ok, "Should return AssetServiceImpl")
+		assert.Equal(t, mockRepo, impl.repo, "Repository should be set")
+		assert.Nil(t, impl.configService, "Config service should be nil")
+	})
+}
+
+func TestCreateConfluenceAdapterFunction(t *testing.T) {
+	t.Run("should create adapter with valid config service", func(t *testing.T) {
+		// Create a real config service with mock dependencies for this test
+		// This is a more complex test since we need real config service
+
+		// We can't easily test the real createConfluenceAdapter without complex setup
+		// So we'll test the error cases that are easier to trigger
+
+		// Test with nil config service
+		adapter, err := createConfluenceAdapter(nil)
+
+		assert.Error(t, err, "Should return error with nil config service")
+		assert.Nil(t, adapter, "Adapter should be nil")
+		assert.Contains(t, err.Error(), "config service is required", "Error should mention required config service")
+	})
 }

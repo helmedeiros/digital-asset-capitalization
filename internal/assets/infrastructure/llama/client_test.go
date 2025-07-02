@@ -153,3 +153,63 @@ func TestClose(t *testing.T) {
 	err = client.Close()
 	require.NoError(t, err)
 }
+
+func TestDefaultConfig(t *testing.T) {
+	t.Run("should use default URL when env var not set", func(t *testing.T) {
+		// Ensure env var is not set
+		originalURL := os.Getenv("OLLAMA_API_URL")
+		os.Unsetenv("OLLAMA_API_URL")
+		defer func() {
+			if originalURL != "" {
+				os.Setenv("OLLAMA_API_URL", originalURL)
+			}
+		}()
+
+		config := DefaultConfig()
+
+		assert.Equal(t, "http://localhost:11434", config.BaseURL, "Should use default localhost URL")
+	})
+
+	t.Run("should use env var when set", func(t *testing.T) {
+		// Set custom env var
+		originalURL := os.Getenv("OLLAMA_API_URL")
+		customURL := "http://custom-ollama:8080"
+		os.Setenv("OLLAMA_API_URL", customURL)
+		defer func() {
+			if originalURL != "" {
+				os.Setenv("OLLAMA_API_URL", originalURL)
+			} else {
+				os.Unsetenv("OLLAMA_API_URL")
+			}
+		}()
+
+		config := DefaultConfig()
+
+		assert.Equal(t, customURL, config.BaseURL, "Should use custom URL from env var")
+	})
+
+	t.Run("should handle empty env var", func(t *testing.T) {
+		// Set empty env var
+		originalURL := os.Getenv("OLLAMA_API_URL")
+		os.Setenv("OLLAMA_API_URL", "")
+		defer func() {
+			if originalURL != "" {
+				os.Setenv("OLLAMA_API_URL", originalURL)
+			} else {
+				os.Unsetenv("OLLAMA_API_URL")
+			}
+		}()
+
+		config := DefaultConfig()
+
+		assert.Equal(t, "http://localhost:11434", config.BaseURL, "Should use default URL when env var is empty")
+	})
+
+	t.Run("should return config struct with baseURL field", func(t *testing.T) {
+		config := DefaultConfig()
+
+		// Verify it's a proper Config struct
+		assert.IsType(t, Config{}, config, "Should return Config struct")
+		assert.NotEmpty(t, config.BaseURL, "BaseURL should not be empty")
+	})
+}

@@ -11,8 +11,27 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	configdomain "github.com/helmedeiros/digital-asset-capitalization/internal/config/domain"
 	"github.com/helmedeiros/digital-asset-capitalization/internal/tasks/domain"
 )
+
+// MockConfigService is a mock implementation of ConfigService
+type MockConfigService struct {
+	GetJiraConfigFunc func() (*configdomain.JiraConfig, error)
+}
+
+func (m *MockConfigService) GetJiraConfig() (*configdomain.JiraConfig, error) {
+	if m.GetJiraConfigFunc != nil {
+		return m.GetJiraConfigFunc()
+	}
+	// Default implementation
+	return configdomain.NewJiraConfig("https://test.atlassian.net", "test@example.com", "test-token")
+}
+
+// createMockConfigService creates a mock config service for testing
+func createMockConfigService() *MockConfigService {
+	return &MockConfigService{}
+}
 
 // MockHTTPClient is a mock implementation of HTTPClient
 type MockHTTPClient struct {
@@ -79,10 +98,9 @@ func TestNewRepository(t *testing.T) {
 		mockSetup    func()
 		wantErr      bool
 		errorMessage string
-		wantInstance *TaskRepository
 	}{
 		{
-			name: "successful setup",
+			name: "successful creation",
 			mockSetup: func() {
 				NewConfig = func() (*Config, error) {
 					return &Config{
@@ -91,10 +109,21 @@ func TestNewRepository(t *testing.T) {
 						Token:   "test-token",
 					}, nil
 				}
+				NewClient = func(_ *Config) (Client, error) {
+					return &mockClient{}, nil
+				}
 			},
-			wantErr:      false,
-			errorMessage: "",
-			wantInstance: nil,
+			wantErr: false,
+		},
+		{
+			name: "config error",
+			mockSetup: func() {
+				NewConfig = func() (*Config, error) {
+					return nil, errors.New("config error")
+				}
+			},
+			wantErr:      true,
+			errorMessage: "failed to create Jira configuration: config error",
 		},
 		{
 			name: "client error",
@@ -106,18 +135,26 @@ func TestNewRepository(t *testing.T) {
 						Token:   "test-token",
 					}, nil
 				}
-				NewClient = func(_ *Config) (Client, error) { return nil, errors.New("client error") }
+				NewClient = func(_ *Config) (Client, error) {
+					return nil, errors.New("client error")
+				}
 			},
 			wantErr:      true,
 			errorMessage: "failed to create Jira client: client error",
-			wantInstance: nil,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			mockConfigService := createMockConfigService()
+			if tt.name == "config error" {
+				mockConfigService.GetJiraConfigFunc = func() (*configdomain.JiraConfig, error) {
+					return nil, errors.New("config error")
+				}
+			}
+
 			tt.mockSetup()
-			repo, err := NewRepository()
+			repo, err := NewRepositoryLegacy()
 			if tt.wantErr {
 				assert.Error(t, err, "Should return error")
 				assert.Equal(t, tt.errorMessage, err.Error(), "Error message should match")
@@ -161,7 +198,7 @@ func TestRepository_FindByProjectAndSprint(t *testing.T) {
 			return mockClient, nil
 		}
 
-		repo, err := NewRepository()
+		repo, err := NewRepositoryLegacy()
 		require.NoError(t, err, "Should not return error")
 
 		tasks, err := repo.FindByProjectAndSprint(ctx, "TEST", "Sprint 1")
@@ -207,7 +244,7 @@ func TestRepository_FindByProjectAndSprint(t *testing.T) {
 			return mockClient, nil
 		}
 
-		repo, err := NewRepository()
+		repo, err := NewRepositoryLegacy()
 		require.NoError(t, err, "Should not return error")
 
 		tasks, err := repo.FindByProjectAndSprint(ctx, "TEST", "Sprint 1")
@@ -242,7 +279,7 @@ func TestRepository_NotImplementedMethods(t *testing.T) {
 		return mockClient, nil
 	}
 
-	repo, err := NewRepository()
+	repo, err := NewRepositoryLegacy()
 	require.NoError(t, err, "Should not return error")
 
 	t.Run("Save", func(t *testing.T) {

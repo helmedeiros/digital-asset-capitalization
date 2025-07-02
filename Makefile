@@ -1,10 +1,25 @@
-.PHONY: test test-cover test-cover-detail test-race test-watch test-all test-all-detail install completion lint lint-fix check pre-push
+.PHONY: test test-cover test-cover-detail test-race test-watch test-all test-all-detail install completion lint lint-fix check test-cover-gate pre-push
 
 # Run all checks (lint + test)
 check: lint test
 
-# Run pre-push checks
-pre-push: check
+# Run coverage check with 80% threshold enforcement
+test-cover-gate:
+	@echo "Running coverage quality gate check..."
+	@gotestsum -- -coverprofile=coverage.out ./... > /dev/null 2>&1
+	@grep -v "testutil" coverage.out > coverage.filtered.out
+	@COVERAGE=$$(go tool cover -func=coverage.filtered.out | grep "total:" | awk '{print $$3}' | sed 's/%//'); \
+	echo "Coverage: $$COVERAGE%"; \
+	if [ "$$(echo "$$COVERAGE < 80" | bc -l)" -eq 1 ]; then \
+		echo "❌ Coverage $$COVERAGE% is below 80% threshold"; \
+		rm -f coverage.out coverage.filtered.out; \
+		exit 1; \
+	fi; \
+	echo "✅ Coverage $$COVERAGE% meets 80% threshold"; \
+	rm -f coverage.out coverage.filtered.out
+
+# Run pre-push checks (includes coverage gate)
+pre-push: lint test-cover-gate
 
 # Run tests with gotestsum
 test:

@@ -237,3 +237,115 @@ func TestTeamConfig_IsEmpty(t *testing.T) {
 		assert.False(t, config.IsEmpty())
 	})
 }
+
+func TestTeamConfig_ToMap(t *testing.T) {
+	t.Run("should return empty map for empty config", func(t *testing.T) {
+		config, err := NewTeamConfig(map[string][]string{})
+		require.NoError(t, err)
+
+		result := config.ToMap()
+		assert.Empty(t, result, "Should return empty map")
+		assert.NotNil(t, result, "Should not return nil")
+	})
+
+	t.Run("should return copy of teams map", func(t *testing.T) {
+		originalTeams := map[string][]string{
+			"PROJECT-A": {"Alice", "Bob"},
+			"PROJECT-B": {"Charlie", "David", "Eve"},
+			"PROJECT-C": {"Frank"},
+		}
+
+		config, err := NewTeamConfig(originalTeams)
+		require.NoError(t, err)
+
+		result := config.ToMap()
+
+		// Should have same content
+		assert.Equal(t, originalTeams, result, "Should return same content as original")
+		assert.Len(t, result, 3, "Should have 3 projects")
+		assert.Equal(t, []string{"Alice", "Bob"}, result["PROJECT-A"])
+		assert.Equal(t, []string{"Charlie", "David", "Eve"}, result["PROJECT-B"])
+		assert.Equal(t, []string{"Frank"}, result["PROJECT-C"])
+	})
+
+	t.Run("should return independent copy - modifications don't affect original", func(t *testing.T) {
+		originalTeams := map[string][]string{
+			"PROJECT-A": {"Alice", "Bob"},
+		}
+
+		config, err := NewTeamConfig(originalTeams)
+		require.NoError(t, err)
+
+		result := config.ToMap()
+
+		// Modify the returned map
+		result["PROJECT-A"] = append(result["PROJECT-A"], "Charlie")
+		result["NEW-PROJECT"] = []string{"Dave"}
+
+		// Original should be unchanged
+		originalResult := config.ToMap()
+		assert.Equal(t, []string{"Alice", "Bob"}, originalResult["PROJECT-A"], "Original should be unchanged")
+		assert.NotContains(t, originalResult, "NEW-PROJECT", "Original should not have new project")
+	})
+
+	t.Run("should return independent copy - slice modifications don't affect original", func(t *testing.T) {
+		originalTeams := map[string][]string{
+			"PROJECT-A": {"Alice", "Bob"},
+		}
+
+		config, err := NewTeamConfig(originalTeams)
+		require.NoError(t, err)
+
+		result := config.ToMap()
+
+		// Modify the slice directly
+		result["PROJECT-A"][0] = "Modified"
+
+		// Original should be unchanged
+		originalResult := config.ToMap()
+		assert.Equal(t, "Alice", originalResult["PROJECT-A"][0], "Original slice should be unchanged")
+	})
+
+	t.Run("should work after team modifications", func(t *testing.T) {
+		config, err := NewTeamConfig(map[string][]string{
+			"PROJECT-A": {"Alice"},
+		})
+		require.NoError(t, err)
+
+		// Add team member
+		err = config.AddTeamMember("PROJECT-A", "Bob")
+		require.NoError(t, err)
+
+		// Add new project
+		err = config.AddTeamMember("PROJECT-B", "Charlie")
+		require.NoError(t, err)
+
+		result := config.ToMap()
+		assert.Len(t, result, 2, "Should have 2 projects")
+		assert.Contains(t, result["PROJECT-A"], "Alice")
+		assert.Contains(t, result["PROJECT-A"], "Bob")
+		assert.Equal(t, []string{"Charlie"}, result["PROJECT-B"])
+	})
+
+	t.Run("should handle single member teams", func(t *testing.T) {
+		config, err := NewTeamConfig(map[string][]string{
+			"SINGLE": {"OnlyMember"},
+		})
+		require.NoError(t, err)
+
+		result := config.ToMap()
+		assert.Equal(t, []string{"OnlyMember"}, result["SINGLE"])
+	})
+
+	t.Run("should preserve order within teams", func(t *testing.T) {
+		// Note: Go maps don't guarantee order, but slices do
+		config, err := NewTeamConfig(map[string][]string{
+			"PROJECT-A": {"Alice", "Bob", "Charlie", "David"},
+		})
+		require.NoError(t, err)
+
+		result := config.ToMap()
+		expected := []string{"Alice", "Bob", "Charlie", "David"}
+		assert.Equal(t, expected, result["PROJECT-A"], "Should preserve order within team")
+	})
+}

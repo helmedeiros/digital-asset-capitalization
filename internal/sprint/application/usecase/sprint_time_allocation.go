@@ -4,10 +4,11 @@ import (
 	"encoding/csv"
 	"encoding/json"
 	"fmt"
-	"os"
 	"strings"
 	"time"
 
+	configService "github.com/helmedeiros/digital-asset-capitalization/internal/config/application/service"
+	configInfrastructure "github.com/helmedeiros/digital-asset-capitalization/internal/config/infrastructure"
 	"github.com/helmedeiros/digital-asset-capitalization/internal/sprint/config"
 	"github.com/helmedeiros/digital-asset-capitalization/internal/sprint/domain"
 	"github.com/helmedeiros/digital-asset-capitalization/internal/sprint/domain/ports"
@@ -32,52 +33,26 @@ type SprintTimeAllocationUseCase struct {
 
 // NewSprintTimeAllocationUseCase creates a new JiraProcessor instance
 func NewSprintTimeAllocationUseCase(project, sprint, override string) (*SprintTimeAllocationUseCase, error) {
-	// Load Jira configuration
+	// Create Jira adapter with shared configuration
+	jiraAdapter, err := infrastructure.NewJiraAdapter()
+	if err != nil {
+		return nil, fmt.Errorf("failed to create Jira adapter: %w", err)
+	}
+
+	// Load legacy configuration for backward compatibility
 	jiraConfig, err := config.NewJiraConfig()
 	if err != nil {
 		return nil, fmt.Errorf("failed to load Jira configuration: %w", err)
 	}
 
-	// Load teams data
-	var teamsData []byte
-	var teamsErr error
+	// Initialize configuration service to get teams data
+	configRepo := configInfrastructure.NewFileRepository(".assetcap")
+	configSvc := configService.NewConfigService(configRepo)
 
-	// Try different paths for teams.json
-	paths := []string{
-		".assetcap/teams.json", // .assetcap directory
-	}
-
-	for _, path := range paths {
-		teamsData, teamsErr = os.ReadFile(path)
-		if teamsErr == nil {
-			break
-		}
-	}
-
-	if teamsErr != nil {
-		// If no file is found, create a default teams.json in the .assetcap directory
-		if mkdirErr := os.MkdirAll(".assetcap", 0755); mkdirErr != nil {
-			return nil, fmt.Errorf("failed to create .assetcap directory: %w", mkdirErr)
-		}
-		teamsData = []byte(`{
-			"FN": {
-				"team": ["helio.medeiros", "julio.medeiros"]
-			}
-		}`)
-		if writeErr := os.WriteFile(".assetcap/teams.json", teamsData, 0644); writeErr != nil {
-			return nil, fmt.Errorf("failed to write teams file: %w", writeErr)
-		}
-	}
-
-	var teams domain.TeamMap
-	if unmarshalErr := json.Unmarshal(teamsData, &teams); unmarshalErr != nil {
-		return nil, fmt.Errorf("failed to unmarshal teams data: %w", unmarshalErr)
-	}
-
-	// Create Jira adapter
-	jiraAdapter, err := infrastructure.NewJiraAdapter(".assetcap/teams.json")
+	// Load teams data using shared configuration service
+	teams, err := configSvc.GetTeamMapForSprint()
 	if err != nil {
-		return nil, fmt.Errorf("failed to create Jira adapter: %w", err)
+		return nil, fmt.Errorf("failed to load team configuration: %w", err)
 	}
 
 	return &SprintTimeAllocationUseCase{
