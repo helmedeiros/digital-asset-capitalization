@@ -455,6 +455,11 @@ func (m *MockJiraAdapter) GetIssuesForTeamMember(teamMember string) ([]ports.Jir
 	return args.Get(0).([]ports.JiraIssue), args.Error(1)
 }
 
+func (m *MockJiraAdapter) GetSprintsForProject(project string, states []string) ([]ports.Sprint, error) {
+	args := m.Called(project, states)
+	return args.Get(0).([]ports.Sprint), args.Error(1)
+}
+
 func TestGetIssueTimeRange(t *testing.T) {
 	processor := &SprintTimeAllocationUseCase{}
 

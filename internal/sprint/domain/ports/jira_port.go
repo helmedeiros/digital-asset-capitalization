@@ -4,6 +4,16 @@ import (
 	"github.com/helmedeiros/digital-asset-capitalization/internal/sprint/domain"
 )
 
+// Sprint represents a sprint in the ports layer
+type Sprint struct {
+	ID        string
+	Name      string
+	State     string
+	StartDate string
+	EndDate   string
+	Goal      string
+}
+
 // JiraIssue represents a Jira issue in the ports layer
 type JiraIssue struct {
 	Key         string
@@ -36,6 +46,8 @@ type JiraChangeItem struct {
 
 // JiraPort defines the interface for Jira integration
 type JiraPort interface {
+	// GetSprintsForProject retrieves all sprints for a given project
+	GetSprintsForProject(project string, states []string) ([]Sprint, error)
 	// GetIssuesForSprint retrieves all issues for a given sprint
 	GetIssuesForSprint(project, sprintID string) ([]JiraIssue, error)
 	// GetIssuesForTeamMember retrieves all issues assigned to a team member

@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"net/url"
 	"os"
+	"strings"
 
 	"github.com/helmedeiros/digital-asset-capitalization/internal/config/application/service"
 	"github.com/helmedeiros/digital-asset-capitalization/internal/config/infrastructure"
@@ -202,6 +203,69 @@ func (a *JiraAdapter) convertToPortIssues(issues []domain.JiraIssue) []ports.Jir
 	}
 
 	return portIssues
+}
+
+// GetSprintsForProject retrieves all sprints for a given project
+func (a *JiraAdapter) GetSprintsForProject(project string, states []string) ([]ports.Sprint, error) {
+	// First, get all boards for the project
+	boards, err := a.getBoardsForProject(project)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get boards for project %s: %w", project, err)
+	}
+
+	var allSprints []ports.Sprint
+
+	// Get sprints from each board
+	for _, board := range boards {
+		sprints, err := a.getSprintsForBoard(board.ID, states)
+		if err != nil {
+			// Log error but continue with other boards
+			fmt.Printf("Warning: failed to get sprints for board %d: %v\n", board.ID, err)
+			continue
+		}
+		allSprints = append(allSprints, sprints...)
+	}
+
+	return allSprints, nil
+}
+
+// getBoardsForProject retrieves all boards for a given project
+func (a *JiraAdapter) getBoardsForProject(project string) ([]Board, error) {
+	url := fmt.Sprintf("%s/rest/agile/1.0/board?projectKeyOrId=%s", a.config.GetBaseURL(), project)
+
+	boards, err := a.httpClient.GetBoards(url)
+	if err != nil {
+		return nil, fmt.Errorf("failed to fetch boards: %w", err)
+	}
+
+	return boards, nil
+}
+
+// getSprintsForBoard retrieves sprints for a given board
+func (a *JiraAdapter) getSprintsForBoard(boardID int, states []string) ([]ports.Sprint, error) {
+	statesParam := strings.Join(states, ",")
+	url := fmt.Sprintf("%s/rest/agile/1.0/board/%d/sprint?state=%s", a.config.GetBaseURL(), boardID, statesParam)
+
+	sprints, err := a.httpClient.GetSprints(url)
+	if err != nil {
+		return nil, fmt.Errorf("failed to fetch sprints for board %d: %w", boardID, err)
+	}
+
+	// Convert to ports.Sprint
+	portSprints := make([]ports.Sprint, 0, len(sprints))
+	for _, sprint := range sprints {
+		portSprint := ports.Sprint{
+			ID:        sprint.ID,
+			Name:      sprint.Name,
+			State:     sprint.State,
+			StartDate: sprint.StartDate,
+			EndDate:   sprint.EndDate,
+			Goal:      sprint.Goal,
+		}
+		portSprints = append(portSprints, portSprint)
+	}
+
+	return portSprints, nil
 }
 
 // Ensure JiraAdapter implements JiraPort

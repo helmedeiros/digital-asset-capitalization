@@ -10,6 +10,69 @@ import (
 	"github.com/helmedeiros/digital-asset-capitalization/internal/sprint/domain"
 )
 
+// Board represents a Jira board
+type Board struct {
+	ID   int    `json:"id"`
+	Name string `json:"name"`
+	Type string `json:"type"`
+}
+
+// Sprint represents a Jira sprint
+type Sprint struct {
+	ID        string `json:"id"`
+	Name      string `json:"name"`
+	State     string `json:"state"`
+	StartDate string `json:"startDate"`
+	EndDate   string `json:"endDate"`
+	Goal      string `json:"goal"`
+}
+
+// UnmarshalJSON custom unmarshaling to handle both string and number ID types
+func (s *Sprint) UnmarshalJSON(data []byte) error {
+	// Create a temporary struct to handle the raw JSON
+	type TempSprint struct {
+		ID        interface{} `json:"id"`
+		Name      string      `json:"name"`
+		State     string      `json:"state"`
+		StartDate string      `json:"startDate"`
+		EndDate   string      `json:"endDate"`
+		Goal      string      `json:"goal"`
+	}
+
+	var temp TempSprint
+	if err := json.Unmarshal(data, &temp); err != nil {
+		return err
+	}
+
+	// Convert ID to string regardless of whether it's a number or string
+	var idStr string
+	switch v := temp.ID.(type) {
+	case string:
+		idStr = v
+	case float64:
+		idStr = fmt.Sprintf("%.0f", v)
+	case int:
+		idStr = fmt.Sprintf("%d", v)
+	default:
+		idStr = fmt.Sprintf("%v", v)
+	}
+
+	// Set the fields
+	s.ID = idStr
+	s.Name = temp.Name
+	s.State = temp.State
+	s.StartDate = temp.StartDate
+	s.EndDate = temp.EndDate
+	s.Goal = temp.Goal
+
+	return nil
+}
+
+// BoardsResponse represents the response from the boards API
+type BoardsResponse struct {
+	Values []Board `json:"values"`
+}
+
 // HTTPClient handles HTTP requests to the Jira API
 type HTTPClient struct {
 	client  *http.Client
@@ -75,4 +138,45 @@ func (c *HTTPClient) GetJiraIssues(jiraURL string) ([]domain.JiraIssue, error) {
 	}
 
 	return response.Issues, nil
+}
+
+// GetBoards retrieves boards from the Jira API
+func (c *HTTPClient) GetBoards(jiraURL string) ([]Board, error) {
+	body, err := c.Get(jiraURL)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get boards: %w", err)
+	}
+
+	var response BoardsResponse
+	if err := json.Unmarshal(body, &response); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal boards response: %w", err)
+	}
+
+	return response.Values, nil
+}
+
+// GetSprints retrieves sprints from the Jira API
+func (c *HTTPClient) GetSprints(jiraURL string) ([]Sprint, error) {
+	body, err := c.Get(jiraURL)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get sprints: %w", err)
+	}
+
+	var response struct {
+		Values []json.RawMessage `json:"values"`
+	}
+	if err := json.Unmarshal(body, &response); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal sprints response: %w", err)
+	}
+
+	sprints := make([]Sprint, 0, len(response.Values))
+	for _, raw := range response.Values {
+		var sprint Sprint
+		if err := json.Unmarshal(raw, &sprint); err != nil {
+			return nil, fmt.Errorf("failed to unmarshal sprint: %w; raw=%s", err, string(raw))
+		}
+		sprints = append(sprints, sprint)
+	}
+
+	return sprints, nil
 }

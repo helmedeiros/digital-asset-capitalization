@@ -128,3 +128,79 @@ func TestHTTPClient_GetJiraIssues(t *testing.T) {
 		})
 	}
 }
+
+func TestHTTPClient_GetBoards(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte(`{"values": [{"id": 1, "name": "Board 1", "type": "scrum"} ]}`))
+	}))
+	defer server.Close()
+
+	client := NewHTTPClient(server.URL, "Bearer test-token")
+	boards, err := client.GetBoards(server.URL)
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+	if len(boards) != 1 || boards[0].Name != "Board 1" {
+		t.Errorf("unexpected boards: %+v", boards)
+	}
+}
+
+func TestHTTPClient_GetSprints(t *testing.T) {
+	t.Run("valid sprints", func(t *testing.T) {
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			w.WriteHeader(http.StatusOK)
+			w.Write([]byte(`{"values": [
+				{"id": 123, "name": "Sprint 1", "state": "active", "startDate": "2024-01-01", "endDate": "2024-01-15", "goal": "Goal 1"},
+				{"id": "456", "name": "Sprint 2", "state": "closed", "startDate": "2024-02-01", "endDate": "2024-02-15", "goal": "Goal 2"}
+			]}`))
+		}))
+		defer server.Close()
+
+		client := NewHTTPClient(server.URL, "Bearer test-token")
+		sprints, err := client.GetSprints(server.URL)
+		if err != nil {
+			t.Fatalf("expected no error, got %v", err)
+		}
+		if len(sprints) != 2 {
+			t.Errorf("expected 2 sprints, got %d", len(sprints))
+		}
+		if sprints[0].ID != "123" || sprints[1].ID != "456" {
+			t.Errorf("unexpected sprint IDs: %+v", sprints)
+		}
+	})
+
+	t.Run("invalid JSON", func(t *testing.T) {
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			w.WriteHeader(http.StatusOK)
+			w.Write([]byte(`{"values": [ {`))
+		}))
+		defer server.Close()
+
+		client := NewHTTPClient(server.URL, "Bearer test-token")
+		_, err := client.GetSprints(server.URL)
+		if err == nil {
+			t.Error("expected error for invalid JSON, got nil")
+		}
+	})
+}
+
+func TestSprint_UnmarshalJSON(t *testing.T) {
+	jsons := []struct {
+		input    string
+		expected string
+	}{
+		{`{"id": 123, "name": "SprintNum"}`, "123"},
+		{`{"id": "abc", "name": "SprintStr"}`, "abc"},
+	}
+	for _, tc := range jsons {
+		var s Sprint
+		err := s.UnmarshalJSON([]byte(tc.input))
+		if err != nil {
+			t.Errorf("unexpected error: %v", err)
+		}
+		if s.ID != tc.expected {
+			t.Errorf("expected ID %q, got %q", tc.expected, s.ID)
+		}
+	}
+}

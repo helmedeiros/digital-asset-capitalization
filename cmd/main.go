@@ -102,6 +102,7 @@ COMMANDS:
    tasks              Manage tasks from various platforms
      fetch           Fetch tasks from a platform (e.g., Jira)
    sprint             Manage sprint-related operations
+     list            List sprints for a project and time period
      allocate        Calculate time allocation for JIRA issues in a sprint
 
 For more information about a command:
@@ -141,6 +142,43 @@ For more information about a command:
 				Name:  "sprint",
 				Usage: "Manage sprint-related operations",
 				Subcommands: []*cli.Command{
+					{
+						Name:  "list",
+						Usage: "List sprints for a project and time period",
+						Action: func(ctx *cli.Context) error {
+							project := ctx.String("project")
+							period := ctx.String("period")
+							result, err := a.sprintService.ListSprints(project, period)
+							if err != nil {
+								return err
+							}
+							if len(result.Sprints) == 0 {
+								fmt.Printf("No sprints found for project %s in period %s\n", project, period)
+								return nil
+							}
+							fmt.Printf("Sprints for project %s in period %s:\n", project, period)
+							for _, sprint := range result.Sprints {
+								fmt.Printf("- %s (ID: %s): %s to %s (State: %s)\n",
+									sprint.Name, sprint.ID, sprint.StartDate,
+									sprint.EndDate, sprint.State)
+							}
+							return nil
+						},
+						Flags: []cli.Flag{
+							&cli.StringFlag{
+								Name:     "project",
+								Aliases:  []string{"p"},
+								Usage:    "Project key (e.g., FN)",
+								Required: true,
+							},
+							&cli.StringFlag{
+								Name:     "period",
+								Aliases:  []string{"t"},
+								Usage:    "Time period (e.g., Q2 2025, 2025, 2025-01-01:2025-03-31)",
+								Required: true,
+							},
+						},
+					},
 					{
 						Name:  "allocate",
 						Usage: "Calculate time allocation for JIRA issues in a sprint",

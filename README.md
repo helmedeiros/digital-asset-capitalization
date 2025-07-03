@@ -109,6 +109,37 @@ The tool:
 3. Generates a formatted output for JIRA's "Time Allocation %" field
 4. Supports integration with Google Spreadsheets for team-wide tracking
 
+### Sprint Management
+
+List and manage sprints for projects:
+
+```bash
+# List sprints for a project in a specific time period
+assetcap sprint list --project "FN" --period "Q2 2025"
+
+# List sprints for a project in a specific year
+assetcap sprint list --project "FN" --period "2025"
+
+# List sprints for a project in a custom date range
+assetcap sprint list --project "FN" --period "2025-04-01:2025-06-30"
+
+# Calculate time allocation for a specific sprint
+assetcap sprint allocate --project "FN" --sprint "Sprint Name"
+```
+
+The sprint list command supports various period formats:
+
+- **Quarter format**: `Q1 2025`, `Q2 2025`, `Q3 2025`, `Q4 2025`
+- **Year format**: `2025` (lists all sprints in that year)
+- **Date range format**: `2025-04-01:2025-06-30` (custom start and end dates)
+
+The tool automatically:
+
+1. Fetches all boards for the specified project
+2. Retrieves sprints from each board (excluding Kanban boards that don't support sprints)
+3. Filters sprints based on the specified time period
+4. Displays sprint details including ID, name, dates, and state
+
 ## Installation
 
 ### Prerequisites

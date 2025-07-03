@@ -2,6 +2,8 @@ package domain
 
 import (
 	"testing"
+
+	"github.com/stretchr/testify/assert"
 )
 
 func TestJiraChangeItem_IsStatusChange(t *testing.T) {
@@ -314,4 +316,29 @@ func TestJiraIssue_IsDone(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestJiraIssue_GetWorkType(t *testing.T) {
+	issue := &JiraIssue{Fields: JiraFields{Labels: []string{"cap-maintenance", "other"}}}
+	assert.Equal(t, "cap-maintenance", issue.GetWorkType())
+
+	issue = &JiraIssue{Fields: JiraFields{Labels: []string{"cap-discovery"}}}
+	assert.Equal(t, "cap-discovery", issue.GetWorkType())
+
+	issue = &JiraIssue{Fields: JiraFields{Labels: []string{"cap-development"}}}
+	assert.Equal(t, "cap-development", issue.GetWorkType())
+
+	issue = &JiraIssue{Fields: JiraFields{Labels: []string{"other"}}}
+	assert.Equal(t, "", issue.GetWorkType())
+}
+
+func TestJiraIssue_GetAssetName(t *testing.T) {
+	issue := &JiraIssue{Fields: JiraFields{Labels: []string{"cap-asset-foo", "other"}}}
+	assert.Equal(t, "cap-asset-foo", issue.GetAssetName())
+
+	issue = &JiraIssue{Fields: JiraFields{Labels: []string{"other", "cap-asset-bar"}}}
+	assert.Equal(t, "cap-asset-bar", issue.GetAssetName())
+
+	issue = &JiraIssue{Fields: JiraFields{Labels: []string{"other"}}}
+	assert.Equal(t, "", issue.GetAssetName())
 }
