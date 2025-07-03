@@ -130,7 +130,7 @@ func TestHTTPClient_GetJiraIssues(t *testing.T) {
 }
 
 func TestHTTPClient_GetBoards(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
 		w.Write([]byte(`{"values": [{"id": 1, "name": "Board 1", "type": "scrum"} ]}`))
 	}))
@@ -148,7 +148,7 @@ func TestHTTPClient_GetBoards(t *testing.T) {
 
 func TestHTTPClient_GetSprints(t *testing.T) {
 	t.Run("valid sprints", func(t *testing.T) {
-		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 			w.WriteHeader(http.StatusOK)
 			w.Write([]byte(`{"values": [
 				{"id": 123, "name": "Sprint 1", "state": "active", "startDate": "2024-01-01", "endDate": "2024-01-15", "goal": "Goal 1"},
@@ -171,7 +171,7 @@ func TestHTTPClient_GetSprints(t *testing.T) {
 	})
 
 	t.Run("invalid JSON", func(t *testing.T) {
-		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 			w.WriteHeader(http.StatusOK)
 			w.Write([]byte(`{"values": [ {`))
 		}))
