@@ -2,6 +2,8 @@ package infrastructure
 
 import (
 	"bytes"
+	"io"
+	"os"
 	"strings"
 	"testing"
 
@@ -220,4 +222,25 @@ func TestCLIUserInteraction_PromptMultiSelect(t *testing.T) {
 		require.NoError(t, err)
 		assert.Empty(t, result)
 	})
+}
+
+func TestCLIUserInteraction_PromptPassword(t *testing.T) {
+	// Create a pipe to simulate user input
+	reader, writer := io.Pipe()
+	defer reader.Close()
+	defer writer.Close()
+
+	// Create interaction with custom input
+	interaction := NewCLIUserInteractionWithIO(reader, os.Stdout)
+
+	// Write password to pipe in a goroutine
+	go func() {
+		writer.Write([]byte("testpassword\n"))
+	}()
+
+	// Test password prompt
+	result, err := interaction.PromptPassword("Enter password:")
+
+	assert.NoError(t, err)
+	assert.Equal(t, "testpassword", result)
 }

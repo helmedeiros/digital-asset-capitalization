@@ -68,3 +68,9 @@ func (s *SprintServiceImpl) ProcessJiraIssues(project, sprint, override string) 
 
 	return processor.Process()
 }
+
+// ListSprints lists sprints for a project and time period
+func (s *SprintServiceImpl) ListSprints(project, period string) (*usecase.ListSprintsResult, error) {
+	listSprintsUseCase := usecase.NewListSprintsUseCase(s.jiraPort)
+	return listSprintsUseCase.Execute(project, period)
+}

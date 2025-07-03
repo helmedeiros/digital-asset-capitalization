@@ -16,6 +16,7 @@ import (
 	assetsdomain "github.com/helmedeiros/digital-asset-capitalization/internal/assets/domain"
 	"github.com/helmedeiros/digital-asset-capitalization/internal/config/application/usecase"
 	configdomain "github.com/helmedeiros/digital-asset-capitalization/internal/config/domain"
+	sprintusecase "github.com/helmedeiros/digital-asset-capitalization/internal/sprint/application/usecase"
 	sprintdomain "github.com/helmedeiros/digital-asset-capitalization/internal/sprint/domain"
 	tasksdomain "github.com/helmedeiros/digital-asset-capitalization/internal/tasks/domain"
 	taskports "github.com/helmedeiros/digital-asset-capitalization/internal/tasks/domain/ports"
@@ -142,6 +143,11 @@ func (m *MockSprintService) ProcessSprint(project string, sprint *sprintdomain.S
 func (m *MockSprintService) ProcessTeamIssues(team *sprintdomain.Team) error {
 	args := m.Called(team)
 	return args.Error(0)
+}
+
+func (m *MockSprintService) ListSprints(project, period string) (*sprintusecase.ListSprintsResult, error) {
+	args := m.Called(project, period)
+	return args.Get(0).(*sprintusecase.ListSprintsResult), args.Error(1)
 }
 
 // MockTaskRepository is a mock implementation of TaskRepository
