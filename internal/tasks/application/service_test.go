@@ -3,13 +3,18 @@ package application
 import (
 	"context"
 	"errors"
+	"fmt"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 
+	"github.com/helmedeiros/digital-asset-capitalization/internal/tasks/application/usecase"
 	"github.com/helmedeiros/digital-asset-capitalization/internal/tasks/application/usecase/testutil"
 	"github.com/helmedeiros/digital-asset-capitalization/internal/tasks/domain"
+	"github.com/helmedeiros/digital-asset-capitalization/internal/tasks/domain/ports"
 )
 
 func TestTasksService_FetchTasks(t *testing.T) {
@@ -412,4 +417,292 @@ func TestTaskService_GetTasksByAsset(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestTaskService_GetTasks(t *testing.T) {
+	// Create test tasks
+	expectedTasks := []*domain.Task{
+		{
+			Key:     "TEST-1",
+			Summary: "Test Task 1",
+			Project: "TEST",
+			Sprint:  "Sprint 1",
+		},
+		{
+			Key:     "TEST-2",
+			Summary: "Test Task 2",
+			Project: "TEST",
+			Sprint:  "Sprint 1",
+		},
+	}
+
+	t.Run("should return tasks for project and sprint", func(t *testing.T) {
+		// Set up mock dependencies for this test
+		jiraRepo := testutil.NewMockTaskRepository()
+		localRepo := testutil.NewMockTaskRepository()
+		// Create a mock use case
+		mockUseCase := &MockClassifyTasksUseCase{}
+		mockUseCase.On("GetTasks", mock.Anything, "TEST", "Sprint 1").Return(expectedTasks, nil)
+
+		// Create testable service with mock use case
+		fetchUseCase := usecase.NewFetchTasksUseCase(jiraRepo, localRepo)
+		testableService := TestableTaskService(fetchUseCase, mockUseCase)
+
+		// Test
+		tasks, err := testableService.GetTasks(context.Background(), "TEST", "Sprint 1")
+
+		// Verify
+		assert.NoError(t, err, "Should not return error")
+		assert.Equal(t, expectedTasks, tasks, "Should return expected tasks")
+		mockUseCase.AssertExpectations(t)
+	})
+
+	t.Run("should return error when use case fails", func(t *testing.T) {
+		// Set up mock dependencies for this test
+		jiraRepo := testutil.NewMockTaskRepository()
+		localRepo := testutil.NewMockTaskRepository()
+
+		// Create a mock use case that returns error
+		mockUseCase := &MockClassifyTasksUseCase{}
+		mockUseCase.On("GetTasks", mock.Anything, "TEST", "Sprint 1").Return(nil, fmt.Errorf("use case error"))
+
+		// Create testable service with mock use case
+		fetchUseCase := usecase.NewFetchTasksUseCase(jiraRepo, localRepo)
+		testableService := TestableTaskService(fetchUseCase, mockUseCase)
+
+		// Test
+		tasks, err := testableService.GetTasks(context.Background(), "TEST", "Sprint 1")
+
+		// Verify
+		assert.Error(t, err, "Should return error")
+		assert.Nil(t, tasks, "Should return nil tasks")
+		assert.Contains(t, err.Error(), "use case error", "Error should contain use case error")
+		mockUseCase.AssertExpectations(t)
+	})
+
+	t.Run("should handle empty results", func(t *testing.T) {
+		// Set up mock dependencies for this test
+		jiraRepo := testutil.NewMockTaskRepository()
+		localRepo := testutil.NewMockTaskRepository()
+
+		// Create a mock use case that returns empty slice
+		mockUseCase := &MockClassifyTasksUseCase{}
+		mockUseCase.On("GetTasks", mock.Anything, "TEST", "Sprint 1").Return([]*domain.Task{}, nil)
+
+		// Create testable service with mock use case
+		fetchUseCase := usecase.NewFetchTasksUseCase(jiraRepo, localRepo)
+		testableService := TestableTaskService(fetchUseCase, mockUseCase)
+
+		// Test
+		tasks, err := testableService.GetTasks(context.Background(), "TEST", "Sprint 1")
+
+		// Verify
+		assert.NoError(t, err, "Should not return error")
+		assert.Empty(t, tasks, "Should return empty slice")
+		mockUseCase.AssertExpectations(t)
+	})
+}
+
+func TestTaskService_GetLocalRepository(t *testing.T) {
+	t.Run("should return the local repository", func(t *testing.T) {
+		// Set up mock dependencies
+		jiraRepo := testutil.NewMockTaskRepository()
+		localRepo := testutil.NewMockTaskRepository()
+		classifier := testutil.NewMockTaskClassifier()
+		userInput := testutil.NewMockUserInput()
+		assetService := testutil.NewMockAssetService()
+
+		// Create service
+		service := NewTasksService(jiraRepo, localRepo, classifier, userInput, assetService)
+
+		// Test
+		result := service.GetLocalRepository()
+
+		// Verify that we get a repository (it will be wrapped in the use case)
+		assert.NotNil(t, result, "Should return a repository")
+
+		// Since the repository is wrapped in the use case, we can't directly compare
+		// But we can verify it's not nil which means the method works
+	})
+
+	t.Run("should return consistent repository instance", func(t *testing.T) {
+		// Set up mock dependencies
+		jiraRepo := testutil.NewMockTaskRepository()
+		localRepo := testutil.NewMockTaskRepository()
+		classifier := testutil.NewMockTaskClassifier()
+		userInput := testutil.NewMockUserInput()
+		assetService := testutil.NewMockAssetService()
+
+		// Create service
+		service := NewTasksService(jiraRepo, localRepo, classifier, userInput, assetService)
+
+		// Test multiple calls
+		result1 := service.GetLocalRepository()
+		result2 := service.GetLocalRepository()
+
+		// Verify both calls return the same instance
+		assert.NotNil(t, result1, "First call should return repository")
+		assert.NotNil(t, result2, "Second call should return repository")
+		assert.Equal(t, result1, result2, "Should return same repository instance")
+	})
+}
+
+// ClassifyTasksUseCaseInterface defines the interface for the classify tasks use case
+type ClassifyTasksUseCaseInterface interface {
+	Execute(ctx context.Context, input domain.ClassifyTasksInput) error
+	GetTasks(ctx context.Context, project, sprint string) ([]*domain.Task, error)
+	GetAllTasks(ctx context.Context) ([]*domain.Task, error)
+	GetLocalRepository() ports.TaskRepository
+}
+
+// Mock for ClassifyTasksUseCase
+type MockClassifyTasksUseCase struct {
+	mock.Mock
+}
+
+func (m *MockClassifyTasksUseCase) Execute(ctx context.Context, input domain.ClassifyTasksInput) error {
+	args := m.Called(ctx, input)
+	return args.Error(0)
+}
+
+func (m *MockClassifyTasksUseCase) GetTasks(ctx context.Context, project, sprint string) ([]*domain.Task, error) {
+	args := m.Called(ctx, project, sprint)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).([]*domain.Task), args.Error(1)
+}
+
+func (m *MockClassifyTasksUseCase) GetAllTasks(ctx context.Context) ([]*domain.Task, error) {
+	args := m.Called(ctx)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).([]*domain.Task), args.Error(1)
+}
+
+func (m *MockClassifyTasksUseCase) GetLocalRepository() ports.TaskRepository {
+	args := m.Called()
+	return args.Get(0).(ports.TaskRepository)
+}
+
+// Ensure MockClassifyTasksUseCase implements the interface
+var _ ClassifyTasksUseCaseInterface = (*MockClassifyTasksUseCase)(nil)
+
+// TestableTaskService creates a TaskService for testing with injectable use case
+func TestableTaskService(fetchUseCase *usecase.FetchTasksUseCase, classifyUseCase ClassifyTasksUseCaseInterface) TaskService {
+	return &TestableTaskServiceImpl{
+		fetchTasksUseCase:    fetchUseCase,
+		classifyTasksUseCase: classifyUseCase,
+	}
+}
+
+// TestableTaskServiceImpl is a testable version of TaskServiceImpl
+type TestableTaskServiceImpl struct {
+	fetchTasksUseCase    *usecase.FetchTasksUseCase
+	classifyTasksUseCase ClassifyTasksUseCaseInterface
+}
+
+func (s *TestableTaskServiceImpl) FetchTasks(ctx context.Context, project, sprint, platform string) error {
+	return s.fetchTasksUseCase.Execute(ctx, project, sprint, platform)
+}
+
+func (s *TestableTaskServiceImpl) ClassifyTasks(ctx context.Context, input domain.ClassifyTasksInput) error {
+	return s.classifyTasksUseCase.Execute(ctx, input)
+}
+
+func (s *TestableTaskServiceImpl) GetTasks(ctx context.Context, project, sprint string) ([]*domain.Task, error) {
+	return s.classifyTasksUseCase.GetTasks(ctx, project, sprint)
+}
+
+func (s *TestableTaskServiceImpl) GetTasksByAsset(ctx context.Context, assetName string) ([]*domain.Task, error) {
+	tasks, err := s.classifyTasksUseCase.GetAllTasks(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get tasks: %w", err)
+	}
+
+	// Handle both asset names and full asset IDs
+	assetID := assetName
+	if !strings.HasPrefix(assetName, "cap-asset-") {
+		// For multi-word asset names, use just the first word
+		words := strings.Fields(assetName)
+		assetID = "cap-asset-" + strings.ToLower(words[0])
+	}
+
+	var assetTasks []*domain.Task
+	for _, task := range tasks {
+		for _, label := range task.Labels {
+			if label == assetID {
+				assetTasks = append(assetTasks, task)
+				break
+			}
+		}
+	}
+
+	return assetTasks, nil
+}
+
+func (s *TestableTaskServiceImpl) GetLocalRepository() ports.TaskRepository {
+	return s.classifyTasksUseCase.GetLocalRepository()
+}
+
+func TestTaskServiceImpl_GetTasks(t *testing.T) {
+	t.Run("should delegate to classify tasks use case", func(t *testing.T) {
+		// Set up mock dependencies
+		jiraRepo := testutil.NewMockTaskRepository()
+		localRepo := testutil.NewMockTaskRepository()
+		classifier := testutil.NewMockTaskClassifier()
+		userInput := testutil.NewMockUserInput()
+		assetService := testutil.NewMockAssetService()
+
+		// Create service using the concrete constructor
+		service := NewTasksService(jiraRepo, localRepo, classifier, userInput, assetService)
+
+		// Set up test data
+		expectedTasks := []*domain.Task{
+			{
+				Key:     "TEST-1",
+				Summary: "Test Task 1",
+				Project: "TEST",
+				Sprint:  "Sprint 1",
+			},
+		}
+
+		// Mock the local repository to return tasks
+		localRepo.SetFindByProjectAndSprintFunc(func(_ context.Context, _, _ string) ([]*domain.Task, error) {
+			return expectedTasks, nil
+		})
+
+		// Test
+		tasks, err := service.GetTasks(context.Background(), "TEST", "Sprint 1")
+
+		// Verify
+		assert.NoError(t, err, "Should not return error")
+		assert.Equal(t, expectedTasks, tasks, "Should return expected tasks")
+	})
+
+	t.Run("should return error when use case fails", func(t *testing.T) {
+		// Set up mock dependencies
+		jiraRepo := testutil.NewMockTaskRepository()
+		localRepo := testutil.NewMockTaskRepository()
+		classifier := testutil.NewMockTaskClassifier()
+		userInput := testutil.NewMockUserInput()
+		assetService := testutil.NewMockAssetService()
+
+		// Create service using the concrete constructor
+		service := NewTasksService(jiraRepo, localRepo, classifier, userInput, assetService)
+
+		// Mock the local repository to return error
+		localRepo.SetFindByProjectAndSprintFunc(func(_ context.Context, _, _ string) ([]*domain.Task, error) {
+			return nil, fmt.Errorf("repository error")
+		})
+
+		// Test
+		tasks, err := service.GetTasks(context.Background(), "TEST", "Sprint 1")
+
+		// Verify
+		assert.Error(t, err, "Should return error")
+		assert.Nil(t, tasks, "Should return nil tasks")
+		assert.Contains(t, err.Error(), "failed to find existing tasks", "Error should contain repository error")
+	})
 }

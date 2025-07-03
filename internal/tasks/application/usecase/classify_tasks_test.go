@@ -454,3 +454,204 @@ func TestGetTasks(t *testing.T) {
 		mockRemoteRepo.AssertExpectations(t)
 	})
 }
+
+func TestGetAllTasks(t *testing.T) {
+	ctx := context.Background()
+
+	t.Run("should return all tasks from local repository", func(t *testing.T) {
+		// Create mocks
+		mockLocalRepo := new(MockTaskRepository)
+		mockRemoteRepo := new(MockTaskRepository)
+		mockClassifier := new(MockTaskClassifier)
+		mockUserInput := new(MockUserInput)
+
+		// Create use case
+		assetService := testutil.NewMockAssetService()
+		uc := NewClassifyTasksUseCase(mockLocalRepo, mockRemoteRepo, mockClassifier, mockUserInput, assetService)
+
+		// Arrange
+		expectedTasks := []*domain.Task{
+			{Key: "TEST-1", Summary: "Task 1"},
+			{Key: "TEST-2", Summary: "Task 2"},
+			{Key: "DEV-1", Summary: "Dev Task"},
+		}
+
+		mockLocalRepo.On("FindAll", ctx).Return(expectedTasks, nil)
+
+		// Act
+		tasks, err := uc.GetAllTasks(ctx)
+
+		// Assert
+		assert.NoError(t, err)
+		assert.Equal(t, expectedTasks, tasks)
+		mockLocalRepo.AssertExpectations(t)
+	})
+
+	t.Run("should return error when repository fails", func(t *testing.T) {
+		// Create mocks
+		mockLocalRepo := new(MockTaskRepository)
+		mockRemoteRepo := new(MockTaskRepository)
+		mockClassifier := new(MockTaskClassifier)
+		mockUserInput := new(MockUserInput)
+
+		// Create use case
+		assetService := testutil.NewMockAssetService()
+		uc := NewClassifyTasksUseCase(mockLocalRepo, mockRemoteRepo, mockClassifier, mockUserInput, assetService)
+
+		// Arrange
+		mockLocalRepo.On("FindAll", ctx).Return(nil, fmt.Errorf("repository error"))
+
+		// Act
+		tasks, err := uc.GetAllTasks(ctx)
+
+		// Assert
+		assert.Error(t, err)
+		assert.Nil(t, tasks)
+		assert.Contains(t, err.Error(), "repository error")
+		mockLocalRepo.AssertExpectations(t)
+	})
+
+	t.Run("should return empty slice when no tasks exist", func(t *testing.T) {
+		// Create mocks
+		mockLocalRepo := new(MockTaskRepository)
+		mockRemoteRepo := new(MockTaskRepository)
+		mockClassifier := new(MockTaskClassifier)
+		mockUserInput := new(MockUserInput)
+
+		// Create use case
+		assetService := testutil.NewMockAssetService()
+		uc := NewClassifyTasksUseCase(mockLocalRepo, mockRemoteRepo, mockClassifier, mockUserInput, assetService)
+
+		// Arrange
+		mockLocalRepo.On("FindAll", ctx).Return([]*domain.Task{}, nil)
+
+		// Act
+		tasks, err := uc.GetAllTasks(ctx)
+
+		// Assert
+		assert.NoError(t, err)
+		assert.Empty(t, tasks)
+		mockLocalRepo.AssertExpectations(t)
+	})
+}
+
+func TestGetLocalRepository(t *testing.T) {
+	t.Run("should return the local repository instance", func(t *testing.T) {
+		// Create mocks
+		mockLocalRepo := new(MockTaskRepository)
+		mockRemoteRepo := new(MockTaskRepository)
+		mockClassifier := new(MockTaskClassifier)
+		mockUserInput := new(MockUserInput)
+
+		// Create use case
+		assetService := testutil.NewMockAssetService()
+		uc := NewClassifyTasksUseCase(mockLocalRepo, mockRemoteRepo, mockClassifier, mockUserInput, assetService)
+
+		// Act
+		repo := uc.GetLocalRepository()
+
+		// Assert
+		assert.Equal(t, mockLocalRepo, repo)
+		assert.NotNil(t, repo)
+	})
+}
+
+func TestFormatWorkType(t *testing.T) {
+	tests := []struct {
+		name     string
+		workType domain.WorkType
+		expected string
+	}{
+		{
+			name:     "should format discovery work type",
+			workType: domain.WorkTypeDiscovery,
+			expected: "🔍 DISCOVERY",
+		},
+		{
+			name:     "should format development work type",
+			workType: domain.WorkTypeDevelopment,
+			expected: "🚀 DEVELOPMENT",
+		},
+		{
+			name:     "should format maintenance work type",
+			workType: domain.WorkTypeMaintenance,
+			expected: "🔧 MAINTENANCE",
+		},
+		{
+			name:     "should format unknown work type",
+			workType: domain.WorkType("unknown"),
+			expected: "❓ UNKNOWN",
+		},
+		{
+			name:     "should format empty work type as unknown",
+			workType: domain.WorkType(""),
+			expected: "❓ UNKNOWN",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := formatWorkType(tt.workType)
+			assert.Equal(t, tt.expected, result)
+		})
+	}
+}
+
+func TestGetAssetLabel(t *testing.T) {
+	// Create mocks for the use case (needed to call the method)
+	mockLocalRepo := new(MockTaskRepository)
+	mockRemoteRepo := new(MockTaskRepository)
+	mockClassifier := new(MockTaskClassifier)
+	mockUserInput := new(MockUserInput)
+	assetService := testutil.NewMockAssetService()
+	uc := NewClassifyTasksUseCase(mockLocalRepo, mockRemoteRepo, mockClassifier, mockUserInput, assetService)
+
+	tests := []struct {
+		name      string
+		assetName string
+		expected  string
+	}{
+		{
+			name:      "should format simple asset name",
+			assetName: "TestAsset",
+			expected:  "cap-asset-testasset",
+		},
+		{
+			name:      "should format asset name with spaces",
+			assetName: "My Test Asset",
+			expected:  "cap-asset-my-test-asset",
+		},
+		{
+			name:      "should format asset name with mixed case",
+			assetName: "CamelCaseAsset",
+			expected:  "cap-asset-camelcaseasset",
+		},
+		{
+			name:      "should format asset name with multiple spaces",
+			assetName: "Asset  With   Multiple Spaces",
+			expected:  "cap-asset-asset--with---multiple-spaces",
+		},
+		{
+			name:      "should format single word asset",
+			assetName: "Asset",
+			expected:  "cap-asset-asset",
+		},
+		{
+			name:      "should handle empty asset name",
+			assetName: "",
+			expected:  "cap-asset-",
+		},
+		{
+			name:      "should format asset name with special characters",
+			assetName: "Asset With-Hyphens_And_Underscores",
+			expected:  "cap-asset-asset-with-hyphens_and_underscores",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := uc.getAssetLabel(tt.assetName)
+			assert.Equal(t, tt.expected, result)
+		})
+	}
+}

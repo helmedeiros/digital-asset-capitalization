@@ -106,3 +106,12 @@ func TestCLIUserInput_Confirm(t *testing.T) {
 		})
 	}
 }
+
+func TestNewUserInput(t *testing.T) {
+	t.Run("should create UserInput with reader", func(t *testing.T) {
+		userInput := NewUserInput()
+
+		assert.NotNil(t, userInput, "UserInput should not be nil")
+		assert.NotNil(t, userInput.reader, "Reader should not be nil")
+	})
+}

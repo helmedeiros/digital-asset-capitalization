@@ -1,11 +1,12 @@
 package infrastructure
 
 import (
-	"encoding/json"
 	"fmt"
 	"net/url"
 	"os"
 
+	"github.com/helmedeiros/digital-asset-capitalization/internal/config/application/service"
+	"github.com/helmedeiros/digital-asset-capitalization/internal/config/infrastructure"
 	"github.com/helmedeiros/digital-asset-capitalization/internal/sprint/config"
 	"github.com/helmedeiros/digital-asset-capitalization/internal/sprint/domain"
 	"github.com/helmedeiros/digital-asset-capitalization/internal/sprint/domain/ports"
@@ -13,54 +14,84 @@ import (
 
 // JiraAdapter implements the JiraPort interface
 type JiraAdapter struct {
-	config     *config.JiraConfig
-	teams      domain.TeamMap
-	httpClient *HTTPClient
+	config        *config.JiraConfig
+	teams         domain.TeamMap
+	httpClient    *HTTPClient
+	configService *service.ConfigService
 }
 
-// NewJiraAdapter creates a new Jira adapter
-func NewJiraAdapter(teamsFilePath string) (*JiraAdapter, error) {
-	// Load Jira configuration
-	jiraConfig, err := config.NewJiraConfig()
+// NewJiraAdapter creates a new Jira adapter using shared configuration
+func NewJiraAdapter() (*JiraAdapter, error) {
+	// Initialize configuration service with file repository
+	configRepo := infrastructure.NewFileRepository(".assetcap")
+	configService := service.NewConfigService(configRepo)
+
+	// Load Jira configuration - fallback to legacy approach if new config doesn't exist
+	jiraConfig, err := loadJiraConfig(configService)
 	if err != nil {
 		return nil, fmt.Errorf("failed to load Jira configuration: %w", err)
 	}
 
-	// Load teams data
-	var teams domain.TeamMap
-	var teamsData []byte
-
-	// Try to read teams.json from the specified path
-	teamsData, err = os.ReadFile(teamsFilePath)
+	// Load teams data using shared configuration service
+	teams, err := configService.GetTeamMapForSprint()
 	if err != nil {
-		// Try to use teams.json.template as fallback
-		teamsData, err = os.ReadFile(teamsFilePath + ".template")
-		if err != nil {
-			// Create a default teams.json file
-			teamsData = []byte(`{
-				"FN": {
-					"team": ["helio.medeiros", "julio.medeiros"]
-				}
-			}`)
-			err = os.WriteFile(teamsFilePath, teamsData, 0644)
-			if err != nil {
-				return nil, fmt.Errorf("failed to create default teams.json: %w", err)
-			}
-		}
-	}
-
-	if err := json.Unmarshal(teamsData, &teams); err != nil {
-		return nil, fmt.Errorf("error unmarshaling teams data: %w", err)
+		return nil, fmt.Errorf("failed to load team configuration: %w", err)
 	}
 
 	// Create HTTP client
 	httpClient := NewHTTPClient(jiraConfig.GetBaseURL(), jiraConfig.GetAuthHeader())
 
 	return &JiraAdapter{
-		config:     jiraConfig,
-		teams:      teams,
-		httpClient: httpClient,
+		config:        jiraConfig,
+		teams:         teams,
+		httpClient:    httpClient,
+		configService: configService,
 	}, nil
+}
+
+// NewJiraAdapterLegacy creates a new Jira adapter using legacy file path (for backward compatibility)
+// Deprecated: Use NewJiraAdapter() instead
+func NewJiraAdapterLegacy(_ string) (*JiraAdapter, error) {
+	return NewJiraAdapter()
+}
+
+// loadJiraConfig loads Jira configuration, falling back to legacy approach if needed
+func loadJiraConfig(configService *service.ConfigService) (*config.JiraConfig, error) {
+	// Try to load from new configuration system first
+	jiraConfig, err := configService.GetJiraConfig()
+	if err == nil {
+		// Set environment variables temporarily for legacy config creation
+		origBaseURL := os.Getenv("JIRA_BASE_URL")
+		origEmail := os.Getenv("JIRA_EMAIL")
+		origToken := os.Getenv("JIRA_TOKEN")
+
+		// Temporarily set environment variables
+		os.Setenv("JIRA_BASE_URL", jiraConfig.BaseURL())
+		os.Setenv("JIRA_EMAIL", jiraConfig.Email())
+		os.Setenv("JIRA_TOKEN", jiraConfig.Token())
+
+		// Create legacy config
+		legacyConfig, createErr := config.NewJiraConfig()
+
+		// Restore original environment variables
+		os.Setenv("JIRA_BASE_URL", origBaseURL)
+		os.Setenv("JIRA_EMAIL", origEmail)
+		os.Setenv("JIRA_TOKEN", origToken)
+
+		if createErr != nil {
+			return nil, fmt.Errorf("failed to create legacy config from new configuration: %w", createErr)
+		}
+
+		return legacyConfig, nil
+	}
+
+	// Fall back to legacy environment-based configuration
+	legacyConfig, legacyErr := config.NewJiraConfig()
+	if legacyErr != nil {
+		return nil, fmt.Errorf("failed to load configuration from both new system and legacy environment: new=%v, legacy=%v", err, legacyErr)
+	}
+
+	return legacyConfig, nil
 }
 
 // GetIssuesForSprint retrieves all issues for a given sprint

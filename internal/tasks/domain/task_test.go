@@ -346,3 +346,93 @@ func TestStatusChecks(t *testing.T) {
 		assert.True(t, task.IsBlocked())
 	})
 }
+
+func TestTask_UpdateWorkType(t *testing.T) {
+	task, err := NewTask("TEST-1", "Test Task", "TEST", "Sprint 1", "web")
+	require.NoError(t, err)
+
+	initialVersion := task.Version
+	initialUpdatedAt := task.UpdatedAt
+
+	t.Run("should update to valid work type - maintenance", func(t *testing.T) {
+		err := task.UpdateWorkType(WorkTypeMaintenance)
+		assert.NoError(t, err, "Should update to maintenance work type without error")
+		assert.Equal(t, WorkTypeMaintenance, task.WorkType, "Work type should be set to maintenance")
+		assert.Equal(t, initialVersion+1, task.Version, "Version should increment")
+		assert.True(t, task.UpdatedAt.After(initialUpdatedAt), "UpdatedAt should be updated")
+	})
+
+	t.Run("should update to valid work type - discovery", func(t *testing.T) {
+		currentVersion := task.Version
+		currentUpdatedAt := task.UpdatedAt
+
+		err := task.UpdateWorkType(WorkTypeDiscovery)
+		assert.NoError(t, err, "Should update to discovery work type without error")
+		assert.Equal(t, WorkTypeDiscovery, task.WorkType, "Work type should be set to discovery")
+		assert.Equal(t, currentVersion+1, task.Version, "Version should increment")
+		assert.True(t, task.UpdatedAt.After(currentUpdatedAt), "UpdatedAt should be updated")
+	})
+
+	t.Run("should update to valid work type - development", func(t *testing.T) {
+		currentVersion := task.Version
+		currentUpdatedAt := task.UpdatedAt
+
+		err := task.UpdateWorkType(WorkTypeDevelopment)
+		assert.NoError(t, err, "Should update to development work type without error")
+		assert.Equal(t, WorkTypeDevelopment, task.WorkType, "Work type should be set to development")
+		assert.Equal(t, currentVersion+1, task.Version, "Version should increment")
+		assert.True(t, task.UpdatedAt.After(currentUpdatedAt), "UpdatedAt should be updated")
+	})
+
+	t.Run("should return error for invalid work type", func(t *testing.T) {
+		currentWorkType := task.WorkType
+		currentVersion := task.Version
+		currentUpdatedAt := task.UpdatedAt
+
+		err := task.UpdateWorkType(WorkType("invalid-work-type"))
+		assert.Error(t, err, "Should return error for invalid work type")
+		assert.ErrorIs(t, err, ErrInvalidWorkType, "Should return ErrInvalidWorkType")
+
+		// State should remain unchanged
+		assert.Equal(t, currentWorkType, task.WorkType, "Work type should remain unchanged")
+		assert.Equal(t, currentVersion, task.Version, "Version should remain unchanged")
+		assert.Equal(t, currentUpdatedAt, task.UpdatedAt, "UpdatedAt should remain unchanged")
+	})
+
+	t.Run("should handle empty work type", func(t *testing.T) {
+		currentWorkType := task.WorkType
+		currentVersion := task.Version
+
+		err := task.UpdateWorkType(WorkType(""))
+		assert.Error(t, err, "Should return error for empty work type")
+		assert.ErrorIs(t, err, ErrInvalidWorkType, "Should return ErrInvalidWorkType")
+		assert.Equal(t, currentWorkType, task.WorkType, "Work type should remain unchanged")
+		assert.Equal(t, currentVersion, task.Version, "Version should remain unchanged")
+	})
+
+	t.Run("should handle all valid work types", func(t *testing.T) {
+		validWorkTypes := []WorkType{
+			WorkTypeMaintenance,
+			WorkTypeDiscovery,
+			WorkTypeDevelopment,
+		}
+
+		for _, workType := range validWorkTypes {
+			err := task.UpdateWorkType(workType)
+			assert.NoError(t, err, "Should accept valid work type: %s", workType)
+			assert.Equal(t, workType, task.WorkType, "Work type should be set correctly")
+		}
+	})
+
+	t.Run("should handle case sensitivity", func(t *testing.T) {
+		currentWorkType := task.WorkType
+		currentVersion := task.Version
+
+		// Test uppercase version of valid work type
+		err := task.UpdateWorkType(WorkType("CAP-MAINTENANCE"))
+		assert.Error(t, err, "Should be case sensitive")
+		assert.ErrorIs(t, err, ErrInvalidWorkType, "Should return ErrInvalidWorkType")
+		assert.Equal(t, currentWorkType, task.WorkType, "Work type should remain unchanged")
+		assert.Equal(t, currentVersion, task.Version, "Version should remain unchanged")
+	})
+}

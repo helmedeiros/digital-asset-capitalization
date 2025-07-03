@@ -14,17 +14,46 @@ import (
 	"github.com/helmedeiros/digital-asset-capitalization/internal/assets/infrastructure/confluence"
 	"github.com/helmedeiros/digital-asset-capitalization/internal/assets/infrastructure/keywords"
 	"github.com/helmedeiros/digital-asset-capitalization/internal/assets/infrastructure/llama"
+	"github.com/helmedeiros/digital-asset-capitalization/internal/config/application/service"
 )
 
 // AssetServiceImpl implements the AssetService interface
 type AssetServiceImpl struct {
-	repo       ports.AssetRepository
-	llama      LlamaClient
-	confluence ConfluenceAdapter
+	repo          ports.AssetRepository
+	llama         LlamaClient
+	confluence    ConfluenceAdapter
+	configService *service.ConfigService
 }
 
-// NewAssetService creates a new AssetService instance
-func NewAssetService(repo ports.AssetRepository) AssetService {
+// NewAssetService creates a new AssetService instance using shared configuration
+func NewAssetService(repo ports.AssetRepository, configService *service.ConfigService) AssetService {
+	// Initialize LLaMA client
+	llamaConfig := llama.DefaultConfig()
+	llamaClient, err := llama.NewClient(llamaConfig)
+	if err != nil {
+		// Log the error but don't fail initialization
+		fmt.Printf("Warning: Failed to initialize LLaMA client: %v\n", err)
+	}
+
+	// Create Confluence adapter with shared configuration
+	confluenceAdapter, err := createConfluenceAdapter(configService)
+	if err != nil {
+		// Log the error but don't fail initialization
+		fmt.Printf("Warning: Failed to initialize Confluence adapter: %v\n", err)
+	}
+
+	return &AssetServiceImpl{
+		repo:          repo,
+		llama:         llamaClient,
+		confluence:    confluenceAdapter,
+		configService: configService,
+	}
+}
+
+// NewAssetServiceLegacy creates a new AssetService instance using legacy environment variables
+// Deprecated: Use NewAssetService with ConfigService instead
+func NewAssetServiceLegacy(repo ports.AssetRepository) AssetService {
+	// Initialize LLaMA client
 	llamaConfig := llama.DefaultConfig()
 	llamaClient, err := llama.NewClient(llamaConfig)
 	if err != nil {
@@ -43,6 +72,25 @@ func NewAssetService(repo ports.AssetRepository) AssetService {
 		llama:      llamaClient,
 		confluence: confluenceAdapter,
 	}
+}
+
+// createConfluenceAdapter creates a Confluence adapter using shared configuration
+func createConfluenceAdapter(configService *service.ConfigService) (ConfluenceAdapter, error) {
+	if configService == nil {
+		return nil, fmt.Errorf("config service is required")
+	}
+
+	jiraConfig, err := configService.GetJiraConfig()
+	if err != nil {
+		return nil, fmt.Errorf("failed to get Jira configuration: %w", err)
+	}
+
+	config := confluence.DefaultConfig()
+	config.BaseURL = jiraConfig.BaseURL()
+	config.Username = jiraConfig.Email()
+	config.Token = jiraConfig.Token()
+
+	return confluence.NewAdapter(config), nil
 }
 
 // CreateAsset creates a new asset with the given name and description
@@ -162,20 +210,35 @@ func (s *AssetServiceImpl) DecrementTaskCount(name string) error {
 
 // SyncFromConfluence fetches assets from Confluence and updates the local repository
 func (s *AssetServiceImpl) SyncFromConfluence(spaceKey, label string, debug bool) (*domain.SyncResult, error) {
+	// Use shared configuration if available, fallback to environment variables
 	config := confluence.DefaultConfig()
 
-	// Get configuration from environment variables
-	config.BaseURL = os.Getenv("JIRA_BASE_URL")
+	if s.configService != nil {
+		jiraConfig, err := s.configService.GetJiraConfig()
+		if err == nil {
+			config.BaseURL = jiraConfig.BaseURL()
+			config.Username = jiraConfig.Email()
+			config.Token = jiraConfig.Token()
+		} else {
+			// Fallback to environment variables
+			config.BaseURL = os.Getenv("JIRA_BASE_URL")
+			config.Token = os.Getenv("JIRA_TOKEN")
+		}
+	} else {
+		// Fallback to environment variables
+		config.BaseURL = os.Getenv("JIRA_BASE_URL")
+		config.Token = os.Getenv("JIRA_TOKEN")
+	}
+
 	config.SpaceKey = spaceKey
 	config.Label = label
-	config.Token = os.Getenv("JIRA_TOKEN")
 	config.Debug = debug
 
 	if config.BaseURL == "" {
-		return nil, fmt.Errorf("JIRA_BASE_URL environment variable must be set")
+		return nil, fmt.Errorf("Jira base URL is not configured. Please run 'assetcap config init' or set JIRA_BASE_URL environment variable")
 	}
 	if config.Token == "" {
-		return nil, fmt.Errorf("JIRA_TOKEN environment variable must be set")
+		return nil, fmt.Errorf("Jira token is not configured. Please run 'assetcap config init' or set JIRA_TOKEN environment variable")
 	}
 
 	adapter := confluence.NewAdapter(config)

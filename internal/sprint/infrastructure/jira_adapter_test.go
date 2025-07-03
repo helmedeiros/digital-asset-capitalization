@@ -1,7 +1,6 @@
 package infrastructure
 
 import (
-	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -15,53 +14,56 @@ import (
 )
 
 func setupTestEnv(t *testing.T) func() {
-	// Create test directory
-	testDir := filepath.Join("testdata", t.Name())
-	err := os.MkdirAll(testDir, 0755)
-	require.NoError(t, err, "Failed to create test directory")
-
-	// Create .assetcap directory
-	assetcapDir := filepath.Join(testDir, ".assetcap")
-	err = os.MkdirAll(assetcapDir, 0755)
-	require.NoError(t, err, "Failed to create .assetcap directory")
-
-	teamsFilePath := filepath.Join(assetcapDir, "teams.json")
-
-	// Create a temporary teams.json file
-	teams := domain.TeamMap{
-		"TEST": domain.Team{
-			Team: []string{"Test User 1", "Test User 2"},
-		},
-	}
-
-	data, err := json.Marshal(teams)
-	require.NoError(t, err, "Failed to marshal teams data")
-
-	err = os.WriteFile(teamsFilePath, data, 0644)
-	require.NoError(t, err, "Failed to write teams.json")
-
-	// Get current working directory
-	originalWd, err := os.Getwd()
-	require.NoError(t, err, "Failed to get current working directory")
-
-	// Change working directory to test directory
-	err = os.Chdir(testDir)
-	require.NoError(t, err, "Failed to change working directory")
-
-	// Set environment variables for testing
-	os.Setenv("JIRA_BASE_URL", "http://test.jira.com")
+	// Set up test environment variables
+	os.Setenv("JIRA_BASE_URL", "https://test.atlassian.net")
 	os.Setenv("JIRA_EMAIL", "test@example.com")
 	os.Setenv("JIRA_TOKEN", "test-token")
 
-	// Return cleanup function
+	// Create test directory
+	originalWd, _ := os.Getwd()
+	testDir := filepath.Join(originalWd, "testdata", t.Name())
+	err := os.MkdirAll(testDir, 0755)
+	if err != nil {
+		t.Fatalf("Failed to create test directory: %v", err)
+	}
+
+	// Create test teams.json
+	teamsJSON := `{
+		"FN": {
+			"team": ["Test User 1", "Test User 2"]
+		}
+	}`
+	err = os.WriteFile(filepath.Join(testDir, "teams.json"), []byte(teamsJSON), 0644)
+	if err != nil {
+		t.Fatalf("Failed to create test teams.json: %v", err)
+	}
+
+	// Create .assetcap directory and teams.json file
+	assetCapDir := ".assetcap"
+	err = os.MkdirAll(assetCapDir, 0755)
+	if err != nil {
+		t.Fatalf("Failed to create .assetcap directory: %v", err)
+	}
+
+	teamsFile := filepath.Join(assetCapDir, "teams.json")
+	err = os.WriteFile(teamsFile, []byte(teamsJSON), 0644)
+	if err != nil {
+		t.Fatalf("Failed to create .assetcap/teams.json: %v", err)
+	}
+
+	// Create adapter with test server URL
+	os.Setenv("JIRA_BASE_URL", "https://test.atlassian.net")
+	adapter, err := NewJiraAdapter()
+	require.NoError(t, err)
+	require.NotNil(t, adapter)
+
 	return func() {
-		// Restore original working directory
-		err := os.Chdir(originalWd)
+		// Clean up test files
+		err = os.RemoveAll(assetCapDir)
 		if err != nil {
-			t.Errorf("Failed to restore working directory: %v", err)
+			t.Errorf("Failed to clean up .assetcap directory: %v", err)
 		}
 
-		// Clean up test directory
 		err = os.RemoveAll(filepath.Join(originalWd, "testdata", t.Name()))
 		if err != nil {
 			t.Errorf("Failed to clean up test directory: %v", err)
@@ -103,7 +105,7 @@ func TestJiraAdapter_GetIssues(t *testing.T) {
 
 	// Create adapter with test server URL
 	os.Setenv("JIRA_BASE_URL", server.URL)
-	adapter, err := NewJiraAdapter(t.TempDir() + "/teams.json")
+	adapter, err := NewJiraAdapter()
 	require.NoError(t, err)
 	require.NotNil(t, adapter)
 
@@ -148,7 +150,7 @@ func TestJiraAdapter_GetTeamIssues(t *testing.T) {
 
 	// Create adapter with test server URL
 	os.Setenv("JIRA_BASE_URL", server.URL)
-	adapter, err := NewJiraAdapter(t.TempDir() + "/teams.json")
+	adapter, err := NewJiraAdapter()
 	require.NoError(t, err)
 	require.NotNil(t, adapter)
 
@@ -176,7 +178,7 @@ func TestJiraAdapter_ServerError(t *testing.T) {
 
 	// Create adapter with test server URL
 	os.Setenv("JIRA_BASE_URL", server.URL)
-	adapter, err := NewJiraAdapter(t.TempDir() + "/teams.json")
+	adapter, err := NewJiraAdapter()
 	require.NoError(t, err)
 	require.NotNil(t, adapter)
 
@@ -200,7 +202,7 @@ func TestJiraAdapter_InvalidJSON(t *testing.T) {
 
 	// Create adapter with test server URL
 	os.Setenv("JIRA_BASE_URL", server.URL)
-	adapter, err := NewJiraAdapter(t.TempDir() + "/teams.json")
+	adapter, err := NewJiraAdapter()
 	require.NoError(t, err)
 	require.NotNil(t, adapter)
 
@@ -241,7 +243,7 @@ func TestJiraAdapter_GetSprintIssues(t *testing.T) {
 
 	// Create adapter with test server URL
 	os.Setenv("JIRA_BASE_URL", server.URL)
-	adapter, err := NewJiraAdapter(t.TempDir() + "/teams.json")
+	adapter, err := NewJiraAdapter()
 	require.NoError(t, err)
 	require.NotNil(t, adapter)
 
