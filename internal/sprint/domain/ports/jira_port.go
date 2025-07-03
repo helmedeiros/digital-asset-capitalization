@@ -48,6 +48,8 @@ type JiraChangeItem struct {
 type JiraPort interface {
 	// GetSprintsForProject retrieves all sprints for a given project
 	GetSprintsForProject(project string, states []string) ([]Sprint, error)
+	// GetSprintsForProjectWithBoardInfo retrieves sprints with board information
+	GetSprintsForProjectWithBoardInfo(project string, states []string) ([]Sprint, []BoardInfo, error)
 	// GetIssuesForSprint retrieves all issues for a given sprint
 	GetIssuesForSprint(project, sprintID string) ([]JiraIssue, error)
 	// GetIssuesForTeamMember retrieves all issues assigned to a team member
@@ -56,4 +58,12 @@ type JiraPort interface {
 	GetSprintIssues(sprint *domain.Sprint) ([]JiraIssue, error)
 	// GetTeamIssues retrieves all issues for a team
 	GetTeamIssues(team *domain.Team) ([]JiraIssue, error)
+}
+
+// BoardInfo represents information about a board
+type BoardInfo struct {
+	ID         int
+	Name       string
+	Type       string
+	HasSprints bool
 }

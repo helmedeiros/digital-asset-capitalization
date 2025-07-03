@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/helmedeiros/digital-asset-capitalization/internal/sprint/domain"
@@ -155,28 +156,55 @@ func (c *HTTPClient) GetBoards(jiraURL string) ([]Board, error) {
 	return response.Values, nil
 }
 
-// GetSprints retrieves sprints from the Jira API
+// SprintsResponse represents the response from the sprints API
+type SprintsResponse struct {
+	Values     []json.RawMessage `json:"values"`
+	IsLast     bool              `json:"isLast"`
+	StartAt    int               `json:"startAt"`
+	MaxResults int               `json:"maxResults"`
+}
+
+// GetSprints retrieves sprints from the Jira API with pagination support
 func (c *HTTPClient) GetSprints(jiraURL string) ([]Sprint, error) {
-	body, err := c.Get(jiraURL)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get sprints: %w", err)
-	}
+	var allSprints []Sprint
+	startAt := 0
+	maxResults := 50 // Default page size
 
-	var response struct {
-		Values []json.RawMessage `json:"values"`
-	}
-	if err := json.Unmarshal(body, &response); err != nil {
-		return nil, fmt.Errorf("failed to unmarshal sprints response: %w", err)
-	}
-
-	sprints := make([]Sprint, 0, len(response.Values))
-	for _, raw := range response.Values {
-		var sprint Sprint
-		if err := json.Unmarshal(raw, &sprint); err != nil {
-			return nil, fmt.Errorf("failed to unmarshal sprint: %w; raw=%s", err, string(raw))
+	for {
+		// Add pagination parameters
+		separator := "&"
+		if !strings.Contains(jiraURL, "?") {
+			separator = "?"
 		}
-		sprints = append(sprints, sprint)
+		paginatedURL := fmt.Sprintf("%s%sstartAt=%d&maxResults=%d", jiraURL, separator, startAt, maxResults)
+
+		body, err := c.Get(paginatedURL)
+		if err != nil {
+			return nil, fmt.Errorf("failed to get sprints: %w", err)
+		}
+
+		var response SprintsResponse
+		if err := json.Unmarshal(body, &response); err != nil {
+			return nil, fmt.Errorf("failed to unmarshal sprints response: %w", err)
+		}
+
+		// Process sprints from this page
+		for _, raw := range response.Values {
+			var sprint Sprint
+			if err := json.Unmarshal(raw, &sprint); err != nil {
+				return nil, fmt.Errorf("failed to unmarshal sprint: %w; raw=%s", err, string(raw))
+			}
+			allSprints = append(allSprints, sprint)
+		}
+
+		// Check if this is the last page
+		if response.IsLast || len(response.Values) == 0 {
+			break
+		}
+
+		// Move to next page
+		startAt += len(response.Values)
 	}
 
-	return sprints, nil
+	return allSprints, nil
 }

@@ -229,6 +229,40 @@ func (a *JiraAdapter) GetSprintsForProject(project string, states []string) ([]p
 	return allSprints, nil
 }
 
+// GetSprintsForProjectWithBoardInfo returns sprints along with board information
+func (a *JiraAdapter) GetSprintsForProjectWithBoardInfo(project string, states []string) ([]ports.Sprint, []ports.BoardInfo, error) {
+	// First, get all boards for the project
+	boards, err := a.getBoardsForProject(project)
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to get boards for project %s: %w", project, err)
+	}
+
+	var allSprints []ports.Sprint
+	boardInfo := make([]ports.BoardInfo, 0, len(boards))
+
+	// Get sprints from each board and collect board information
+	for _, board := range boards {
+		sprints, err := a.getSprintsForBoard(board.ID, states)
+		hasSprints := err == nil && len(sprints) > 0
+
+		// Add board info
+		boardInfo = append(boardInfo, ports.BoardInfo{
+			ID:         board.ID,
+			Name:       board.Name,
+			Type:       board.Type,
+			HasSprints: hasSprints,
+		})
+
+		if err != nil {
+			// Don't log warning here - we'll handle it in the formatter
+			continue
+		}
+		allSprints = append(allSprints, sprints...)
+	}
+
+	return allSprints, boardInfo, nil
+}
+
 // getBoardsForProject retrieves all boards for a given project
 func (a *JiraAdapter) getBoardsForProject(project string) ([]Board, error) {
 	url := fmt.Sprintf("%s/rest/agile/1.0/board?projectKeyOrId=%s", a.config.GetBaseURL(), project)
@@ -243,8 +277,14 @@ func (a *JiraAdapter) getBoardsForProject(project string) ([]Board, error) {
 
 // getSprintsForBoard retrieves sprints for a given board
 func (a *JiraAdapter) getSprintsForBoard(boardID int, states []string) ([]ports.Sprint, error) {
-	statesParam := strings.Join(states, ",")
-	url := fmt.Sprintf("%s/rest/agile/1.0/board/%d/sprint?state=%s", a.config.GetBaseURL(), boardID, statesParam)
+	var url string
+	if len(states) == 0 {
+		// Fetch all sprints without state filter
+		url = fmt.Sprintf("%s/rest/agile/1.0/board/%d/sprint", a.config.GetBaseURL(), boardID)
+	} else {
+		statesParam := strings.Join(states, ",")
+		url = fmt.Sprintf("%s/rest/agile/1.0/board/%d/sprint?state=%s", a.config.GetBaseURL(), boardID, statesParam)
+	}
 
 	sprints, err := a.httpClient.GetSprints(url)
 	if err != nil {

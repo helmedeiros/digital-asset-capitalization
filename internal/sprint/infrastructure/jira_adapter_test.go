@@ -5,6 +5,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -13,11 +14,52 @@ import (
 	"github.com/helmedeiros/digital-asset-capitalization/internal/sprint/domain"
 )
 
-func setupTestEnv(t *testing.T) func() {
-	// Set up test environment variables
-	os.Setenv("JIRA_BASE_URL", "https://test.atlassian.net")
+// createTestJiraAdapter creates a JiraAdapter for testing with a mock server
+// This approach uses environment variable isolation to avoid connecting to real servers
+func createTestJiraAdapter(t *testing.T, server *httptest.Server) *JiraAdapter {
+	t.Helper()
+
+	// Store original environment variables
+	originalJiraBaseURL := os.Getenv("JIRA_BASE_URL")
+	originalJiraEmail := os.Getenv("JIRA_EMAIL")
+	originalJiraToken := os.Getenv("JIRA_TOKEN")
+
+	// Set test environment variables to point to mock server
+	os.Setenv("JIRA_BASE_URL", server.URL)
 	os.Setenv("JIRA_EMAIL", "test@example.com")
 	os.Setenv("JIRA_TOKEN", "test-token")
+
+	// Create adapter using the standard constructor
+	adapter, err := NewJiraAdapter()
+	require.NoError(t, err)
+
+	// Schedule cleanup to restore original environment variables
+	t.Cleanup(func() {
+		if originalJiraBaseURL != "" {
+			os.Setenv("JIRA_BASE_URL", originalJiraBaseURL)
+		} else {
+			os.Unsetenv("JIRA_BASE_URL")
+		}
+
+		if originalJiraEmail != "" {
+			os.Setenv("JIRA_EMAIL", originalJiraEmail)
+		} else {
+			os.Unsetenv("JIRA_EMAIL")
+		}
+
+		if originalJiraToken != "" {
+			os.Setenv("JIRA_TOKEN", originalJiraToken)
+		} else {
+			os.Unsetenv("JIRA_TOKEN")
+		}
+	})
+
+	return adapter
+}
+
+// setupTestFiles creates necessary test files without touching environment variables
+func setupTestFiles(t *testing.T) func() {
+	t.Helper()
 
 	// Create test directory
 	originalWd, _ := os.Getwd()
@@ -51,12 +93,6 @@ func setupTestEnv(t *testing.T) func() {
 		t.Fatalf("Failed to create .assetcap/teams.json: %v", err)
 	}
 
-	// Create adapter with test server URL
-	os.Setenv("JIRA_BASE_URL", "https://test.atlassian.net")
-	adapter, err := NewJiraAdapter()
-	require.NoError(t, err)
-	require.NotNil(t, adapter)
-
 	return func() {
 		// Clean up test files
 		err = os.RemoveAll(assetCapDir)
@@ -68,10 +104,46 @@ func setupTestEnv(t *testing.T) func() {
 		if err != nil {
 			t.Errorf("Failed to clean up test directory: %v", err)
 		}
+	}
+}
 
-		os.Unsetenv("JIRA_BASE_URL")
-		os.Unsetenv("JIRA_EMAIL")
-		os.Unsetenv("JIRA_TOKEN")
+// Legacy setupTestEnv function - keeping for backwards compatibility with existing tests
+func setupTestEnv(t *testing.T) func() {
+	// Store original environment variables
+	originalJiraBaseURL := os.Getenv("JIRA_BASE_URL")
+	originalJiraEmail := os.Getenv("JIRA_EMAIL")
+	originalJiraToken := os.Getenv("JIRA_TOKEN")
+
+	// Set up test environment variables
+	os.Setenv("JIRA_BASE_URL", "https://test.atlassian.net")
+	os.Setenv("JIRA_EMAIL", "test@example.com")
+	os.Setenv("JIRA_TOKEN", "test-token")
+
+	// Set up test files
+	cleanupFiles := setupTestFiles(t)
+
+	return func() {
+		// Clean up files first
+		cleanupFiles()
+
+		// Restore original environment variables
+		if originalJiraBaseURL != "" {
+			os.Setenv("JIRA_BASE_URL", originalJiraBaseURL)
+		} else {
+			os.Unsetenv("JIRA_BASE_URL")
+		}
+
+		if originalJiraEmail != "" {
+			os.Setenv("JIRA_EMAIL", originalJiraEmail)
+		} else {
+			os.Unsetenv("JIRA_EMAIL")
+		}
+
+		if originalJiraToken != "" {
+			os.Setenv("JIRA_TOKEN", originalJiraToken)
+		} else {
+			os.Unsetenv("JIRA_TOKEN")
+		}
 	}
 }
 
@@ -262,4 +334,219 @@ func TestJiraAdapter_GetSprintIssues(t *testing.T) {
 	assert.Equal(t, "Test User 1", issues[0].Assignee)
 	assert.Equal(t, "In Progress", issues[0].Status)
 	assert.Equal(t, []string{"cap-development", "cap-asset-booking"}, issues[0].Labels)
+}
+
+func TestJiraAdapter_GetSprintsForProjectWithBoardInfo(t *testing.T) {
+	// Set up test files
+	cleanupFiles := setupTestFiles(t)
+	defer cleanupFiles()
+
+	// Create a test server
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if strings.Contains(r.URL.Path, "/board") && !strings.Contains(r.URL.Path, "/sprint") {
+			// Boards endpoint
+			w.WriteHeader(http.StatusOK)
+			w.Write([]byte(`{
+				"values": [
+					{"id": 1, "name": "Test Board 1", "type": "scrum"},
+					{"id": 2, "name": "Test Board 2", "type": "kanban"}
+				]
+			}`))
+		} else if strings.Contains(r.URL.Path, "/sprint") {
+			// Sprints endpoint
+			// Extract board ID from URL like /rest/agile/1.0/board/1/sprint
+			pathParts := strings.Split(r.URL.Path, "/")
+			var boardID string
+			for i, part := range pathParts {
+				if part == "board" && i+1 < len(pathParts) {
+					boardID = pathParts[i+1]
+					break
+				}
+			}
+
+			if boardID == "1" {
+				// Scrum board has sprints
+				w.WriteHeader(http.StatusOK)
+				w.Write([]byte(`{
+					"values": [
+						{"id": "123", "name": "Sprint 1", "state": "active", "startDate": "2024-01-01T00:00:00Z", "endDate": "2024-01-15T00:00:00Z", "goal": "Goal 1"}
+					],
+					"isLast": true,
+					"startAt": 0,
+					"maxResults": 50
+				}`))
+			} else {
+				// Kanban board has no sprints
+				w.WriteHeader(http.StatusBadRequest)
+				w.Write([]byte(`{"error": "Board does not support sprints"}`))
+			}
+		}
+	}))
+	defer server.Close()
+
+	// Create adapter with isolated test environment
+	adapter := createTestJiraAdapter(t, server)
+
+	// Test getting sprints with board info
+	sprints, boardInfo, err := adapter.GetSprintsForProjectWithBoardInfo("TEST", []string{})
+	require.NoError(t, err)
+	require.Len(t, sprints, 1)
+	require.Len(t, boardInfo, 2)
+
+	// Check sprint
+	assert.Equal(t, "123", sprints[0].ID)
+	assert.Equal(t, "Sprint 1", sprints[0].Name)
+	assert.Equal(t, "active", sprints[0].State)
+
+	// Check board info
+	assert.Equal(t, 1, boardInfo[0].ID)
+	assert.Equal(t, "Test Board 1", boardInfo[0].Name)
+	assert.Equal(t, "scrum", boardInfo[0].Type)
+	assert.True(t, boardInfo[0].HasSprints)
+
+	assert.Equal(t, 2, boardInfo[1].ID)
+	assert.Equal(t, "Test Board 2", boardInfo[1].Name)
+	assert.Equal(t, "kanban", boardInfo[1].Type)
+	assert.False(t, boardInfo[1].HasSprints)
+}
+
+func TestJiraAdapter_GetSprintsForProject(t *testing.T) {
+	// Set up test files
+	cleanupFiles := setupTestFiles(t)
+	defer cleanupFiles()
+
+	// Create a test server
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if strings.Contains(r.URL.Path, "/board") && !strings.Contains(r.URL.Path, "/sprint") {
+			// Boards endpoint
+			w.WriteHeader(http.StatusOK)
+			w.Write([]byte(`{
+				"values": [
+					{"id": 1, "name": "Test Board", "type": "scrum"}
+				]
+			}`))
+		} else if strings.Contains(r.URL.Path, "/sprint") {
+			// Sprints endpoint
+			w.WriteHeader(http.StatusOK)
+			w.Write([]byte(`{
+				"values": [
+					{"id": "123", "name": "Sprint 1", "state": "active", "startDate": "2024-01-01T00:00:00Z", "endDate": "2024-01-15T00:00:00Z", "goal": "Goal 1"}
+				],
+				"isLast": true,
+				"startAt": 0,
+				"maxResults": 50
+			}`))
+		}
+	}))
+	defer server.Close()
+
+	// Create adapter with isolated test environment
+	adapter := createTestJiraAdapter(t, server)
+
+	// Test getting sprints
+	sprints, err := adapter.GetSprintsForProject("TEST", []string{"active"})
+	require.NoError(t, err)
+	require.Len(t, sprints, 1)
+
+	assert.Equal(t, "123", sprints[0].ID)
+	assert.Equal(t, "Sprint 1", sprints[0].Name)
+	assert.Equal(t, "active", sprints[0].State)
+}
+
+func TestJiraAdapter_GetTeamIssuesComplete(t *testing.T) {
+	// Set up test files
+	cleanupFiles := setupTestFiles(t)
+	defer cleanupFiles()
+
+	// Create a test server
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		assert.Equal(t, "/rest/api/3/search", r.URL.Path)
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte(`{
+			"issues": [
+				{
+					"key": "TEST-1",
+					"fields": {
+						"summary": "Test Issue 1",
+						"assignee": {"displayName": "Test User 1"},
+						"status": {"name": "In Progress"},
+						"issuetype": {"name": "Task"},
+						"customfield_10014": "Development",
+						"customfield_10015": "Test Asset",
+						"labels": ["cap-development"]
+					}
+				}
+			]
+		}`))
+	}))
+	defer server.Close()
+
+	// Create adapter with isolated test environment
+	adapter := createTestJiraAdapter(t, server)
+
+	// Create a test team
+	team := &domain.Team{
+		Team: []string{"Test User 1", "Test User 2"},
+	}
+
+	// Test getting team issues
+	issues, err := adapter.GetTeamIssues(team)
+	require.NoError(t, err)
+	require.Len(t, issues, 2) // 2 team members, each returns 1 issue
+
+	assert.Equal(t, "TEST-1", issues[0].Key)
+	assert.Equal(t, "Test Issue 1", issues[0].Summary)
+}
+
+func TestJiraAdapter_ErrorHandling(t *testing.T) {
+	// Set up test files
+	cleanupFiles := setupTestFiles(t)
+	defer cleanupFiles()
+
+	t.Run("boards error", func(t *testing.T) {
+		// Create a test server that returns an error
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			w.WriteHeader(http.StatusInternalServerError)
+			w.Write([]byte(`{"error": "Internal Server Error"}`))
+		}))
+		defer server.Close()
+
+		// Create adapter with isolated test environment
+		adapter := createTestJiraAdapter(t, server)
+
+		// Test error handling
+		sprints, boardInfo, err := adapter.GetSprintsForProjectWithBoardInfo("TEST", []string{})
+		require.Error(t, err)
+		assert.Nil(t, sprints)
+		assert.Nil(t, boardInfo)
+		assert.Contains(t, err.Error(), "failed to get boards for project")
+	})
+
+	t.Run("sprint board error with warning", func(t *testing.T) {
+		// Create a test server
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if strings.Contains(r.URL.Path, "/board") && !strings.Contains(r.URL.Path, "/sprint") {
+				// Boards endpoint
+				w.WriteHeader(http.StatusOK)
+				w.Write([]byte(`{
+					"values": [
+						{"id": 1, "name": "Test Board", "type": "scrum"}
+					]
+				}`))
+			} else if strings.Contains(r.URL.Path, "/sprint") {
+				// Sprints endpoint returns error
+				w.WriteHeader(http.StatusBadRequest)
+				w.Write([]byte(`{"error": "Board does not support sprints"}`))
+			}
+		}))
+		defer server.Close()
+
+		// Create adapter with isolated test environment
+		adapter := createTestJiraAdapter(t, server)
+
+		// Test that it continues with other boards when one fails
+		sprints, err := adapter.GetSprintsForProject("TEST", []string{"active"})
+		require.NoError(t, err)
+		assert.Len(t, sprints, 0) // No sprints due to error, but no failure
+	})
 }

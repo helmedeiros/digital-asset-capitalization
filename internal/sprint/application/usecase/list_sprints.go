@@ -10,9 +10,10 @@ import (
 
 // ListSprintsResult represents the result of listing sprints
 type ListSprintsResult struct {
-	Project string
-	Period  string
-	Sprints []ports.Sprint
+	Project   string
+	Period    string
+	Sprints   []ports.Sprint
+	BoardInfo []ports.BoardInfo
 }
 
 // ListSprintsUseCase handles listing sprints for a project and time period
@@ -43,9 +44,10 @@ func (u *ListSprintsUseCase) Execute(project, period string) (*ListSprintsResult
 		return nil, fmt.Errorf("invalid period format: %w", err)
 	}
 
-	// Get all sprints for the project (active, future, closed)
-	states := []string{"active", "future", "closed"}
-	sprints, err := u.jiraPort.GetSprintsForProject(project, states)
+	// Get all sprints for the project with all possible states
+	// Try without state filter first to get all sprints
+	states := []string{} // Empty states means fetch all sprints
+	sprints, boardInfo, err := u.jiraPort.GetSprintsForProjectWithBoardInfo(project, states)
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch sprints: %w", err)
 	}
@@ -54,9 +56,10 @@ func (u *ListSprintsUseCase) Execute(project, period string) (*ListSprintsResult
 	filteredSprints := u.filterSprintsByDateRange(sprints, startDate, endDate)
 
 	return &ListSprintsResult{
-		Project: project,
-		Period:  period,
-		Sprints: filteredSprints,
+		Project:   project,
+		Period:    period,
+		Sprints:   filteredSprints,
+		BoardInfo: boardInfo,
 	}, nil
 }
 
@@ -156,7 +159,9 @@ func (u *ListSprintsUseCase) filterSprintsByDateRange(sprints []ports.Sprint, st
 		// Sprint overlaps if:
 		// 1. Sprint starts before or on the end date AND
 		// 2. Sprint ends after or on the start date
-		if sprintStart.Before(endDate.AddDate(0, 0, 1)) && sprintEnd.After(startDate.AddDate(0, 0, -1)) {
+		overlaps := sprintStart.Before(endDate.AddDate(0, 0, 1)) && sprintEnd.After(startDate.AddDate(0, 0, -1))
+
+		if overlaps {
 			filtered = append(filtered, sprint)
 		}
 	}

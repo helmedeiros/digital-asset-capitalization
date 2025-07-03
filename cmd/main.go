@@ -18,6 +18,7 @@ import (
 	"github.com/helmedeiros/digital-asset-capitalization/internal/shell/completion"
 	sprintapp "github.com/helmedeiros/digital-asset-capitalization/internal/sprint/application"
 	sprintinfra "github.com/helmedeiros/digital-asset-capitalization/internal/sprint/infrastructure"
+	"github.com/helmedeiros/digital-asset-capitalization/internal/sprint/infrastructure/formatting"
 	tasksapp "github.com/helmedeiros/digital-asset-capitalization/internal/tasks/application"
 	"github.com/helmedeiros/digital-asset-capitalization/internal/tasks/domain"
 	taskports "github.com/helmedeiros/digital-asset-capitalization/internal/tasks/domain/ports"
@@ -152,16 +153,12 @@ For more information about a command:
 							if err != nil {
 								return err
 							}
-							if len(result.Sprints) == 0 {
-								fmt.Printf("No sprints found for project %s in period %s\n", project, period)
-								return nil
-							}
-							fmt.Printf("Sprints for project %s in period %s:\n", project, period)
-							for _, sprint := range result.Sprints {
-								fmt.Printf("- %s (ID: %s): %s to %s (State: %s)\n",
-									sprint.Name, sprint.ID, sprint.StartDate,
-									sprint.EndDate, sprint.State)
-							}
+
+							// Use the new formatter for colorful output
+							formatter := formatting.NewOutputFormatter()
+							output := formatter.FormatSprintList(project, period, result.Sprints, result.BoardInfo)
+							fmt.Print(output)
+
 							return nil
 						},
 						Flags: []cli.Flag{

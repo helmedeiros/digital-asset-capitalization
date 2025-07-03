@@ -150,10 +150,15 @@ func TestHTTPClient_GetSprints(t *testing.T) {
 	t.Run("valid sprints", func(t *testing.T) {
 		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 			w.WriteHeader(http.StatusOK)
-			w.Write([]byte(`{"values": [
-				{"id": 123, "name": "Sprint 1", "state": "active", "startDate": "2024-01-01", "endDate": "2024-01-15", "goal": "Goal 1"},
-				{"id": "456", "name": "Sprint 2", "state": "closed", "startDate": "2024-02-01", "endDate": "2024-02-15", "goal": "Goal 2"}
-			]}`))
+			w.Write([]byte(`{
+				"values": [
+					{"id": 123, "name": "Sprint 1", "state": "active", "startDate": "2024-01-01", "endDate": "2024-01-15", "goal": "Goal 1"},
+					{"id": "456", "name": "Sprint 2", "state": "closed", "startDate": "2024-02-01", "endDate": "2024-02-15", "goal": "Goal 2"}
+				],
+				"isLast": true,
+				"startAt": 0,
+				"maxResults": 50
+			}`))
 		}))
 		defer server.Close()
 
@@ -167,6 +172,77 @@ func TestHTTPClient_GetSprints(t *testing.T) {
 		}
 		if sprints[0].ID != "123" || sprints[1].ID != "456" {
 			t.Errorf("unexpected sprint IDs: %+v", sprints)
+		}
+	})
+
+	t.Run("pagination support", func(t *testing.T) {
+		callCount := 0
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			callCount++
+			w.WriteHeader(http.StatusOK)
+
+			// Check for pagination parameters
+			startAt := r.URL.Query().Get("startAt")
+
+			if startAt == "0" || startAt == "" {
+				// First page
+				w.Write([]byte(`{
+					"values": [
+						{"id": 1, "name": "Sprint 1", "state": "active", "startDate": "2024-01-01", "endDate": "2024-01-15", "goal": "Goal 1"}
+					],
+					"isLast": false,
+					"startAt": 0,
+					"maxResults": 1
+				}`))
+			} else if startAt == "1" {
+				// Second page
+				w.Write([]byte(`{
+					"values": [
+						{"id": 2, "name": "Sprint 2", "state": "closed", "startDate": "2024-02-01", "endDate": "2024-02-15", "goal": "Goal 2"}
+					],
+					"isLast": true,
+					"startAt": 1,
+					"maxResults": 1
+				}`))
+			}
+		}))
+		defer server.Close()
+
+		client := NewHTTPClient(server.URL, "Bearer test-token")
+		sprints, err := client.GetSprints(server.URL)
+		if err != nil {
+			t.Fatalf("expected no error, got %v", err)
+		}
+		if len(sprints) != 2 {
+			t.Errorf("expected 2 sprints from pagination, got %d", len(sprints))
+		}
+		if callCount != 2 {
+			t.Errorf("expected 2 API calls for pagination, got %d", callCount)
+		}
+		if sprints[0].ID != "1" || sprints[1].ID != "2" {
+			t.Errorf("unexpected sprint IDs: %+v", sprints)
+		}
+	})
+
+	t.Run("empty response", func(t *testing.T) {
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			w.WriteHeader(http.StatusOK)
+			w.Write([]byte(`{
+				"values": [],
+				"isLast": true,
+				"startAt": 0,
+				"maxResults": 50
+			}`))
+		}))
+		defer server.Close()
+
+		client := NewHTTPClient(server.URL, "Bearer test-token")
+		sprints, err := client.GetSprints(server.URL)
+		if err != nil {
+			t.Fatalf("expected no error, got %v", err)
+		}
+		if len(sprints) != 0 {
+			t.Errorf("expected 0 sprints, got %d", len(sprints))
 		}
 	})
 
