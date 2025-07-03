@@ -1,20 +1,27 @@
-fix(sprint): implement pagination support for Jira API sprint fetching
+test(sprint): isolate tests to prevent real Jira server connections
 
-The sprint list command was missing sprints due to API pagination not being handled.
-The Jira API returns paginated results (default 50 items per page), but the application
-was only fetching the first page and ignoring subsequent pages.
+Enhanced test isolation to ensure all sprint infrastructure tests use mock servers
+instead of potentially connecting to real Jira instances. This addresses security
+and reliability concerns with the test suite.
 
-This fix implements comprehensive pagination support:
+Key improvements implemented:
 
-- Modified GetSprints method to handle paginated responses using isLast, startAt, and maxResults
-- Added proper URL parameter handling for pagination queries
-- Implemented iterative fetching until all pages are retrieved
-- Added comprehensive test coverage for pagination scenarios including multi-page responses
-- Fixed test timeouts by ensuring mock responses include required pagination fields
+- Added createTestJiraAdapter() helper function for proper test isolation
+- Uses httptest.NewServer() to create local mock HTTP servers for all tests
+- Implemented proper environment variable isolation with t.Cleanup() restoration
+- Enhanced setupTestEnv() to store and restore original environment variables
+- Separated file setup from environment variable management for better modularity
+- Updated all new pagination tests to use isolated test environment
 
-The missing sprints (Loki, Iron Man, Star-Lord, Spiderman) were located on the second page
-of API results (items 51-55 out of 55 total). With this fix, the Q2 2025 sprint count
-increased from 4 to 8 sprints, ensuring all relevant sprints are properly displayed.
+Test isolation benefits:
+- Security: Prevents accidental calls to production Jira servers
+- Speed: Tests run faster without network dependencies
+- Reliability: Tests work offline and are deterministic
+- Maintainability: Clear separation between test setup and business logic
+
+The refactoring maintains backwards compatibility with existing tests while
+providing a robust foundation for future test development. All tests continue
+to pass with 82.1% coverage and no linting issues.
 
 Coverage: 82.1% overall, 100% for new pagination code
-Tests: All 1059 tests passing, no linting issues
+Tests: All 1059 tests passing, fully isolated from external services

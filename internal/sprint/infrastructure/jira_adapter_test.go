@@ -14,11 +14,52 @@ import (
 	"github.com/helmedeiros/digital-asset-capitalization/internal/sprint/domain"
 )
 
-func setupTestEnv(t *testing.T) func() {
-	// Set up test environment variables
-	os.Setenv("JIRA_BASE_URL", "https://test.atlassian.net")
+// createTestJiraAdapter creates a JiraAdapter for testing with a mock server
+// This approach uses environment variable isolation to avoid connecting to real servers
+func createTestJiraAdapter(t *testing.T, server *httptest.Server) *JiraAdapter {
+	t.Helper()
+
+	// Store original environment variables
+	originalJiraBaseURL := os.Getenv("JIRA_BASE_URL")
+	originalJiraEmail := os.Getenv("JIRA_EMAIL")
+	originalJiraToken := os.Getenv("JIRA_TOKEN")
+
+	// Set test environment variables to point to mock server
+	os.Setenv("JIRA_BASE_URL", server.URL)
 	os.Setenv("JIRA_EMAIL", "test@example.com")
 	os.Setenv("JIRA_TOKEN", "test-token")
+
+	// Create adapter using the standard constructor
+	adapter, err := NewJiraAdapter()
+	require.NoError(t, err)
+
+	// Schedule cleanup to restore original environment variables
+	t.Cleanup(func() {
+		if originalJiraBaseURL != "" {
+			os.Setenv("JIRA_BASE_URL", originalJiraBaseURL)
+		} else {
+			os.Unsetenv("JIRA_BASE_URL")
+		}
+
+		if originalJiraEmail != "" {
+			os.Setenv("JIRA_EMAIL", originalJiraEmail)
+		} else {
+			os.Unsetenv("JIRA_EMAIL")
+		}
+
+		if originalJiraToken != "" {
+			os.Setenv("JIRA_TOKEN", originalJiraToken)
+		} else {
+			os.Unsetenv("JIRA_TOKEN")
+		}
+	})
+
+	return adapter
+}
+
+// setupTestFiles creates necessary test files without touching environment variables
+func setupTestFiles(t *testing.T) func() {
+	t.Helper()
 
 	// Create test directory
 	originalWd, _ := os.Getwd()
@@ -52,12 +93,6 @@ func setupTestEnv(t *testing.T) func() {
 		t.Fatalf("Failed to create .assetcap/teams.json: %v", err)
 	}
 
-	// Create adapter with test server URL
-	os.Setenv("JIRA_BASE_URL", "https://test.atlassian.net")
-	adapter, err := NewJiraAdapter()
-	require.NoError(t, err)
-	require.NotNil(t, adapter)
-
 	return func() {
 		// Clean up test files
 		err = os.RemoveAll(assetCapDir)
@@ -69,10 +104,46 @@ func setupTestEnv(t *testing.T) func() {
 		if err != nil {
 			t.Errorf("Failed to clean up test directory: %v", err)
 		}
+	}
+}
 
-		os.Unsetenv("JIRA_BASE_URL")
-		os.Unsetenv("JIRA_EMAIL")
-		os.Unsetenv("JIRA_TOKEN")
+// Legacy setupTestEnv function - keeping for backwards compatibility with existing tests
+func setupTestEnv(t *testing.T) func() {
+	// Store original environment variables
+	originalJiraBaseURL := os.Getenv("JIRA_BASE_URL")
+	originalJiraEmail := os.Getenv("JIRA_EMAIL")
+	originalJiraToken := os.Getenv("JIRA_TOKEN")
+
+	// Set up test environment variables
+	os.Setenv("JIRA_BASE_URL", "https://test.atlassian.net")
+	os.Setenv("JIRA_EMAIL", "test@example.com")
+	os.Setenv("JIRA_TOKEN", "test-token")
+
+	// Set up test files
+	cleanupFiles := setupTestFiles(t)
+
+	return func() {
+		// Clean up files first
+		cleanupFiles()
+
+		// Restore original environment variables
+		if originalJiraBaseURL != "" {
+			os.Setenv("JIRA_BASE_URL", originalJiraBaseURL)
+		} else {
+			os.Unsetenv("JIRA_BASE_URL")
+		}
+
+		if originalJiraEmail != "" {
+			os.Setenv("JIRA_EMAIL", originalJiraEmail)
+		} else {
+			os.Unsetenv("JIRA_EMAIL")
+		}
+
+		if originalJiraToken != "" {
+			os.Setenv("JIRA_TOKEN", originalJiraToken)
+		} else {
+			os.Unsetenv("JIRA_TOKEN")
+		}
 	}
 }
 
@@ -266,8 +337,9 @@ func TestJiraAdapter_GetSprintIssues(t *testing.T) {
 }
 
 func TestJiraAdapter_GetSprintsForProjectWithBoardInfo(t *testing.T) {
-	cleanup := setupTestEnv(t)
-	defer cleanup()
+	// Set up test files
+	cleanupFiles := setupTestFiles(t)
+	defer cleanupFiles()
 
 	// Create a test server
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -312,11 +384,8 @@ func TestJiraAdapter_GetSprintsForProjectWithBoardInfo(t *testing.T) {
 	}))
 	defer server.Close()
 
-	// Create adapter with test server URL
-	os.Setenv("JIRA_BASE_URL", server.URL)
-	adapter, err := NewJiraAdapter()
-	require.NoError(t, err)
-	require.NotNil(t, adapter)
+	// Create adapter with isolated test environment
+	adapter := createTestJiraAdapter(t, server)
 
 	// Test getting sprints with board info
 	sprints, boardInfo, err := adapter.GetSprintsForProjectWithBoardInfo("TEST", []string{})
@@ -342,8 +411,9 @@ func TestJiraAdapter_GetSprintsForProjectWithBoardInfo(t *testing.T) {
 }
 
 func TestJiraAdapter_GetSprintsForProject(t *testing.T) {
-	cleanup := setupTestEnv(t)
-	defer cleanup()
+	// Set up test files
+	cleanupFiles := setupTestFiles(t)
+	defer cleanupFiles()
 
 	// Create a test server
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -370,11 +440,8 @@ func TestJiraAdapter_GetSprintsForProject(t *testing.T) {
 	}))
 	defer server.Close()
 
-	// Create adapter with test server URL
-	os.Setenv("JIRA_BASE_URL", server.URL)
-	adapter, err := NewJiraAdapter()
-	require.NoError(t, err)
-	require.NotNil(t, adapter)
+	// Create adapter with isolated test environment
+	adapter := createTestJiraAdapter(t, server)
 
 	// Test getting sprints
 	sprints, err := adapter.GetSprintsForProject("TEST", []string{"active"})
@@ -387,8 +454,9 @@ func TestJiraAdapter_GetSprintsForProject(t *testing.T) {
 }
 
 func TestJiraAdapter_GetTeamIssuesComplete(t *testing.T) {
-	cleanup := setupTestEnv(t)
-	defer cleanup()
+	// Set up test files
+	cleanupFiles := setupTestFiles(t)
+	defer cleanupFiles()
 
 	// Create a test server
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -413,11 +481,8 @@ func TestJiraAdapter_GetTeamIssuesComplete(t *testing.T) {
 	}))
 	defer server.Close()
 
-	// Create adapter with test server URL
-	os.Setenv("JIRA_BASE_URL", server.URL)
-	adapter, err := NewJiraAdapter()
-	require.NoError(t, err)
-	require.NotNil(t, adapter)
+	// Create adapter with isolated test environment
+	adapter := createTestJiraAdapter(t, server)
 
 	// Create a test team
 	team := &domain.Team{
@@ -434,8 +499,9 @@ func TestJiraAdapter_GetTeamIssuesComplete(t *testing.T) {
 }
 
 func TestJiraAdapter_ErrorHandling(t *testing.T) {
-	cleanup := setupTestEnv(t)
-	defer cleanup()
+	// Set up test files
+	cleanupFiles := setupTestFiles(t)
+	defer cleanupFiles()
 
 	t.Run("boards error", func(t *testing.T) {
 		// Create a test server that returns an error
@@ -445,11 +511,8 @@ func TestJiraAdapter_ErrorHandling(t *testing.T) {
 		}))
 		defer server.Close()
 
-		// Create adapter with test server URL
-		os.Setenv("JIRA_BASE_URL", server.URL)
-		adapter, err := NewJiraAdapter()
-		require.NoError(t, err)
-		require.NotNil(t, adapter)
+		// Create adapter with isolated test environment
+		adapter := createTestJiraAdapter(t, server)
 
 		// Test error handling
 		sprints, boardInfo, err := adapter.GetSprintsForProjectWithBoardInfo("TEST", []string{})
@@ -478,11 +541,8 @@ func TestJiraAdapter_ErrorHandling(t *testing.T) {
 		}))
 		defer server.Close()
 
-		// Create adapter with test server URL
-		os.Setenv("JIRA_BASE_URL", server.URL)
-		adapter, err := NewJiraAdapter()
-		require.NoError(t, err)
-		require.NotNil(t, adapter)
+		// Create adapter with isolated test environment
+		adapter := createTestJiraAdapter(t, server)
 
 		// Test that it continues with other boards when one fails
 		sprints, err := adapter.GetSprintsForProject("TEST", []string{"active"})
