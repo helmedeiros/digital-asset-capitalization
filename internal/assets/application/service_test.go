@@ -1241,3 +1241,31 @@ func TestCreateConfluenceAdapterFunction(t *testing.T) {
 		assert.Contains(t, err.Error(), "config service is required", "Error should mention required config service")
 	})
 }
+
+func TestCreateConfluenceAdapter_ConfigServiceNil_Error(t *testing.T) {
+	adapter, err := createConfluenceAdapter(nil)
+	assert.Nil(t, adapter)
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "config service is required")
+}
+
+func TestAssetServiceImpl_DecrementTaskCount_ErrorBranch(t *testing.T) {
+	mockRepo := new(MockAssetRepository)
+	mockRepo.On("FindByName", "A").Return(&domain.Asset{ID: "1", Name: "A", AssociatedTaskCount: 0}, nil)
+	service := NewAssetServiceLegacy(mockRepo)
+	err := service.DecrementTaskCount("A")
+	assert.Error(t, err)
+	assert.Equal(t, "task count cannot be negative", err.Error())
+	mockRepo.AssertExpectations(t)
+}
+
+func TestAssetServiceImpl_SyncFromConfluence_BaseURLError(t *testing.T) {
+	repo := new(MockAssetRepository)
+	llama := new(MockLlamaClient)
+	service := &AssetServiceImpl{repo: repo, llama: llama, configService: nil}
+	os.Setenv("JIRA_BASE_URL", "")
+	os.Setenv("JIRA_TOKEN", "token")
+	_, err := service.SyncFromConfluence("space", "label", false)
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "Jira base URL is not configured")
+}

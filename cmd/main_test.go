@@ -880,3 +880,28 @@ func TestMain(t *testing.T) {
 		})
 	})
 }
+
+func TestMain_NoArgs(t *testing.T) {
+	cleanup := setupTestEnvironment(t)
+	defer cleanup()
+
+	// Create minimal teams.json file to prevent initialization errors
+	assetcapDir := filepath.Join(".", ".assetcap")
+	err := os.MkdirAll(assetcapDir, 0755)
+	require.NoError(t, err)
+
+	teamsPath := filepath.Join(assetcapDir, "teams.json")
+	err = os.WriteFile(teamsPath, []byte(mainTestTeamsContent), 0644)
+	require.NoError(t, err)
+
+	// Save original os.Args
+	originalArgs := os.Args
+	defer func() { os.Args = originalArgs }()
+
+	// Test with no arguments
+	os.Args = []string{"assetcap"}
+
+	assert.NotPanics(t, func() {
+		main()
+	})
+}

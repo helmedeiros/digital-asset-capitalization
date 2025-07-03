@@ -97,6 +97,10 @@ func (m *mockJiraPort) GetTeamIssues(_ *domain.Team) ([]ports.JiraIssue, error) 
 	return m.issues, m.err
 }
 
+func (m *mockJiraPort) GetSprintsForProject(_ string, _ []string) ([]ports.Sprint, error) {
+	return nil, nil
+}
+
 func TestSprintService_ProcessJiraIssues(t *testing.T) {
 	cleanup := setupTestEnv(t)
 	defer cleanup()

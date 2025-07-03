@@ -24,3 +24,6 @@ func IsConfigurationError(err error) bool {
 		err == ErrMissingToken ||
 		err == ErrInvalidBaseURL
 }
+
+// TESTS
+// To be placed in errors_test.go

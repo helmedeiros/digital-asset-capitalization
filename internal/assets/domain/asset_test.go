@@ -408,3 +408,26 @@ func TestAsset_UnmarshalJSON(t *testing.T) {
 		assert.Empty(t, asset.Platform)
 	})
 }
+
+func TestNewAsset_ErrorBranches(t *testing.T) {
+	_, err := NewAsset("", "desc")
+	if err == nil || err != ErrEmptyName {
+		t.Errorf("expected ErrEmptyName, got %v", err)
+	}
+	_, err = NewAsset("name", "")
+	if err == nil || err != ErrEmptyDescription {
+		t.Errorf("expected ErrEmptyDescription, got %v", err)
+	}
+}
+
+func TestAsset_DecrementTaskCount_ErrorBranch(t *testing.T) {
+	asset, err := NewAsset("name", "desc")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	asset.AssociatedTaskCount = 0
+	err = asset.DecrementTaskCount()
+	if err == nil || err != ErrNegativeTaskCount {
+		t.Errorf("expected ErrNegativeTaskCount, got %v", err)
+	}
+}
