@@ -1,0 +1,20 @@
+fix(sprint): implement pagination support for Jira API sprint fetching
+
+The sprint list command was missing sprints due to API pagination not being handled.
+The Jira API returns paginated results (default 50 items per page), but the application
+was only fetching the first page and ignoring subsequent pages.
+
+This fix implements comprehensive pagination support:
+
+- Modified GetSprints method to handle paginated responses using isLast, startAt, and maxResults
+- Added proper URL parameter handling for pagination queries
+- Implemented iterative fetching until all pages are retrieved
+- Added comprehensive test coverage for pagination scenarios including multi-page responses
+- Fixed test timeouts by ensuring mock responses include required pagination fields
+
+The missing sprints (Loki, Iron Man, Star-Lord, Spiderman) were located on the second page
+of API results (items 51-55 out of 55 total). With this fix, the Q2 2025 sprint count
+increased from 4 to 8 sprints, ensuring all relevant sprints are properly displayed.
+
+Coverage: 82.1% overall, 100% for new pagination code
+Tests: All 1059 tests passing, no linting issues

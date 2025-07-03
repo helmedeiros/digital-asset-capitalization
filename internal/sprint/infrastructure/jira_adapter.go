@@ -277,8 +277,14 @@ func (a *JiraAdapter) getBoardsForProject(project string) ([]Board, error) {
 
 // getSprintsForBoard retrieves sprints for a given board
 func (a *JiraAdapter) getSprintsForBoard(boardID int, states []string) ([]ports.Sprint, error) {
-	statesParam := strings.Join(states, ",")
-	url := fmt.Sprintf("%s/rest/agile/1.0/board/%d/sprint?state=%s", a.config.GetBaseURL(), boardID, statesParam)
+	var url string
+	if len(states) == 0 {
+		// Fetch all sprints without state filter
+		url = fmt.Sprintf("%s/rest/agile/1.0/board/%d/sprint", a.config.GetBaseURL(), boardID)
+	} else {
+		statesParam := strings.Join(states, ",")
+		url = fmt.Sprintf("%s/rest/agile/1.0/board/%d/sprint?state=%s", a.config.GetBaseURL(), boardID, statesParam)
+	}
 
 	sprints, err := a.httpClient.GetSprints(url)
 	if err != nil {
