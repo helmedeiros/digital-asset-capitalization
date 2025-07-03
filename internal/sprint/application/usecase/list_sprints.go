@@ -10,9 +10,10 @@ import (
 
 // ListSprintsResult represents the result of listing sprints
 type ListSprintsResult struct {
-	Project string
-	Period  string
-	Sprints []ports.Sprint
+	Project   string
+	Period    string
+	Sprints   []ports.Sprint
+	BoardInfo []ports.BoardInfo
 }
 
 // ListSprintsUseCase handles listing sprints for a project and time period
@@ -43,9 +44,9 @@ func (u *ListSprintsUseCase) Execute(project, period string) (*ListSprintsResult
 		return nil, fmt.Errorf("invalid period format: %w", err)
 	}
 
-	// Get all sprints for the project (active, future, closed)
+	// Get all sprints for the project (active, future, closed) with board info
 	states := []string{"active", "future", "closed"}
-	sprints, err := u.jiraPort.GetSprintsForProject(project, states)
+	sprints, boardInfo, err := u.jiraPort.GetSprintsForProjectWithBoardInfo(project, states)
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch sprints: %w", err)
 	}
@@ -54,9 +55,10 @@ func (u *ListSprintsUseCase) Execute(project, period string) (*ListSprintsResult
 	filteredSprints := u.filterSprintsByDateRange(sprints, startDate, endDate)
 
 	return &ListSprintsResult{
-		Project: project,
-		Period:  period,
-		Sprints: filteredSprints,
+		Project:   project,
+		Period:    period,
+		Sprints:   filteredSprints,
+		BoardInfo: boardInfo,
 	}, nil
 }
 

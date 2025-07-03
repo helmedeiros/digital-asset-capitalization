@@ -25,6 +25,14 @@ func (m *MockJiraPort) GetSprintsForProject(_ string, _ []string) ([]ports.Sprin
 	return m.sprints, nil
 }
 
+func (m *MockJiraPort) GetSprintsForProjectWithBoardInfo(_ string, _ []string) ([]ports.Sprint, []ports.BoardInfo, error) {
+	if m.err != nil {
+		return nil, nil, m.err
+	}
+	// Return empty board info for tests
+	return m.sprints, []ports.BoardInfo{}, nil
+}
+
 func (m *MockJiraPort) GetIssuesForSprint(_, _ string) ([]ports.JiraIssue, error) {
 	return nil, nil
 }

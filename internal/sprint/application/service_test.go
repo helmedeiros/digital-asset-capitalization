@@ -78,8 +78,10 @@ func setupTestEnv(t *testing.T) func() {
 }
 
 type mockJiraPort struct {
-	issues []ports.JiraIssue
-	err    error
+	issues    []ports.JiraIssue
+	sprints   []ports.Sprint
+	boardInfo []ports.BoardInfo
+	err       error
 }
 
 func (m *mockJiraPort) GetIssuesForSprint(_, _ string) ([]ports.JiraIssue, error) {
@@ -99,7 +101,11 @@ func (m *mockJiraPort) GetTeamIssues(_ *domain.Team) ([]ports.JiraIssue, error) 
 }
 
 func (m *mockJiraPort) GetSprintsForProject(_ string, _ []string) ([]ports.Sprint, error) {
-	return nil, nil
+	return m.sprints, m.err
+}
+
+func (m *mockJiraPort) GetSprintsForProjectWithBoardInfo(_ string, _ []string) ([]ports.Sprint, []ports.BoardInfo, error) {
+	return m.sprints, m.boardInfo, m.err
 }
 
 func TestSprintService_ProcessJiraIssues(t *testing.T) {
