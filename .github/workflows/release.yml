@@ -5,6 +5,7 @@ on:
     tags:
       - "v*"
 
+# Only run releases from main branch
 permissions:
   contents: write
 
@@ -17,6 +18,17 @@ jobs:
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
+
+      - name: Verify release is from main branch
+        run: |
+          # Check if the current commit is on main branch
+          git branch --contains ${{ github.sha }} | grep -q "main" || git branch -r --contains ${{ github.sha }} | grep -q "origin/main"
+          if [ $? -ne 0 ]; then
+            echo "❌ Release tags must be created from main branch"
+            echo "Current commit ${{ github.sha }} is not on main branch"
+            exit 1
+          fi
+          echo "✅ Release tag created from main branch"
 
       - name: Set up Go
         uses: actions/setup-go@v5
