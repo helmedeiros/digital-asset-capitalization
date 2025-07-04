@@ -90,18 +90,17 @@ release:
 
     For support and documentation, visit: https://github.com/helmedeiros/digital-asset-capitalization
 
-# Temporarily disabled until GitHub secret is properly configured
-# brews:
-#   - name: assetcap
-#     repository:
-#       owner: helmedeiros
-#       name: homebrew-tap
-#       token: "{{ .Env.HOMEBREW_TAP_GITHUB_TOKEN }}"
-#     folder: Formula
-#     homepage: https://github.com/helmedeiros/digital-asset-capitalization
-#     description: Digital Asset Capitalization Management Tool
-#     license: MIT
-#     install: |
-#       bin.install "assetcap"
-#     test: |
-#       system "#{bin}/assetcap --help"
+brews:
+  - name: assetcap
+    repository:
+      owner: helmedeiros
+      name: homebrew-tap
+      token: "{{ .Env.HOMEBREW_TAP_GITHUB_TOKEN }}"
+    folder: Formula
+    homepage: https://github.com/helmedeiros/digital-asset-capitalization
+    description: Digital Asset Capitalization Management Tool
+    license: MIT
+    install: |
+      bin.install "assetcap"
+    test: |
+      system "#{bin}/assetcap --help"
