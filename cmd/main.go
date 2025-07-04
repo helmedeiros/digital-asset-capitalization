@@ -953,6 +953,25 @@ func initializeApp() (*App, error) {
 }
 
 func main() {
+	// Handle version command without full initialization
+	if len(os.Args) > 1 && os.Args[1] == "version" {
+		fmt.Printf("assetcap version %s\n", version)
+		if commit != "" {
+			fmt.Printf("commit: %s\n", commit)
+		}
+		if date != "" {
+			fmt.Printf("built: %s\n", date)
+		}
+		return
+	}
+
+	// Handle help command without full initialization
+	if len(os.Args) <= 1 || os.Args[1] == "--help" || os.Args[1] == "-h" || os.Args[1] == "help" {
+		showHelp()
+		return
+	}
+
+	// Initialize app only for business commands
 	app, err := initializeApp()
 	if err != nil {
 		log.Fatal(err)
@@ -961,4 +980,27 @@ func main() {
 	if err := app.Run(); err != nil {
 		log.Fatal(err)
 	}
+}
+
+func showHelp() {
+	fmt.Println("AssetCap - Digital Asset Capitalization Tool")
+	fmt.Println()
+	fmt.Println("USAGE:")
+	fmt.Println("   assetcap [global options] command [command options] [arguments...]")
+	fmt.Println()
+	fmt.Println("VERSION:")
+	fmt.Printf("   %s\n", version)
+	fmt.Println()
+	fmt.Println("COMMANDS:")
+	fmt.Println("   assets      Manage digital assets")
+	fmt.Println("   tasks       Manage tasks and classification")
+	fmt.Println("   sprints     Manage sprints and time allocation")
+	fmt.Println("   config      Configure application settings")
+	fmt.Println("   version     Show version information")
+	fmt.Println("   help        Show this help message")
+	fmt.Println()
+	fmt.Println("GLOBAL OPTIONS:")
+	fmt.Println("   --help, -h  Show help")
+	fmt.Println()
+	fmt.Println("For detailed command help, use: assetcap [command] --help")
 }
