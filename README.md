@@ -142,78 +142,119 @@ The tool automatically:
 
 ## Installation
 
+### Quick Install (Recommended)
+
+**One-line installation:**
+
+```bash
+curl -sSfL https://raw.githubusercontent.com/helmedeiros/digital-asset-capitalization/main/install.sh | bash
+```
+
+This will automatically:
+
+- Detect your platform (macOS, Linux, Windows)
+- Download the latest binary
+- Install dependencies (Ollama for AI features)
+- Set up the tool in your PATH
+
+**Manual installation:**
+
+1. Download the latest binary for your platform from [GitHub Releases](https://github.com/helmedeiros/digital-asset-capitalization/releases)
+2. Extract the archive: `tar -xzf assetcap_*.tar.gz` (or unzip for Windows)
+3. Move the binary to your PATH: `sudo mv assetcap /usr/local/bin/`
+4. Install dependencies: `curl -sSfL https://raw.githubusercontent.com/helmedeiros/digital-asset-capitalization/main/bin/install-deps.sh | bash`
+
+**Package Managers:**
+
+```bash
+# macOS with Homebrew
+brew install helmedeiros/tap/assetcap
+
+# Linux with Snap (coming soon)
+# snap install assetcap
+
+# Windows with Chocolatey (coming soon)
+# choco install assetcap
+```
+
+**Verify Installation:**
+
+```bash
+assetcap --version
+assetcap --help
+```
+
+### Initial Setup
+
+After installation, initialize your configuration:
+
+```bash
+# Interactive setup
+assetcap config init
+
+# Non-interactive setup (requires environment variables)
+export JIRA_BASE_URL="https://your-domain.atlassian.net"
+export JIRA_EMAIL="your.email@company.com"
+export JIRA_TOKEN="your-api-token"
+assetcap config init --non-interactive
+```
+
+### Shell Completion
+
+Enable shell completion for a better CLI experience:
+
+```bash
+# For zsh users
+echo 'eval "$(assetcap completion zsh)"' >> ~/.zshrc
+
+# For bash users
+echo 'eval "$(assetcap completion bash)"' >> ~/.bashrc
+
+# For fish users
+assetcap completion fish > ~/.config/fish/completions/assetcap.fish
+```
+
+## Development Setup
+
+**For developers who want to build from source:**
+
 ### Prerequisites
 
 - Go 1.21 or later
 - Git
-- Ollama (for asset enrichment and keyword generation)
+- Make
 
-### Installing Dependencies
-
-The tool provides a script to install required dependencies:
-
-```bash
-# Install dependencies (Ollama, etc.)
-./bin/install-deps.sh
-```
-
-This script will:
-
-- Install Ollama and its dependencies
-- Start the Ollama service
-- Pull the required LLaMA model
-- Work on both macOS and Linux
-
-### Installing the Tool
+### Building from Source
 
 ```bash
 # Clone the repository
 git clone https://github.com/helmedeiros/digital-asset-capitalization.git
 cd digital-asset-capitalization
 
-# Install the command
+# Install dependencies
+go mod download
+
+# Build and install
 make install
+
+# Install dependencies for AI features
+./bin/install-deps.sh
 ```
 
-This will install the `assetcap` command in your Go bin directory (`$GOPATH/bin`). Make sure this directory is in your PATH.
-
-Verify the installation:
+### Development Commands
 
 ```bash
-assetcap --version
-```
+# Run tests
+make test
 
-### Shell Completion
+# Run tests with coverage
+make test-cover
 
-The tool supports shell completion for bash, zsh, and fish shells:
+# Run linter
+make lint
 
-```bash
+# Generate shell completions
 make completion
-```
-
-#### Zsh
-
-Add to `~/.zshrc`:
-
-```bash
-fpath=(~/.zsh/completion $fpath)
-autoload -U compinit && compinit
-```
-
-#### Bash
-
-Add to `~/.bashrc`:
-
-```bash
-source /path/to/digital-asset-capitalization/completions/assetcap.bash
-```
-
-#### Fish
-
-Copy to fish completions:
-
-```bash
-cp completions/assetcap.fish ~/.config/fish/completions/
 ```
 
 ## Configuration

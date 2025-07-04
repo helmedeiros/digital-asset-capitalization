@@ -37,6 +37,13 @@ const (
 	teamsFile  = "teams.json"
 )
 
+// Version information - these will be overridden by GoReleaser
+var (
+	version = "dev"
+	commit  = "none"
+	date    = "unknown"
+)
+
 // App holds all the application dependencies
 type App struct {
 	assetService  assetsapp.AssetService
@@ -84,10 +91,12 @@ func (a *App) Run() error {
 	app := &cli.App{
 		Name:                 "AssetCap",
 		Usage:                "Digital Asset Capitalization Management Tool",
+		Version:              version,
 		EnableBashCompletion: true,
 		UsageText: `assetcap [global options] command [command options] [arguments...]
 
 COMMANDS:
+   version            Show version information
    config             Manage configuration settings
      init            Initialize configuration interactively
      show            Show current configuration
@@ -109,6 +118,16 @@ COMMANDS:
 For more information about a command:
    assetcap [command] --help`,
 		Commands: []*cli.Command{
+			{
+				Name:  "version",
+				Usage: "Show version information",
+				Action: func(_ *cli.Context) error {
+					fmt.Printf("AssetCap %s\n", version)
+					fmt.Printf("Commit: %s\n", commit)
+					fmt.Printf("Built: %s\n", date)
+					return nil
+				},
+			},
 			{
 				Name:  "completion",
 				Usage: "Generate shell completion scripts",

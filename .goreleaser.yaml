@@ -1,0 +1,107 @@
+version: 1
+
+project_name: assetcap
+
+before:
+  hooks:
+    - go mod tidy
+    - go generate ./...
+
+builds:
+  - main: ./cmd/main.go
+    binary: assetcap
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - linux
+      - windows
+      - darwin
+    goarch:
+      - amd64
+      - arm64
+    ignore:
+      - goos: windows
+        goarch: arm64
+    ldflags:
+      - -s -w -X main.version={{.Version}} -X main.commit={{.Commit}} -X main.date={{.Date}}
+
+archives:
+  - format: tar.gz
+    name_template: "assetcap_{{ .Os }}_{{ .Arch }}"
+    format_overrides:
+      - goos: windows
+        format: zip
+    files:
+      - README.md
+      - LICENSE
+      - bin/install-deps.sh
+
+checksum:
+  name_template: "checksums.txt"
+
+snapshot:
+  name_template: "{{ incpatch .Version }}-next"
+
+changelog:
+  sort: asc
+  filters:
+    exclude:
+      - "^docs:"
+      - "^test:"
+
+release:
+  github:
+    owner: helmedeiros
+    name: digital-asset-capitalization
+  draft: false
+  prerelease: auto
+  mode: replace
+  header: |
+    ## AssetCap {{ .Tag }}
+
+    ### Installation
+
+    **Quick Install (Recommended):**
+    ```bash
+    # Download and install using our installation script
+    curl -sSfL https://raw.githubusercontent.com/helmedeiros/digital-asset-capitalization/main/install.sh | bash
+    ```
+
+    **Manual Installation:**
+    1. Download the appropriate binary for your platform from the assets below
+    2. Extract the archive: `tar -xzf assetcap_*.tar.gz` (or unzip for Windows)
+    3. Move to PATH: `sudo mv assetcap /usr/local/bin/`
+    4. Install dependencies: `curl -sSfL https://raw.githubusercontent.com/helmedeiros/digital-asset-capitalization/main/bin/install-deps.sh | bash`
+
+    **Homebrew:**
+    ```bash
+    brew install helmedeiros/tap/assetcap
+    ```
+
+    **Verify Installation:**
+    ```bash
+    assetcap --help
+    ```
+
+  footer: |
+    **Full Changelog**: https://github.com/helmedeiros/digital-asset-capitalization/compare/{{ .PreviousTag }}...{{ .Tag }}
+
+    ---
+
+    For support and documentation, visit: https://github.com/helmedeiros/digital-asset-capitalization
+
+# Homebrew tap - disabled temporarily until authentication is set up
+# brews:
+#   - name: assetcap
+#     repository:
+#       owner: helmedeiros
+#       name: homebrew-tap
+#       token: "{{ .Env.HOMEBREW_TAP_GITHUB_TOKEN }}"
+#     folder: Formula
+#     homepage: https://github.com/helmedeiros/digital-asset-capitalization
+#     description: Digital Asset Capitalization Management Tool
+#     license: MIT
+#     install: |
+#       bin.install "assetcap"
+#     test: |
+#       system "#{bin}/assetcap --help"
