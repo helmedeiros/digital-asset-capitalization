@@ -229,19 +229,7 @@ func (c *client) convertToDomainTasks(searchResp api.SearchResult, sprint string
 		}
 
 		// Set additional fields
-		var description string
-		if len(issue.Fields.Description.Content) > 0 {
-			for _, content := range issue.Fields.Description.Content {
-				if content.Type == "paragraph" {
-					for _, text := range content.Content {
-						if text.Type == "text" {
-							description += text.Text
-						}
-					}
-				}
-			}
-		}
-		task.Description = strings.TrimSpace(description)
+		task.Description = issue.Fields.Description.ExtractAllText()
 		task.Status = mapJiraStatus(issue.Fields.Status.Name)
 		task.Type = mapJiraType(issue.Fields.IssueType.Name)
 		task.Priority = domain.TaskPriorityMedium // Default priority since it's not available in the API

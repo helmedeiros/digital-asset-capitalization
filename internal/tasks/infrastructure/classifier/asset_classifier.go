@@ -118,8 +118,8 @@ func (c *ContentBasedAssetClassifier) calculateAssetMatchScore(task *taskdomain.
 		}
 	}
 
-	// 2. Check for exact asset name match in task content (high priority)
-	nameInContentMatch := strings.Contains(taskContent, assetNameLower)
+	// 2. Check for exact asset name match in task content (high priority) - ENHANCED
+	nameInContentMatch := MatchesAssetNameEnhanced(taskContent, assetNameLower)
 	if nameInContentMatch {
 		currentScore := 0.9
 		if currentScore > bestScore {
@@ -129,8 +129,8 @@ func (c *ContentBasedAssetClassifier) calculateAssetMatchScore(task *taskdomain.
 		matchTypes++
 	}
 
-	// 3. Check for asset name match in epic (medium-high priority)
-	nameInEpicMatch := epicContent != "" && strings.Contains(epicContent, assetNameLower)
+	// 3. Check for asset name match in epic (medium-high priority) - ENHANCED
+	nameInEpicMatch := epicContent != "" && MatchesAssetNameEnhanced(epicContent, assetNameLower)
 	if nameInEpicMatch {
 		currentScore := 0.8
 		if currentScore > bestScore {
@@ -140,11 +140,10 @@ func (c *ContentBasedAssetClassifier) calculateAssetMatchScore(task *taskdomain.
 		matchTypes++
 	}
 
-	// 4. Check for keyword matches (medium priority)
+	// 4. Check for keyword matches (medium priority) - ENHANCED
 	keywordMatches := 0
 	for _, keyword := range asset.Keywords {
-		keywordLower := strings.ToLower(keyword)
-		if strings.Contains(taskContent, keywordLower) || strings.Contains(epicContent, keywordLower) {
+		if MatchesKeywordEnhanced(taskContent, keyword) || MatchesKeywordEnhanced(epicContent, keyword) {
 			keywordMatches++
 		}
 	}

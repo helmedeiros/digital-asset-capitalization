@@ -134,15 +134,52 @@ type Changelog struct {
 
 // Description represents the description content of a Jira issue
 type Description struct {
-	Type    string `json:"type"`
-	Version int    `json:"version"`
-	Content []struct {
-		Type    string `json:"type"`
-		Content []struct {
-			Type string `json:"type"`
-			Text string `json:"text"`
-		} `json:"content"`
-	} `json:"content"`
+	Type    string               `json:"type"`
+	Version int                  `json:"version"`
+	Content []DescriptionContent `json:"content"`
+}
+
+// DescriptionContent represents a flexible content element in ADF
+type DescriptionContent struct {
+	Type    string               `json:"type"`
+	Content []DescriptionContent `json:"content,omitempty"`
+	Text    string               `json:"text,omitempty"`
+}
+
+// ExtractAllText recursively extracts all text from the description content
+func (d *Description) ExtractAllText() string {
+	if d == nil {
+		return ""
+	}
+
+	var result strings.Builder
+	for _, content := range d.Content {
+		content.extractText(&result)
+	}
+	return strings.TrimSpace(result.String())
+}
+
+// extractText recursively extracts text from all content types
+func (dc *DescriptionContent) extractText(result *strings.Builder) {
+	switch dc.Type {
+	case "text":
+		if dc.Text != "" {
+			result.WriteString(dc.Text)
+		}
+	case "paragraph", "listItem", "bulletList", "orderedList":
+		for _, child := range dc.Content {
+			child.extractText(result)
+		}
+		// Add space after paragraphs and list items for better readability
+		if dc.Type == "paragraph" || dc.Type == "listItem" {
+			result.WriteString(" ")
+		}
+	default:
+		// For any other content type, recursively process children
+		for _, child := range dc.Content {
+			child.extractText(result)
+		}
+	}
 }
 
 // Assignee represents the assignee of a Jira issue
