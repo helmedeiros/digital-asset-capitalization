@@ -926,8 +926,8 @@ func initializeApp() (*App, error) {
 	// Work type classifier for determining capitalization category
 	workTypeClassifier := classifier.NewBusinessRulesClassifier(assetRepo)
 
-	// Comprehensive classification chain that orchestrates both classifiers
-	classificationChain := classifier.NewComprehensiveClassificationChain(assetClassifier, workTypeClassifier)
+	// Comprehensive classification chain with subtask inheritance support
+	classificationChain := classifier.NewComprehensiveClassificationChainWithInheritance(assetClassifier, workTypeClassifier)
 
 	// Create adapter to bridge comprehensive results with existing use case interface
 	taskClassifier := classifier.NewComprehensiveClassifierAdapter(classificationChain)
