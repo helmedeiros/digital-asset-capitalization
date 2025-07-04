@@ -10,5 +10,6 @@ teams.json
 completions/
 
 # Commit message temporary files
-commit_msg.txt
+commit_*.txt
+commit_*.tmp
 *.commit-msg

@@ -1,0 +1,107 @@
+version: 1
+
+before:
+  hooks:
+    - go mod tidy
+    - go generate ./...
+
+builds:
+  - main: ./cmd/main.go
+    binary: assetcap
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - linux
+      - windows
+      - darwin
+    goarch:
+      - amd64
+      - arm64
+    ignore:
+      - goos: windows
+        goarch: arm64
+    ldflags:
+      - -s -w -X main.version={{.Version}} -X main.commit={{.Commit}} -X main.date={{.Date}}
+
+archives:
+  - format: tar.gz
+    # this name template makes the OS and Arch compatible with the results of uname.
+    name_template: >-
+      {{ .ProjectName }}_
+      {{- title .Os }}_
+      {{- if eq .Arch "amd64" }}x86_64
+      {{- else if eq .Arch "386" }}i386
+      {{- else }}{{ .Arch }}{{ end }}
+      {{- if .Arm }}v{{ .Arm }}{{ end }}
+    # use zip for windows archives
+    format_overrides:
+      - goos: windows
+        format: zip
+    files:
+      - README.md
+      - LICENSE
+      - bin/install-deps.sh
+
+checksum:
+  name_template: "checksums.txt"
+
+snapshot:
+  name_template: "{{ incpatch .Version }}-next"
+
+changelog:
+  sort: asc
+  filters:
+    exclude:
+      - "^docs:"
+      - "^test:"
+
+release:
+  github:
+    owner: helmedeiros
+    name: digital-asset-capitalization
+  draft: false
+  prerelease: auto
+  mode: replace
+  header: |
+    ## AssetCap {{ .Tag }}
+
+    ### Installation
+
+    **Quick Install (Recommended):**
+    ```bash
+    # Download and install for your platform
+    curl -sSfL https://github.com/helmedeiros/digital-asset-capitalization/releases/download/{{ .Tag }}/assetcap_{{ title .Os }}_{{ if eq .Arch "amd64" }}x86_64{{ else }}{{ .Arch }}{{ end }}.tar.gz | tar -xzf - assetcap
+    sudo mv assetcap /usr/local/bin/
+    ```
+
+    **Install Dependencies:**
+    ```bash
+    # Install Ollama for AI features
+    curl -sSfL https://raw.githubusercontent.com/helmedeiros/digital-asset-capitalization/main/bin/install-deps.sh | bash
+    ```
+
+    **Verify Installation:**
+    ```bash
+    assetcap --help
+    ```
+
+  footer: |
+    **Full Changelog**: https://github.com/helmedeiros/digital-asset-capitalization/compare/{{ .PreviousTag }}...{{ .Tag }}
+
+    ---
+
+    For support and documentation, visit: https://github.com/helmedeiros/digital-asset-capitalization
+
+brews:
+  - name: assetcap
+    repository:
+      owner: helmedeiros
+      name: homebrew-tap
+    folder: Formula
+    homepage: https://github.com/helmedeiros/digital-asset-capitalization
+    description: Digital Asset Capitalization Management Tool
+    license: MIT
+    install: |
+      bin.install "assetcap"
+    test: |
+      system "#{bin}/assetcap --help"
