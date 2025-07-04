@@ -118,33 +118,33 @@ func (c *BusinessRulesClassifier) findRelatedAsset(task *taskdomain.Task) (*asse
 	return nil, nil
 }
 
-// taskMatchesAsset checks if a task is related to an asset
+// taskMatchesAsset checks if a task is related to an asset - ENHANCED
 func (c *BusinessRulesClassifier) taskMatchesAsset(task *taskdomain.Task, asset *assetdomain.Asset) bool {
 	if asset == nil {
 		return false
 	}
 
-	content := strings.ToLower(task.Summary + " " + task.Description)
+	content := task.Summary + " " + task.Description
 
-	// Check asset name
-	if strings.Contains(content, strings.ToLower(asset.Name)) {
+	// Check asset name with enhanced matching
+	if MatchesAssetNameEnhanced(content, asset.Name) {
 		return true
 	}
 
-	// Check asset keywords
+	// Check asset keywords with enhanced matching
 	for _, keyword := range asset.Keywords {
-		if strings.Contains(content, strings.ToLower(keyword)) {
+		if MatchesKeywordEnhanced(content, keyword) {
 			return true
 		}
 	}
 
 	// Check task labels for asset references
 	for _, label := range task.Labels {
-		if strings.Contains(strings.ToLower(label), strings.ToLower(asset.Name)) {
+		if MatchesAssetNameEnhanced(label, asset.Name) {
 			return true
 		}
 		for _, keyword := range asset.Keywords {
-			if strings.Contains(strings.ToLower(label), strings.ToLower(keyword)) {
+			if MatchesKeywordEnhanced(label, keyword) {
 				return true
 			}
 		}
