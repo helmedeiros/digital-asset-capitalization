@@ -570,7 +570,26 @@ For more information about a command:
 						Action: func(ctx *cli.Context) error {
 							project := ctx.String("project")
 							sprint := ctx.String("sprint")
+							key := ctx.String("key")
 							platform := ctx.String("platform")
+
+							// Validate that either (project + sprint) or key is provided
+							if key != "" {
+								// Individual task fetch
+								if project != "" || sprint != "" {
+									return fmt.Errorf("when using --key, do not specify --project or --sprint")
+								}
+								if err := a.taskService.FetchTaskByKey(context.Background(), key, platform); err != nil {
+									return err
+								}
+								fmt.Printf("✓ Successfully fetched task %s from %s\n", key, platform)
+								return nil
+							}
+
+							// Sprint-based fetch
+							if project == "" || sprint == "" {
+								return fmt.Errorf("either --key or both --project and --sprint must be provided")
+							}
 							if err := a.taskService.FetchTasks(context.Background(), project, sprint, platform); err != nil {
 								return err
 							}
@@ -579,14 +598,16 @@ For more information about a command:
 						},
 						Flags: []cli.Flag{
 							&cli.StringFlag{
-								Name:     "project",
-								Usage:    "Project key (e.g., FN)",
-								Required: true,
+								Name:  "project",
+								Usage: "Project key (e.g., FN) - required when not using --key",
 							},
 							&cli.StringFlag{
-								Name:     "sprint",
-								Usage:    "Sprint name (e.g., Penguins)",
-								Required: true,
+								Name:  "sprint",
+								Usage: "Sprint name (e.g., Penguins) - required when not using --key",
+							},
+							&cli.StringFlag{
+								Name:  "key",
+								Usage: "Task key (e.g., FN-1015) - fetch individual task",
 							},
 							&cli.StringFlag{
 								Name:     "platform",

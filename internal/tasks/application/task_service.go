@@ -12,6 +12,9 @@ type TaskService interface {
 	// FetchTasks fetches tasks from a platform
 	FetchTasks(ctx context.Context, project, sprint, platform string) error
 
+	// FetchTaskByKey fetches a single task by its key from a platform
+	FetchTaskByKey(ctx context.Context, key, platform string) error
+
 	// ClassifyTasks classifies tasks for a project and sprint
 	ClassifyTasks(ctx context.Context, input domain.ClassifyTasksInput) error
 

@@ -30,6 +30,11 @@ func (s *TaskServiceImpl) FetchTasks(ctx context.Context, project, sprint, platf
 	return s.fetchTasksUseCase.Execute(ctx, project, sprint, platform)
 }
 
+// FetchTaskByKey fetches a single task by its key from a platform
+func (s *TaskServiceImpl) FetchTaskByKey(ctx context.Context, key, platform string) error {
+	return s.fetchTasksUseCase.ExecuteByKey(ctx, key, platform)
+}
+
 // ClassifyTasks classifies tasks for a project and sprint
 func (s *TaskServiceImpl) ClassifyTasks(ctx context.Context, input domain.ClassifyTasksInput) error {
 	return s.classifyTasksUseCase.Execute(ctx, input)

@@ -892,3 +892,135 @@ func TestConvertToDomainTasks_WorkType(t *testing.T) {
 	task := tasks[0]
 	assert.Equal(t, domain.WorkTypeDevelopment, task.WorkType)
 }
+
+func TestClient_FetchTaskByKey(t *testing.T) {
+	tests := []struct {
+		name          string
+		key           string
+		mockSetup     func(*MockHTTPClient)
+		expectedError bool
+		errorContains string
+	}{
+		{
+			name: "successful fetch",
+			key:  "TEST-123",
+			mockSetup: func(mockClient *MockHTTPClient) {
+				mockClient.DoFunc = func(req *http.Request) (*http.Response, error) {
+					// Verify request URL and headers
+					assert.Contains(t, req.URL.String(), "/rest/api/2/issue/TEST-123")
+					assert.Equal(t, "application/json", req.Header.Get("Accept"))
+					assert.Contains(t, req.Header.Get("Authorization"), "Basic")
+
+					// Return mock response
+					responseBody := `{
+						"key": "TEST-123",
+						"fields": {
+							"summary": "Test Task",
+							"description": "Test description",
+							"status": {"name": "In Progress"},
+							"issuetype": {"name": "Task"},
+							"project": {"key": "TEST"},
+							"assignee": {"displayName": "Test User"},
+							"labels": [],
+							"created": "2025-01-01T00:00:00.000+0000",
+							"updated": "2025-01-01T00:00:00.000+0000"
+						}
+					}`
+					return &http.Response{
+						StatusCode: 200,
+						Body:       io.NopCloser(strings.NewReader(responseBody)),
+					}, nil
+				}
+			},
+			expectedError: false,
+		},
+		{
+			name: "task not found",
+			key:  "TEST-404",
+			mockSetup: func(mockClient *MockHTTPClient) {
+				mockClient.DoFunc = func(_ *http.Request) (*http.Response, error) {
+					return &http.Response{
+						StatusCode: 404,
+						Body:       io.NopCloser(strings.NewReader(`{"errorMessages":["Issue does not exist"]}`)),
+					}, nil
+				}
+			},
+			expectedError: true,
+			errorContains: "not found",
+		},
+		{
+			name: "empty key",
+			key:  "",
+			mockSetup: func(_ *MockHTTPClient) {
+				// No setup needed as validation happens before HTTP call
+			},
+			expectedError: true,
+			errorContains: "issue key is required",
+		},
+		{
+			name: "server error",
+			key:  "TEST-500",
+			mockSetup: func(mockClient *MockHTTPClient) {
+				mockClient.DoFunc = func(_ *http.Request) (*http.Response, error) {
+					return &http.Response{
+						StatusCode: 500,
+						Body:       io.NopCloser(strings.NewReader(`{"errorMessages":["Internal Server Error"]}`)),
+					}, nil
+				}
+			},
+			expectedError: true,
+			errorContains: "Jira API returned status 500",
+		},
+		{
+			name: "invalid JSON response",
+			key:  "TEST-INVALID",
+			mockSetup: func(mockClient *MockHTTPClient) {
+				mockClient.DoFunc = func(_ *http.Request) (*http.Response, error) {
+					return &http.Response{
+						StatusCode: 200,
+						Body:       io.NopCloser(strings.NewReader(`invalid json`)),
+					}, nil
+				}
+			},
+			expectedError: true,
+			errorContains: "failed to parse response",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Create mock HTTP client
+			mockHTTPClient := &MockHTTPClient{}
+			tt.mockSetup(mockHTTPClient)
+
+			// Create config
+			config := &Config{
+				BaseURL: "https://test.atlassian.net",
+				Email:   "test@example.com",
+				Token:   "test-token",
+			}
+
+			// Create client
+			client := &client{
+				httpClient: mockHTTPClient,
+				config:     config,
+			}
+
+			// Execute
+			task, err := client.FetchTaskByKey(context.Background(), tt.key)
+
+			// Verify
+			if tt.expectedError {
+				assert.Error(t, err)
+				if tt.errorContains != "" {
+					assert.Contains(t, err.Error(), tt.errorContains)
+				}
+				assert.Nil(t, task)
+			} else {
+				assert.NoError(t, err)
+				assert.NotNil(t, task)
+				assert.Equal(t, tt.key, task.Key)
+			}
+		})
+	}
+}

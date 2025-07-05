@@ -2,6 +2,7 @@ package api
 
 import (
 	"encoding/json"
+	"strings"
 	"testing"
 	"time"
 
@@ -85,4 +86,135 @@ func TestSearchResult_UnmarshalJSON(t *testing.T) {
 	updated, err := time.Parse(time.RFC3339, issue.Fields.Updated)
 	require.NoError(t, err, "Should parse updated timestamp")
 	assert.Equal(t, "2024-03-20T11:00:00Z", updated.Format(time.RFC3339), "Updated timestamp should match")
+}
+
+func TestDescription_UnmarshalJSON(t *testing.T) {
+	tests := []struct {
+		name         string
+		jsonData     string
+		expectedText string
+		expectError  bool
+	}{
+		{
+			name:         "string description",
+			jsonData:     `"This is a simple text description"`,
+			expectedText: "This is a simple text description",
+			expectError:  false,
+		},
+		{
+			name: "complex ADF description",
+			jsonData: `{
+				"type": "doc",
+				"version": 1,
+				"content": [
+					{
+						"type": "paragraph",
+						"content": [
+							{
+								"type": "text",
+								"text": "This is complex content"
+							}
+						]
+					}
+				]
+			}`,
+			expectedText: "This is complex content",
+			expectError:  false,
+		},
+		{
+			name:         "empty string description",
+			jsonData:     `""`,
+			expectedText: "",
+			expectError:  false,
+		},
+		{
+			name: "empty complex description",
+			jsonData: `{
+				"type": "doc",
+				"version": 1,
+				"content": []
+			}`,
+			expectedText: "",
+			expectError:  false,
+		},
+		{
+			name:        "invalid JSON",
+			jsonData:    `{invalid json}`,
+			expectError: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var desc Description
+			err := json.Unmarshal([]byte(tt.jsonData), &desc)
+
+			if tt.expectError {
+				assert.Error(t, err)
+				return
+			}
+
+			assert.NoError(t, err)
+			assert.Equal(t, tt.expectedText, desc.ExtractAllText())
+		})
+	}
+}
+
+func TestDescriptionContent_extractText(t *testing.T) {
+	tests := []struct {
+		name         string
+		content      DescriptionContent
+		expectedText string
+	}{
+		{
+			name: "text content",
+			content: DescriptionContent{
+				Type: "text",
+				Text: "Hello world",
+			},
+			expectedText: "Hello world",
+		},
+		{
+			name: "paragraph with nested text",
+			content: DescriptionContent{
+				Type: "paragraph",
+				Content: []DescriptionContent{
+					{
+						Type: "text",
+						Text: "Paragraph text",
+					},
+				},
+			},
+			expectedText: "Paragraph text ",
+		},
+		{
+			name: "nested content",
+			content: DescriptionContent{
+				Type: "unknown",
+				Content: []DescriptionContent{
+					{
+						Type: "text",
+						Text: "Nested text",
+					},
+				},
+			},
+			expectedText: "Nested text",
+		},
+		{
+			name: "empty content",
+			content: DescriptionContent{
+				Type: "text",
+				Text: "",
+			},
+			expectedText: "",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var result strings.Builder
+			tt.content.extractText(&result)
+			assert.Equal(t, tt.expectedText, result.String())
+		})
+	}
 }

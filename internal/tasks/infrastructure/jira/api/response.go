@@ -137,13 +137,32 @@ type Description struct {
 	Type    string               `json:"type"`
 	Version int                  `json:"version"`
 	Content []DescriptionContent `json:"content"`
+	rawText string               // Store raw text if description comes as string
 }
 
-// DescriptionContent represents a flexible content element in ADF
-type DescriptionContent struct {
-	Type    string               `json:"type"`
-	Content []DescriptionContent `json:"content,omitempty"`
-	Text    string               `json:"text,omitempty"`
+// UnmarshalJSON implements custom JSON unmarshaling for Description
+func (d *Description) UnmarshalJSON(data []byte) error {
+	// First, try to unmarshal as string
+	var str string
+	if err := json.Unmarshal(data, &str); err == nil {
+		// It's a string, store it
+		d.rawText = str
+		return nil
+	}
+
+	// If not a string, try to unmarshal as complex object
+	type tempDescription Description
+	var temp tempDescription
+	if err := json.Unmarshal(data, &temp); err != nil {
+		return err
+	}
+
+	// Copy fields
+	d.Type = temp.Type
+	d.Version = temp.Version
+	d.Content = temp.Content
+
+	return nil
 }
 
 // ExtractAllText recursively extracts all text from the description content
@@ -152,11 +171,24 @@ func (d *Description) ExtractAllText() string {
 		return ""
 	}
 
+	// If we have raw text (from string format), return it
+	if d.rawText != "" {
+		return d.rawText
+	}
+
+	// Otherwise, extract from complex structure
 	var result strings.Builder
 	for _, content := range d.Content {
 		content.extractText(&result)
 	}
 	return strings.TrimSpace(result.String())
+}
+
+// DescriptionContent represents a flexible content element in ADF
+type DescriptionContent struct {
+	Type    string               `json:"type"`
+	Content []DescriptionContent `json:"content,omitempty"`
+	Text    string               `json:"text,omitempty"`
 }
 
 // extractText recursively extracts text from all content types

@@ -105,6 +105,11 @@ func (m *MockTaskService) FetchTasks(ctx context.Context, project, sprint, platf
 	return args.Error(0)
 }
 
+func (m *MockTaskService) FetchTaskByKey(ctx context.Context, key, platform string) error {
+	args := m.Called(ctx, key, platform)
+	return args.Error(0)
+}
+
 func (m *MockTaskService) GetTasks(ctx context.Context, project, sprint string) ([]*tasksdomain.Task, error) {
 	args := m.Called(ctx, project, sprint)
 	return args.Get(0).([]*tasksdomain.Task), args.Error(1)

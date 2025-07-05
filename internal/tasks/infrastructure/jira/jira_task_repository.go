@@ -63,10 +63,18 @@ func (r *TaskRepository) Save(_ context.Context, _ *domain.Task) error {
 }
 
 // FindByKey finds a task by its key
-func (r *TaskRepository) FindByKey(_ context.Context, _ string) (*domain.Task, error) {
-	// For now, we'll return not implemented
-	// This will be implemented later when we have a proper single-issue fetch API
-	return nil, fmt.Errorf("task retrieval by key not yet implemented in JIRA repository")
+func (r *TaskRepository) FindByKey(ctx context.Context, key string) (*domain.Task, error) {
+	if key == "" {
+		return nil, fmt.Errorf("task key cannot be empty")
+	}
+
+	// Use the client to fetch the task by key
+	task, err := r.client.FetchTaskByKey(ctx, key)
+	if err != nil {
+		return nil, fmt.Errorf("failed to fetch task %s: %w", key, err)
+	}
+
+	return task, nil
 }
 
 // FindByProjectAndSprint finds all tasks for a given project and sprint

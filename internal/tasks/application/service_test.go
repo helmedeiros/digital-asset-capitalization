@@ -607,6 +607,10 @@ func (s *TestableTaskServiceImpl) FetchTasks(ctx context.Context, project, sprin
 	return s.fetchTasksUseCase.Execute(ctx, project, sprint, platform)
 }
 
+func (s *TestableTaskServiceImpl) FetchTaskByKey(ctx context.Context, key, platform string) error {
+	return s.fetchTasksUseCase.ExecuteByKey(ctx, key, platform)
+}
+
 func (s *TestableTaskServiceImpl) ClassifyTasks(ctx context.Context, input domain.ClassifyTasksInput) error {
 	return s.classifyTasksUseCase.Execute(ctx, input)
 }
@@ -803,5 +807,57 @@ func TestTaskService_GetTaskByKey(t *testing.T) {
 		assert.Error(t, err, "Should return error")
 		assert.Nil(t, task, "Should return nil task")
 		assert.Contains(t, err.Error(), "task key cannot be empty", "Error should contain empty key error")
+	})
+}
+
+func TestTaskService_FetchTaskByKey(t *testing.T) {
+	t.Run("should successfully fetch task by key", func(t *testing.T) {
+		// Set up mock dependencies
+		jiraRepo := testutil.NewMockTaskRepository()
+		localRepo := testutil.NewMockTaskRepository()
+		classifier := testutil.NewMockTaskClassifier()
+		userInput := testutil.NewMockUserInput()
+		assetService := testutil.NewMockAssetService()
+
+		// Create service
+		service := NewTasksService(jiraRepo, localRepo, classifier, userInput, assetService)
+
+		// Mock successful execution
+		jiraRepo.SetFindByKeyFunc(func(_ context.Context, key string) (*domain.Task, error) {
+			return &domain.Task{Key: key}, nil
+		})
+		localRepo.SetSaveFunc(func(_ context.Context, _ *domain.Task) error {
+			return nil
+		})
+
+		// Execute
+		err := service.FetchTaskByKey(context.Background(), "TEST-123", "jira")
+
+		// Verify
+		assert.NoError(t, err)
+	})
+
+	t.Run("should return error when fetch fails", func(t *testing.T) {
+		// Set up mock dependencies
+		jiraRepo := testutil.NewMockTaskRepository()
+		localRepo := testutil.NewMockTaskRepository()
+		classifier := testutil.NewMockTaskClassifier()
+		userInput := testutil.NewMockUserInput()
+		assetService := testutil.NewMockAssetService()
+
+		// Create service
+		service := NewTasksService(jiraRepo, localRepo, classifier, userInput, assetService)
+
+		// Mock failure
+		jiraRepo.SetFindByKeyFunc(func(_ context.Context, _ string) (*domain.Task, error) {
+			return nil, fmt.Errorf("task not found")
+		})
+
+		// Execute
+		err := service.FetchTaskByKey(context.Background(), "TEST-123", "jira")
+
+		// Verify
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "task not found")
 	})
 }
