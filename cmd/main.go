@@ -724,6 +724,56 @@ For more information about a command:
 							},
 						},
 					},
+					{
+						Name:  "inspect",
+						Usage: "Inspect a specific task by its key",
+						Action: func(ctx *cli.Context) error {
+							key := ctx.String("key")
+							if key == "" {
+								return fmt.Errorf("task key is required")
+							}
+
+							task, err := a.taskService.GetTaskByKey(ctx.Context, key)
+							if err != nil {
+								return fmt.Errorf("failed to get task %s: %w", key, err)
+							}
+
+							if task == nil {
+								fmt.Printf("Task %s not found\n", key)
+								return nil
+							}
+
+							fmt.Printf("Task Details for %s:\n", key)
+							fmt.Println("========================================")
+							fmt.Printf("Key:           %s\n", task.Key)
+							fmt.Printf("Type:          %s\n", task.Type)
+							fmt.Printf("Summary:       %s\n", task.Summary)
+							fmt.Printf("Status:        %s\n", task.Status)
+							fmt.Printf("Project:       %s\n", task.Project)
+							fmt.Printf("Sprint:        %s\n", task.Sprint)
+							fmt.Printf("Epic:          %s\n", task.Epic)
+							fmt.Printf("Work Type:     %s\n", task.WorkType)
+							fmt.Printf("Priority:      %s\n", task.Priority)
+							fmt.Printf("Platform:      %s\n", task.Platform)
+							fmt.Printf("Labels:        %v\n", task.Labels)
+							fmt.Printf("Created:       %s\n", task.CreatedAt.Format("2006-01-02 15:04:05"))
+							fmt.Printf("Updated:       %s\n", task.UpdatedAt.Format("2006-01-02 15:04:05"))
+							fmt.Printf("Version:       %d\n", task.Version)
+
+							if task.Description != "" {
+								fmt.Printf("Description:\n%s\n", task.Description)
+							}
+
+							return nil
+						},
+						Flags: []cli.Flag{
+							&cli.StringFlag{
+								Name:     "key",
+								Usage:    "Task key (e.g., FN-1015)",
+								Required: true,
+							},
+						},
+					},
 				},
 			},
 			{

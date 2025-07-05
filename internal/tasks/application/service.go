@@ -68,6 +68,22 @@ func (s *TaskServiceImpl) GetTasksByAsset(ctx context.Context, assetName string)
 	return assetTasks, nil
 }
 
+// GetTaskByKey retrieves a single task by its key
+func (s *TaskServiceImpl) GetTaskByKey(ctx context.Context, key string) (*domain.Task, error) {
+	if key == "" {
+		return nil, fmt.Errorf("task key cannot be empty")
+	}
+
+	// Try to find the task in the local repository
+	localRepo := s.classifyTasksUseCase.GetLocalRepository()
+	task, err := localRepo.FindByKey(ctx, key)
+	if err != nil {
+		return nil, fmt.Errorf("failed to find task with key %s: %w", key, err)
+	}
+
+	return task, nil
+}
+
 func (s *TaskServiceImpl) GetLocalRepository() ports.TaskRepository {
 	return s.classifyTasksUseCase.GetLocalRepository()
 }

@@ -56,3 +56,8 @@ func (u *FetchTasksUseCase) Execute(ctx context.Context, project, sprint, platfo
 
 	return nil
 }
+
+// GetRemoteRepository returns the remote repository instance
+func (u *FetchTasksUseCase) GetRemoteRepository() ports.TaskRepository {
+	return u.remoteRepo
+}

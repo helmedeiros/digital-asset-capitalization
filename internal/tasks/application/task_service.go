@@ -21,6 +21,9 @@ type TaskService interface {
 	// GetTasksByAsset retrieves tasks associated with a specific asset
 	GetTasksByAsset(ctx context.Context, assetName string) ([]*domain.Task, error)
 
+	// GetTaskByKey retrieves a single task by its key
+	GetTaskByKey(ctx context.Context, key string) (*domain.Task, error)
+
 	// GetLocalRepository returns the local task repository
 	GetLocalRepository() ports.TaskRepository
 }

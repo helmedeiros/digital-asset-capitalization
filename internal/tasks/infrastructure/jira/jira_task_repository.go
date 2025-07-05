@@ -64,8 +64,9 @@ func (r *TaskRepository) Save(_ context.Context, _ *domain.Task) error {
 
 // FindByKey finds a task by its key
 func (r *TaskRepository) FindByKey(_ context.Context, _ string) (*domain.Task, error) {
-	// TODO: Implement task retrieval by key in Jira
-	return nil, fmt.Errorf("not implemented")
+	// For now, we'll return not implemented
+	// This will be implemented later when we have a proper single-issue fetch API
+	return nil, fmt.Errorf("task retrieval by key not yet implemented in JIRA repository")
 }
 
 // FindByProjectAndSprint finds all tasks for a given project and sprint

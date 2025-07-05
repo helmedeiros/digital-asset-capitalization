@@ -115,6 +115,14 @@ func (m *MockTaskService) GetTasksByAsset(ctx context.Context, asset string) ([]
 	return args.Get(0).([]*tasksdomain.Task), args.Error(1)
 }
 
+func (m *MockTaskService) GetTaskByKey(ctx context.Context, key string) (*tasksdomain.Task, error) {
+	args := m.Called(ctx, key)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*tasksdomain.Task), args.Error(1)
+}
+
 func (m *MockTaskService) ClassifyTasks(ctx context.Context, input tasksdomain.ClassifyTasksInput) error {
 	args := m.Called(ctx, input)
 	return args.Error(0)

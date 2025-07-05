@@ -292,7 +292,7 @@ func TestRepository_NotImplementedMethods(t *testing.T) {
 		task, err := repo.FindByKey(ctx, "TEST-1")
 		require.Error(t, err, "Should return error")
 		assert.Nil(t, task, "Task should be nil")
-		assert.Equal(t, "not implemented", err.Error(), "Error message should match")
+		assert.Equal(t, "task retrieval by key not yet implemented in JIRA repository", err.Error(), "Error message should match")
 	})
 
 	t.Run("FindByProject", func(t *testing.T) {
