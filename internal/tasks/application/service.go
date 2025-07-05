@@ -30,6 +30,11 @@ func (s *TaskServiceImpl) FetchTasks(ctx context.Context, project, sprint, platf
 	return s.fetchTasksUseCase.Execute(ctx, project, sprint, platform)
 }
 
+// FetchTaskByKey fetches a single task by its key from a platform
+func (s *TaskServiceImpl) FetchTaskByKey(ctx context.Context, key, platform string) error {
+	return s.fetchTasksUseCase.ExecuteByKey(ctx, key, platform)
+}
+
 // ClassifyTasks classifies tasks for a project and sprint
 func (s *TaskServiceImpl) ClassifyTasks(ctx context.Context, input domain.ClassifyTasksInput) error {
 	return s.classifyTasksUseCase.Execute(ctx, input)
@@ -66,6 +71,22 @@ func (s *TaskServiceImpl) GetTasksByAsset(ctx context.Context, assetName string)
 	}
 
 	return assetTasks, nil
+}
+
+// GetTaskByKey retrieves a single task by its key
+func (s *TaskServiceImpl) GetTaskByKey(ctx context.Context, key string) (*domain.Task, error) {
+	if key == "" {
+		return nil, fmt.Errorf("task key cannot be empty")
+	}
+
+	// Try to find the task in the local repository
+	localRepo := s.classifyTasksUseCase.GetLocalRepository()
+	task, err := localRepo.FindByKey(ctx, key)
+	if err != nil {
+		return nil, fmt.Errorf("failed to find task with key %s: %w", key, err)
+	}
+
+	return task, nil
 }
 
 func (s *TaskServiceImpl) GetLocalRepository() ports.TaskRepository {

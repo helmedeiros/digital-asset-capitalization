@@ -20,6 +20,9 @@ type Client interface {
 	// FetchTasks retrieves tasks from Jira for a given project and sprint
 	FetchTasks(ctx context.Context, project, sprint string) ([]*domain.Task, error)
 
+	// FetchTaskByKey retrieves a single task from Jira by its key
+	FetchTaskByKey(ctx context.Context, key string) (*domain.Task, error)
+
 	// UpdateLabels updates the labels of a Jira issue
 	UpdateLabels(ctx context.Context, issueKey string, labels []string) error
 }
@@ -309,12 +312,196 @@ func (c *client) FetchTasks(ctx context.Context, project, sprint string) ([]*dom
 	return c.convertToDomainTasks(searchResp, sprint)
 }
 
+// FetchTaskByKey retrieves a single task from Jira by its key
+func (c *client) FetchTaskByKey(ctx context.Context, key string) (*domain.Task, error) {
+	if key == "" {
+		return nil, fmt.Errorf("issue key is required")
+	}
+
+	// Build the URL for fetching a single issue
+	issueURL := fmt.Sprintf("%s/rest/api/2/issue/%s?expand=changelog", c.config.BaseURL, key)
+
+	// Create the request
+	req, err := http.NewRequestWithContext(ctx, "GET", issueURL, nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create request: %w", err)
+	}
+
+	// Add authentication
+	req.Header.Set("Authorization", c.config.GetAuthHeader())
+	req.Header.Set("Accept", "application/json")
+
+	// Execute the request
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("failed to execute request: %w", err)
+	}
+	defer resp.Body.Close()
+
+	// Check response status
+	if resp.StatusCode != http.StatusOK {
+		if resp.StatusCode == http.StatusNotFound {
+			return nil, fmt.Errorf("issue %s not found", key)
+		}
+		return nil, fmt.Errorf("Jira API returned status %d", resp.StatusCode)
+	}
+
+	// Read response body
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read response body: %w", err)
+	}
+
+	// Parse the response
+	var issue api.Issue
+	if err := json.Unmarshal(body, &issue); err != nil {
+		return nil, fmt.Errorf("failed to parse response: %w", err)
+	}
+
+	// Convert to domain task
+	task, err := c.convertSingleIssueToDomainTask(issue)
+	if err != nil {
+		return nil, fmt.Errorf("failed to convert issue to domain task: %w", err)
+	}
+
+	return task, nil
+}
+
+// convertSingleIssueToDomainTask converts a single Jira issue to a domain task
+func (c *client) convertSingleIssueToDomainTask(issue api.Issue) (*domain.Task, error) {
+	// Handle empty timestamps
+	created := time.Now()
+	updated := time.Now()
+
+	if issue.Fields.Created != "" {
+		var err error
+		created, err = parseTime(issue.Fields.Created)
+		if err != nil {
+			return nil, fmt.Errorf("failed to parse created time: %w", err)
+		}
+	}
+
+	if issue.Fields.Updated != "" {
+		var err error
+		updated, err = parseTime(issue.Fields.Updated)
+		if err != nil {
+			return nil, fmt.Errorf("failed to parse updated time: %w", err)
+		}
+	}
+
+	// Handle sprint names
+	sprintName := ""
+	if len(issue.Fields.Sprint) > 0 {
+		var sprintNames []string
+		for _, s := range issue.Fields.Sprint {
+			if s.Name != "" {
+				sprintNames = append(sprintNames, s.Name)
+			}
+		}
+		if len(sprintNames) > 0 {
+			sprintName = strings.Join(sprintNames, ", ")
+		}
+	}
+
+	// Extract project key from issue key (e.g., "FN-1015" -> "FN")
+	projectKey := ""
+	if parts := strings.Split(issue.Key, "-"); len(parts) >= 2 {
+		projectKey = parts[0]
+	}
+
+	// Handle epic link - check if parent exists and is an epic
+	epicKey := ""
+	if issue.Fields.Parent != nil && issue.Fields.Parent.Fields.IssueType.Name == "Epic" {
+		epicKey = issue.Fields.Parent.Key
+	}
+
+	// Handle work type from labels
+	workType := domain.WorkType("")
+	for _, label := range issue.Fields.Labels {
+		switch label {
+		case "cap-maintenance":
+			workType = domain.WorkTypeMaintenance
+		case "cap-discovery":
+			workType = domain.WorkTypeDiscovery
+		case "cap-development":
+			workType = domain.WorkTypeDevelopment
+		}
+		if workType != "" {
+			break
+		}
+	}
+
+	task := &domain.Task{
+		Key:         issue.Key,
+		Summary:     issue.Fields.Summary,
+		Description: issue.Fields.Description.ExtractAllText(),
+		Status:      mapJiraStatus(issue.Fields.Status.Name),
+		Type:        mapJiraType(issue.Fields.IssueType.Name),
+		Priority:    domain.TaskPriorityMedium, // Default priority
+		Project:     projectKey,
+		Sprint:      sprintName,
+		Epic:        epicKey,
+		Platform:    "JIRA",
+		Labels:      issue.Fields.Labels,
+		WorkType:    workType,
+		CreatedAt:   created,
+		UpdatedAt:   updated,
+		Version:     1,
+	}
+
+	return task, nil
+}
+
+// UpdateLabels updates the labels of a Jira issue
+func (c *client) UpdateLabels(ctx context.Context, issueKey string, labels []string) error {
+	// Construct the request body
+	body := struct {
+		Fields struct {
+			Labels []string `json:"labels"`
+		} `json:"fields"`
+	}{}
+	body.Fields.Labels = labels
+
+	// Convert to JSON
+	jsonBody, err := json.Marshal(body)
+	if err != nil {
+		return fmt.Errorf("failed to marshal request body: %w", err)
+	}
+
+	// Construct the request
+	req, err := http.NewRequestWithContext(ctx, "PUT", fmt.Sprintf("%s/rest/api/3/issue/%s", c.config.GetBaseURL(), issueKey), bytes.NewBuffer(jsonBody))
+	if err != nil {
+		return fmt.Errorf("failed to create request: %w", err)
+	}
+
+	// Set headers
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", c.config.GetAuthHeader())
+
+	// Send request
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return fmt.Errorf("failed to send request: %w", err)
+	}
+	defer resp.Body.Close()
+
+	// Check response status
+	if resp.StatusCode != http.StatusNoContent && resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(resp.Body)
+		return fmt.Errorf("failed to update labels: status %d, body: %s", resp.StatusCode, string(body))
+	}
+
+	return nil
+}
+
+// HTTPClientImpl implements the HTTPClient interface for testing
 type HTTPClientImpl struct {
 	client  *http.Client
 	baseURL string
 	auth    string
 }
 
+// Field represents a JIRA field definition
 type Field struct {
 	ID     string `json:"id"`
 	Name   string `json:"name"`
@@ -324,6 +511,7 @@ type Field struct {
 	} `json:"schema"`
 }
 
+// getSprintFieldID retrieves the custom field ID for sprint
 func (c *HTTPClientImpl) getSprintFieldID() (string, error) {
 	url := fmt.Sprintf("%s/rest/api/2/field", c.baseURL)
 	req, err := http.NewRequest("GET", url, nil)
@@ -354,6 +542,7 @@ func (c *HTTPClientImpl) getSprintFieldID() (string, error) {
 	return "", fmt.Errorf("sprint field not found")
 }
 
+// GetTasks retrieves tasks from JIRA using the legacy API
 func (c *HTTPClientImpl) GetTasks(project string, sprint string) ([]api.JiraIssue, error) {
 	jql := fmt.Sprintf("project = %s", project)
 	if sprint != "" {
@@ -406,46 +595,4 @@ func (c *HTTPClientImpl) GetTasks(project string, sprint string) ([]api.JiraIssu
 	}
 
 	return tasks, nil
-}
-
-// UpdateLabels updates the labels of a Jira issue
-func (c *client) UpdateLabels(ctx context.Context, issueKey string, labels []string) error {
-	// Construct the request body
-	body := struct {
-		Fields struct {
-			Labels []string `json:"labels"`
-		} `json:"fields"`
-	}{}
-	body.Fields.Labels = labels
-
-	// Convert to JSON
-	jsonBody, err := json.Marshal(body)
-	if err != nil {
-		return fmt.Errorf("failed to marshal request body: %w", err)
-	}
-
-	// Construct the request
-	req, err := http.NewRequestWithContext(ctx, "PUT", fmt.Sprintf("%s/rest/api/3/issue/%s", c.config.GetBaseURL(), issueKey), bytes.NewBuffer(jsonBody))
-	if err != nil {
-		return fmt.Errorf("failed to create request: %w", err)
-	}
-
-	// Set headers
-	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("Authorization", c.config.GetAuthHeader())
-
-	// Send request
-	resp, err := c.httpClient.Do(req)
-	if err != nil {
-		return fmt.Errorf("failed to send request: %w", err)
-	}
-	defer resp.Body.Close()
-
-	// Check response status
-	if resp.StatusCode != http.StatusNoContent && resp.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(resp.Body)
-		return fmt.Errorf("failed to update labels: status %d, body: %s", resp.StatusCode, string(body))
-	}
-
-	return nil
 }

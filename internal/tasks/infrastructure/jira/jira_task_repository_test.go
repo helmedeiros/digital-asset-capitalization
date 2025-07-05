@@ -47,13 +47,21 @@ func (m *MockHTTPClient) Do(req *http.Request) (*http.Response, error) {
 
 // MockClient is a mock implementation of Client
 type MockClient struct {
-	FetchTasksFunc   func(ctx context.Context, project, sprint string) ([]*domain.Task, error)
-	UpdateLabelsFunc func(ctx context.Context, issueKey string, labels []string) error
+	FetchTasksFunc     func(ctx context.Context, project, sprint string) ([]*domain.Task, error)
+	FetchTaskByKeyFunc func(ctx context.Context, key string) (*domain.Task, error)
+	UpdateLabelsFunc   func(ctx context.Context, issueKey string, labels []string) error
 }
 
 func (m *MockClient) FetchTasks(ctx context.Context, project, sprint string) ([]*domain.Task, error) {
 	if m.FetchTasksFunc != nil {
 		return m.FetchTasksFunc(ctx, project, sprint)
+	}
+	return nil, nil
+}
+
+func (m *MockClient) FetchTaskByKey(ctx context.Context, key string) (*domain.Task, error) {
+	if m.FetchTaskByKeyFunc != nil {
+		return m.FetchTaskByKeyFunc(ctx, key)
 	}
 	return nil, nil
 }
@@ -66,13 +74,21 @@ func (m *MockClient) UpdateLabels(ctx context.Context, issueKey string, labels [
 }
 
 type mockClient struct {
-	fetchTasksFunc   func(ctx context.Context, project, sprint string) ([]*domain.Task, error)
-	updateLabelsFunc func(ctx context.Context, issueKey string, labels []string) error
+	fetchTasksFunc     func(ctx context.Context, project, sprint string) ([]*domain.Task, error)
+	fetchTaskByKeyFunc func(ctx context.Context, key string) (*domain.Task, error)
+	updateLabelsFunc   func(ctx context.Context, issueKey string, labels []string) error
 }
 
 func (m *mockClient) FetchTasks(ctx context.Context, project, sprint string) ([]*domain.Task, error) {
 	if m.fetchTasksFunc != nil {
 		return m.fetchTasksFunc(ctx, project, sprint)
+	}
+	return nil, nil
+}
+
+func (m *mockClient) FetchTaskByKey(ctx context.Context, key string) (*domain.Task, error) {
+	if m.fetchTaskByKeyFunc != nil {
+		return m.fetchTaskByKeyFunc(ctx, key)
 	}
 	return nil, nil
 }
@@ -288,13 +304,6 @@ func TestRepository_NotImplementedMethods(t *testing.T) {
 		assert.Equal(t, "not implemented", err.Error(), "Error message should match")
 	})
 
-	t.Run("FindByKey", func(t *testing.T) {
-		task, err := repo.FindByKey(ctx, "TEST-1")
-		require.Error(t, err, "Should return error")
-		assert.Nil(t, task, "Task should be nil")
-		assert.Equal(t, "not implemented", err.Error(), "Error message should match")
-	})
-
 	t.Run("FindByProject", func(t *testing.T) {
 		tasks, err := repo.FindByProject(ctx, "TEST")
 		require.Error(t, err, "Should return error")
@@ -333,6 +342,75 @@ func TestRepository_NotImplementedMethods(t *testing.T) {
 		err := repo.DeleteByProjectAndSprint(ctx, "TEST", "Sprint 1")
 		require.Error(t, err, "Should return error")
 		assert.Equal(t, "not implemented", err.Error(), "Error message should match")
+	})
+}
+
+func TestRepository_FindByKey(t *testing.T) {
+	ctx := context.Background()
+
+	// Save the original functions and restore them after the test
+	originalNewClient := NewClient
+	originalNewConfig := NewConfig
+	defer func() {
+		NewClient = originalNewClient
+		NewConfig = originalNewConfig
+	}()
+
+	t.Run("successful fetch", func(t *testing.T) {
+		expectedTask := &domain.Task{
+			Key:     "TEST-1",
+			Summary: "Test Task",
+			Project: "TEST",
+			Status:  domain.TaskStatusInProgress,
+		}
+
+		testMockClient := &mockClient{
+			fetchTaskByKeyFunc: func(_ context.Context, key string) (*domain.Task, error) {
+				assert.Equal(t, "TEST-1", key)
+				return expectedTask, nil
+			},
+		}
+
+		NewConfig = func() (*Config, error) {
+			return &Config{
+				BaseURL: "https://test.atlassian.net",
+				Email:   "test@example.com",
+				Token:   "test-token",
+			}, nil
+		}
+		NewClient = func(_ *Config) (Client, error) {
+			return testMockClient, nil
+		}
+
+		repo, err := NewRepositoryLegacy()
+		require.NoError(t, err, "Should not return error")
+
+		task, err := repo.FindByKey(ctx, "TEST-1")
+		require.NoError(t, err, "Should not return error")
+		assert.Equal(t, expectedTask, task, "Task should match")
+	})
+
+	t.Run("empty key", func(t *testing.T) {
+		testMockClient := &mockClient{}
+
+		NewConfig = func() (*Config, error) {
+			return &Config{
+				BaseURL: "https://test.atlassian.net",
+				Email:   "test@example.com",
+				Token:   "test-token",
+			}, nil
+		}
+		NewClient = func(_ *Config) (Client, error) {
+			return testMockClient, nil
+		}
+
+		repo, err := NewRepositoryLegacy()
+		require.NoError(t, err, "Should not return error")
+
+		task, err := repo.FindByKey(ctx, "")
+		require.Error(t, err, "Should return error")
+		assert.Nil(t, task, "Task should be nil")
+		assert.Contains(t, err.Error(), "task key cannot be empty")
 	})
 }
 

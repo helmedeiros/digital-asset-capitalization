@@ -56,3 +56,40 @@ func (u *FetchTasksUseCase) Execute(ctx context.Context, project, sprint, platfo
 
 	return nil
 }
+
+// ExecuteByKey fetches a single task by its key
+func (u *FetchTasksUseCase) ExecuteByKey(ctx context.Context, key, platform string) error {
+	if key == "" {
+		return fmt.Errorf("task key is required")
+	}
+
+	if platform == "" {
+		return fmt.Errorf("platform is required")
+	}
+
+	// Fetch task from remote repository (e.g., Jira)
+	task, err := u.remoteRepo.FindByKey(ctx, key)
+	if err != nil {
+		return fmt.Errorf("failed to fetch task %s: %w", key, err)
+	}
+
+	// Save task to local storage
+	if err := u.localRepo.Save(ctx, task); err != nil {
+		return fmt.Errorf("failed to save task %s: %w", task.Key, err)
+	}
+
+	// Display task
+	fmt.Printf("Found and saved 1 task\n")
+	sprintInfo := ""
+	if task.Sprint != "" {
+		sprintInfo = fmt.Sprintf(" [Sprints: %s]", task.Sprint)
+	}
+	fmt.Printf("- %s: [%s] %s (%s)%s\n", task.Key, task.Type, task.Summary, task.Status, sprintInfo)
+
+	return nil
+}
+
+// GetRemoteRepository returns the remote repository instance
+func (u *FetchTasksUseCase) GetRemoteRepository() ports.TaskRepository {
+	return u.remoteRepo
+}

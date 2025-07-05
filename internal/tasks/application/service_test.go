@@ -607,6 +607,10 @@ func (s *TestableTaskServiceImpl) FetchTasks(ctx context.Context, project, sprin
 	return s.fetchTasksUseCase.Execute(ctx, project, sprint, platform)
 }
 
+func (s *TestableTaskServiceImpl) FetchTaskByKey(ctx context.Context, key, platform string) error {
+	return s.fetchTasksUseCase.ExecuteByKey(ctx, key, platform)
+}
+
 func (s *TestableTaskServiceImpl) ClassifyTasks(ctx context.Context, input domain.ClassifyTasksInput) error {
 	return s.classifyTasksUseCase.Execute(ctx, input)
 }
@@ -640,6 +644,21 @@ func (s *TestableTaskServiceImpl) GetTasksByAsset(ctx context.Context, assetName
 	}
 
 	return assetTasks, nil
+}
+
+func (s *TestableTaskServiceImpl) GetTaskByKey(ctx context.Context, key string) (*domain.Task, error) {
+	if key == "" {
+		return nil, fmt.Errorf("task key cannot be empty")
+	}
+
+	// Try to find the task in the local repository
+	localRepo := s.classifyTasksUseCase.GetLocalRepository()
+	task, err := localRepo.FindByKey(ctx, key)
+	if err != nil {
+		return nil, fmt.Errorf("failed to find task with key %s: %w", key, err)
+	}
+
+	return task, nil
 }
 
 func (s *TestableTaskServiceImpl) GetLocalRepository() ports.TaskRepository {
@@ -704,5 +723,141 @@ func TestTaskServiceImpl_GetTasks(t *testing.T) {
 		assert.Error(t, err, "Should return error")
 		assert.Nil(t, tasks, "Should return nil tasks")
 		assert.Contains(t, err.Error(), "failed to find existing tasks", "Error should contain repository error")
+	})
+}
+
+func TestTaskService_GetTaskByKey(t *testing.T) {
+	t.Run("should return task when found", func(t *testing.T) {
+		// Set up mock dependencies
+		jiraRepo := testutil.NewMockTaskRepository()
+		localRepo := testutil.NewMockTaskRepository()
+		classifier := testutil.NewMockTaskClassifier()
+		userInput := testutil.NewMockUserInput()
+		assetService := testutil.NewMockAssetService()
+
+		// Create service
+		service := NewTasksService(jiraRepo, localRepo, classifier, userInput, assetService)
+
+		// Set up test data
+		expectedTask := &domain.Task{
+			Key:     "FN-1015",
+			Summary: "Enable rounding with new Journey Details Service",
+			Project: "FN",
+			Sprint:  "The Hulk",
+			Status:  "Done",
+			Type:    "Task",
+		}
+
+		// Mock the local repository to return task
+		localRepo.SetFindByKeyFunc(func(_ context.Context, key string) (*domain.Task, error) {
+			if key == "FN-1015" {
+				return expectedTask, nil
+			}
+			return nil, fmt.Errorf("task not found")
+		})
+
+		// Test
+		task, err := service.GetTaskByKey(context.Background(), "FN-1015")
+
+		// Verify
+		assert.NoError(t, err, "Should not return error")
+		assert.Equal(t, expectedTask, task, "Should return expected task")
+	})
+
+	t.Run("should return error when task not found", func(t *testing.T) {
+		// Set up mock dependencies
+		jiraRepo := testutil.NewMockTaskRepository()
+		localRepo := testutil.NewMockTaskRepository()
+		classifier := testutil.NewMockTaskClassifier()
+		userInput := testutil.NewMockUserInput()
+		assetService := testutil.NewMockAssetService()
+
+		// Create service
+		service := NewTasksService(jiraRepo, localRepo, classifier, userInput, assetService)
+
+		// Mock the local repository to return error
+		localRepo.SetFindByKeyFunc(func(_ context.Context, _ string) (*domain.Task, error) {
+			return nil, fmt.Errorf("task not found")
+		})
+
+		// Test
+		task, err := service.GetTaskByKey(context.Background(), "NON-EXISTENT")
+
+		// Verify
+		assert.Error(t, err, "Should return error")
+		assert.Nil(t, task, "Should return nil task")
+		assert.Contains(t, err.Error(), "task not found", "Error should contain task not found")
+	})
+
+	t.Run("should return error when key is empty", func(t *testing.T) {
+		// Set up mock dependencies
+		jiraRepo := testutil.NewMockTaskRepository()
+		localRepo := testutil.NewMockTaskRepository()
+		classifier := testutil.NewMockTaskClassifier()
+		userInput := testutil.NewMockUserInput()
+		assetService := testutil.NewMockAssetService()
+
+		// Create service
+		service := NewTasksService(jiraRepo, localRepo, classifier, userInput, assetService)
+
+		// Test
+		task, err := service.GetTaskByKey(context.Background(), "")
+
+		// Verify
+		assert.Error(t, err, "Should return error")
+		assert.Nil(t, task, "Should return nil task")
+		assert.Contains(t, err.Error(), "task key cannot be empty", "Error should contain empty key error")
+	})
+}
+
+func TestTaskService_FetchTaskByKey(t *testing.T) {
+	t.Run("should successfully fetch task by key", func(t *testing.T) {
+		// Set up mock dependencies
+		jiraRepo := testutil.NewMockTaskRepository()
+		localRepo := testutil.NewMockTaskRepository()
+		classifier := testutil.NewMockTaskClassifier()
+		userInput := testutil.NewMockUserInput()
+		assetService := testutil.NewMockAssetService()
+
+		// Create service
+		service := NewTasksService(jiraRepo, localRepo, classifier, userInput, assetService)
+
+		// Mock successful execution
+		jiraRepo.SetFindByKeyFunc(func(_ context.Context, key string) (*domain.Task, error) {
+			return &domain.Task{Key: key}, nil
+		})
+		localRepo.SetSaveFunc(func(_ context.Context, _ *domain.Task) error {
+			return nil
+		})
+
+		// Execute
+		err := service.FetchTaskByKey(context.Background(), "TEST-123", "jira")
+
+		// Verify
+		assert.NoError(t, err)
+	})
+
+	t.Run("should return error when fetch fails", func(t *testing.T) {
+		// Set up mock dependencies
+		jiraRepo := testutil.NewMockTaskRepository()
+		localRepo := testutil.NewMockTaskRepository()
+		classifier := testutil.NewMockTaskClassifier()
+		userInput := testutil.NewMockUserInput()
+		assetService := testutil.NewMockAssetService()
+
+		// Create service
+		service := NewTasksService(jiraRepo, localRepo, classifier, userInput, assetService)
+
+		// Mock failure
+		jiraRepo.SetFindByKeyFunc(func(_ context.Context, _ string) (*domain.Task, error) {
+			return nil, fmt.Errorf("task not found")
+		})
+
+		// Execute
+		err := service.FetchTaskByKey(context.Background(), "TEST-123", "jira")
+
+		// Verify
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "task not found")
 	})
 }

@@ -13,6 +13,7 @@ type MockTaskRepository struct {
 	saveFunc                   func(ctx context.Context, task *domain.Task) error
 	updateLabelsFunc           func(ctx context.Context, taskKey string, labels []string) error
 	findAllFunc                func(ctx context.Context) ([]*domain.Task, error)
+	findByKeyFunc              func(ctx context.Context, key string) (*domain.Task, error)
 }
 
 // NewMockTaskRepository creates a new mock task repository
@@ -26,6 +27,7 @@ func (m *MockTaskRepository) Reset() {
 	m.saveFunc = nil
 	m.updateLabelsFunc = nil
 	m.findAllFunc = nil
+	m.findByKeyFunc = nil
 }
 
 // SetFindByProjectAndSprintFunc sets the mock function for FindByProjectAndSprint
@@ -48,6 +50,11 @@ func (m *MockTaskRepository) SetFindAllFunc(f func(ctx context.Context) ([]*doma
 	m.findAllFunc = f
 }
 
+// SetFindByKeyFunc sets the mock function for FindByKey
+func (m *MockTaskRepository) SetFindByKeyFunc(f func(ctx context.Context, key string) (*domain.Task, error)) {
+	m.findByKeyFunc = f
+}
+
 // Save saves a task to the repository
 func (m *MockTaskRepository) Save(ctx context.Context, task *domain.Task) error {
 	if m.saveFunc != nil {
@@ -58,6 +65,9 @@ func (m *MockTaskRepository) Save(ctx context.Context, task *domain.Task) error 
 
 // FindByKey finds a task by its key
 func (m *MockTaskRepository) FindByKey(ctx context.Context, key string) (*domain.Task, error) {
+	if m.findByKeyFunc != nil {
+		return m.findByKeyFunc(ctx, key)
+	}
 	return nil, nil
 }
 
