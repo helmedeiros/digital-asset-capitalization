@@ -7,6 +7,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"strings"
 	"testing"
 	"time"
@@ -1023,4 +1024,110 @@ func TestClient_FetchTaskByKey(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestClient_UpdateLabels(t *testing.T) {
+	tests := []struct {
+		name           string
+		taskKey        string
+		labels         []string
+		serverResponse string
+		statusCode     int
+		expectError    bool
+	}{
+		{
+			name:           "successful update",
+			taskKey:        "TEST-1",
+			labels:         []string{"label1", "label2"},
+			serverResponse: `{"key": "TEST-1"}`,
+			statusCode:     200,
+			expectError:    false,
+		},
+		{
+			name:           "empty task key",
+			taskKey:        "",
+			labels:         []string{"label1"},
+			serverResponse: "",
+			statusCode:     400,
+			expectError:    true,
+		},
+		{
+			name:           "server error",
+			taskKey:        "TEST-1",
+			labels:         []string{"label1"},
+			serverResponse: `{"error": "Internal server error"}`,
+			statusCode:     500,
+			expectError:    true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+				w.WriteHeader(tt.statusCode)
+				w.Write([]byte(tt.serverResponse))
+			}))
+			defer server.Close()
+
+			config := &Config{
+				BaseURL: server.URL,
+				Email:   "test@example.com",
+				Token:   "test-token",
+			}
+
+			client, err := NewClient(config)
+			require.NoError(t, err)
+
+			err = client.UpdateLabels(context.Background(), tt.taskKey, tt.labels)
+
+			if tt.expectError {
+				assert.Error(t, err)
+			} else {
+				assert.NoError(t, err)
+			}
+		})
+	}
+}
+
+func TestNewRepositoryLegacy_ErrorHandling(t *testing.T) {
+	// Clear environment variables to force error
+	origBaseURL := os.Getenv("JIRA_BASE_URL")
+	origEmail := os.Getenv("JIRA_EMAIL")
+	origToken := os.Getenv("JIRA_TOKEN")
+
+	os.Unsetenv("JIRA_BASE_URL")
+	os.Unsetenv("JIRA_EMAIL")
+	os.Unsetenv("JIRA_TOKEN")
+
+	defer func() {
+		if origBaseURL != "" {
+			os.Setenv("JIRA_BASE_URL", origBaseURL)
+		}
+		if origEmail != "" {
+			os.Setenv("JIRA_EMAIL", origEmail)
+		}
+		if origToken != "" {
+			os.Setenv("JIRA_TOKEN", origToken)
+		}
+	}()
+
+	_, err := NewRepositoryLegacy()
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "failed to create Jira configuration")
+}
+
+func TestNewRepositoryLegacy_Success(t *testing.T) {
+	// Set up environment variables for valid config
+	os.Setenv("JIRA_BASE_URL", "https://test.atlassian.net")
+	os.Setenv("JIRA_EMAIL", "test@example.com")
+	os.Setenv("JIRA_TOKEN", "test-token")
+	defer func() {
+		os.Unsetenv("JIRA_BASE_URL")
+		os.Unsetenv("JIRA_EMAIL")
+		os.Unsetenv("JIRA_TOKEN")
+	}()
+
+	repo, err := NewRepositoryLegacy()
+	assert.NoError(t, err)
+	assert.NotNil(t, repo)
 }

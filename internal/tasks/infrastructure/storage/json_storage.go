@@ -72,7 +72,7 @@ func (s *JSONStorage) FindByProjectAndSprint(_ context.Context, project, sprint 
 
 	var result []*domain.Task
 	for _, task := range tasks {
-		if task.Project == project && task.Sprint == sprint {
+		if task.Project == project && task.HasSprint(sprint) {
 			result = append(result, task)
 		}
 	}
@@ -106,7 +106,7 @@ func (s *JSONStorage) FindBySprint(_ context.Context, sprint string) ([]*domain.
 
 	var result []*domain.Task
 	for _, task := range tasks {
-		if task.Sprint == sprint {
+		if task.HasSprint(sprint) {
 			result = append(result, task)
 		}
 	}
@@ -175,7 +175,7 @@ func (s *JSONStorage) DeleteByProjectAndSprint(_ context.Context, project, sprin
 	// Create a new map with tasks to keep
 	newTasks := make(map[string]*domain.Task)
 	for key, task := range tasks {
-		if task.Project != project || task.Sprint != sprint {
+		if task.Project != project || !task.HasSprint(sprint) {
 			newTasks[key] = task
 		}
 	}

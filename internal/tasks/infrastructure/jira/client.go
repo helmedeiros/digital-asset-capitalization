@@ -197,17 +197,13 @@ func (c *client) convertToDomainTasks(searchResp api.SearchResult, sprint string
 			}
 		}
 
-		// Handle empty sprint
-		sprintName := ""
+		// Handle sprint names
+		var sprintNames []string
 		if len(issue.Fields.Sprint) > 0 {
-			var sprintNames []string
 			for _, s := range issue.Fields.Sprint {
 				if s.Name != "" {
 					sprintNames = append(sprintNames, s.Name)
 				}
-			}
-			if len(sprintNames) > 0 {
-				sprintName = strings.Join(sprintNames, ", ")
 			}
 		}
 
@@ -226,7 +222,15 @@ func (c *client) convertToDomainTasks(searchResp api.SearchResult, sprint string
 			epicKey = issue.Fields.Parent.Key
 		}
 
-		task, err := domain.NewTask(issue.Key, issue.Fields.Summary, projectKey, sprintName, "JIRA")
+		// Create task with multi-sprint support
+		var task *domain.Task
+		var err error
+		if len(sprintNames) > 0 {
+			task, err = domain.NewTaskWithSprints(issue.Key, issue.Fields.Summary, projectKey, sprintNames, "JIRA")
+		} else {
+			// Use NewTaskWithoutSprint for issues with no sprints
+			task, err = domain.NewTaskWithoutSprint(issue.Key, issue.Fields.Summary, projectKey, "JIRA")
+		}
 		if err != nil {
 			return nil, fmt.Errorf("failed to create task: %w", err)
 		}
@@ -390,20 +394,16 @@ func (c *client) convertSingleIssueToDomainTask(issue api.Issue) (*domain.Task, 
 	}
 
 	// Handle sprint names
-	sprintName := ""
+	var sprintNames []string
 	if len(issue.Fields.Sprint) > 0 {
-		var sprintNames []string
 		for _, s := range issue.Fields.Sprint {
 			if s.Name != "" {
 				sprintNames = append(sprintNames, s.Name)
 			}
 		}
-		if len(sprintNames) > 0 {
-			sprintName = strings.Join(sprintNames, ", ")
-		}
 	}
 
-	// Extract project key from issue key (e.g., "FN-1015" -> "FN")
+	// Use the project key from the issue key if not available in fields
 	projectKey := ""
 	if parts := strings.Split(issue.Key, "-"); len(parts) >= 2 {
 		projectKey = parts[0]
@@ -431,23 +431,29 @@ func (c *client) convertSingleIssueToDomainTask(issue api.Issue) (*domain.Task, 
 		}
 	}
 
-	task := &domain.Task{
-		Key:         issue.Key,
-		Summary:     issue.Fields.Summary,
-		Description: issue.Fields.Description.ExtractAllText(),
-		Status:      mapJiraStatus(issue.Fields.Status.Name),
-		Type:        mapJiraType(issue.Fields.IssueType.Name),
-		Priority:    domain.TaskPriorityMedium, // Default priority
-		Project:     projectKey,
-		Sprint:      sprintName,
-		Epic:        epicKey,
-		Platform:    "JIRA",
-		Labels:      issue.Fields.Labels,
-		WorkType:    workType,
-		CreatedAt:   created,
-		UpdatedAt:   updated,
-		Version:     1,
+	// Create task with multi-sprint support
+	var task *domain.Task
+	var err error
+	if len(sprintNames) > 0 {
+		task, err = domain.NewTaskWithSprints(issue.Key, issue.Fields.Summary, projectKey, sprintNames, "JIRA")
+	} else {
+		// Use NewTaskWithoutSprint for issues with no sprints
+		task, err = domain.NewTaskWithoutSprint(issue.Key, issue.Fields.Summary, projectKey, "JIRA")
 	}
+	if err != nil {
+		return nil, fmt.Errorf("failed to create task: %w", err)
+	}
+
+	// Set additional fields
+	task.Description = issue.Fields.Description.ExtractAllText()
+	task.Status = mapJiraStatus(issue.Fields.Status.Name)
+	task.Type = mapJiraType(issue.Fields.IssueType.Name)
+	task.Priority = domain.TaskPriorityMedium // Default priority
+	task.Labels = issue.Fields.Labels
+	task.Epic = epicKey
+	task.CreatedAt = created
+	task.UpdatedAt = updated
+	task.WorkType = workType
 
 	return task, nil
 }

@@ -25,6 +25,7 @@ import (
 	"github.com/helmedeiros/digital-asset-capitalization/internal/tasks/infrastructure/classifier"
 	cliui "github.com/helmedeiros/digital-asset-capitalization/internal/tasks/infrastructure/cli"
 	"github.com/helmedeiros/digital-asset-capitalization/internal/tasks/infrastructure/jira"
+	"github.com/helmedeiros/digital-asset-capitalization/internal/tasks/infrastructure/migration"
 	"github.com/helmedeiros/digital-asset-capitalization/internal/tasks/infrastructure/storage"
 )
 
@@ -810,6 +811,109 @@ For more information about a command:
 								Name:     "key",
 								Usage:    "Task key (e.g., FN-1015)",
 								Required: true,
+							},
+						},
+					},
+					{
+						Name:  "migrate",
+						Usage: "Migrate sprint data from comma-separated strings to arrays",
+						Action: func(ctx *cli.Context) error {
+							filePath := ctx.String("file")
+							if filePath == "" {
+								filePath = migration.DefaultTasksFilePath()
+							}
+
+							dryRun := ctx.Bool("dry-run")
+							stats := ctx.Bool("stats")
+							rollback := ctx.Bool("rollback")
+
+							// Create storage repository
+							storageDir := filepath.Dir(filePath)
+							storageFile := filepath.Base(filePath)
+							localStorage := storage.NewJSONStorage(storageDir, storageFile)
+
+							// Create backup directory
+							backupDir := filepath.Join(storageDir, "backups")
+
+							migrator := migration.NewSprintMigration(localStorage, backupDir)
+
+							if rollback {
+								if err := migrator.RollbackMigration(context.Background()); err != nil {
+									return fmt.Errorf("failed to rollback migration: %w", err)
+								}
+								fmt.Printf("✓ Successfully rolled back migration for %s\n", filePath)
+								return nil
+							}
+
+							if stats {
+								result, err := migrator.GetMigrationStats(context.Background())
+								if err != nil {
+									return fmt.Errorf("failed to get migration stats: %w", err)
+								}
+
+								fmt.Printf("Migration Statistics for %s:\n", filePath)
+								fmt.Printf("========================================\n")
+								fmt.Printf("Total tasks:      %d\n", result.TasksProcessed)
+								fmt.Printf("Tasks to migrate: %d\n", result.Statistics["needs_migration"])
+								fmt.Printf("Already migrated: %d\n", result.Statistics["already_migrated"])
+								fmt.Printf("Migration %%:      %.1f%%\n", result.Statistics["migration_percentage"])
+								return nil
+							}
+
+							// Validate compatibility before running migration
+							if err := migrator.ValidateCompatibility(context.Background()); err != nil {
+								return fmt.Errorf("migration compatibility check failed: %w", err)
+							}
+
+							result, err := migrator.MigrateToArrayFormat(context.Background(), dryRun)
+							if err != nil {
+								return fmt.Errorf("failed to migrate sprint data: %w", err)
+							}
+
+							fmt.Printf("Migration Results for %s:\n", filePath)
+							fmt.Printf("========================================\n")
+							fmt.Printf("Total tasks:       %d\n", result.TasksProcessed)
+							fmt.Printf("Migrated tasks:    %d\n", result.TasksMigrated)
+							fmt.Printf("Skipped tasks:     %d\n", result.TasksSkipped)
+							if len(result.Errors) > 0 {
+								fmt.Printf("Errors:            %d\n", len(result.Errors))
+								for _, err := range result.Errors {
+									fmt.Printf("  - %s\n", err)
+								}
+							}
+
+							if dryRun {
+								fmt.Printf("\n🔍 DRY RUN: No changes were made\n")
+								fmt.Printf("   Run without --dry-run to apply changes\n")
+							} else {
+								if result.BackupCreated {
+									fmt.Printf("Backup created:    %s\n", result.BackupPath)
+								}
+								fmt.Printf("\n✓ Migration completed successfully!\n")
+								fmt.Printf("   Use --rollback to revert changes if needed\n")
+							}
+
+							return nil
+						},
+						Flags: []cli.Flag{
+							&cli.StringFlag{
+								Name:  "file",
+								Usage: "Path to tasks.json file (default: .assetcap/tasks.json)",
+							},
+							&cli.BoolFlag{
+								Name:  "dry-run",
+								Usage: "Preview migration without making changes",
+								Value: false,
+							},
+							&cli.BoolFlag{
+								Name:  "stats",
+								Usage: "Show migration statistics without running migration",
+								Value: false,
+							},
+							&cli.BoolFlag{
+								Name:  "rollback",
+								Usage: "Rollback previous migration using backup file",
+								Value: false,
 							},
 						},
 					},
