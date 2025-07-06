@@ -163,6 +163,11 @@ func (m *MockSprintService) ListSprints(project, period string) (*sprintusecase.
 	return args.Get(0).(*sprintusecase.ListSprintsResult), args.Error(1)
 }
 
+func (m *MockSprintService) ProcessJiraIssuesWithStrategy(project, sprint, override string, useSprintBounded bool) (string, error) {
+	args := m.Called(project, sprint, override, useSprintBounded)
+	return args.String(0), args.Error(1)
+}
+
 // MockTaskRepository is a mock implementation of TaskRepository
 type MockTaskRepository struct {
 	mock.Mock

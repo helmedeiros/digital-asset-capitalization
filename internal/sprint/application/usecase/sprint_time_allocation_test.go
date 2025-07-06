@@ -157,7 +157,7 @@ func TestJiraProcessor_CalculateTotalHours(t *testing.T) {
 					DisplayName: "Test User 1",
 				},
 				Status: domain.JiraStatus{
-					Name: "Done",
+					Name: domain.StatusDone,
 				},
 				IssueType: domain.IssueType{
 					Name: "Task",
@@ -181,7 +181,7 @@ func TestJiraProcessor_CalculateTotalHours(t *testing.T) {
 							{
 								Field:      "status",
 								FromString: "In Progress",
-								ToString:   "Done",
+								ToString:   domain.StatusDone,
 							},
 						},
 					},
@@ -196,7 +196,7 @@ func TestJiraProcessor_CalculateTotalHours(t *testing.T) {
 					DisplayName: "Test User 2",
 				},
 				Status: domain.JiraStatus{
-					Name: "Done",
+					Name: domain.StatusDone,
 				},
 				IssueType: domain.IssueType{
 					Name: "Task",
@@ -220,7 +220,7 @@ func TestJiraProcessor_CalculateTotalHours(t *testing.T) {
 							{
 								Field:      "status",
 								FromString: "In Progress",
-								ToString:   "Done",
+								ToString:   domain.StatusDone,
 							},
 						},
 					},
@@ -235,7 +235,7 @@ func TestJiraProcessor_CalculateTotalHours(t *testing.T) {
 					DisplayName: "Test User 2",
 				},
 				Status: domain.JiraStatus{
-					Name: "Done",
+					Name: domain.StatusDone,
 				},
 				IssueType: domain.IssueType{
 					Name: "Sub-task",
@@ -249,7 +249,7 @@ func TestJiraProcessor_CalculateTotalHours(t *testing.T) {
 							{
 								Field:      "status",
 								FromString: "To Do",
-								ToString:   "Done",
+								ToString:   domain.StatusDone,
 							},
 						},
 					},
@@ -313,7 +313,7 @@ func TestJiraProcessor_GetIssueTimeRange(t *testing.T) {
 									{
 										"field":      "status",
 										"fromString": "In Progress",
-										"toString":   "Done",
+										"toString":   domain.StatusDone,
 									},
 								},
 							},
@@ -369,7 +369,7 @@ func TestJiraProcessor_Process(t *testing.T) {
 			Key:      "TEST-123",
 			Summary:  "Test Issue 1",
 			Assignee: "Test User 1",
-			Status:   "Done",
+			Status:   domain.StatusDone,
 			Changelog: ports.JiraChangelog{
 				Histories: []ports.JiraChangeHistory{
 					{
@@ -388,7 +388,7 @@ func TestJiraProcessor_Process(t *testing.T) {
 							{
 								Field:      "status",
 								FromString: "In Progress",
-								ToString:   "Done",
+								ToString:   domain.StatusDone,
 							},
 						},
 					},
@@ -465,6 +465,10 @@ func (m *MockJiraAdapter) GetSprintsForProjectWithBoardInfo(project string, stat
 	return args.Get(0).([]ports.Sprint), args.Get(1).([]ports.BoardInfo), args.Error(2)
 }
 
+func (m *MockJiraAdapter) GetSprintByName(_, _ string) (*ports.Sprint, error) {
+	return nil, nil
+}
+
 func TestGetIssueTimeRange(t *testing.T) {
 	processor := &SprintTimeAllocationUseCase{}
 
@@ -487,7 +491,7 @@ func TestGetIssueTimeRange(t *testing.T) {
 								{
 									Field:      "status",
 									FromString: "To Do",
-									ToString:   "Done",
+									ToString:   domain.StatusDone,
 								},
 							},
 						},
@@ -519,7 +523,7 @@ func TestGetIssueTimeRange(t *testing.T) {
 								{
 									Field:      "status",
 									FromString: "In Progress",
-									ToString:   "Done",
+									ToString:   domain.StatusDone,
 								},
 							},
 						},
@@ -551,7 +555,7 @@ func TestGetIssueTimeRange(t *testing.T) {
 								{
 									Field:      "status",
 									FromString: "In Progress",
-									ToString:   "Blocked",
+									ToString:   domain.StatusBlocked,
 								},
 							},
 						},
@@ -560,7 +564,7 @@ func TestGetIssueTimeRange(t *testing.T) {
 							Items: []domain.JiraChangeItem{
 								{
 									Field:      "status",
-									FromString: "Blocked",
+									FromString: domain.StatusBlocked,
 									ToString:   "In Progress",
 								},
 							},
@@ -571,7 +575,7 @@ func TestGetIssueTimeRange(t *testing.T) {
 								{
 									Field:      "status",
 									FromString: "In Progress",
-									ToString:   "Done",
+									ToString:   domain.StatusDone,
 								},
 							},
 						},
@@ -637,7 +641,7 @@ func TestGetIssueTimeRange(t *testing.T) {
 								{
 									Field:      "status",
 									FromString: "To Do",
-									ToString:   "Won't Do",
+									ToString:   domain.StatusWontDo,
 								},
 							},
 						},
@@ -669,7 +673,7 @@ func TestGetIssueTimeRange(t *testing.T) {
 								{
 									Field:      "status",
 									FromString: "In Progress",
-									ToString:   "Won't Do",
+									ToString:   domain.StatusWontDo,
 								},
 							},
 						},
@@ -691,7 +695,7 @@ func TestGetIssueTimeRange(t *testing.T) {
 								{
 									Field:      "status",
 									FromString: "To Do",
-									ToString:   "Blocked",
+									ToString:   domain.StatusBlocked,
 								},
 							},
 						},
@@ -700,7 +704,7 @@ func TestGetIssueTimeRange(t *testing.T) {
 							Items: []domain.JiraChangeItem{
 								{
 									Field:      "status",
-									FromString: "Blocked",
+									FromString: domain.StatusBlocked,
 									ToString:   "To Do",
 								},
 							},
@@ -711,7 +715,7 @@ func TestGetIssueTimeRange(t *testing.T) {
 								{
 									Field:      "status",
 									FromString: "To Do",
-									ToString:   "Under Review",
+									ToString:   domain.StatusUnderReview,
 								},
 							},
 						},
@@ -733,7 +737,7 @@ func TestGetIssueTimeRange(t *testing.T) {
 								{
 									Field:      "status",
 									FromString: "To Do",
-									ToString:   "Blocked",
+									ToString:   domain.StatusBlocked,
 								},
 							},
 						},
@@ -742,8 +746,8 @@ func TestGetIssueTimeRange(t *testing.T) {
 							Items: []domain.JiraChangeItem{
 								{
 									Field:      "status",
-									FromString: "Blocked",
-									ToString:   "Under Review",
+									FromString: domain.StatusBlocked,
+									ToString:   domain.StatusUnderReview,
 								},
 							},
 						},
@@ -752,8 +756,8 @@ func TestGetIssueTimeRange(t *testing.T) {
 							Items: []domain.JiraChangeItem{
 								{
 									Field:      "status",
-									FromString: "Under Review",
-									ToString:   "Won't Do",
+									FromString: domain.StatusUnderReview,
+									ToString:   domain.StatusWontDo,
 								},
 							},
 						},
@@ -795,7 +799,7 @@ func TestCalculatePercentageLoad(t *testing.T) {
 					Name: "Task",
 				},
 				Status: domain.JiraStatus{
-					Name: "Done",
+					Name: domain.StatusDone,
 				},
 			},
 			Changelog: domain.JiraChangelog{
@@ -806,7 +810,7 @@ func TestCalculatePercentageLoad(t *testing.T) {
 							{
 								Field:      "status",
 								FromString: "To Do",
-								ToString:   "Done",
+								ToString:   domain.StatusDone,
 							},
 						},
 					},
@@ -847,7 +851,7 @@ func TestGenerateCSV(t *testing.T) {
 					"issueTitle":    "Test Task",
 					"workType":      "Development",
 					"assetName":     "cap-asset-booking",
-					"status":        "Done",
+					"status":        domain.StatusDone,
 					"dateStarted":   "2024-03-20",
 					"dateCompleted": "2024-03-21",
 					"engineer1":     "50.00%",
@@ -869,7 +873,7 @@ func TestGenerateCSV(t *testing.T) {
 					"issueTitle":    "Test Task",
 					"workType":      "Development",
 					"assetName":     "cap-asset-booking",
-					"status":        "Done",
+					"status":        domain.StatusDone,
 					"dateStarted":   "2024-03-20",
 					"dateCompleted": "2024-03-21",
 					"engineer1":     "50.00%",
@@ -891,7 +895,7 @@ func TestGenerateCSV(t *testing.T) {
 					"issueTitle":    "Test Task",
 					"workType":      "Development",
 					"assetName":     "cap-asset-booking",
-					"status":        "Done",
+					"status":        domain.StatusDone,
 					"dateStarted":   "2024-03-20",
 					"dateCompleted": "2024-03-21",
 					"engineer1":     "30.00%",
@@ -915,7 +919,7 @@ func TestGenerateCSV(t *testing.T) {
 					"issueTitle":    "Test Task",
 					"workType":      "Development",
 					"assetName":     "cap-asset-booking",
-					"status":        "Done",
+					"status":        domain.StatusDone,
 					"dateStarted":   "2024-03-20",
 					"dateCompleted": "2024-03-21",
 				},
@@ -1005,7 +1009,7 @@ func TestTimeCalculations(t *testing.T) {
 								{
 									Field:      "status",
 									FromString: "To Do",
-									ToString:   "Done",
+									ToString:   domain.StatusDone,
 								},
 							},
 						},
@@ -1039,7 +1043,7 @@ func TestTimeCalculations(t *testing.T) {
 								{
 									Field:      "status",
 									FromString: "In Progress",
-									ToString:   "Done",
+									ToString:   domain.StatusDone,
 								},
 							},
 						},
@@ -1073,7 +1077,7 @@ func TestTimeCalculations(t *testing.T) {
 								{
 									Field:      "status",
 									FromString: "In Progress",
-									ToString:   "Blocked",
+									ToString:   domain.StatusBlocked,
 								},
 							},
 						},
@@ -1082,7 +1086,7 @@ func TestTimeCalculations(t *testing.T) {
 							Items: []domain.JiraChangeItem{
 								{
 									Field:      "status",
-									FromString: "Blocked",
+									FromString: domain.StatusBlocked,
 									ToString:   "In Progress",
 								},
 							},
@@ -1093,7 +1097,7 @@ func TestTimeCalculations(t *testing.T) {
 								{
 									Field:      "status",
 									FromString: "In Progress",
-									ToString:   "Done",
+									ToString:   domain.StatusDone,
 								},
 							},
 						},
@@ -1117,7 +1121,7 @@ func TestTimeCalculations(t *testing.T) {
 								{
 									Field:      "status",
 									FromString: "To Do",
-									ToString:   "Done",
+									ToString:   domain.StatusDone,
 								},
 							},
 						},
@@ -1161,7 +1165,7 @@ func TestTimeCalculations(t *testing.T) {
 								{
 									Field:      "status",
 									FromString: "In Progress",
-									ToString:   "Done",
+									ToString:   domain.StatusDone,
 								},
 							},
 						},
@@ -1181,7 +1185,7 @@ func TestTimeCalculations(t *testing.T) {
 			assert.Equal(t, tt.expectedStart, startTime, "Start time mismatch for %s", tt.description)
 			assert.Equal(t, tt.expectedEnd, endTime, "End time mismatch for %s", tt.description)
 
-			hours := processor.calculateWorkingHours(tt.issue.Key, nil, startTime, endTime)
+			hours := processor.calculateWorkingHours(tt.issue.Key, nil, tt.issue)
 			assert.Equal(t, tt.expectedHours, hours, "Hours mismatch for %s", tt.description)
 		})
 	}
@@ -1216,7 +1220,7 @@ func TestFilterSubtasks(t *testing.T) {
 							{
 								Field:      "status",
 								FromString: "To Do",
-								ToString:   "Done",
+								ToString:   domain.StatusDone,
 							},
 						},
 					},
@@ -1242,7 +1246,7 @@ func TestFilterSubtasks(t *testing.T) {
 							{
 								Field:      "status",
 								FromString: "To Do",
-								ToString:   "Done",
+								ToString:   domain.StatusDone,
 							},
 						},
 					},
@@ -1341,7 +1345,7 @@ func TestMinimumHoursForDirectDone(t *testing.T) {
 					Name: "Task",
 				},
 				Status: domain.JiraStatus{
-					Name: "Done",
+					Name: domain.StatusDone,
 				},
 			},
 			Changelog: domain.JiraChangelog{
@@ -1352,7 +1356,7 @@ func TestMinimumHoursForDirectDone(t *testing.T) {
 							{
 								Field:      "status",
 								FromString: "To Do",
-								ToString:   "Done",
+								ToString:   domain.StatusDone,
 							},
 						},
 					},
@@ -1370,7 +1374,7 @@ func TestMinimumHoursForDirectDone(t *testing.T) {
 					Name: "Task",
 				},
 				Status: domain.JiraStatus{
-					Name: "Done",
+					Name: domain.StatusDone,
 				},
 			},
 			Changelog: domain.JiraChangelog{
@@ -1381,7 +1385,7 @@ func TestMinimumHoursForDirectDone(t *testing.T) {
 							{
 								Field:      "status",
 								FromString: "To Do",
-								ToString:   "Done",
+								ToString:   domain.StatusDone,
 							},
 						},
 					},
@@ -1390,7 +1394,7 @@ func TestMinimumHoursForDirectDone(t *testing.T) {
 						Items: []domain.JiraChangeItem{
 							{
 								Field:      "status",
-								FromString: "Done",
+								FromString: domain.StatusDone,
 								ToString:   "To Do",
 							},
 						},
@@ -1401,7 +1405,7 @@ func TestMinimumHoursForDirectDone(t *testing.T) {
 							{
 								Field:      "status",
 								FromString: "To Do",
-								ToString:   "Done",
+								ToString:   domain.StatusDone,
 							},
 						},
 					},
@@ -1450,7 +1454,7 @@ func TestPercentageLoadWithMinimumHours(t *testing.T) {
 					Name: "Task",
 				},
 				Status: domain.JiraStatus{
-					Name: "Done",
+					Name: domain.StatusDone,
 				},
 			},
 			Changelog: domain.JiraChangelog{
@@ -1461,7 +1465,7 @@ func TestPercentageLoadWithMinimumHours(t *testing.T) {
 							{
 								Field:      "status",
 								FromString: "To Do",
-								ToString:   "Done",
+								ToString:   domain.StatusDone,
 							},
 						},
 					},
@@ -1479,7 +1483,7 @@ func TestPercentageLoadWithMinimumHours(t *testing.T) {
 					Name: "Task",
 				},
 				Status: domain.JiraStatus{
-					Name: "Done",
+					Name: domain.StatusDone,
 				},
 			},
 			Changelog: domain.JiraChangelog{
@@ -1500,7 +1504,7 @@ func TestPercentageLoadWithMinimumHours(t *testing.T) {
 							{
 								Field:      "status",
 								FromString: "In Progress",
-								ToString:   "Done",
+								ToString:   domain.StatusDone,
 							},
 						},
 					},
@@ -1518,7 +1522,7 @@ func TestPercentageLoadWithMinimumHours(t *testing.T) {
 					Name: "Task",
 				},
 				Status: domain.JiraStatus{
-					Name: "Done",
+					Name: domain.StatusDone,
 				},
 			},
 			Changelog: domain.JiraChangelog{
@@ -1529,7 +1533,7 @@ func TestPercentageLoadWithMinimumHours(t *testing.T) {
 							{
 								Field:      "status",
 								FromString: "To Do",
-								ToString:   "Done",
+								ToString:   domain.StatusDone,
 							},
 						},
 					},

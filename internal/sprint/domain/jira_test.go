@@ -54,7 +54,7 @@ func TestJiraIssue_GetStatusChanges(t *testing.T) {
 								{
 									Field:      "status",
 									FromString: "To Do",
-									ToString:   "In Progress",
+									ToString:   StatusInProgress,
 								},
 							},
 						},
@@ -68,7 +68,7 @@ func TestJiraIssue_GetStatusChanges(t *testing.T) {
 						{
 							Field:      "status",
 							FromString: "To Do",
-							ToString:   "In Progress",
+							ToString:   StatusInProgress,
 						},
 					},
 				},
@@ -85,12 +85,12 @@ func TestJiraIssue_GetStatusChanges(t *testing.T) {
 								{
 									Field:      "status",
 									FromString: "To Do",
-									ToString:   "In Progress",
+									ToString:   StatusInProgress,
 								},
 								{
 									Field:      "status",
-									FromString: "In Progress",
-									ToString:   "Done",
+									FromString: StatusInProgress,
+									ToString:   StatusDone,
 								},
 							},
 						},
@@ -104,12 +104,12 @@ func TestJiraIssue_GetStatusChanges(t *testing.T) {
 						{
 							Field:      "status",
 							FromString: "To Do",
-							ToString:   "In Progress",
+							ToString:   StatusInProgress,
 						},
 						{
 							Field:      "status",
-							FromString: "In Progress",
-							ToString:   "Done",
+							FromString: StatusInProgress,
+							ToString:   StatusDone,
 						},
 					},
 				},
@@ -183,7 +183,7 @@ func TestJiraIssue_IsInProgress(t *testing.T) {
 								{
 									Field:      "status",
 									FromString: "To Do",
-									ToString:   "In Progress",
+									ToString:   StatusInProgress,
 								},
 							},
 						},
@@ -202,8 +202,8 @@ func TestJiraIssue_IsInProgress(t *testing.T) {
 							Items: []JiraChangeItem{
 								{
 									Field:      "status",
-									FromString: "In Progress",
-									ToString:   "Done",
+									FromString: StatusInProgress,
+									ToString:   StatusDone,
 								},
 							},
 						},
@@ -248,8 +248,8 @@ func TestJiraIssue_IsDone(t *testing.T) {
 							Items: []JiraChangeItem{
 								{
 									Field:      "status",
-									FromString: "In Progress",
-									ToString:   "Done",
+									FromString: StatusInProgress,
+									ToString:   StatusDone,
 								},
 							},
 						},
@@ -268,8 +268,8 @@ func TestJiraIssue_IsDone(t *testing.T) {
 							Items: []JiraChangeItem{
 								{
 									Field:      "status",
-									FromString: "In Progress",
-									ToString:   "Won't Do",
+									FromString: StatusInProgress,
+									ToString:   StatusWontDo,
 								},
 							},
 						},
@@ -289,7 +289,7 @@ func TestJiraIssue_IsDone(t *testing.T) {
 								{
 									Field:      "status",
 									FromString: "To Do",
-									ToString:   "In Progress",
+									ToString:   StatusInProgress,
 								},
 							},
 						},

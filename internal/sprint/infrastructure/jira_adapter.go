@@ -308,5 +308,23 @@ func (a *JiraAdapter) getSprintsForBoard(boardID int, states []string) ([]ports.
 	return portSprints, nil
 }
 
+// GetSprintByName retrieves sprint details by project and sprint name
+func (a *JiraAdapter) GetSprintByName(project, sprintName string) (*ports.Sprint, error) {
+	// Get all sprints for the project
+	sprints, err := a.GetSprintsForProject(project, []string{})
+	if err != nil {
+		return nil, fmt.Errorf("failed to get sprints for project %s: %w", project, err)
+	}
+
+	// Find sprint by name
+	for _, sprint := range sprints {
+		if sprint.Name == sprintName {
+			return &sprint, nil
+		}
+	}
+
+	return nil, fmt.Errorf("sprint '%s' not found in project %s", sprintName, project)
+}
+
 // Ensure JiraAdapter implements JiraPort
 var _ ports.JiraPort = (*JiraAdapter)(nil)

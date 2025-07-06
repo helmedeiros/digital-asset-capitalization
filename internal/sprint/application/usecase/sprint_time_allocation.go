@@ -1,6 +1,7 @@
 package usecase
 
 import (
+	"context"
 	"encoding/csv"
 	"encoding/json"
 	"fmt"
@@ -17,22 +18,29 @@ import (
 
 const (
 	issueTypeSubTask = "Sub-task"
-	statusDone       = "Done"
-	statusWontDo     = "Won't Do"
+	statusDone       = domain.StatusDone
+	statusWontDo     = domain.StatusWontDo
 )
 
 // SprintTimeAllocationUseCase handles the processing of Jira issues and time calculations
 type SprintTimeAllocationUseCase struct {
-	config   *config.JiraConfig
-	teams    domain.TeamMap
-	project  string
-	sprint   string
-	override string
-	jiraPort ports.JiraPort
+	config         *config.JiraConfig
+	teams          domain.TeamMap
+	project        string
+	sprint         string
+	override       string
+	jiraPort       ports.JiraPort
+	timeCalculator *domain.WorkTimeCalculator
+	sprintBoundary *domain.SprintBoundary
 }
 
 // NewSprintTimeAllocationUseCase creates a new JiraProcessor instance
 func NewSprintTimeAllocationUseCase(project, sprint, override string) (*SprintTimeAllocationUseCase, error) {
+	return NewSprintTimeAllocationUseCaseWithStrategy(project, sprint, override, false)
+}
+
+// NewSprintTimeAllocationUseCaseWithStrategy creates a new use case with configurable time calculation strategy
+func NewSprintTimeAllocationUseCaseWithStrategy(project, sprint, override string, useSprintBoundedCalculation bool) (*SprintTimeAllocationUseCase, error) {
 	// Create Jira adapter with shared configuration
 	jiraAdapter, err := infrastructure.NewJiraAdapter()
 	if err != nil {
@@ -55,13 +63,53 @@ func NewSprintTimeAllocationUseCase(project, sprint, override string) (*SprintTi
 		return nil, fmt.Errorf("failed to load team configuration: %w", err)
 	}
 
+	// Set up time calculation strategy
+	var timeCalculator *domain.WorkTimeCalculator
+	var sprintBoundary *domain.SprintBoundary
+
+	if useSprintBoundedCalculation {
+		// Get sprint details to create sprint boundary
+		sprintDetails, err := jiraAdapter.GetSprintByName(project, sprint)
+		if err != nil {
+			return nil, fmt.Errorf("failed to get sprint details for %s: %w", sprint, err)
+		}
+
+		// Parse sprint dates
+		startDate, err := time.Parse(time.RFC3339, sprintDetails.StartDate)
+		if err != nil {
+			return nil, fmt.Errorf("failed to parse sprint start date %s: %w", sprintDetails.StartDate, err)
+		}
+
+		endDate, err := time.Parse(time.RFC3339, sprintDetails.EndDate)
+		if err != nil {
+			return nil, fmt.Errorf("failed to parse sprint end date %s: %w", sprintDetails.EndDate, err)
+		}
+
+		// Create sprint boundary
+		boundary, err := domain.NewSprintBoundary(startDate, endDate)
+		if err != nil {
+			return nil, fmt.Errorf("failed to create sprint boundary: %w", err)
+		}
+		sprintBoundary = &boundary
+
+		// Use sprint-bounded time calculator
+		strategy := domain.NewSprintBoundedTimeCalculator()
+		timeCalculator = domain.NewWorkTimeCalculator(strategy)
+	} else {
+		// Use legacy time calculator for backward compatibility
+		strategy := domain.NewLegacyTimeCalculator()
+		timeCalculator = domain.NewWorkTimeCalculator(strategy)
+	}
+
 	return &SprintTimeAllocationUseCase{
-		config:   jiraConfig,
-		teams:    teams,
-		project:  project,
-		sprint:   sprint,
-		override: override,
-		jiraPort: jiraAdapter,
+		config:         jiraConfig,
+		teams:          teams,
+		project:        project,
+		sprint:         sprint,
+		override:       override,
+		jiraPort:       jiraAdapter,
+		timeCalculator: timeCalculator,
+		sprintBoundary: sprintBoundary,
 	}, nil
 }
 
@@ -178,12 +226,8 @@ func (p *SprintTimeAllocationUseCase) calculateTotalHours(team domain.Team, issu
 			continue
 		}
 
-		startTime, endTime := p.getIssueTimeRange(issue)
-		if startTime.IsZero() {
-			continue
-		}
-
-		workingHours := p.calculateWorkingHours(issue.Key, manualAdjustments, startTime, endTime)
+		// Use the new time calculation strategy
+		workingHours := p.calculateWorkingHours(issue.Key, manualAdjustments, issue)
 
 		totalHoursByPerson[assignee] += workingHours
 	}
@@ -237,8 +281,8 @@ func (p *SprintTimeAllocationUseCase) getIssueTimeRange(issue domain.JiraIssue) 
 			// If moving out of "In Progress" to a non-Done state, consider this a pause
 			if inProgress && item.FromString == "In Progress" &&
 				item.ToString != statusDone && item.ToString != statusWontDo {
-				// Calculate working hours up to this point and add to total
-				p.calculateWorkingHours(issue.Key, nil, startTime, historyTime)
+				// This was an interruption in progress, but we don't calculate hours here
+				// since we're only determining the overall time range in this method
 				inProgress = false
 			}
 		}
@@ -282,7 +326,7 @@ func (p *SprintTimeAllocationUseCase) calculatePercentageLoad(team domain.Team, 
 			startTime = endTime.Add(-8 * time.Hour)
 		}
 
-		workingHours := p.calculateWorkingHours(issue.Key, manualAdjustments, startTime, endTime)
+		workingHours := p.calculateWorkingHours(issue.Key, manualAdjustments, issue)
 
 		// For percentage calculations, ensure a minimum of 1 hour for completed issues in the same day
 		if workingHours < 1 && startTime.Year() == endTime.Year() && startTime.Month() == endTime.Month() && startTime.Day() == endTime.Day() &&
@@ -315,7 +359,7 @@ func (p *SprintTimeAllocationUseCase) calculatePercentageLoad(team domain.Team, 
 			startTime = endTime.Add(-8 * time.Hour)
 		}
 
-		workingHours := p.calculateWorkingHours(issue.Key, manualAdjustments, startTime, endTime)
+		workingHours := p.calculateWorkingHours(issue.Key, manualAdjustments, issue)
 
 		// For percentage calculations, ensure a minimum of 1 hour for completed issues in the same day
 		if workingHours < 1 && startTime.Year() == endTime.Year() && startTime.Month() == endTime.Month() && startTime.Day() == endTime.Day() &&
@@ -373,12 +417,35 @@ func (p *SprintTimeAllocationUseCase) generateCSV(team domain.Team, results []ma
 }
 
 // calculateWorkingHours calculates the working hours for an issue
-func (p *SprintTimeAllocationUseCase) calculateWorkingHours(issueKey string, manualAdjustments map[string]float64, startTime, endTime time.Time) float64 {
+func (p *SprintTimeAllocationUseCase) calculateWorkingHours(issueKey string, manualAdjustments map[string]float64, issue domain.JiraIssue) float64 {
 	// Check for manual adjustments first
 	if manualAdjustments != nil {
 		if hours, ok := manualAdjustments[issueKey]; ok {
 			return hours
 		}
+	}
+
+	// Use the new time calculation strategy
+	ctx := context.Background()
+
+	if p.sprintBoundary != nil {
+		// Use sprint-bounded calculation
+		hours, err := p.timeCalculator.CalculateWorkingHours(ctx, issue, *p.sprintBoundary)
+		if err != nil {
+			// Fall back to legacy calculation on error
+			return p.calculateWorkingHoursLegacy(issue)
+		}
+		return hours
+	}
+	// Use legacy calculation (sprint boundary not set)
+	return p.calculateWorkingHoursLegacy(issue)
+}
+
+// calculateWorkingHoursLegacy provides the legacy time calculation as fallback
+func (p *SprintTimeAllocationUseCase) calculateWorkingHoursLegacy(issue domain.JiraIssue) float64 {
+	startTime, endTime := p.getIssueTimeRange(issue)
+	if startTime.IsZero() {
+		return 0
 	}
 
 	// Calculate hours between start and end time

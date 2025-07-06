@@ -202,11 +202,23 @@ For more information about a command:
 							project := ctx.String("project")
 							sprint := ctx.String("sprint")
 							override := ctx.String("override")
-							result, err := a.sprintService.ProcessJiraIssues(project, sprint, override)
-							if err != nil {
-								return err
+							sprintBounded := ctx.Bool("sprint-bounded")
+
+							if sprintBounded {
+								// Use the new sprint-bounded calculation
+								result, err := a.sprintService.ProcessJiraIssuesWithStrategy(project, sprint, override, true)
+								if err != nil {
+									return err
+								}
+								fmt.Print(result)
+							} else {
+								// Use legacy calculation (default)
+								result, err := a.sprintService.ProcessJiraIssues(project, sprint, override)
+								if err != nil {
+									return err
+								}
+								fmt.Print(result)
 							}
-							fmt.Print(result)
 							return nil
 						},
 						Flags: []cli.Flag{
@@ -226,6 +238,12 @@ For more information about a command:
 								Name:    "override",
 								Aliases: []string{"o"},
 								Usage:   "Manual percentage adjustments as JSON where key is IssueID and value is amount of working hours being spent (e.g. '{\"ISSUE-1\": 6, \"ISSUE-2\": 36}')",
+							},
+							&cli.BoolFlag{
+								Name:    "sprint-bounded",
+								Aliases: []string{"sb"},
+								Usage:   "Use sprint-bounded time calculation (respects sprint date boundaries)",
+								Value:   false,
 							},
 						},
 					},
