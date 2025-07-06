@@ -142,39 +142,9 @@ func wasWorkedOnDuringSprint(issue api.Issue, sprintStart, sprintEnd time.Time) 
 func (c *client) convertToDomainTasks(searchResp api.SearchResult, sprint string) ([]*domain.Task, error) {
 	tasks := make([]*domain.Task, 0, len(searchResp.Issues))
 	for _, issue := range searchResp.Issues {
-		// Get sprint dates if available
-		var sprintStart, sprintEnd time.Time
-		if len(issue.Fields.Sprint) > 0 {
-			for _, s := range issue.Fields.Sprint {
-				if s.Name == sprint {
-					var err error
-					if s.StartDate != "" {
-						sprintStart, err = parseTime(s.StartDate)
-						if err != nil {
-							continue
-						}
-					}
-					if s.EndDate != "" {
-						sprintEnd, err = parseTime(s.EndDate)
-						if err != nil {
-							continue
-						}
-					}
-					break
-				}
-			}
-		}
-
-		// Skip if we couldn't get valid sprint dates
-		if sprintStart.IsZero() || sprintEnd.IsZero() {
+		// Check if this issue is relevant to the requested sprint
+		if !c.isRelevantToSprint(issue, sprint) {
 			continue
-		}
-
-		// For issues with multiple sprints, check if there was any work done during this sprint
-		if len(issue.Fields.Sprint) > 1 {
-			if !wasWorkedOnDuringSprint(issue, sprintStart, sprintEnd) {
-				continue
-			}
 		}
 
 		// Handle empty timestamps
@@ -197,17 +167,13 @@ func (c *client) convertToDomainTasks(searchResp api.SearchResult, sprint string
 			}
 		}
 
-		// Handle empty sprint
-		sprintName := ""
+		// Handle sprint names
+		var sprintNames []string
 		if len(issue.Fields.Sprint) > 0 {
-			var sprintNames []string
 			for _, s := range issue.Fields.Sprint {
 				if s.Name != "" {
 					sprintNames = append(sprintNames, s.Name)
 				}
-			}
-			if len(sprintNames) > 0 {
-				sprintName = strings.Join(sprintNames, ", ")
 			}
 		}
 
@@ -226,7 +192,15 @@ func (c *client) convertToDomainTasks(searchResp api.SearchResult, sprint string
 			epicKey = issue.Fields.Parent.Key
 		}
 
-		task, err := domain.NewTask(issue.Key, issue.Fields.Summary, projectKey, sprintName, "JIRA")
+		// Create task with multi-sprint support
+		var task *domain.Task
+		var err error
+		if len(sprintNames) > 0 {
+			task, err = domain.NewTaskWithSprints(issue.Key, issue.Fields.Summary, projectKey, sprintNames, "JIRA")
+		} else {
+			// Use NewTaskWithoutSprint for issues with no sprints
+			task, err = domain.NewTaskWithoutSprint(issue.Key, issue.Fields.Summary, projectKey, "JIRA")
+		}
 		if err != nil {
 			return nil, fmt.Errorf("failed to create task: %w", err)
 		}
@@ -262,26 +236,240 @@ func (c *client) convertToDomainTasks(searchResp api.SearchResult, sprint string
 	return tasks, nil
 }
 
+// isRelevantToSprint determines if an issue is relevant to the requested sprint
+// This handles both single-sprint and multi-sprint scenarios
+func (c *client) isRelevantToSprint(issue api.Issue, sprint string) bool {
+	if sprint == "" {
+		return true // No sprint filter, include all issues
+	}
+
+	// Check if the issue has any sprints assigned
+	if len(issue.Fields.Sprint) == 0 {
+		return false // No sprints assigned, not relevant
+	}
+
+	// Look for the specific sprint in the issue's sprint list
+	var targetSprint api.Sprint
+	var sprintFound bool
+	for _, s := range issue.Fields.Sprint {
+		if s.Name == sprint {
+			targetSprint = s
+			sprintFound = true
+			break
+		}
+	}
+
+	if !sprintFound {
+		return false // Sprint not found in issue's sprint list
+	}
+
+	// For single-sprint issues, always include them
+	if len(issue.Fields.Sprint) == 1 {
+		return true
+	}
+
+	// For multi-sprint issues, apply more sophisticated logic
+	return c.isMultiSprintTaskRelevant(issue, targetSprint, sprint)
+}
+
+// isMultiSprintTaskRelevant determines if a multi-sprint task is relevant to the requested sprint
+func (c *client) isMultiSprintTaskRelevant(issue api.Issue, targetSprint api.Sprint, sprintName string) bool {
+	// Get sprint dates for the target sprint
+	var sprintStart, sprintEnd time.Time
+	if targetSprint.StartDate != "" {
+		var err error
+		sprintStart, err = parseTime(targetSprint.StartDate)
+		if err != nil {
+			return true // If we can't parse dates, include the issue to be safe
+		}
+	}
+	if targetSprint.EndDate != "" {
+		var err error
+		sprintEnd, err = parseTime(targetSprint.EndDate)
+		if err != nil {
+			return true // If we can't parse dates, include the issue to be safe
+		}
+	}
+
+	// If we don't have valid sprint dates, include the issue
+	if sprintStart.IsZero() || sprintEnd.IsZero() {
+		return true
+	}
+
+	// Check if there was meaningful work done during the sprint period
+	if wasWorkedOnDuringSprint(issue, sprintStart, sprintEnd) {
+		return true
+	}
+
+	// For multi-sprint tasks, also check if this is the most recent sprint
+	// This handles cases where tasks are moved to new sprints without changelog entries
+	mostRecentSprint := c.findMostRecentSprint(issue.Fields.Sprint)
+	if mostRecentSprint != nil && mostRecentSprint.Name == sprintName {
+		return true
+	}
+
+	// Fallback: if we can't determine the most recent sprint due to missing dates,
+	// be permissive and include the task to avoid missing relevant work
+	if mostRecentSprint == nil {
+		return true
+	}
+
+	return false
+}
+
+// findMostRecentSprint finds the most recent sprint among the issue's sprints
+func (c *client) findMostRecentSprint(sprints []api.Sprint) *api.Sprint {
+	if len(sprints) == 0 {
+		return nil
+	}
+
+	var mostRecent *api.Sprint
+	var mostRecentTime time.Time
+
+	for i := range sprints {
+		sprint := &sprints[i]
+		var sprintTime time.Time
+
+		// Use end date if available, otherwise start date
+		if sprint.EndDate != "" {
+			if t, err := parseTime(sprint.EndDate); err == nil {
+				sprintTime = t
+			}
+		} else if sprint.StartDate != "" {
+			if t, err := parseTime(sprint.StartDate); err == nil {
+				sprintTime = t
+			}
+		}
+
+		if !sprintTime.IsZero() && (mostRecent == nil || sprintTime.After(mostRecentTime)) {
+			mostRecent = sprint
+			mostRecentTime = sprintTime
+		}
+	}
+
+	return mostRecent
+}
+
 // FetchTasks retrieves tasks from Jira for a given project and sprint
 func (c *client) FetchTasks(ctx context.Context, project, sprint string) ([]*domain.Task, error) {
 	if project == "" {
 		return nil, fmt.Errorf("project is required")
 	}
 
-	// Build JQL query - include issues in the sprint
-	jql := fmt.Sprintf("project = %s", project)
+	// For sprint-specific queries, use a dual strategy to ensure we don't miss multi-sprint tasks
 	if sprint != "" {
-		jql += fmt.Sprintf(" AND sprint in (\"%s\")", sprint)
+		return c.fetchTasksWithDualStrategy(ctx, project, sprint)
 	}
-	jql += " ORDER BY key ASC"
 
+	// For non-sprint queries, use the standard approach
+	return c.fetchTasksWithQuery(ctx, project, sprint, false)
+}
+
+// fetchTasksWithDualStrategy combines results from both specific and broader queries
+func (c *client) fetchTasksWithDualStrategy(ctx context.Context, project, sprint string) ([]*domain.Task, error) {
+	// Run both queries in parallel to maximize coverage
+	var specificTasks, broadTasks []*domain.Task
+	var specificErr, broadErr error
+
+	// Channel to collect results
+	type result struct {
+		tasks []*domain.Task
+		err   error
+		query string
+	}
+
+	results := make(chan result, 2)
+
+	// Start specific query
+	go func() {
+		tasks, err := c.fetchTasksWithQuery(ctx, project, sprint, false)
+		results <- result{tasks: tasks, err: err, query: "specific"}
+	}()
+
+	// Start broader query
+	go func() {
+		tasks, err := c.fetchTasksWithQuery(ctx, project, sprint, true)
+		results <- result{tasks: tasks, err: err, query: "broad"}
+	}()
+
+	// Collect results
+	for i := 0; i < 2; i++ {
+		res := <-results
+		if res.err != nil {
+			if res.query == "specific" {
+				specificErr = res.err
+			} else {
+				broadErr = res.err
+			}
+		} else {
+			if res.query == "specific" {
+				specificTasks = res.tasks
+			} else {
+				broadTasks = res.tasks
+			}
+		}
+	}
+
+	// If both queries failed, return the specific query error
+	if specificErr != nil && broadErr != nil {
+		return nil, specificErr
+	}
+
+	// Merge and deduplicate results
+	return c.mergeAndDeduplicateTasks(specificTasks, broadTasks), nil
+}
+
+// mergeAndDeduplicateTasks combines task lists and removes duplicates based on task key
+func (c *client) mergeAndDeduplicateTasks(specificTasks, broadTasks []*domain.Task) []*domain.Task {
+	if len(specificTasks) == 0 {
+		return broadTasks
+	}
+	if len(broadTasks) == 0 {
+		return specificTasks
+	}
+
+	// Create a map to track unique tasks by key
+	taskMap := make(map[string]*domain.Task)
+
+	// Add specific tasks first (they have priority)
+	for _, task := range specificTasks {
+		taskMap[task.Key] = task
+	}
+
+	// Add broad tasks only if not already present
+	for _, task := range broadTasks {
+		if _, exists := taskMap[task.Key]; !exists {
+			taskMap[task.Key] = task
+		}
+	}
+
+	// Convert back to slice
+	mergedTasks := make([]*domain.Task, 0, len(taskMap))
+	for _, task := range taskMap {
+		mergedTasks = append(mergedTasks, task)
+	}
+
+	// Sort by key for consistent output
+	for i := 0; i < len(mergedTasks)-1; i++ {
+		for j := i + 1; j < len(mergedTasks); j++ {
+			if mergedTasks[i].Key > mergedTasks[j].Key {
+				mergedTasks[i], mergedTasks[j] = mergedTasks[j], mergedTasks[i]
+			}
+		}
+	}
+
+	return mergedTasks
+}
+
+// search executes a JQL query and returns the raw search results
+func (c *client) search(ctx context.Context, jql string) (*api.SearchResult, error) {
 	// Build request URL with fields and expand parameters
-	url := fmt.Sprintf("%s/rest/api/3/search?jql=%s&fields=*all&expand=changelog",
+	requestURL := fmt.Sprintf("%s/rest/api/3/search?jql=%s&fields=*all&expand=changelog",
 		c.config.GetBaseURL(),
 		url.QueryEscape(jql))
 
 	// Create request
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, requestURL, nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create request: %w", err)
 	}
@@ -298,7 +486,11 @@ func (c *client) FetchTasks(ctx context.Context, project, sprint string) ([]*dom
 	defer resp.Body.Close()
 
 	// Check response status and body
-	body, _ := io.ReadAll(resp.Body)
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read response body: %w", err)
+	}
+
 	if resp.StatusCode != http.StatusOK {
 		return nil, fmt.Errorf("unexpected status code: %d, body: %s", resp.StatusCode, string(body))
 	}
@@ -309,7 +501,35 @@ func (c *client) FetchTasks(ctx context.Context, project, sprint string) ([]*dom
 		return nil, fmt.Errorf("failed to decode response: %w", err)
 	}
 
-	return c.convertToDomainTasks(searchResp, sprint)
+	return &searchResp, nil
+}
+
+// fetchTasksWithQuery executes a JIRA query and returns tasks
+func (c *client) fetchTasksWithQuery(ctx context.Context, project, sprint string, isBroaderQuery bool) ([]*domain.Task, error) {
+	jql := fmt.Sprintf("project = %s", project)
+	if sprint != "" {
+		if isBroaderQuery {
+			// Enhanced broader query: look for tasks that were updated recently and might be multi-sprint
+			// This catches tasks that might have been moved between sprints or worked on across sprints
+			jql += fmt.Sprintf(" AND (sprint in (\"%s\") OR (updated >= -30d AND sprint is not EMPTY))", sprint)
+		} else {
+			// Standard query - specific sprint only
+			jql += fmt.Sprintf(" AND sprint in (\"%s\")", sprint)
+		}
+	}
+	jql += " ORDER BY key ASC"
+
+	searchResp, err := c.search(ctx, jql)
+	if err != nil {
+		return nil, fmt.Errorf("failed to search tasks: %w", err)
+	}
+
+	tasks, err := c.convertToDomainTasks(*searchResp, sprint)
+	if err != nil {
+		return nil, fmt.Errorf("failed to convert tasks: %w", err)
+	}
+
+	return tasks, nil
 }
 
 // FetchTaskByKey retrieves a single task from Jira by its key
@@ -390,20 +610,16 @@ func (c *client) convertSingleIssueToDomainTask(issue api.Issue) (*domain.Task, 
 	}
 
 	// Handle sprint names
-	sprintName := ""
+	var sprintNames []string
 	if len(issue.Fields.Sprint) > 0 {
-		var sprintNames []string
 		for _, s := range issue.Fields.Sprint {
 			if s.Name != "" {
 				sprintNames = append(sprintNames, s.Name)
 			}
 		}
-		if len(sprintNames) > 0 {
-			sprintName = strings.Join(sprintNames, ", ")
-		}
 	}
 
-	// Extract project key from issue key (e.g., "FN-1015" -> "FN")
+	// Use the project key from the issue key if not available in fields
 	projectKey := ""
 	if parts := strings.Split(issue.Key, "-"); len(parts) >= 2 {
 		projectKey = parts[0]
@@ -431,23 +647,29 @@ func (c *client) convertSingleIssueToDomainTask(issue api.Issue) (*domain.Task, 
 		}
 	}
 
-	task := &domain.Task{
-		Key:         issue.Key,
-		Summary:     issue.Fields.Summary,
-		Description: issue.Fields.Description.ExtractAllText(),
-		Status:      mapJiraStatus(issue.Fields.Status.Name),
-		Type:        mapJiraType(issue.Fields.IssueType.Name),
-		Priority:    domain.TaskPriorityMedium, // Default priority
-		Project:     projectKey,
-		Sprint:      sprintName,
-		Epic:        epicKey,
-		Platform:    "JIRA",
-		Labels:      issue.Fields.Labels,
-		WorkType:    workType,
-		CreatedAt:   created,
-		UpdatedAt:   updated,
-		Version:     1,
+	// Create task with multi-sprint support
+	var task *domain.Task
+	var err error
+	if len(sprintNames) > 0 {
+		task, err = domain.NewTaskWithSprints(issue.Key, issue.Fields.Summary, projectKey, sprintNames, "JIRA")
+	} else {
+		// Use NewTaskWithoutSprint for issues with no sprints
+		task, err = domain.NewTaskWithoutSprint(issue.Key, issue.Fields.Summary, projectKey, "JIRA")
 	}
+	if err != nil {
+		return nil, fmt.Errorf("failed to create task: %w", err)
+	}
+
+	// Set additional fields
+	task.Description = issue.Fields.Description.ExtractAllText()
+	task.Status = mapJiraStatus(issue.Fields.Status.Name)
+	task.Type = mapJiraType(issue.Fields.IssueType.Name)
+	task.Priority = domain.TaskPriorityMedium // Default priority
+	task.Labels = issue.Fields.Labels
+	task.Epic = epicKey
+	task.CreatedAt = created
+	task.UpdatedAt = updated
+	task.WorkType = workType
 
 	return task, nil
 }

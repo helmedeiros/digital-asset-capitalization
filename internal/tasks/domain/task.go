@@ -1,7 +1,9 @@
 package domain
 
 import (
+	"encoding/json"
 	"errors"
+	"strings"
 	"time"
 )
 
@@ -64,7 +66,8 @@ type Task struct {
 	Summary     string       `json:"summary"`
 	Description string       `json:"description"`
 	Project     string       `json:"project"`
-	Sprint      string       `json:"sprint"`
+	Sprint      string       `json:"sprint"`            // Legacy field for backward compatibility
+	Sprints     []string     `json:"sprints,omitempty"` // New array field for multi-sprint support
 	Platform    string       `json:"platform"`
 	Status      TaskStatus   `json:"status"`
 	Type        TaskType     `json:"type"`
@@ -96,7 +99,7 @@ func NewTask(key, summary, project, sprint, platform string) (*Task, error) {
 	}
 
 	now := time.Now()
-	return &Task{
+	task := &Task{
 		Key:       key,
 		Summary:   summary,
 		Project:   project,
@@ -108,7 +111,214 @@ func NewTask(key, summary, project, sprint, platform string) (*Task, error) {
 		CreatedAt: now,
 		UpdatedAt: now,
 		Version:   1,
-	}, nil
+	}
+
+	// Set sprints array based on sprint string
+	task.setSprintsFromString(sprint)
+
+	return task, nil
+}
+
+// NewTaskWithSprints creates a new task with multiple sprints
+func NewTaskWithSprints(key, summary, project string, sprints []string, platform string) (*Task, error) {
+	if key == "" {
+		return nil, ErrEmptyKey
+	}
+	if summary == "" {
+		return nil, ErrEmptySummary
+	}
+	if project == "" {
+		return nil, ErrEmptyProject
+	}
+	if len(sprints) == 0 {
+		return nil, ErrEmptySprint
+	}
+	if platform == "" {
+		return nil, ErrEmptyPlatform
+	}
+
+	now := time.Now()
+	task := &Task{
+		Key:       key,
+		Summary:   summary,
+		Project:   project,
+		Sprints:   sprints,
+		Platform:  platform,
+		Status:    TaskStatusTodo,
+		Type:      TaskTypeTask,
+		Priority:  TaskPriorityMedium,
+		CreatedAt: now,
+		UpdatedAt: now,
+		Version:   1,
+	}
+
+	// Set legacy sprint field for backward compatibility
+	task.Sprint = strings.Join(sprints, ", ")
+
+	return task, nil
+}
+
+// NewTaskWithoutSprint creates a new task without sprint assignment
+func NewTaskWithoutSprint(key, summary, project, platform string) (*Task, error) {
+	if key == "" {
+		return nil, ErrEmptyKey
+	}
+	if summary == "" {
+		return nil, ErrEmptySummary
+	}
+	if project == "" {
+		return nil, ErrEmptyProject
+	}
+	if platform == "" {
+		return nil, ErrEmptyPlatform
+	}
+
+	now := time.Now()
+	task := &Task{
+		Key:       key,
+		Summary:   summary,
+		Project:   project,
+		Sprint:    "",         // Empty sprint
+		Sprints:   []string{}, // Empty sprints array
+		Platform:  platform,
+		Status:    TaskStatusTodo,
+		Type:      TaskTypeTask,
+		Priority:  TaskPriorityMedium,
+		CreatedAt: now,
+		UpdatedAt: now,
+		Version:   1,
+	}
+
+	return task, nil
+}
+
+// GetSprints returns the sprint names as an array
+func (t *Task) GetSprints() []string {
+	// If we have the new sprints array, use it
+	if len(t.Sprints) > 0 {
+		return t.Sprints
+	}
+
+	// Fall back to parsing the legacy sprint string
+	if t.Sprint != "" {
+		return t.parseSprintString(t.Sprint)
+	}
+
+	return []string{}
+}
+
+// GetPrimarySprint returns the first/primary sprint
+func (t *Task) GetPrimarySprint() string {
+	sprints := t.GetSprints()
+	if len(sprints) > 0 {
+		return sprints[0]
+	}
+	return ""
+}
+
+// HasSprint checks if the task belongs to a specific sprint
+func (t *Task) HasSprint(sprintName string) bool {
+	sprints := t.GetSprints()
+	for _, sprint := range sprints {
+		if sprint == sprintName {
+			return true
+		}
+	}
+	return false
+}
+
+// SetSprints updates the task sprints
+func (t *Task) SetSprints(sprints []string) {
+	t.Sprints = sprints
+	t.Sprint = strings.Join(sprints, ", ") // Maintain backward compatibility
+	t.UpdatedAt = time.Now()
+	t.Version++
+}
+
+// AddSprint adds a sprint to the task if it doesn't already exist
+func (t *Task) AddSprint(sprintName string) {
+	if !t.HasSprint(sprintName) {
+		sprints := t.GetSprints()
+		sprints = append(sprints, sprintName)
+		t.SetSprints(sprints)
+	}
+}
+
+// RemoveSprint removes a sprint from the task
+func (t *Task) RemoveSprint(sprintName string) {
+	sprints := t.GetSprints()
+	var newSprints []string
+	for _, sprint := range sprints {
+		if sprint != sprintName {
+			newSprints = append(newSprints, sprint)
+		}
+	}
+	if len(newSprints) != len(sprints) {
+		t.SetSprints(newSprints)
+	}
+}
+
+// setSprintsFromString parses sprint string and sets the sprints array
+func (t *Task) setSprintsFromString(sprintStr string) {
+	if sprintStr != "" {
+		t.Sprints = t.parseSprintString(sprintStr)
+	}
+}
+
+// parseSprintString parses a comma-separated sprint string into an array
+func (t *Task) parseSprintString(sprintStr string) []string {
+	if sprintStr == "" {
+		return []string{}
+	}
+
+	// Split by comma and trim whitespace
+	parts := strings.Split(sprintStr, ",")
+	var sprints []string
+	for _, part := range parts {
+		trimmed := strings.TrimSpace(part)
+		if trimmed != "" {
+			sprints = append(sprints, trimmed)
+		}
+	}
+	return sprints
+}
+
+// MarshalJSON handles custom JSON marshaling to ensure data consistency
+func (t *Task) MarshalJSON() ([]byte, error) {
+	// Ensure consistency between Sprint and Sprints fields
+	if len(t.Sprints) > 0 && t.Sprint == "" {
+		t.Sprint = strings.Join(t.Sprints, ", ")
+	} else if t.Sprint != "" && len(t.Sprints) == 0 {
+		t.Sprints = t.parseSprintString(t.Sprint)
+	}
+
+	// Create a copy of the struct for marshaling
+	type TaskAlias Task
+	return json.Marshal((*TaskAlias)(t))
+}
+
+// UnmarshalJSON handles custom JSON unmarshaling to ensure data consistency
+func (t *Task) UnmarshalJSON(data []byte) error {
+	// Use alias to avoid infinite recursion
+	type TaskAlias Task
+	aux := &TaskAlias{}
+
+	if err := json.Unmarshal(data, aux); err != nil {
+		return err
+	}
+
+	*t = Task(*aux)
+
+	// Ensure consistency between Sprint and Sprints fields
+	if len(t.Sprints) > 0 {
+		// If we have sprints array, ensure Sprint field is consistent
+		t.Sprint = strings.Join(t.Sprints, ", ")
+	} else if t.Sprint != "" {
+		// If we only have Sprint field, populate Sprints array
+		t.Sprints = t.parseSprintString(t.Sprint)
+	}
+
+	return nil
 }
 
 // UpdateStatus updates the task status

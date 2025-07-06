@@ -4,6 +4,21 @@ import (
 	"strings"
 )
 
+const (
+	StatusToDo           = "To Do"
+	StatusInProgress     = "In Progress"
+	StatusUnderReview    = "Under Review"
+	StatusCodeReview     = "Code Review"
+	StatusTesting        = "Testing"
+	StatusQA             = "QA"
+	StatusReadyForReview = "Ready for Review"
+	StatusBlocked        = "Blocked"
+	StatusDone           = "Done"
+	StatusWontDo         = "Won't Do"
+	StatusCancelled      = "Cancelled"
+	StatusOnHold         = "On Hold"
+)
+
 // JiraAssignee represents a Jira issue assignee
 type JiraAssignee struct {
 	DisplayName string `json:"displayName"`
@@ -78,7 +93,7 @@ func (i *JiraIssue) IsInProgress() bool {
 	}
 	lastChange := changes[len(changes)-1]
 	for _, item := range lastChange.Items {
-		if item.IsStatusChange() && item.ToString == "In Progress" {
+		if item.IsStatusChange() && item.ToString == StatusInProgress {
 			return true
 		}
 	}
@@ -93,7 +108,7 @@ func (i *JiraIssue) IsDone() bool {
 	}
 	lastChange := changes[len(changes)-1]
 	for _, item := range lastChange.Items {
-		if item.IsStatusChange() && (item.ToString == "Done" || item.ToString == "Won't Do") {
+		if item.IsStatusChange() && (item.ToString == StatusDone || item.ToString == StatusWontDo) {
 			return true
 		}
 	}

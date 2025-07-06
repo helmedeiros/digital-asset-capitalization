@@ -49,6 +49,10 @@ func (m *MockJiraPort) GetTeamIssues(_ *domain.Team) ([]ports.JiraIssue, error) 
 	return nil, nil
 }
 
+func (m *MockJiraPort) GetSprintByName(_ string, _ string) (*ports.Sprint, error) {
+	return nil, nil
+}
+
 func TestListSprintsUseCase_Execute(t *testing.T) {
 	t.Run("should list sprints for a project in Q2 2025", func(t *testing.T) {
 		// Given

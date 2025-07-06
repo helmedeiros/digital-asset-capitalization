@@ -16,6 +16,9 @@ type SprintService interface {
 	// ProcessJiraIssues processes Jira issues and returns CSV data
 	ProcessJiraIssues(project, sprint, override string) (string, error)
 
+	// ProcessJiraIssuesWithStrategy processes Jira issues with configurable time calculation strategy
+	ProcessJiraIssuesWithStrategy(project, sprint, override string, useSprintBoundedCalculation bool) (string, error)
+
 	// ListSprints lists sprints for a project and time period
 	ListSprints(project, period string) (*usecase.ListSprintsResult, error)
 }

@@ -8,6 +8,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -108,6 +109,10 @@ func (m *mockJiraPort) GetSprintsForProjectWithBoardInfo(_ string, _ []string) (
 	return m.sprints, m.boardInfo, m.err
 }
 
+func (m *mockJiraPort) GetSprintByName(_ string, _ string) (*ports.Sprint, error) {
+	return nil, nil
+}
+
 func TestSprintService_ProcessJiraIssues(t *testing.T) {
 	cleanup := setupTestEnv(t)
 	defer cleanup()
@@ -125,7 +130,7 @@ func TestSprintService_ProcessJiraIssues(t *testing.T) {
 							"displayName": "Test User 1",
 						},
 						"status": map[string]interface{}{
-							"name": "Done",
+							"name": domain.StatusDone,
 						},
 						"customfield_13192": 5.0,
 					},
@@ -158,7 +163,7 @@ func TestSprintService_ProcessJiraIssues(t *testing.T) {
 				Key:         "TEST-123",
 				Summary:     "Test Issue 1",
 				Assignee:    "Test User 1",
-				Status:      "Done",
+				Status:      domain.StatusDone,
 				StoryPoints: float64Ptr(5.0),
 			},
 		},
@@ -180,6 +185,117 @@ func TestSprintService_ProcessJiraIssues(t *testing.T) {
 	})
 }
 
+func TestSprintService_ProcessJiraIssuesWithStrategy(t *testing.T) {
+	cleanup := setupTestEnv(t)
+	defer cleanup()
+
+	// Create a test server
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		if strings.Contains(r.URL.Path, "/search") {
+			json.NewEncoder(w).Encode(map[string]interface{}{
+				"issues": []map[string]interface{}{
+					{
+						"key": "TEST-123",
+						"fields": map[string]interface{}{
+							"summary": "Test Issue 1",
+							"assignee": map[string]interface{}{
+								"displayName": "Test User 1",
+							},
+							"status": map[string]interface{}{
+								"name": domain.StatusDone,
+							},
+							"customfield_13192": 5.0,
+						},
+						"changelog": map[string]interface{}{
+							"histories": []map[string]interface{}{
+								{
+									"created": "2024-03-01T10:00:00.000+0000",
+									"items": []map[string]interface{}{
+										{
+											"field":      "status",
+											"fromString": "To Do",
+											"toString":   "In Progress",
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			})
+		} else if strings.Contains(r.URL.Path, "/board") && !strings.Contains(r.URL.Path, "/sprint") {
+			// Boards endpoint
+			json.NewEncoder(w).Encode(map[string]interface{}{
+				"values": []map[string]interface{}{
+					{
+						"id":   1,
+						"name": "Test Board",
+						"type": "scrum",
+					},
+				},
+			})
+		} else if strings.Contains(r.URL.Path, "/sprint") {
+			// Sprints endpoint
+			json.NewEncoder(w).Encode(map[string]interface{}{
+				"values": []map[string]interface{}{
+					{
+						"id":        "8802",
+						"name":      "Sprint 1",
+						"state":     "active",
+						"startDate": "2024-03-01T00:00:00.000Z",
+						"endDate":   "2024-03-15T00:00:00.000Z",
+						"goal":      "Sprint goal",
+					},
+				},
+				"isLast":     true,
+				"startAt":    0,
+				"maxResults": 50,
+			})
+		} else {
+			w.WriteHeader(http.StatusNotFound)
+		}
+	}))
+	defer server.Close()
+
+	// Set the base URL to our test server
+	os.Setenv("JIRA_BASE_URL", server.URL)
+
+	mockJira := &mockJiraPort{
+		issues: []ports.JiraIssue{
+			{
+				Key:         "TEST-123",
+				Summary:     "Test Issue 1",
+				Assignee:    "Test User 1",
+				Status:      domain.StatusDone,
+				StoryPoints: float64Ptr(5.0),
+			},
+		},
+	}
+
+	service := NewSprintService(mockJira)
+
+	// Test successful processing with legacy strategy
+	t.Run("successful processing with legacy strategy", func(t *testing.T) {
+		result, err := service.ProcessJiraIssuesWithStrategy("TEST", "Sprint 1", "", false)
+		require.NoError(t, err, "ProcessJiraIssuesWithStrategy should not return error")
+		assert.NotEmpty(t, result, "Result should not be empty")
+	})
+
+	// Test successful processing with sprint-bounded strategy
+	t.Run("successful processing with sprint-bounded strategy", func(t *testing.T) {
+		result, err := service.ProcessJiraIssuesWithStrategy("TEST", "Sprint 1", "", true)
+		require.NoError(t, err, "ProcessJiraIssuesWithStrategy should not return error")
+		assert.NotEmpty(t, result, "Result should not be empty")
+	})
+
+	// Test invalid project
+	t.Run("invalid project", func(t *testing.T) {
+		_, err := service.ProcessJiraIssuesWithStrategy("INVALID", "Sprint 1", "", false)
+		assert.Error(t, err, "ProcessJiraIssuesWithStrategy should return error for invalid project")
+	})
+}
+
 func TestSprintService_ProcessSprint(t *testing.T) {
 	cleanup := setupTestEnv(t)
 	defer cleanup()
@@ -197,7 +313,7 @@ func TestSprintService_ProcessSprint(t *testing.T) {
 							"displayName": "Test User 1",
 						},
 						"status": map[string]interface{}{
-							"name": "Done",
+							"name": domain.StatusDone,
 						},
 						"customfield_13192": 5.0,
 					},
@@ -230,7 +346,7 @@ func TestSprintService_ProcessSprint(t *testing.T) {
 				Key:         "TEST-123",
 				Summary:     "Test Issue 1",
 				Assignee:    "Test User 1",
-				Status:      "Done",
+				Status:      domain.StatusDone,
 				StoryPoints: float64Ptr(5.0),
 			},
 		},
@@ -291,7 +407,7 @@ func TestSprintService_ProcessTeamIssues(t *testing.T) {
 							"displayName": "Test User 1",
 						},
 						"status": map[string]interface{}{
-							"name": "Done",
+							"name": domain.StatusDone,
 						},
 						"customfield_13192": 5.0,
 					},
@@ -324,7 +440,7 @@ func TestSprintService_ProcessTeamIssues(t *testing.T) {
 				Key:         "TEST-123",
 				Summary:     "Test Issue 1",
 				Assignee:    "Test User 1",
-				Status:      "Done",
+				Status:      domain.StatusDone,
 				StoryPoints: float64Ptr(5.0),
 			},
 		},

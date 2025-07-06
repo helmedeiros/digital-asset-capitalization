@@ -45,7 +45,7 @@ func TestTasksService_FetchTasks(t *testing.T) {
 							Key:     "PROJ-1",
 							Type:    "Story",
 							Summary: "Test Task",
-							Status:  "In Progress",
+							Status:  domain.TaskStatusInProgress,
 							Sprint:  "Sprint 1",
 						},
 					}, nil
@@ -100,7 +100,7 @@ func TestTasksService_FetchTasks(t *testing.T) {
 							Key:     "PROJ-1",
 							Type:    "Story",
 							Summary: "Test Task",
-							Status:  "In Progress",
+							Status:  domain.TaskStatusInProgress,
 							Sprint:  "Sprint 1",
 						},
 					}, nil
@@ -160,7 +160,7 @@ func TestTasksService_ClassifyTasks(t *testing.T) {
 							Key:     "PROJ-1",
 							Type:    "Story",
 							Summary: "Test Task",
-							Status:  "In Progress",
+							Status:  domain.TaskStatusInProgress,
 							Sprint:  "Sprint 1",
 						},
 					}, nil
@@ -212,7 +212,7 @@ func TestTasksService_ClassifyTasks(t *testing.T) {
 							Key:     "PROJ-1",
 							Type:    "Story",
 							Summary: "Test Task",
-							Status:  "In Progress",
+							Status:  domain.TaskStatusInProgress,
 							Sprint:  "Sprint 1",
 						},
 					}, nil
@@ -278,7 +278,7 @@ func TestTasksService_ClassifyTasks(t *testing.T) {
 							Key:     "PROJ-1",
 							Type:    "Story",
 							Summary: "Test Task",
-							Status:  "In Progress",
+							Status:  domain.TaskStatusInProgress,
 							Sprint:  "Sprint 1",
 						},
 					}, nil
@@ -339,21 +339,21 @@ func TestTaskService_GetTasksByAsset(t *testing.T) {
 			Key:     "TEST-1",
 			Type:    "Story",
 			Summary: "Test Task 1",
-			Status:  "In Progress",
+			Status:  domain.TaskStatusInProgress,
 			Labels:  []string{"cap-asset-insurance", "cap-development"},
 		},
 		{
 			Key:     "TEST-2",
 			Type:    "Story",
 			Summary: "Test Task 2",
-			Status:  "In Progress",
+			Status:  domain.TaskStatusInProgress,
 			Labels:  []string{"cap-asset-insurance", "cap-development"},
 		},
 		{
 			Key:     "TEST-3",
 			Type:    "Story",
 			Summary: "Test Task 3",
-			Status:  "In Progress",
+			Status:  domain.TaskStatusInProgress,
 			Labels:  []string{"cap-asset-other", "cap-development"},
 		},
 	}
@@ -744,7 +744,7 @@ func TestTaskService_GetTaskByKey(t *testing.T) {
 			Summary: "Enable rounding with new Journey Details Service",
 			Project: "FN",
 			Sprint:  "The Hulk",
-			Status:  "Done",
+			Status:  domain.TaskStatusInProgress,
 			Type:    "Task",
 		}
 

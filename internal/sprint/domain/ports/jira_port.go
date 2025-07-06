@@ -58,6 +58,8 @@ type JiraPort interface {
 	GetSprintIssues(sprint *domain.Sprint) ([]JiraIssue, error)
 	// GetTeamIssues retrieves all issues for a team
 	GetTeamIssues(team *domain.Team) ([]JiraIssue, error)
+	// GetSprintByName retrieves sprint details by project and sprint name
+	GetSprintByName(project, sprintName string) (*Sprint, error)
 }
 
 // BoardInfo represents information about a board
