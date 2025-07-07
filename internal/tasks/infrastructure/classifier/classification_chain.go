@@ -127,13 +127,25 @@ func (c *ComprehensiveClassificationChainWithInheritance) ClassifyTask(task *tas
 
 // needsInheritance determines if a subtask needs to inherit classification from its parent
 func (c *ComprehensiveClassificationChainWithInheritance) needsInheritance(assetResult *ports.AssetClassificationResult, workType taskdomain.WorkType) bool {
+	// FIRST: Never inherit if we have a strong natural classification that overrides existing labels
+	if assetResult != nil && assetResult.Confidence >= 0.9 && strings.Contains(assetResult.Reason, "overrides existing label") {
+		return false
+	}
+
+	// SECOND: Never inherit if we have preserved existing asset labels with good confidence
+	if assetResult != nil && assetResult.Reason == "existing asset label preserved" && assetResult.Confidence >= 0.85 {
+		return false
+	}
+
 	// If no asset was found or confidence is low, we need inheritance
 	hasWeakAssetClassification := assetResult == nil || assetResult.Asset == nil || assetResult.Confidence < 0.5
 
-	// If work type is default (development), it might benefit from inheritance
-	hasDefaultWorkType := workType == taskdomain.WorkTypeDevelopment
+	// If work type is default (development) or other specific types, we might need inheritance
+	hasDefaultOrSpecificWorkType := workType == taskdomain.WorkTypeDevelopment ||
+		workType == taskdomain.WorkTypeDiscovery ||
+		workType == taskdomain.WorkTypeMaintenance
 
-	return hasWeakAssetClassification || hasDefaultWorkType
+	return hasWeakAssetClassification && hasDefaultOrSpecificWorkType
 }
 
 // inheritFromParent attempts to inherit classification from parent task or epic

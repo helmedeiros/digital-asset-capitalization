@@ -338,14 +338,21 @@ func (uc *ClassifyTasksUseCase) buildUpdatedLabels(existingLabels []string, work
 	// Pre-allocate with estimated capacity: existing labels + work type + potential asset label
 	newLabels := make([]string, 0, len(existingLabels)+2)
 
-	// Keep all labels except old work type and asset labels
+	// Check if we should preserve existing asset labels
+	preserveExistingAsset := assetResult != nil && assetResult.Reason == "existing asset label preserved" && assetResult.Confidence >= 0.95
+
+	// Keep all labels except old work type and conditionally old asset labels
 	for _, label := range existingLabels {
 		// Skip old work type labels
 		if label == "cap-development" || label == "cap-maintenance" || label == "cap-discovery" {
 			continue
 		}
-		// Skip old asset labels
+		// Skip old asset labels ONLY if we're not preserving them
 		if strings.HasPrefix(label, "cap-asset-") {
+			if preserveExistingAsset {
+				// Keep existing asset labels when they should be preserved
+				newLabels = append(newLabels, label)
+			}
 			continue
 		}
 		// Keep all other labels
@@ -355,8 +362,8 @@ func (uc *ClassifyTasksUseCase) buildUpdatedLabels(existingLabels []string, work
 	// Add new work type label
 	newLabels = append(newLabels, string(workType))
 
-	// Add new asset label if available
-	if assetResult != nil && assetResult.Asset != nil {
+	// Add new asset label if available and not preserving existing ones
+	if assetResult != nil && assetResult.Asset != nil && !preserveExistingAsset {
 		assetLabel := uc.getAssetLabel(assetResult.Asset.Name)
 		newLabels = append(newLabels, assetLabel)
 	}
