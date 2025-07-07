@@ -98,13 +98,22 @@ func (a *App) Run() error {
 
 COMMANDS:
    version            Show version information
+   completion         Generate shell completion scripts
+     bash            Generate bash completion script
+     zsh             Generate zsh completion script
+     fish            Generate fish completion script
    config             Manage configuration settings
      init            Initialize configuration interactively
      show            Show current configuration
      validate        Validate current configuration
-   assets              Manage digital assets
-     create           Create a new asset
+   assets             Manage digital assets
+     create          Create a new asset
      list            List all assets
+     sync            Sync assets from Confluence
+     update          Update an asset's description
+     show            Show detailed information about an asset
+     enrich          Enrich asset fields using LLaMA 3
+     keywords        Generate keywords for an asset using LLaMA 3
      documentation   Manage asset documentation
        update        Mark asset documentation as updated
      tasks           Manage asset tasks
@@ -112,6 +121,10 @@ COMMANDS:
        decrement     Decrement task count for an asset
    tasks              Manage tasks from various platforms
      fetch           Fetch tasks from a platform (e.g., Jira)
+     show            Show tasks for a project and sprint
+     classify        Classify tasks for a specific project and sprint
+     inspect         Inspect a specific task by its key
+     migrate         Migrate sprint data from comma-separated strings to arrays
    sprint             Manage sprint-related operations
      list            List sprints for a project and time period
      allocate        Calculate time allocation for JIRA issues in a sprint
@@ -1185,11 +1198,12 @@ func showHelp() {
 	fmt.Printf("   %s\n", version)
 	fmt.Println()
 	fmt.Println("COMMANDS:")
+	fmt.Println("   version     Show version information")
+	fmt.Println("   completion  Generate shell completion scripts")
+	fmt.Println("   config      Configure application settings")
 	fmt.Println("   assets      Manage digital assets")
 	fmt.Println("   tasks       Manage tasks and classification")
-	fmt.Println("   sprints     Manage sprints and time allocation")
-	fmt.Println("   config      Configure application settings")
-	fmt.Println("   version     Show version information")
+	fmt.Println("   sprint      Manage sprint-related operations")
 	fmt.Println("   help        Show this help message")
 	fmt.Println()
 	fmt.Println("GLOBAL OPTIONS:")
