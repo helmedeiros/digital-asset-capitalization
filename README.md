@@ -18,6 +18,20 @@ The tool automatically calculates time allocation for tasks in each sprint and h
 
 ## Features
 
+### Version and Help
+
+Check version information and get help:
+
+```bash
+# Show version information
+assetcap version
+
+# Show help for any command
+assetcap --help
+assetcap assets --help
+assetcap tasks classify --help
+```
+
 ### Asset Management
 
 Create and manage digital assets with comprehensive tracking:
@@ -32,8 +46,20 @@ assetcap assets list
 # Show detailed information about an asset
 assetcap assets show --name "Frontend App"
 
-# Update an asset's description
-assetcap assets update --name "Frontend App" --description "Updated description"
+# Update an asset's description and metadata
+assetcap assets update \
+  --name "Frontend App" \
+  --description "Updated description" \
+  --why "Improve user experience" \
+  --benefits "Faster loading times" \
+  --how "React optimization" \
+  --metrics "Page load time < 2s"
+
+# Sync assets from Confluence
+assetcap assets sync --space "MZN" --label "cap-asset" [--debug]
+
+# Enrich asset fields using LLaMA 3
+assetcap assets enrich --name "Frontend App" --field "description"
 
 # Mark asset documentation as updated
 assetcap assets documentation update --asset "Frontend App"
@@ -75,20 +101,39 @@ The generated keywords are:
 Comprehensive task management with JIRA integration:
 
 ```bash
-# Fetch tasks from JIRA
-assetcap tasks fetch --project "PROJECT" --sprint "Sprint 1"
+# Fetch tasks from JIRA for a project and sprint
+assetcap tasks fetch --project "PROJECT" --sprint "Sprint 1" --platform "jira"
+
+# Fetch a specific task by key
+assetcap tasks fetch --key "FN-1015" --platform "jira"
+
+# Show task details for a project and sprint
+assetcap tasks show --project "PROJECT" --sprint "Sprint 1"
+
+# Show tasks filtered by asset
+assetcap tasks show --asset "Frontend App"
 
 # Classify tasks for an asset
 assetcap tasks classify --project "PROJECT" --sprint "Sprint 1" --platform "jira" [--dry-run] [--apply]
 
-# Show task details
-assetcap tasks show --project "PROJECT" --sprint "Sprint 1"
+# Inspect a specific task by its key
+assetcap tasks inspect --key "FN-1015"
+
+# Migrate sprint data format (for data migration)
+assetcap tasks migrate [--file "path/to/tasks.json"] [--dry-run] [--stats] [--rollback]
 ```
 
 The `classify` command supports the following options:
 
 - `--dry-run`: Preview the classification without making any changes
 - `--apply`: Write the classifications back to Jira as labels (e.g., cap-maintenance, cap-discovery, cap-development)
+
+The `migrate` command helps upgrade task data format:
+
+- `--dry-run`: Preview migration without making changes
+- `--stats`: Show migration statistics without running migration
+- `--rollback`: Rollback previous migration using backup file
+- `--file`: Specify custom tasks.json file path (default: .assetcap/tasks.json)
 
 ### Time Allocation
 
@@ -123,8 +168,15 @@ assetcap sprint list --project "FN" --period "2025"
 # List sprints for a project in a custom date range
 assetcap sprint list --project "FN" --period "2025-04-01:2025-06-30"
 
-# Calculate time allocation for a specific sprint
+# Calculate time allocation for a specific sprint (legacy calculation)
 assetcap sprint allocate --project "FN" --sprint "Sprint Name"
+
+# Calculate time allocation with sprint-bounded calculation
+assetcap sprint allocate --project "FN" --sprint "Sprint Name" --sprint-bounded
+
+# Calculate with manual overrides
+assetcap sprint allocate --project "FN" --sprint "Sprint Name" \
+  --override '{"ISSUE-1": 6, "ISSUE-2": 36}'
 ```
 
 The sprint list command supports various period formats:
@@ -139,6 +191,172 @@ The tool automatically:
 2. Retrieves sprints from each board (excluding Kanban boards that don't support sprints)
 3. Filters sprints based on the specified time period
 4. Displays sprint details including ID, name, dates, and state
+
+### Configuration Management
+
+Manage application configuration and settings:
+
+```bash
+# Initialize configuration interactively
+assetcap config init
+
+# Initialize configuration non-interactively (using environment variables)
+assetcap config init --non-interactive \
+  --jira-url "https://company.atlassian.net" \
+  --jira-email "user@company.com" \
+  --jira-token "api-token"
+
+# Show current configuration
+assetcap config show
+
+# Validate current configuration
+assetcap config validate
+```
+
+The configuration commands help you:
+
+- Set up JIRA integration credentials
+- Create and manage teams.json configuration
+- Validate configuration before running other commands
+- View current configuration status (with masked sensitive data)
+
+### Shell Completion
+
+Generate shell completion scripts for better CLI experience:
+
+```bash
+# Generate bash completion
+assetcap completion bash
+
+# Generate zsh completion
+assetcap completion zsh
+
+# Generate fish completion
+assetcap completion fish
+```
+
+Install completion scripts:
+
+```bash
+# For zsh users
+echo 'eval "$(assetcap completion zsh)"' >> ~/.zshrc
+
+# For bash users
+echo 'eval "$(assetcap completion bash)"' >> ~/.bashrc
+
+# For fish users
+assetcap completion fish > ~/.config/fish/completions/assetcap.fish
+```
+
+## Advanced Usage Examples
+
+### Complex Task Classification Workflow
+
+```bash
+# 1. Fetch tasks for a specific project and sprint
+assetcap tasks fetch --project "FN" --sprint "Sprint 42" --platform "jira"
+
+# 2. Preview classification before applying (dry-run)
+assetcap tasks classify --project "FN" --sprint "Sprint 42" --platform "jira" --dry-run
+
+# 3. Apply classifications to JIRA (adds labels like cap-development, cap-maintenance)
+assetcap tasks classify --project "FN" --sprint "Sprint 42" --platform "jira" --apply
+
+# 4. Inspect specific tasks for detailed information
+assetcap tasks inspect --key "FN-1015"
+assetcap tasks inspect --key "FN-1023"
+
+# 5. Show tasks filtered by asset
+assetcap tasks show --asset "Frontend App"
+```
+
+### Sprint Time Allocation Scenarios
+
+```bash
+# Basic time allocation (legacy method)
+assetcap sprint allocate --project "FN" --sprint "Sprint 42"
+
+# Sprint-bounded calculation (respects sprint dates)
+assetcap sprint allocate --project "FN" --sprint "Sprint 42" --sprint-bounded
+
+# With manual overrides for specific issues
+assetcap sprint allocate --project "FN" --sprint "Sprint 42" \
+  --override '{"FN-1015": 6, "FN-1023": 36, "FN-1024": 12}'
+
+# List sprints with different time period formats
+assetcap sprint list --project "FN" --period "Q1 2025"        # Quarter
+assetcap sprint list --project "FN" --period "2025"           # Full year
+assetcap sprint list --project "FN" --period "2025-01-01:2025-03-31"  # Custom range
+```
+
+### Data Migration Examples
+
+```bash
+# Check migration statistics without making changes
+assetcap tasks migrate --stats
+
+# Preview what the migration would do
+assetcap tasks migrate --dry-run
+
+# Run migration with backup (recommended)
+assetcap tasks migrate
+
+# Migrate specific file
+assetcap tasks migrate --file "/path/to/custom/tasks.json"
+
+# Rollback if something goes wrong
+assetcap tasks migrate --rollback
+```
+
+### Asset Management Workflows
+
+```bash
+# Complete asset creation and enrichment workflow
+assetcap assets create --name "Payment Gateway" --description "Secure payment processing system"
+
+# Sync from Confluence with debug output
+assetcap assets sync --space "TECH" --label "cap-asset" --debug
+
+# Enrich different fields using AI
+assetcap assets enrich --name "Payment Gateway" --field "description"
+assetcap assets enrich --name "Payment Gateway" --field "benefits"
+assetcap assets enrich --name "Payment Gateway" --field "metrics"
+
+# Generate keywords for better task matching
+assetcap assets keywords --name "Payment Gateway"
+
+# Update comprehensive asset information
+assetcap assets update \
+  --name "Payment Gateway" \
+  --description "Secure payment processing system with fraud detection" \
+  --why "Reduce payment fraud and improve user trust" \
+  --benefits "15% reduction in fraudulent transactions" \
+  --how "Machine learning-based fraud detection algorithms" \
+  --metrics "Fraud detection rate > 95%, false positive rate < 2%"
+
+# Track task associations
+assetcap assets tasks increment --asset "Payment Gateway"
+assetcap assets documentation update --asset "Payment Gateway"
+```
+
+### Configuration and Troubleshooting
+
+```bash
+# Setup configuration step by step
+assetcap config init --non-interactive \
+  --jira-url "https://company.atlassian.net" \
+  --jira-email "team@company.com" \
+  --jira-token "your-api-token"
+
+# Verify configuration is working
+assetcap config validate
+
+# Check current settings (sensitive data masked)
+assetcap config show
+
+# Test JIRA connectivity by fetching a single task
+assetcap tasks fetch --key "TEST-1" --platform "jira"
+```
 
 ## Installation
 
@@ -199,20 +417,9 @@ export JIRA_TOKEN="your-api-token"
 assetcap config init --non-interactive
 ```
 
-### Shell Completion
+### Shell Completion Setup
 
-Enable shell completion for a better CLI experience:
-
-```bash
-# For zsh users
-echo 'eval "$(assetcap completion zsh)"' >> ~/.zshrc
-
-# For bash users
-echo 'eval "$(assetcap completion bash)"' >> ~/.bashrc
-
-# For fish users
-assetcap completion fish > ~/.config/fish/completions/assetcap.fish
-```
+After installation, enable shell completion for a better CLI experience (see Shell Completion section above for more details).
 
 ## Development Setup
 

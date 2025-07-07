@@ -9,15 +9,19 @@ _assetcap_completion() {
     COMPREPLY=()
     cur="${COMP_WORDS[COMP_CWORD]}"
     prev="${COMP_WORDS[COMP_CWORD-1]}"
-    opts="assets completion help"
+    opts="version completion config assets tasks sprint help"
 
     case "${prev}" in
-        "assets")
-            COMPREPLY=( $(compgen -W "create list contribution-type documentation tasks" -- ${cur}) )
+        "completion")
+            COMPREPLY=( $(compgen -W "bash zsh fish" -- ${cur}) )
             return 0
             ;;
-        "contribution-type")
-            COMPREPLY=( $(compgen -W "add" -- ${cur}) )
+        "config")
+            COMPREPLY=( $(compgen -W "init show validate" -- ${cur}) )
+            return 0
+            ;;
+        "assets")
+            COMPREPLY=( $(compgen -W "create list show update sync enrich keywords documentation tasks" -- ${cur}) )
             return 0
             ;;
         "documentation")
@@ -25,7 +29,18 @@ _assetcap_completion() {
             return 0
             ;;
         "tasks")
-            COMPREPLY=( $(compgen -W "increment decrement classify show" -- ${cur}) )
+            case "${COMP_WORDS[COMP_CWORD-2]}" in
+                "assets")
+                    COMPREPLY=( $(compgen -W "increment decrement" -- ${cur}) )
+                    ;;
+                *)
+                    COMPREPLY=( $(compgen -W "fetch show classify inspect migrate" -- ${cur}) )
+                    ;;
+            esac
+            return 0
+            ;;
+        "sprint")
+            COMPREPLY=( $(compgen -W "list allocate" -- ${cur}) )
             return 0
             ;;
         *)
