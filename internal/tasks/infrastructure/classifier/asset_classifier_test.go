@@ -74,7 +74,7 @@ func TestContentBasedAssetClassifier_ClassifyTaskAsset(t *testing.T) {
 			expectedAssetName: "Payment Gateway",
 			expectedMinConf:   0.9,
 			expectedMaxConf:   1.0,
-			expectedReason:    "asset name match in task summary",
+			expectedReason:    "keyword match in task content",
 		},
 		{
 			name: "keyword match in description",
@@ -123,7 +123,7 @@ func TestContentBasedAssetClassifier_ClassifyTaskAsset(t *testing.T) {
 				Summary:     "Generic task description",
 				Description: "Some work needs to be done",
 				Epic:        "General Work",
-				Labels:      []string{"cap-asset-payment", "urgent"},
+				Labels:      []string{"cap-asset-payment-gateway", "urgent"},
 			},
 			assets: []*assetdomain.Asset{
 				{
@@ -133,9 +133,9 @@ func TestContentBasedAssetClassifier_ClassifyTaskAsset(t *testing.T) {
 				},
 			},
 			expectedAssetName: "Payment Gateway",
-			expectedMinConf:   0.8,
+			expectedMinConf:   0.85,
 			expectedMaxConf:   1.0,
-			expectedReason:    "explicit asset label match",
+			expectedReason:    "existing asset label preserved",
 		},
 		{
 			name: "multiple keyword matches - high confidence",

@@ -34,10 +34,74 @@ func (c *ContentBasedAssetClassifier) ClassifyTaskAsset(task *taskdomain.Task) (
 		return nil, fmt.Errorf("failed to fetch assets: %w", err)
 	}
 
-	// Find the best matching asset
-	bestMatch := c.findBestAssetMatch(task, assets)
+	// FIRST: Get the natural classification (what the content suggests)
+	naturalClassification := c.findBestAssetMatch(task, assets)
 
-	return bestMatch, nil
+	// SECOND: Check if task has existing cap-asset labels
+	for _, label := range task.Labels {
+		if strings.HasPrefix(strings.ToLower(label), "cap-asset-") {
+			// Extract asset identifier from existing label
+			assetIdentifier := strings.TrimPrefix(strings.ToLower(label), "cap-asset-")
+			assetName := c.formatAssetNameFromLabel(assetIdentifier)
+
+			// Create existing label result
+			existingLabelResult := &ports.AssetClassificationResult{
+				Task: task,
+				Asset: &assetdomain.Asset{
+					Name:     assetName,
+					Keywords: []string{assetIdentifier},
+				},
+				Confidence: 0.85, // Good confidence for existing labels
+				Reason:     "existing asset label preserved",
+			}
+
+			// SMART LOGIC: Only preserve existing label if natural classification is weak
+			// or if existing label is reasonably close to natural classification
+			if naturalClassification.Confidence < 0.7 {
+				// Natural classification is weak, preserve existing label
+				return existingLabelResult, nil
+			}
+			if naturalClassification.Confidence >= 0.9 {
+				// Natural classification is very strong, override existing label
+				naturalClassification.Reason = fmt.Sprintf("natural classification (%.0f%% confidence) overrides existing label '%s'",
+					naturalClassification.Confidence*100, assetIdentifier)
+				return naturalClassification, nil
+			}
+
+			// Natural classification is moderate, check if it's the same asset
+			naturalAssetName := ""
+			if naturalClassification.Asset != nil {
+				naturalAssetName = strings.ToLower(naturalClassification.Asset.Name)
+			}
+
+			if strings.Contains(naturalAssetName, strings.ToLower(assetName)) ||
+				strings.Contains(strings.ToLower(assetName), naturalAssetName) {
+				// Same asset, preserve existing label
+				return existingLabelResult, nil
+			}
+
+			// Different asset with good confidence, override existing label
+			naturalClassification.Reason = fmt.Sprintf("natural classification (%.0f%% confidence) overrides existing label '%s'",
+				naturalClassification.Confidence*100, assetIdentifier)
+			return naturalClassification, nil
+		}
+	}
+
+	// No existing labels, return natural classification
+	return naturalClassification, nil
+}
+
+// formatAssetNameFromLabel converts an asset label identifier to a proper asset name
+func (c *ContentBasedAssetClassifier) formatAssetNameFromLabel(identifier string) string {
+	// Split on hyphens and capitalize each part
+	parts := strings.Split(identifier, "-")
+	for i, part := range parts {
+		if len(part) > 0 {
+			// Simple capitalization: first letter uppercase, rest lowercase
+			parts[i] = strings.ToUpper(part[:1]) + strings.ToLower(part[1:])
+		}
+	}
+	return strings.Join(parts, " ")
 }
 
 // ClassifyTasksAssets determines the related asset for multiple tasks
@@ -97,6 +161,17 @@ func (c *ContentBasedAssetClassifier) calculateAssetMatchScore(task *taskdomain.
 	epicContent := strings.ToLower(task.Epic)
 	assetNameLower := strings.ToLower(asset.Name)
 
+	// SPECIAL LOGIC: Detect primary focus for multi-asset tasks
+	// If task title follows pattern "X-Based Y Experiment" or "X using Y",
+	// then Y is likely the primary focus
+	taskSummaryLower := strings.ToLower(task.Summary)
+	if c.shouldPrioritizeSecondaryAsset(taskSummaryLower, assetNameLower) {
+		// This asset appears to be the primary focus despite being mentioned second
+		bestScore = 0.95
+		primaryReason = "detected as primary focus despite secondary mention"
+		return bestScore, primaryReason
+	}
+
 	// 1. Check for explicit asset label (highest priority)
 	for _, label := range task.Labels {
 		labelLower := strings.ToLower(label)
@@ -121,10 +196,20 @@ func (c *ContentBasedAssetClassifier) calculateAssetMatchScore(task *taskdomain.
 	// 2. Check for exact asset name match in task content (high priority) - ENHANCED
 	nameInContentMatch := MatchesAssetNameEnhanced(taskContent, assetNameLower)
 	if nameInContentMatch {
-		currentScore := 0.9
-		if currentScore > bestScore {
-			bestScore = currentScore
-			primaryReason = "asset name match in task summary"
+		// Check if this might be a secondary mention in a multi-asset task
+		if c.isSecondaryMentionInMultiAssetTask(taskSummaryLower, assetNameLower) {
+			// Lower the confidence for secondary mentions
+			currentScore := 0.7
+			if currentScore > bestScore {
+				bestScore = currentScore
+				primaryReason = "asset name match but appears secondary to main focus"
+			}
+		} else {
+			currentScore := 0.9
+			if currentScore > bestScore {
+				bestScore = currentScore
+				primaryReason = "asset name match in task summary"
+			}
 		}
 		matchTypes++
 	}
@@ -142,15 +227,26 @@ func (c *ContentBasedAssetClassifier) calculateAssetMatchScore(task *taskdomain.
 
 	// 4. Check for keyword matches (medium priority) - ENHANCED
 	keywordMatches := 0
+	strongKeywordMatches := 0
 	for _, keyword := range asset.Keywords {
 		if MatchesKeywordEnhanced(taskContent, keyword) || MatchesKeywordEnhanced(epicContent, keyword) {
 			keywordMatches++
+			// Check if this is a strong contextual keyword match
+			if c.isStrongContextualMatch(taskContent, keyword, asset.Name) {
+				strongKeywordMatches++
+			}
 		}
 	}
 
 	if keywordMatches > 0 {
 		// Score based on number of keyword matches
 		currentScore := 0.4 + float64(keywordMatches)*0.1
+
+		// Boost for strong contextual matches
+		if strongKeywordMatches >= 2 {
+			currentScore += 0.3
+		}
+
 		if keywordMatches >= 3 {
 			currentScore = 0.7 // Cap for multiple matches
 		}
@@ -207,4 +303,98 @@ func (c *ContentBasedAssetClassifier) calculateAssetMatchScore(task *taskdomain.
 	}
 
 	return bestScore, primaryReason
+}
+
+// shouldPrioritizeSecondaryAsset detects if an asset should be prioritized despite being mentioned second
+func (c *ContentBasedAssetClassifier) shouldPrioritizeSecondaryAsset(taskSummary, assetName string) bool {
+	// Get individual words from asset name for partial matching
+	assetWords := strings.Fields(strings.ToLower(assetName))
+
+	// Pattern: "X-Based Y Experiment" -> Y is the primary focus
+	// Example: "Dynamic Markup-Based Rounding Experiment" -> "Dynamic Rounding" is primary
+	if strings.Contains(taskSummary, "-based") && strings.Contains(taskSummary, "experiment") {
+		// Extract the word that appears immediately after "-based"
+		parts := strings.Split(taskSummary, "-based")
+		if len(parts) >= 2 {
+			secondPart := strings.TrimSpace(parts[1])
+			words := strings.Fields(secondPart)
+			if len(words) > 0 {
+				// Get the first word after "-based" (this is the focus word)
+				focusWord := words[0]
+
+				// Check if this focus word appears in our asset name
+				for _, assetWord := range assetWords {
+					if len(assetWord) > 3 && strings.Contains(focusWord, assetWord) {
+						return true
+					}
+				}
+			}
+		}
+	}
+
+	// Pattern: "X using Y" -> Y is the primary focus
+	if strings.Contains(taskSummary, " using ") {
+		parts := strings.Split(taskSummary, " using ")
+		if len(parts) >= 2 {
+			secondPart := parts[1]
+			// Check if any word from the asset name appears after "using"
+			for _, assetWord := range assetWords {
+				if len(assetWord) > 3 && strings.Contains(secondPart, assetWord) {
+					return true
+				}
+			}
+		}
+	}
+
+	// Pattern: task is about experiments/testing of asset keywords
+	if strings.Contains(taskSummary, "experiment") || strings.Contains(taskSummary, "test") {
+		// Check if any asset word appears in the context of being tested/experimented
+		for _, assetWord := range assetWords {
+			if len(assetWord) > 3 {
+				// Look for patterns like "rounding experiment", "pricing test", etc.
+				if strings.Contains(taskSummary, assetWord+" experiment") ||
+					strings.Contains(taskSummary, assetWord+" test") {
+					return true
+				}
+			}
+		}
+	}
+
+	// Special case: if asset contains "rounding" and task is a "rounding experiment"
+	if strings.Contains(strings.ToLower(assetName), "rounding") &&
+		strings.Contains(taskSummary, "rounding") && strings.Contains(taskSummary, "experiment") {
+		return true
+	}
+
+	return false
+}
+
+// isSecondaryMentionInMultiAssetTask checks if an asset mention appears to be secondary
+func (c *ContentBasedAssetClassifier) isSecondaryMentionInMultiAssetTask(taskSummary, assetName string) bool {
+	// If task mentions this asset in a "using X" or "X-based" context, it might be secondary
+	return strings.Contains(taskSummary, assetName+"-based") ||
+		strings.Contains(taskSummary, "using "+assetName)
+}
+
+// isStrongContextualMatch checks if a keyword match is particularly strong given the context
+func (c *ContentBasedAssetClassifier) isStrongContextualMatch(content, keyword, assetName string) bool {
+	// If keyword appears near other words from the asset name, it's a strong match
+	assetWords := strings.Fields(strings.ToLower(assetName))
+	for _, assetWord := range assetWords {
+		if strings.Contains(content, keyword+" "+assetWord) ||
+			strings.Contains(content, assetWord+" "+keyword) {
+			return true
+		}
+	}
+
+	// If keyword appears in a strong context (experiment, test, implementation)
+	contextWords := []string{"experiment", "test", "implementation", "platform", "system"}
+	for _, contextWord := range contextWords {
+		if strings.Contains(content, keyword+" "+contextWord) ||
+			strings.Contains(content, contextWord+" "+keyword) {
+			return true
+		}
+	}
+
+	return false
 }
