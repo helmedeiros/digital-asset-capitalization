@@ -15,14 +15,25 @@ func TestGetBashCompletion(t *testing.T) {
 	required := []string{
 		"#! /bin/bash",
 		"_assetcap_completion()",
-		"assets",
+		"version",
 		"completion",
+		"config",
+		"assets",
+		"tasks",
+		"sprint",
 		"help",
 		"create",
 		"list",
-		"contribution-type",
+		"show",
+		"update",
+		"sync",
+		"enrich",
+		"keywords",
 		"documentation",
-		"tasks",
+		"fetch",
+		"classify",
+		"inspect",
+		"migrate",
 		"increment",
 		"decrement",
 		"complete -F _assetcap_completion assetcap",
@@ -45,14 +56,25 @@ func TestGetZshCompletion(t *testing.T) {
 	required := []string{
 		"#compdef assetcap",
 		"_assetcap()",
-		"assets",
+		"version",
 		"completion",
+		"config",
+		"assets",
+		"tasks",
+		"sprint",
 		"help",
 		"create",
 		"list",
-		"contribution-type",
+		"show",
+		"update",
+		"sync",
+		"enrich",
+		"keywords",
 		"documentation",
-		"tasks",
+		"fetch",
+		"classify",
+		"inspect",
+		"migrate",
 		"increment",
 		"decrement",
 		"compdef _assetcap assetcap",
@@ -74,14 +96,25 @@ func TestGetFishCompletion(t *testing.T) {
 	// Check for required components
 	required := []string{
 		"__fish_assetcap_no_subcommand",
-		"assets",
+		"version",
 		"completion",
+		"config",
+		"assets",
+		"tasks",
+		"sprint",
 		"help",
 		"create",
 		"list",
-		"contribution-type",
+		"show",
+		"update",
+		"sync",
+		"enrich",
+		"keywords",
 		"documentation",
-		"tasks",
+		"fetch",
+		"classify",
+		"inspect",
+		"migrate",
 		"increment",
 		"decrement",
 	}
@@ -102,8 +135,12 @@ func TestCompletionScriptsConsistency(t *testing.T) {
 	fish := GetFishCompletion()
 
 	commands := []string{
-		"assets",
+		"version",
 		"completion",
+		"config",
+		"assets",
+		"tasks",
+		"sprint",
 		"help",
 	}
 
@@ -117,7 +154,11 @@ func TestCompletionScriptsConsistency(t *testing.T) {
 	assetCommands := []string{
 		"create",
 		"list",
-		"contribution-type",
+		"show",
+		"update",
+		"sync",
+		"enrich",
+		"keywords",
 		"documentation",
 		"tasks",
 	}
@@ -126,5 +167,45 @@ func TestCompletionScriptsConsistency(t *testing.T) {
 		assert.Contains(t, bash, cmd, "Bash completion missing asset command: %q", cmd)
 		assert.Contains(t, zsh, cmd, "Zsh completion missing asset command: %q", cmd)
 		assert.Contains(t, fish, cmd, "Fish completion missing asset command: %q", cmd)
+	}
+
+	// Check that all three shells support the same task subcommands
+	taskCommands := []string{
+		"fetch",
+		"show",
+		"classify",
+		"inspect",
+		"migrate",
+	}
+
+	for _, cmd := range taskCommands {
+		assert.Contains(t, bash, cmd, "Bash completion missing task command: %q", cmd)
+		assert.Contains(t, zsh, cmd, "Zsh completion missing task command: %q", cmd)
+		assert.Contains(t, fish, cmd, "Fish completion missing task command: %q", cmd)
+	}
+
+	// Check that all three shells support the same sprint subcommands
+	sprintCommands := []string{
+		"list",
+		"allocate",
+	}
+
+	for _, cmd := range sprintCommands {
+		assert.Contains(t, bash, cmd, "Bash completion missing sprint command: %q", cmd)
+		assert.Contains(t, zsh, cmd, "Zsh completion missing sprint command: %q", cmd)
+		assert.Contains(t, fish, cmd, "Fish completion missing sprint command: %q", cmd)
+	}
+
+	// Check that all three shells support the same config subcommands
+	configCommands := []string{
+		"init",
+		"show",
+		"validate",
+	}
+
+	for _, cmd := range configCommands {
+		assert.Contains(t, bash, cmd, "Bash completion missing config command: %q", cmd)
+		assert.Contains(t, zsh, cmd, "Zsh completion missing config command: %q", cmd)
+		assert.Contains(t, fish, cmd, "Fish completion missing config command: %q", cmd)
 	}
 }
