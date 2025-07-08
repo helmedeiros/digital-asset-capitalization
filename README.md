@@ -28,8 +28,14 @@ assetcap version
 
 # Show help for any command
 assetcap --help
+assetcap help
 assetcap assets --help
 assetcap tasks classify --help
+
+# Show help for specific subcommands
+assetcap assets sync --help
+assetcap config init --help
+assetcap sprint allocate --help
 ```
 
 ### Asset Management
@@ -57,6 +63,9 @@ assetcap assets update \
 
 # Sync assets from Confluence
 assetcap assets sync --space "MZN" --label "cap-asset" [--debug]
+
+# Sync from Confluence with debug output (shows detailed API calls and responses)
+assetcap assets sync --space "TECH" --label "cap-asset" --debug
 
 # Enrich asset fields using LLaMA 3
 assetcap assets enrich --name "Frontend App" --field "description"
@@ -162,6 +171,9 @@ List and manage sprints for projects:
 # List sprints for a project in a specific time period
 assetcap sprint list --project "FN" --period "Q2 2025"
 
+# Using short aliases (same as above)
+assetcap sprint list -p "FN" -t "Q2 2025"
+
 # List sprints for a project in a specific year
 assetcap sprint list --project "FN" --period "2025"
 
@@ -171,12 +183,22 @@ assetcap sprint list --project "FN" --period "2025-04-01:2025-06-30"
 # Calculate time allocation for a specific sprint (legacy calculation)
 assetcap sprint allocate --project "FN" --sprint "Sprint Name"
 
+# Using short aliases
+assetcap sprint allocate -p "FN" -s "Sprint Name"
+
 # Calculate time allocation with sprint-bounded calculation
 assetcap sprint allocate --project "FN" --sprint "Sprint Name" --sprint-bounded
+
+# Using short aliases with sprint-bounded calculation
+assetcap sprint allocate -p "FN" -s "Sprint Name" -sb
 
 # Calculate with manual overrides
 assetcap sprint allocate --project "FN" --sprint "Sprint Name" \
   --override '{"ISSUE-1": 6, "ISSUE-2": 36}'
+
+# Using short aliases with manual overrides
+assetcap sprint allocate -p "FN" -s "Sprint Name" \
+  -o '{"ISSUE-1": 6, "ISSUE-2": 36}' -sb
 ```
 
 The sprint list command supports various period formats:
@@ -206,6 +228,11 @@ assetcap config init --non-interactive \
   --jira-email "user@company.com" \
   --jira-token "api-token"
 
+# Non-interactive initialization with individual flags
+assetcap config init --non-interactive --jira-url "https://company.atlassian.net"
+assetcap config init --non-interactive --jira-email "user@company.com"
+assetcap config init --non-interactive --jira-token "api-token"
+
 # Show current configuration
 assetcap config show
 
@@ -219,6 +246,15 @@ The configuration commands help you:
 - Create and manage teams.json configuration
 - Validate configuration before running other commands
 - View current configuration status (with masked sensitive data)
+
+**Config Init Flags:**
+
+- `--non-interactive`: Run without prompts (requires environment variables or flags)
+- `--jira-url`: Specify JIRA base URL directly
+- `--jira-email`: Specify JIRA email directly
+- `--jira-token`: Specify JIRA API token directly
+
+**Note**: When using `--non-interactive`, you can either set environment variables (`JIRA_BASE_URL`, `JIRA_EMAIL`, `JIRA_TOKEN`) or use the flag options above.
 
 ### Shell Completion
 
@@ -295,8 +331,14 @@ assetcap sprint list --project "FN" --period "2025-01-01:2025-03-31"  # Custom r
 # Check migration statistics without making changes
 assetcap tasks migrate --stats
 
+# Check migration statistics for a specific file
+assetcap tasks migrate --file "/path/to/custom/tasks.json" --stats
+
 # Preview what the migration would do
 assetcap tasks migrate --dry-run
+
+# Preview migration for a specific file
+assetcap tasks migrate --file "/path/to/custom/tasks.json" --dry-run
 
 # Run migration with backup (recommended)
 assetcap tasks migrate
@@ -306,6 +348,9 @@ assetcap tasks migrate --file "/path/to/custom/tasks.json"
 
 # Rollback if something goes wrong
 assetcap tasks migrate --rollback
+
+# Rollback specific file migration
+assetcap tasks migrate --file "/path/to/custom/tasks.json" --rollback
 ```
 
 ### Asset Management Workflows
