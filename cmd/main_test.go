@@ -660,6 +660,10 @@ func (m *mockConfigServiceImpl) InitializeConfig(_ bool) (*usecase.InitializeCon
 	}, nil
 }
 
+func (m *mockConfigServiceImpl) GetJiraConfig() (*configdomain.JiraConfig, error) {
+	return configdomain.NewJiraConfig("https://test.atlassian.net", "test@example.com", "token123")
+}
+
 func TestConfigServiceImpl_InitializeConfig(t *testing.T) {
 	t.Run("should delegate to use case successfully", func(t *testing.T) {
 		// This test verifies that the InitializeConfig method properly delegates to the use case

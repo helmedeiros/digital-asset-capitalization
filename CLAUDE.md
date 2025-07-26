@@ -32,6 +32,7 @@ go mod tidy         # Clean dependencies
 assetcap config init         # Initialize configuration
 assetcap config show         # Show current config
 assetcap config validate     # Validate configuration
+assetcap config sync-team --project "PROJECT"  # Sync team members from JIRA
 
 # Asset management
 assetcap assets create --name "Asset Name" --description "Description"
@@ -131,6 +132,9 @@ The tool uses:
 - Branch naming convention: `feature/descriptive-name` or `fix/issue-description`
 - Ensure branch is based on latest main/master branch
 - Never commit directly to main/master branch
+- **NEVER** include co-author information in commit messages for this project
+- **NEVER** include icons, markdown, or quality assurance information in commit messages
+- Commit messages should focus on: what the commit solves, why the decisions were made, and how the problem was solved
 
 ### Before Pushing Feature Branch
 

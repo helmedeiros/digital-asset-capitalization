@@ -238,6 +238,12 @@ assetcap config show
 
 # Validate current configuration
 assetcap config validate
+
+# Synchronize team members from JIRA for a project
+assetcap config sync-team --project "FN"
+
+# Using short alias
+assetcap config sync-team -p "AD"
 ```
 
 The configuration commands help you:
@@ -246,6 +252,7 @@ The configuration commands help you:
 - Create and manage teams.json configuration
 - Validate configuration before running other commands
 - View current configuration status (with masked sensitive data)
+- Synchronize team members from JIRA projects to local teams.json configuration
 
 **Config Init Flags:**
 
@@ -255,6 +262,28 @@ The configuration commands help you:
 - `--jira-token`: Specify JIRA API token directly
 
 **Note**: When using `--non-interactive`, you can either set environment variables (`JIRA_BASE_URL`, `JIRA_EMAIL`, `JIRA_TOKEN`) or use the flag options above.
+
+**Team Synchronization:**
+
+The `config sync-team` command automatically extracts active team members from JIRA projects and updates your local teams.json configuration. It identifies team members by analyzing recent issue assignments rather than all assignable users, providing more accurate team membership.
+
+```bash
+# Sync team members for FN project
+assetcap config sync-team --project "FN"
+
+# Sync team members for AD project  
+assetcap config sync-team --project "AD"
+
+# Using short alias
+assetcap config sync-team -p "PROJECT_KEY"
+```
+
+The sync process:
+- Queries JIRA for recent issues in the specified project
+- Extracts unique assignees from those issues
+- Filters to active users only
+- Updates the teams.json file with the current team membership
+- Shows a summary of added/removed members
 
 ### Shell Completion
 
