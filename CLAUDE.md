@@ -32,6 +32,7 @@ go mod tidy         # Clean dependencies
 assetcap config init         # Initialize configuration
 assetcap config show         # Show current config
 assetcap config validate     # Validate configuration
+assetcap config sync-team --project "PROJECT"  # Sync team members from JIRA
 
 # Asset management
 assetcap assets create --name "Asset Name" --description "Description"
