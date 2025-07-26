@@ -13,3 +13,4 @@ completions/
 commit_*.txt
 commit_*.tmp
 *.commit-msg
+assetcap
