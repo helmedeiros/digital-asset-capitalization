@@ -11,6 +11,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/helmedeiros/digital-asset-capitalization/internal/config/application/usecase"
+	"github.com/helmedeiros/digital-asset-capitalization/internal/config/domain"
 )
 
 const testTeamsContent = `{"TEST": {"team": ["alice", "bob"]}}`
@@ -26,6 +27,14 @@ func (m *MockConfigService) InitializeConfig(interactive bool) (*usecase.Initial
 		return nil, args.Error(1)
 	}
 	return args.Get(0).(*usecase.InitializeConfigResult), args.Error(1)
+}
+
+func (m *MockConfigService) GetJiraConfig() (*domain.JiraConfig, error) {
+	args := m.Called()
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*domain.JiraConfig), args.Error(1)
 }
 
 func TestConfigCommands(t *testing.T) {

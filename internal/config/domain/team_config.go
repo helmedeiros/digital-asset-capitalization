@@ -124,6 +124,35 @@ func (tc *TeamConfig) IsEmpty() bool {
 	return len(tc.teams) == 0
 }
 
+// SetTeam sets the entire team for a project, replacing existing members
+func (tc *TeamConfig) SetTeam(project string, members []string) error {
+	trimmedProject := strings.TrimSpace(project)
+	if trimmedProject == "" {
+		return fmt.Errorf("project key cannot be empty")
+	}
+
+	// Validate and trim members, check for duplicates
+	memberSet := make(map[string]bool)
+	trimmedMembers := make([]string, 0, len(members))
+
+	for _, member := range members {
+		trimmedMember := strings.TrimSpace(member)
+		if trimmedMember == "" {
+			return fmt.Errorf("team member cannot be empty")
+		}
+
+		if memberSet[trimmedMember] {
+			return fmt.Errorf("duplicate team member '%s' in project '%s'", trimmedMember, trimmedProject)
+		}
+
+		memberSet[trimmedMember] = true
+		trimmedMembers = append(trimmedMembers, trimmedMember)
+	}
+
+	tc.teams[trimmedProject] = trimmedMembers
+	return nil
+}
+
 // ToMap returns a copy of the internal teams map
 func (tc *TeamConfig) ToMap() map[string][]string {
 	result := make(map[string][]string, len(tc.teams))

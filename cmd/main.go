@@ -14,13 +14,14 @@ import (
 	assetsinfra "github.com/helmedeiros/digital-asset-capitalization/internal/assets/infrastructure"
 	"github.com/helmedeiros/digital-asset-capitalization/internal/config/application/service"
 	"github.com/helmedeiros/digital-asset-capitalization/internal/config/application/usecase"
+	"github.com/helmedeiros/digital-asset-capitalization/internal/config/domain"
 	configinfra "github.com/helmedeiros/digital-asset-capitalization/internal/config/infrastructure"
 	"github.com/helmedeiros/digital-asset-capitalization/internal/shell/completion"
 	sprintapp "github.com/helmedeiros/digital-asset-capitalization/internal/sprint/application"
 	sprintinfra "github.com/helmedeiros/digital-asset-capitalization/internal/sprint/infrastructure"
 	"github.com/helmedeiros/digital-asset-capitalization/internal/sprint/infrastructure/formatting"
 	tasksapp "github.com/helmedeiros/digital-asset-capitalization/internal/tasks/application"
-	"github.com/helmedeiros/digital-asset-capitalization/internal/tasks/domain"
+	tasksdomain "github.com/helmedeiros/digital-asset-capitalization/internal/tasks/domain"
 	taskports "github.com/helmedeiros/digital-asset-capitalization/internal/tasks/domain/ports"
 	"github.com/helmedeiros/digital-asset-capitalization/internal/tasks/infrastructure/classifier"
 	cliui "github.com/helmedeiros/digital-asset-capitalization/internal/tasks/infrastructure/cli"
@@ -56,15 +57,21 @@ type App struct {
 // ConfigService interface for configuration operations
 type ConfigService interface {
 	InitializeConfig(interactive bool) (*usecase.InitializeConfigResult, error)
+	GetJiraConfig() (*domain.JiraConfig, error)
 }
 
 // configServiceImpl implements ConfigService
 type configServiceImpl struct {
 	initializeConfig *usecase.InitializeConfig
+	configService    *service.ConfigService
 }
 
 func (c *configServiceImpl) InitializeConfig(interactive bool) (*usecase.InitializeConfigResult, error) {
 	return c.initializeConfig.Execute(interactive)
+}
+
+func (c *configServiceImpl) GetJiraConfig() (*domain.JiraConfig, error) {
+	return c.configService.GetJiraConfig()
 }
 
 // NewApp creates a new App instance with the given dependencies
@@ -728,7 +735,7 @@ For more information about a command:
 							platform := ctx.String("platform")
 							dryRun := ctx.Bool("dry-run")
 							apply := ctx.Bool("apply")
-							input := domain.ClassifyTasksInput{
+							input := tasksdomain.ClassifyTasksInput{
 								Project: project,
 								Sprint:  sprint,
 								DryRun:  dryRun,
@@ -1061,6 +1068,62 @@ For more information about a command:
 							return nil
 						},
 					},
+					{
+						Name:  "sync-team",
+						Usage: "Synchronize team members from JIRA for a project",
+						Action: func(ctx *cli.Context) error {
+							projectKey := ctx.String("project")
+							if projectKey == "" {
+								return fmt.Errorf("project key is required")
+							}
+
+							// Create JIRA team sync adapter
+							teamSyncAdapter, err := configinfra.NewJiraTeamSyncAdapter(a.configService)
+							if err != nil {
+								return fmt.Errorf("failed to create team sync adapter: %v", err)
+							}
+
+							// Create team sync use case
+							configRepo := configinfra.NewFileRepository(configDir)
+							syncTeamUseCase := usecase.NewSyncTeamFromJira(teamSyncAdapter, configRepo)
+
+							// Execute team synchronization
+							result, err := syncTeamUseCase.Execute(projectKey)
+							if err != nil {
+								return fmt.Errorf("failed to sync team: %v", err)
+							}
+
+							// Display results
+							fmt.Printf("✅ Team synchronization completed for project %s\n", projectKey)
+							fmt.Printf("Source: %s\n", result.Source)
+							fmt.Printf("Total members: %d\n", result.TotalMembers)
+
+							if len(result.AddedMembers) > 0 {
+								fmt.Printf("Added members: %s\n", strings.Join(result.AddedMembers, ", "))
+							}
+
+							if len(result.RemovedMembers) > 0 {
+								fmt.Printf("Removed members: %s\n", strings.Join(result.RemovedMembers, ", "))
+							}
+
+							if result.HasErrors() {
+								fmt.Printf("⚠️  Warnings/Errors:\n")
+								for _, syncErr := range result.Errors {
+									fmt.Printf("  - %s (%s)\n", syncErr.Message, syncErr.Type)
+								}
+							}
+
+							return nil
+						},
+						Flags: []cli.Flag{
+							&cli.StringFlag{
+								Name:     "project",
+								Aliases:  []string{"p"},
+								Usage:    "Project key (e.g., FN, TEST)",
+								Required: true,
+							},
+						},
+					},
 				},
 			},
 		},
@@ -1151,6 +1214,7 @@ func initializeApp() (*App, error) {
 	// Initialize config service for CLI
 	configService := &configServiceImpl{
 		initializeConfig: initializeConfigUseCase,
+		configService:    sharedConfigService,
 	}
 
 	app := NewApp(assetService, taskService, sprintService)
