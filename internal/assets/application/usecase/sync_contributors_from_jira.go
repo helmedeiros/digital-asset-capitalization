@@ -20,6 +20,17 @@ type JiraTaskInfo struct {
 type JiraQueryPort interface {
 	// SearchTasksByLabelPrefix searches for tasks with labels starting with the given prefix
 	SearchTasksByLabelPrefix(ctx context.Context, labelPrefix string, maxResults int) ([]JiraTaskInfo, error)
+	// SearchTasksWithFilters searches for tasks with additional filtering options
+	SearchTasksWithFilters(ctx context.Context, filters JiraSearchFilters) ([]JiraTaskInfo, error)
+}
+
+// JiraSearchFilters contains filtering options for JIRA task searches
+type JiraSearchFilters struct {
+	LabelPrefix string
+	ProjectKey  string
+	SprintName  string
+	TeamName    string
+	MaxResults  int
 }
 
 // TeamConfigPort defines the interface for team configuration operations
@@ -54,7 +65,10 @@ func NewSyncAssetContributorsFromJiraUseCase(
 type SyncContributorsInput struct {
 	DryRun     bool   `json:"dry_run"`
 	MaxResults int    `json:"max_results"`
-	ProjectKey string `json:"project_key,omitempty"` // Optional: limit to specific project
+	ProjectKey string `json:"project_key,omitempty"` // Filter by JIRA project
+	SprintName string `json:"sprint_name,omitempty"` // Filter by sprint name
+	TeamName   string `json:"team_name,omitempty"`   // Only sync for assets this team works on
+	AssetName  string `json:"asset_name,omitempty"`  // Only sync this specific asset
 }
 
 // AssetContributorSyncResult represents the result of syncing contributors for an asset
@@ -85,8 +99,24 @@ func (uc *SyncAssetContributorsFromJiraUseCase) Execute(ctx context.Context, inp
 		maxResults = 1000 // Default limit
 	}
 
-	// Query JIRA for tasks with asset labels
-	tasks, err := uc.jiraQuery.SearchTasksByLabelPrefix(ctx, "cap-asset-", maxResults)
+	// Use new filtered search if we have additional filters
+	var tasks []JiraTaskInfo
+	var err error
+
+	if input.ProjectKey != "" || input.SprintName != "" || input.TeamName != "" {
+		filters := JiraSearchFilters{
+			LabelPrefix: "cap-asset-",
+			ProjectKey:  input.ProjectKey,
+			SprintName:  input.SprintName,
+			TeamName:    input.TeamName,
+			MaxResults:  maxResults,
+		}
+		tasks, err = uc.jiraQuery.SearchTasksWithFilters(ctx, filters)
+	} else {
+		// Fallback to original search for backward compatibility
+		tasks, err = uc.jiraQuery.SearchTasksByLabelPrefix(ctx, "cap-asset-", maxResults)
+	}
+
 	if err != nil {
 		return nil, fmt.Errorf("failed to query JIRA tasks: %w", err)
 	}
@@ -96,6 +126,21 @@ func (uc *SyncAssetContributorsFromJiraUseCase) Execute(ctx context.Context, inp
 
 	result := &SyncContributorsResult{
 		TotalTasks: len(tasks),
+	}
+
+	// If specific asset is requested, filter to only that asset
+	if input.AssetName != "" {
+		filteredAssetTasks := make(map[string][]JiraTaskInfo)
+		for assetLabel, taskList := range assetTasks {
+			assetName := uc.extractAssetNameFromLabel(assetLabel)
+			convertedName := uc.convertLabelToAssetName(assetLabel)
+
+			if strings.EqualFold(assetName, input.AssetName) || strings.EqualFold(convertedName, input.AssetName) {
+				filteredAssetTasks[assetLabel] = taskList
+				break
+			}
+		}
+		assetTasks = filteredAssetTasks
 	}
 
 	// Process each asset

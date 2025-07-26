@@ -620,10 +620,14 @@ For more information about a command:
 					},
 					{
 						Name:  "sync-contributors",
-						Usage: "Synchronize asset contributors from JIRA task assignments",
+						Usage: "Synchronize asset contributors from JIRA task assignments with optional filtering",
 						Action: func(ctx *cli.Context) error {
 							dryRun := ctx.Bool("dry-run")
 							maxResults := ctx.Int("max-results")
+							projectKey := ctx.String("project")
+							sprintName := ctx.String("sprint")
+							teamName := ctx.String("team")
+							assetName := ctx.String("asset")
 
 							// Create JIRA query adapter
 							jiraQueryAdapter, err := assetsinfra.NewJiraQueryAdapter(a.configService)
@@ -655,6 +659,10 @@ For more information about a command:
 							input := assetsusecase.SyncContributorsInput{
 								DryRun:     dryRun,
 								MaxResults: maxResults,
+								ProjectKey: projectKey,
+								SprintName: sprintName,
+								TeamName:   teamName,
+								AssetName:  assetName,
 							}
 
 							result, err := syncUseCase.Execute(context.Background(), input)
@@ -662,7 +670,24 @@ For more information about a command:
 								return fmt.Errorf("failed to sync contributors: %v", err)
 							}
 
-							// Display results
+							// Display results with context
+							if projectKey != "" || sprintName != "" || teamName != "" || assetName != "" {
+								fmt.Printf("🎯 Filtered sync")
+								if projectKey != "" {
+									fmt.Printf(" project:%s", projectKey)
+								}
+								if sprintName != "" {
+									fmt.Printf(" sprint:%s", sprintName)
+								}
+								if teamName != "" {
+									fmt.Printf(" team:%s", teamName)
+								}
+								if assetName != "" {
+									fmt.Printf(" asset:%s", assetName)
+								}
+								fmt.Println()
+							}
+
 							fmt.Printf("🔍 Analyzed %d JIRA tasks with asset labels\n", result.TotalTasks)
 							fmt.Printf("📦 Processed %d assets\n", len(result.AssetsProcessed))
 
@@ -723,6 +748,22 @@ For more information about a command:
 								Name:  "max-results",
 								Usage: "Maximum number of JIRA tasks to analyze",
 								Value: 1000,
+							},
+							&cli.StringFlag{
+								Name:  "project",
+								Usage: "Filter by JIRA project key (e.g., FN)",
+							},
+							&cli.StringFlag{
+								Name:  "sprint",
+								Usage: "Filter by sprint name (e.g., Penguins)",
+							},
+							&cli.StringFlag{
+								Name:  "team",
+								Usage: "Only sync assets that this team works on",
+							},
+							&cli.StringFlag{
+								Name:  "asset",
+								Usage: "Only sync contributors for this specific asset",
 							},
 						},
 					},
