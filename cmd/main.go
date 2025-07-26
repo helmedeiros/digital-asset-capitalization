@@ -11,6 +11,7 @@ import (
 	"github.com/urfave/cli/v2"
 
 	assetsapp "github.com/helmedeiros/digital-asset-capitalization/internal/assets/application"
+	assetsusecase "github.com/helmedeiros/digital-asset-capitalization/internal/assets/application/usecase"
 	assetsinfra "github.com/helmedeiros/digital-asset-capitalization/internal/assets/infrastructure"
 	"github.com/helmedeiros/digital-asset-capitalization/internal/config/application/service"
 	"github.com/helmedeiros/digital-asset-capitalization/internal/config/application/usecase"
@@ -618,6 +619,114 @@ For more information about a command:
 						},
 					},
 					{
+						Name:  "sync-contributors",
+						Usage: "Synchronize asset contributors from JIRA task assignments",
+						Action: func(ctx *cli.Context) error {
+							dryRun := ctx.Bool("dry-run")
+							maxResults := ctx.Int("max-results")
+
+							// Create JIRA query adapter
+							jiraQueryAdapter, err := assetsinfra.NewJiraQueryAdapter(a.configService)
+							if err != nil {
+								return fmt.Errorf("failed to create JIRA query adapter: %v", err)
+							}
+
+							// Create team config adapter
+							configRepo := configinfra.NewFileRepository(configDir)
+							teamConfigAdapter := assetsinfra.NewTeamConfigAdapter(configRepo)
+
+							// Create asset repository
+							repoConfig := assetsinfra.RepositoryConfig{
+								Directory: assetsDir,
+								Filename:  assetsFile,
+								FileMode:  0644,
+								DirMode:   0755,
+							}
+							assetRepo := assetsinfra.NewJSONRepository(repoConfig)
+
+							// Create use case
+							syncUseCase := assetsusecase.NewSyncAssetContributorsFromJiraUseCase(
+								assetRepo,
+								jiraQueryAdapter,
+								teamConfigAdapter,
+							)
+
+							// Execute sync
+							input := assetsusecase.SyncContributorsInput{
+								DryRun:     dryRun,
+								MaxResults: maxResults,
+							}
+
+							result, err := syncUseCase.Execute(context.Background(), input)
+							if err != nil {
+								return fmt.Errorf("failed to sync contributors: %v", err)
+							}
+
+							// Display results
+							fmt.Printf("🔍 Analyzed %d JIRA tasks with asset labels\n", result.TotalTasks)
+							fmt.Printf("📦 Processed %d assets\n", len(result.AssetsProcessed))
+
+							if dryRun {
+								fmt.Println("\n🔍 DRY RUN - No changes were made")
+							} else {
+								fmt.Printf("✅ Updated %d assets\n", result.AssetsUpdated)
+							}
+
+							// Show details for each asset
+							for _, assetResult := range result.AssetsProcessed {
+								fmt.Printf("\n📦 %s (analyzed %d tasks)\n", assetResult.AssetName, assetResult.TasksAnalyzed)
+
+								if assetResult.Error != "" {
+									fmt.Printf("  ❌ Error: %s\n", assetResult.Error)
+									continue
+								}
+
+								if len(assetResult.TeamsFound) > 0 {
+									fmt.Printf("  🔍 Teams found: %s\n", strings.Join(assetResult.TeamsFound, ", "))
+								}
+
+								if len(assetResult.CurrentContributors) > 0 {
+									fmt.Printf("  👥 Current contributors: %s\n", strings.Join(assetResult.CurrentContributors, ", "))
+								}
+
+								if len(assetResult.NewContributors) > 0 {
+									fmt.Printf("  ➕ New contributors: %s\n", strings.Join(assetResult.NewContributors, ", "))
+								}
+
+								if len(assetResult.RemovedContributors) > 0 {
+									fmt.Printf("  ➖ Removed contributors: %s\n", strings.Join(assetResult.RemovedContributors, ", "))
+								}
+
+								if assetResult.Updated {
+									fmt.Printf("  ✅ Updated\n")
+								} else if !dryRun {
+									fmt.Printf("  ⏸️  No changes needed\n")
+								}
+							}
+
+							if len(result.Errors) > 0 {
+								fmt.Printf("\n⚠️  Errors encountered:\n")
+								for _, error := range result.Errors {
+									fmt.Printf("  - %s\n", error)
+								}
+							}
+
+							return nil
+						},
+						Flags: []cli.Flag{
+							&cli.BoolFlag{
+								Name:  "dry-run",
+								Usage: "Preview changes without making modifications",
+								Value: false,
+							},
+							&cli.IntFlag{
+								Name:  "max-results",
+								Usage: "Maximum number of JIRA tasks to analyze",
+								Value: 1000,
+							},
+						},
+					},
+					{
 						Name:  "teams",
 						Usage: "Manage asset team assignments",
 						Subcommands: []*cli.Command{
@@ -628,7 +737,7 @@ For more information about a command:
 									assetName := ctx.String("asset")
 									owningTeam := ctx.String("owner")
 									contributingTeamsInput := ctx.String("contributors")
-									
+
 									// Parse contributing teams from comma-separated string
 									var contributingTeams []string
 									if contributingTeamsInput != "" {
@@ -639,11 +748,11 @@ For more information about a command:
 											}
 										}
 									}
-									
+
 									if err := a.assetService.AssignTeam(assetName, owningTeam, contributingTeams); err != nil {
 										return err
 									}
-									
+
 									fmt.Printf("✓ Successfully assigned teams to asset '%s'\n", assetName)
 									if owningTeam != "" {
 										fmt.Printf("  Owner: %s\n", owningTeam)
@@ -677,12 +786,12 @@ For more information about a command:
 									if err != nil {
 										return err
 									}
-									
+
 									if len(assetTeams) == 0 {
 										fmt.Println("No team assignments found")
 										return nil
 									}
-									
+
 									fmt.Println("Asset Team Assignments:")
 									fmt.Println("═══════════════════════════════════════")
 									for _, info := range assetTeams {
@@ -703,12 +812,12 @@ For more information about a command:
 								Usage: "Show team assignments for a specific asset",
 								Action: func(ctx *cli.Context) error {
 									assetName := ctx.String("asset")
-									
+
 									info, err := a.assetService.GetAssetTeamInfo(assetName)
 									if err != nil {
 										return err
 									}
-									
+
 									fmt.Printf("Team Assignments for '%s':\n", info.AssetName)
 									fmt.Println("─────────────────────────────────")
 									if info.OwningTeam != "" {
@@ -716,13 +825,13 @@ For more information about a command:
 									} else {
 										fmt.Println("👤 Owner: Not assigned")
 									}
-									
+
 									if len(info.ContributingTeams) > 0 {
 										fmt.Printf("🤝 Contributors: %s\n", strings.Join(info.ContributingTeams, ", "))
 									} else {
 										fmt.Println("🤝 Contributors: None")
 									}
-									
+
 									return nil
 								},
 								Flags: []cli.Flag{
@@ -739,11 +848,11 @@ For more information about a command:
 								Action: func(ctx *cli.Context) error {
 									assetName := ctx.String("asset")
 									teamName := ctx.String("team")
-									
+
 									if err := a.assetService.AddContributingTeam(assetName, teamName); err != nil {
 										return err
 									}
-									
+
 									fmt.Printf("✓ Added '%s' as contributor to asset '%s'\n", teamName, assetName)
 									return nil
 								},
@@ -766,11 +875,11 @@ For more information about a command:
 								Action: func(ctx *cli.Context) error {
 									assetName := ctx.String("asset")
 									teamName := ctx.String("team")
-									
+
 									if err := a.assetService.RemoveContributingTeam(assetName, teamName); err != nil {
 										return err
 									}
-									
+
 									fmt.Printf("✓ Removed '%s' as contributor from asset '%s'\n", teamName, assetName)
 									return nil
 								},
