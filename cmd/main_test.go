@@ -13,6 +13,7 @@ import (
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 
+	assetsapp "github.com/helmedeiros/digital-asset-capitalization/internal/assets/application"
 	assetsdomain "github.com/helmedeiros/digital-asset-capitalization/internal/assets/domain"
 	"github.com/helmedeiros/digital-asset-capitalization/internal/config/application/usecase"
 	configdomain "github.com/helmedeiros/digital-asset-capitalization/internal/config/domain"
@@ -93,6 +94,34 @@ func (m *MockAssetService) DeleteAsset(name string) error {
 func (m *MockAssetService) SyncFromConfluence(space, label string, debug bool) (*assetsdomain.SyncResult, error) {
 	args := m.Called(space, label, debug)
 	return args.Get(0).(*assetsdomain.SyncResult), args.Error(1)
+}
+
+func (m *MockAssetService) AssignTeam(assetName, owningTeam string, contributingTeams []string) error {
+	args := m.Called(assetName, owningTeam, contributingTeams)
+	return args.Error(0)
+}
+
+func (m *MockAssetService) GetAssetTeams() ([]assetsapp.AssetTeamInfo, error) {
+	args := m.Called()
+	return args.Get(0).([]assetsapp.AssetTeamInfo), args.Error(1)
+}
+
+func (m *MockAssetService) GetAssetTeamInfo(assetName string) (*assetsapp.AssetTeamInfo, error) {
+	args := m.Called(assetName)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*assetsapp.AssetTeamInfo), args.Error(1)
+}
+
+func (m *MockAssetService) AddContributingTeam(assetName, teamName string) error {
+	args := m.Called(assetName, teamName)
+	return args.Error(0)
+}
+
+func (m *MockAssetService) RemoveContributingTeam(assetName, teamName string) error {
+	args := m.Called(assetName, teamName)
+	return args.Error(0)
 }
 
 // MockTaskService is a mock implementation of TaskService

@@ -11,6 +11,7 @@ import (
 	"github.com/urfave/cli/v2"
 
 	assetsapp "github.com/helmedeiros/digital-asset-capitalization/internal/assets/application"
+	assetsusecase "github.com/helmedeiros/digital-asset-capitalization/internal/assets/application/usecase"
 	assetsinfra "github.com/helmedeiros/digital-asset-capitalization/internal/assets/infrastructure"
 	"github.com/helmedeiros/digital-asset-capitalization/internal/config/application/service"
 	"github.com/helmedeiros/digital-asset-capitalization/internal/config/application/usecase"
@@ -126,6 +127,12 @@ COMMANDS:
      tasks           Manage asset tasks
        increment     Increment task count for an asset
        decrement     Decrement task count for an asset
+     teams           Manage asset team assignments
+       assign        Assign teams to an asset
+       list          List asset team assignments
+       show          Show team assignments for a specific asset
+       add-contributor    Add a contributing team to an asset
+       remove-contributor Remove a contributing team from an asset
    tasks              Manage tasks from various platforms
      fetch           Fetch tasks from a platform (e.g., Jira)
      show            Show tasks for a project and sprint
@@ -322,6 +329,13 @@ For more information about a command:
 								if asset.DocLink != "" {
 									fmt.Printf("  DocLink: %s\n", asset.DocLink)
 								}
+								// Show team information
+								if asset.OwningTeam != "" {
+									fmt.Printf("  👤 Owner: %s\n", asset.OwningTeam)
+								}
+								if len(asset.ContributingTeams) > 0 {
+									fmt.Printf("  🤝 Contributors: %s\n", strings.Join(asset.ContributingTeams, ", "))
+								}
 								fmt.Println()
 							}
 							return nil
@@ -453,6 +467,13 @@ For more information about a command:
 							}
 							if asset.DocLink != "" {
 								fmt.Printf("DocLink: %s\n", asset.DocLink)
+							}
+							// Show team information
+							if asset.OwningTeam != "" {
+								fmt.Printf("👤 Owner: %s\n", asset.OwningTeam)
+							}
+							if len(asset.ContributingTeams) > 0 {
+								fmt.Printf("🤝 Contributors: %s\n", strings.Join(asset.ContributingTeams, ", "))
 							}
 							return nil
 						},
@@ -594,6 +615,327 @@ For more information about a command:
 								Name:     "name",
 								Usage:    "Asset name or ID",
 								Required: true,
+							},
+						},
+					},
+					{
+						Name:  "sync-contributors",
+						Usage: "Synchronize asset contributors from JIRA task assignments with optional filtering",
+						Action: func(ctx *cli.Context) error {
+							dryRun := ctx.Bool("dry-run")
+							maxResults := ctx.Int("max-results")
+							projectKey := ctx.String("project")
+							sprintName := ctx.String("sprint")
+							teamName := ctx.String("team")
+							assetName := ctx.String("asset")
+
+							// Create JIRA query adapter
+							jiraQueryAdapter, err := assetsinfra.NewJiraQueryAdapter(a.configService)
+							if err != nil {
+								return fmt.Errorf("failed to create JIRA query adapter: %v", err)
+							}
+
+							// Create team config adapter
+							configRepo := configinfra.NewFileRepository(configDir)
+							teamConfigAdapter := assetsinfra.NewTeamConfigAdapter(configRepo)
+
+							// Create asset repository
+							repoConfig := assetsinfra.RepositoryConfig{
+								Directory: assetsDir,
+								Filename:  assetsFile,
+								FileMode:  0644,
+								DirMode:   0755,
+							}
+							assetRepo := assetsinfra.NewJSONRepository(repoConfig)
+
+							// Create use case
+							syncUseCase := assetsusecase.NewSyncAssetContributorsFromJiraUseCase(
+								assetRepo,
+								jiraQueryAdapter,
+								teamConfigAdapter,
+							)
+
+							// Execute sync
+							input := assetsusecase.SyncContributorsInput{
+								DryRun:     dryRun,
+								MaxResults: maxResults,
+								ProjectKey: projectKey,
+								SprintName: sprintName,
+								TeamName:   teamName,
+								AssetName:  assetName,
+							}
+
+							result, err := syncUseCase.Execute(context.Background(), input)
+							if err != nil {
+								return fmt.Errorf("failed to sync contributors: %v", err)
+							}
+
+							// Display results with context
+							if projectKey != "" || sprintName != "" || teamName != "" || assetName != "" {
+								fmt.Printf("🎯 Filtered sync")
+								if projectKey != "" {
+									fmt.Printf(" project:%s", projectKey)
+								}
+								if sprintName != "" {
+									fmt.Printf(" sprint:%s", sprintName)
+								}
+								if teamName != "" {
+									fmt.Printf(" team:%s", teamName)
+								}
+								if assetName != "" {
+									fmt.Printf(" asset:%s", assetName)
+								}
+								fmt.Println()
+							}
+
+							fmt.Printf("🔍 Analyzed %d JIRA tasks with asset labels\n", result.TotalTasks)
+							fmt.Printf("📦 Processed %d assets\n", len(result.AssetsProcessed))
+
+							if dryRun {
+								fmt.Println("\n🔍 DRY RUN - No changes were made")
+							} else {
+								fmt.Printf("✅ Updated %d assets\n", result.AssetsUpdated)
+							}
+
+							// Show details for each asset
+							for _, assetResult := range result.AssetsProcessed {
+								fmt.Printf("\n📦 %s (analyzed %d tasks)\n", assetResult.AssetName, assetResult.TasksAnalyzed)
+
+								if assetResult.Error != "" {
+									fmt.Printf("  ❌ Error: %s\n", assetResult.Error)
+									continue
+								}
+
+								if len(assetResult.TeamsFound) > 0 {
+									fmt.Printf("  🔍 Teams found: %s\n", strings.Join(assetResult.TeamsFound, ", "))
+								}
+
+								if len(assetResult.CurrentContributors) > 0 {
+									fmt.Printf("  👥 Current contributors: %s\n", strings.Join(assetResult.CurrentContributors, ", "))
+								}
+
+								if len(assetResult.NewContributors) > 0 {
+									fmt.Printf("  ➕ New contributors: %s\n", strings.Join(assetResult.NewContributors, ", "))
+								}
+
+								if len(assetResult.RemovedContributors) > 0 {
+									fmt.Printf("  ➖ Removed contributors: %s\n", strings.Join(assetResult.RemovedContributors, ", "))
+								}
+
+								if assetResult.Updated {
+									fmt.Printf("  ✅ Updated\n")
+								} else if !dryRun {
+									fmt.Printf("  ⏸️  No changes needed\n")
+								}
+							}
+
+							if len(result.Errors) > 0 {
+								fmt.Printf("\n⚠️  Errors encountered:\n")
+								for _, error := range result.Errors {
+									fmt.Printf("  - %s\n", error)
+								}
+							}
+
+							return nil
+						},
+						Flags: []cli.Flag{
+							&cli.BoolFlag{
+								Name:  "dry-run",
+								Usage: "Preview changes without making modifications",
+								Value: false,
+							},
+							&cli.IntFlag{
+								Name:  "max-results",
+								Usage: "Maximum number of JIRA tasks to analyze",
+								Value: 1000,
+							},
+							&cli.StringFlag{
+								Name:  "project",
+								Usage: "Filter by JIRA project key (e.g., FN)",
+							},
+							&cli.StringFlag{
+								Name:  "sprint",
+								Usage: "Filter by sprint name (e.g., Penguins)",
+							},
+							&cli.StringFlag{
+								Name:  "team",
+								Usage: "Only sync assets that this team works on",
+							},
+							&cli.StringFlag{
+								Name:  "asset",
+								Usage: "Only sync contributors for this specific asset",
+							},
+						},
+					},
+					{
+						Name:  "teams",
+						Usage: "Manage asset team assignments",
+						Subcommands: []*cli.Command{
+							{
+								Name:  "assign",
+								Usage: "Assign teams to an asset",
+								Action: func(ctx *cli.Context) error {
+									assetName := ctx.String("asset")
+									owningTeam := ctx.String("owner")
+									contributingTeamsInput := ctx.String("contributors")
+
+									// Parse contributing teams from comma-separated string
+									var contributingTeams []string
+									if contributingTeamsInput != "" {
+										teams := strings.Split(contributingTeamsInput, ",")
+										for _, team := range teams {
+											if trimmed := strings.TrimSpace(team); trimmed != "" {
+												contributingTeams = append(contributingTeams, trimmed)
+											}
+										}
+									}
+
+									if err := a.assetService.AssignTeam(assetName, owningTeam, contributingTeams); err != nil {
+										return err
+									}
+
+									fmt.Printf("✓ Successfully assigned teams to asset '%s'\n", assetName)
+									if owningTeam != "" {
+										fmt.Printf("  Owner: %s\n", owningTeam)
+									}
+									if len(contributingTeams) > 0 {
+										fmt.Printf("  Contributors: %s\n", strings.Join(contributingTeams, ", "))
+									}
+									return nil
+								},
+								Flags: []cli.Flag{
+									&cli.StringFlag{
+										Name:     "asset",
+										Usage:    "Asset name",
+										Required: true,
+									},
+									&cli.StringFlag{
+										Name:  "owner",
+										Usage: "Owning team",
+									},
+									&cli.StringFlag{
+										Name:  "contributors",
+										Usage: "Contributing teams (comma-separated)",
+									},
+								},
+							},
+							{
+								Name:  "list",
+								Usage: "List asset team assignments",
+								Action: func(_ *cli.Context) error {
+									assetTeams, err := a.assetService.GetAssetTeams()
+									if err != nil {
+										return err
+									}
+
+									if len(assetTeams) == 0 {
+										fmt.Println("No team assignments found")
+										return nil
+									}
+
+									fmt.Println("Asset Team Assignments:")
+									fmt.Println("═══════════════════════════════════════")
+									for _, info := range assetTeams {
+										fmt.Printf("📦 %s\n", info.AssetName)
+										if info.OwningTeam != "" {
+											fmt.Printf("  👤 Owner: %s\n", info.OwningTeam)
+										}
+										if len(info.ContributingTeams) > 0 {
+											fmt.Printf("  🤝 Contributors: %s\n", strings.Join(info.ContributingTeams, ", "))
+										}
+										fmt.Println()
+									}
+									return nil
+								},
+							},
+							{
+								Name:  "show",
+								Usage: "Show team assignments for a specific asset",
+								Action: func(ctx *cli.Context) error {
+									assetName := ctx.String("asset")
+
+									info, err := a.assetService.GetAssetTeamInfo(assetName)
+									if err != nil {
+										return err
+									}
+
+									fmt.Printf("Team Assignments for '%s':\n", info.AssetName)
+									fmt.Println("─────────────────────────────────")
+									if info.OwningTeam != "" {
+										fmt.Printf("👤 Owner: %s\n", info.OwningTeam)
+									} else {
+										fmt.Println("👤 Owner: Not assigned")
+									}
+
+									if len(info.ContributingTeams) > 0 {
+										fmt.Printf("🤝 Contributors: %s\n", strings.Join(info.ContributingTeams, ", "))
+									} else {
+										fmt.Println("🤝 Contributors: None")
+									}
+
+									return nil
+								},
+								Flags: []cli.Flag{
+									&cli.StringFlag{
+										Name:     "asset",
+										Usage:    "Asset name",
+										Required: true,
+									},
+								},
+							},
+							{
+								Name:  "add-contributor",
+								Usage: "Add a contributing team to an asset",
+								Action: func(ctx *cli.Context) error {
+									assetName := ctx.String("asset")
+									teamName := ctx.String("team")
+
+									if err := a.assetService.AddContributingTeam(assetName, teamName); err != nil {
+										return err
+									}
+
+									fmt.Printf("✓ Added '%s' as contributor to asset '%s'\n", teamName, assetName)
+									return nil
+								},
+								Flags: []cli.Flag{
+									&cli.StringFlag{
+										Name:     "asset",
+										Usage:    "Asset name",
+										Required: true,
+									},
+									&cli.StringFlag{
+										Name:     "team",
+										Usage:    "Team name to add as contributor",
+										Required: true,
+									},
+								},
+							},
+							{
+								Name:  "remove-contributor",
+								Usage: "Remove a contributing team from an asset",
+								Action: func(ctx *cli.Context) error {
+									assetName := ctx.String("asset")
+									teamName := ctx.String("team")
+
+									if err := a.assetService.RemoveContributingTeam(assetName, teamName); err != nil {
+										return err
+									}
+
+									fmt.Printf("✓ Removed '%s' as contributor from asset '%s'\n", teamName, assetName)
+									return nil
+								},
+								Flags: []cli.Flag{
+									&cli.StringFlag{
+										Name:     "asset",
+										Usage:    "Asset name",
+										Required: true,
+									},
+									&cli.StringFlag{
+										Name:     "team",
+										Usage:    "Team name to remove as contributor",
+										Required: true,
+									},
+								},
 							},
 						},
 					},

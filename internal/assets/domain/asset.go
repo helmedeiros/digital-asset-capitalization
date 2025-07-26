@@ -5,6 +5,8 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"errors"
+	"fmt"
+	"strings"
 	"sync"
 	"time"
 )
@@ -59,6 +61,10 @@ type Asset struct {
 	Metrics string `json:"metrics"`
 	// DateStarted is when the asset development started
 	DateStarted time.Time `json:"date_started"`
+	// OwningTeam is the primary team responsible for this asset
+	OwningTeam string `json:"owning_team,omitempty"`
+	// ContributingTeams are teams that contribute to this asset
+	ContributingTeams []string `json:"contributing_teams,omitempty"`
 }
 
 // UnmarshalJSON implements the json.Unmarshaler interface
@@ -197,4 +203,149 @@ func (a *Asset) SetDateStarted(date time.Time) error {
 	a.UpdatedAt = time.Now()
 	a.Version++
 	return nil
+}
+
+// SetOwningTeam sets the primary team responsible for this asset
+func (a *Asset) SetOwningTeam(team string) error {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	a.OwningTeam = strings.TrimSpace(team)
+	a.UpdatedAt = time.Now()
+	a.Version++
+	return nil
+}
+
+// GetOwningTeam returns the owning team
+func (a *Asset) GetOwningTeam() string {
+	a.mu.RLock()
+	defer a.mu.RUnlock()
+	return a.OwningTeam
+}
+
+// AddContributingTeam adds a team to the contributing teams list
+func (a *Asset) AddContributingTeam(team string) error {
+	trimmedTeam := strings.TrimSpace(team)
+	if trimmedTeam == "" {
+		return errors.New("team name cannot be empty")
+	}
+
+	a.mu.Lock()
+	defer a.mu.Unlock()
+
+	// Check if team is already in the list
+	for _, existingTeam := range a.ContributingTeams {
+		if existingTeam == trimmedTeam {
+			return nil // Team already exists, no error but no change
+		}
+	}
+
+	// Don't add the owning team to contributing teams
+	if trimmedTeam == a.OwningTeam {
+		return nil
+	}
+
+	a.ContributingTeams = append(a.ContributingTeams, trimmedTeam)
+	a.UpdatedAt = time.Now()
+	a.Version++
+	return nil
+}
+
+// RemoveContributingTeam removes a team from the contributing teams list
+func (a *Asset) RemoveContributingTeam(team string) error {
+	trimmedTeam := strings.TrimSpace(team)
+	if trimmedTeam == "" {
+		return errors.New("team name cannot be empty")
+	}
+
+	a.mu.Lock()
+	defer a.mu.Unlock()
+
+	// Find and remove the team
+	for i, existingTeam := range a.ContributingTeams {
+		if existingTeam == trimmedTeam {
+			a.ContributingTeams = append(a.ContributingTeams[:i], a.ContributingTeams[i+1:]...)
+			a.UpdatedAt = time.Now()
+			a.Version++
+			return nil
+		}
+	}
+
+	return fmt.Errorf("team '%s' not found in contributing teams", trimmedTeam)
+}
+
+// GetContributingTeams returns a copy of the contributing teams list
+func (a *Asset) GetContributingTeams() []string {
+	a.mu.RLock()
+	defer a.mu.RUnlock()
+	result := make([]string, len(a.ContributingTeams))
+	copy(result, a.ContributingTeams)
+	return result
+}
+
+// SetContributingTeams sets the entire contributing teams list
+func (a *Asset) SetContributingTeams(teams []string) error {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+
+	// Filter out empty teams and duplicates
+	var cleanTeams []string
+	teamSet := make(map[string]bool)
+
+	for _, team := range teams {
+		trimmedTeam := strings.TrimSpace(team)
+		if trimmedTeam == "" {
+			continue
+		}
+		// Don't add the owning team to contributing teams
+		if trimmedTeam == a.OwningTeam {
+			continue
+		}
+		if !teamSet[trimmedTeam] {
+			cleanTeams = append(cleanTeams, trimmedTeam)
+			teamSet[trimmedTeam] = true
+		}
+	}
+
+	a.ContributingTeams = cleanTeams
+	a.UpdatedAt = time.Now()
+	a.Version++
+	return nil
+}
+
+// IsTeamAssociated checks if a team is either the owning team or a contributing team
+func (a *Asset) IsTeamAssociated(team string) bool {
+	trimmedTeam := strings.TrimSpace(team)
+	if trimmedTeam == "" {
+		return false
+	}
+
+	a.mu.RLock()
+	defer a.mu.RUnlock()
+
+	// Check if it's the owning team
+	if a.OwningTeam == trimmedTeam {
+		return true
+	}
+
+	// Check if it's in contributing teams
+	for _, contributingTeam := range a.ContributingTeams {
+		if contributingTeam == trimmedTeam {
+			return true
+		}
+	}
+
+	return false
+}
+
+// GetAllAssociatedTeams returns both owning and contributing teams
+func (a *Asset) GetAllAssociatedTeams() []string {
+	a.mu.RLock()
+	defer a.mu.RUnlock()
+
+	var allTeams []string
+	if a.OwningTeam != "" {
+		allTeams = append(allTeams, a.OwningTeam)
+	}
+	allTeams = append(allTeams, a.ContributingTeams...)
+	return allTeams
 }
