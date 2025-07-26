@@ -131,6 +131,7 @@ The tool uses:
 - Branch naming convention: `feature/descriptive-name` or `fix/issue-description`
 - Ensure branch is based on latest main/master branch
 - Never commit directly to main/master branch
+- **NEVER** include co-author information in commit messages for this project
 
 ### Before Pushing Feature Branch
 

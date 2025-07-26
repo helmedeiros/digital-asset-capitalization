@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"strings"
 
 	"github.com/helmedeiros/digital-asset-capitalization/internal/config/domain"
@@ -40,6 +41,22 @@ type JiraProjectRole struct {
 
 // JiraAssignableUserResponse represents the response from the assignable users API
 type JiraAssignableUserResponse []JiraUser
+
+// JiraSearchResponse represents the response from the JIRA search API
+type JiraSearchResponse struct {
+	Issues []JiraIssue `json:"issues"`
+	Total  int         `json:"total"`
+}
+
+// JiraIssue represents an issue in JIRA search API responses
+type JiraIssue struct {
+	Fields JiraIssueFields `json:"fields"`
+}
+
+// JiraIssueFields represents the fields of a JIRA issue
+type JiraIssueFields struct {
+	Assignee *JiraUser `json:"assignee"`
+}
 
 // ConfigServiceInterface defines the interface for config service
 type ConfigServiceInterface interface {
@@ -122,17 +139,20 @@ func (a *JiraTeamSyncAdapter) GetAssignableUsers(projectKey string) ([]domain.Te
 	return a.getAssignableUsers(projectKey)
 }
 
-// getAssignableUsers internal method to get assignable users
+// getAssignableUsers internal method to get active team members from recent issue assignments
 func (a *JiraTeamSyncAdapter) getAssignableUsers(projectKey string) ([]domain.TeamMember, error) {
 	jiraConfig, err := a.configService.GetJiraConfig()
 	if err != nil {
 		return nil, fmt.Errorf("failed to get JIRA config: %v", err)
 	}
 
-	url := fmt.Sprintf("%s/rest/api/3/user/assignable/search?project=%s&maxResults=100",
-		jiraConfig.BaseURL(), projectKey)
+	// Use search API to get recent issues with assignees to identify active team members
+	jql := fmt.Sprintf("project=%s AND assignee is not EMPTY", projectKey)
+	encodedJQL := url.QueryEscape(jql)
+	searchURL := fmt.Sprintf("%s/rest/api/3/search?jql=%s&maxResults=100&fields=assignee",
+		jiraConfig.BaseURL(), encodedJQL)
 
-	req, err := http.NewRequest("GET", url, nil)
+	req, err := http.NewRequest("GET", searchURL, nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create request: %v", err)
 	}
@@ -151,9 +171,23 @@ func (a *JiraTeamSyncAdapter) getAssignableUsers(projectKey string) ([]domain.Te
 		return nil, fmt.Errorf("JIRA API error (status %d): %s", resp.StatusCode, string(body))
 	}
 
-	var jiraUsers JiraAssignableUserResponse
-	if err := json.NewDecoder(resp.Body).Decode(&jiraUsers); err != nil {
+	var searchResponse JiraSearchResponse
+	if err := json.NewDecoder(resp.Body).Decode(&searchResponse); err != nil {
 		return nil, fmt.Errorf("failed to decode response: %v", err)
+	}
+
+	// Extract unique assignees from issues
+	uniqueAssignees := make(map[string]*JiraUser)
+	for _, issue := range searchResponse.Issues {
+		if issue.Fields.Assignee != nil && issue.Fields.Assignee.Active {
+			uniqueAssignees[issue.Fields.Assignee.AccountID] = issue.Fields.Assignee
+		}
+	}
+
+	// Convert unique assignees to slice
+	jiraUsers := make([]JiraUser, 0, len(uniqueAssignees))
+	for _, user := range uniqueAssignees {
+		jiraUsers = append(jiraUsers, *user)
 	}
 
 	return a.convertJiraUsersToTeamMembers(jiraUsers), nil

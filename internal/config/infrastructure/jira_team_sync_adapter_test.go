@@ -11,7 +11,7 @@ import (
 	"github.com/helmedeiros/digital-asset-capitalization/internal/config/domain"
 )
 
-const assignableSearchPath = "/rest/api/3/user/assignable/search"
+const searchPath = "/rest/api/3/search"
 
 // MockConfigService for testing
 type MockConfigService struct {
@@ -86,23 +86,34 @@ func TestJiraTeamSyncAdapter_GetProjectMembers(t *testing.T) {
 				mockConfig.On("GetJiraConfig").Return(jiraConfig, nil)
 			},
 			serverResponse: func(w http.ResponseWriter, r *http.Request) {
-				if r.URL.Path == assignableSearchPath && r.URL.Query().Get("project") == "TEST" {
+				if r.URL.Path == searchPath && r.URL.Query().Get("jql") != "" {
 					w.Header().Set("Content-Type", "application/json")
 					w.WriteHeader(http.StatusOK)
-					w.Write([]byte(`[
-						{
-							"accountId": "123",
-							"displayName": "John Doe",
-							"emailAddress": "john@example.com",
-							"active": true
-						},
-						{
-							"accountId": "456",
-							"displayName": "Jane Smith",
-							"emailAddress": "jane@example.com",
-							"active": true
-						}
-					]`))
+					w.Write([]byte(`{
+						"issues": [
+							{
+								"fields": {
+									"assignee": {
+										"accountId": "123",
+										"displayName": "John Doe",
+										"emailAddress": "john@example.com",
+										"active": true
+									}
+								}
+							},
+							{
+								"fields": {
+									"assignee": {
+										"accountId": "456",
+										"displayName": "Jane Smith",
+										"emailAddress": "jane@example.com",
+										"active": true
+									}
+								}
+							}
+						],
+						"total": 2
+					}`))
 				} else {
 					w.WriteHeader(http.StatusNotFound)
 				}
@@ -148,23 +159,34 @@ func TestJiraTeamSyncAdapter_GetProjectMembers(t *testing.T) {
 				mockConfig.On("GetJiraConfig").Return(jiraConfig, nil)
 			},
 			serverResponse: func(w http.ResponseWriter, r *http.Request) {
-				if r.URL.Path == assignableSearchPath {
+				if r.URL.Path == searchPath {
 					w.Header().Set("Content-Type", "application/json")
 					w.WriteHeader(http.StatusOK)
-					w.Write([]byte(`[
-						{
-							"accountId": "123",
-							"displayName": "John Doe",
-							"emailAddress": "john@example.com",
-							"active": true
-						},
-						{
-							"accountId": "456",
-							"displayName": "Inactive User",
-							"emailAddress": "inactive@example.com",
-							"active": false
-						}
-					]`))
+					w.Write([]byte(`{
+						"issues": [
+							{
+								"fields": {
+									"assignee": {
+										"accountId": "123",
+										"displayName": "John Doe",
+										"emailAddress": "john@example.com",
+										"active": true
+									}
+								}
+							},
+							{
+								"fields": {
+									"assignee": {
+										"accountId": "456",
+										"displayName": "Inactive User",
+										"emailAddress": "inactive@example.com",
+										"active": false
+									}
+								}
+							}
+						],
+						"total": 2
+					}`))
 				} else {
 					w.WriteHeader(http.StatusNotFound)
 				}
@@ -211,18 +233,25 @@ func TestJiraTeamSyncAdapter_GetProjectMembers(t *testing.T) {
 
 func TestJiraTeamSyncAdapter_GetAssignableUsers(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path == assignableSearchPath && r.URL.Query().Get("project") == "TEST" {
+		if r.URL.Path == searchPath && r.URL.Query().Get("jql") != "" {
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(http.StatusOK)
-			w.Write([]byte(`[
-				{
-					"accountId": "123",
-					"displayName": "John Doe",
-					"emailAddress": "john@example.com",
-					"name": "john.doe",
-					"active": true
-				}
-			]`))
+			w.Write([]byte(`{
+				"issues": [
+					{
+						"fields": {
+							"assignee": {
+								"accountId": "123",
+								"displayName": "John Doe",
+								"emailAddress": "john@example.com",
+								"name": "john.doe",
+								"active": true
+							}
+						}
+					}
+				],
+				"total": 1
+			}`))
 		} else {
 			w.WriteHeader(http.StatusNotFound)
 		}
