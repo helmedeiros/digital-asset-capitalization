@@ -7,6 +7,13 @@ import (
 	"github.com/helmedeiros/digital-asset-capitalization/internal/assets/infrastructure/confluence"
 )
 
+// AssetTeamInfo contains team information for an asset
+type AssetTeamInfo struct {
+	AssetName         string   `json:"asset_name"`
+	OwningTeam        string   `json:"owning_team"`
+	ContributingTeams []string `json:"contributing_teams"`
+}
+
 // LlamaClient defines the interface for LLaMA operations
 type LlamaClient interface {
 	// EnrichContent enriches the given content for the specified field
@@ -45,4 +52,14 @@ type AssetService interface {
 	EnrichAsset(name, field string) error
 	// GenerateKeywords generates keywords for an asset using LLaMA
 	GenerateKeywords(name string) error
+	// AssignTeam assigns owning and contributing teams to an asset
+	AssignTeam(assetName, owningTeam string, contributingTeams []string) error
+	// GetAssetTeams returns team assignments for all assets
+	GetAssetTeams() ([]AssetTeamInfo, error)
+	// GetAssetTeamInfo returns team assignments for a specific asset
+	GetAssetTeamInfo(assetName string) (*AssetTeamInfo, error)
+	// AddContributingTeam adds a contributing team to an asset
+	AddContributingTeam(assetName, teamName string) error
+	// RemoveContributingTeam removes a contributing team from an asset
+	RemoveContributingTeam(assetName, teamName string) error
 }

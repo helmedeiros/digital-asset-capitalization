@@ -409,3 +409,132 @@ func extractPageIDFromDocLink(docLink string) string {
 
 	return ""
 }
+
+// AssignTeam assigns owning and contributing teams to an asset
+func (s *AssetServiceImpl) AssignTeam(assetName, owningTeam string, contributingTeams []string) error {
+	// Find the asset
+	asset, err := s.repo.FindByName(assetName)
+	if err != nil {
+		return fmt.Errorf("failed to find asset: %w", err)
+	}
+
+	// Update owning team if provided
+	if owningTeam != "" {
+		if err := asset.SetOwningTeam(owningTeam); err != nil {
+			return fmt.Errorf("failed to set owning team: %w", err)
+		}
+	}
+
+	// Update contributing teams if provided
+	if len(contributingTeams) > 0 {
+		if err := asset.SetContributingTeams(contributingTeams); err != nil {
+			return fmt.Errorf("failed to set contributing teams: %w", err)
+		}
+	}
+
+	// Save the updated asset
+	if err := s.repo.Save(asset); err != nil {
+		return fmt.Errorf("failed to save asset: %w", err)
+	}
+
+	return nil
+}
+
+// GetAssetTeams returns team assignments for all assets
+func (s *AssetServiceImpl) GetAssetTeams() ([]AssetTeamInfo, error) {
+	assets, err := s.repo.FindAll()
+	if err != nil {
+		return nil, fmt.Errorf("failed to retrieve assets: %w", err)
+	}
+
+	var result []AssetTeamInfo
+	for _, asset := range assets {
+		// Only include assets that have team assignments
+		if asset.GetOwningTeam() != "" || len(asset.GetContributingTeams()) > 0 {
+			info := AssetTeamInfo{
+				AssetName:         asset.Name,
+				OwningTeam:        asset.GetOwningTeam(),
+				ContributingTeams: asset.GetContributingTeams(),
+			}
+			result = append(result, info)
+		}
+	}
+
+	return result, nil
+}
+
+// GetAssetTeamInfo returns team assignments for a specific asset
+func (s *AssetServiceImpl) GetAssetTeamInfo(assetName string) (*AssetTeamInfo, error) {
+	if assetName == "" {
+		return nil, fmt.Errorf("asset name is required")
+	}
+
+	asset, err := s.repo.FindByName(assetName)
+	if err != nil {
+		return nil, fmt.Errorf("failed to find asset: %w", err)
+	}
+
+	info := &AssetTeamInfo{
+		AssetName:         asset.Name,
+		OwningTeam:        asset.GetOwningTeam(),
+		ContributingTeams: asset.GetContributingTeams(),
+	}
+
+	return info, nil
+}
+
+// AddContributingTeam adds a contributing team to an asset
+func (s *AssetServiceImpl) AddContributingTeam(assetName, teamName string) error {
+	if assetName == "" {
+		return fmt.Errorf("asset name is required")
+	}
+	if teamName == "" {
+		return fmt.Errorf("team name is required")
+	}
+
+	// Find the asset
+	asset, err := s.repo.FindByName(assetName)
+	if err != nil {
+		return fmt.Errorf("failed to find asset: %w", err)
+	}
+
+	// Add the contributing team
+	if err := asset.AddContributingTeam(teamName); err != nil {
+		return fmt.Errorf("failed to add contributing team: %w", err)
+	}
+
+	// Save the updated asset
+	if err := s.repo.Save(asset); err != nil {
+		return fmt.Errorf("failed to save asset: %w", err)
+	}
+
+	return nil
+}
+
+// RemoveContributingTeam removes a contributing team from an asset
+func (s *AssetServiceImpl) RemoveContributingTeam(assetName, teamName string) error {
+	if assetName == "" {
+		return fmt.Errorf("asset name is required")
+	}
+	if teamName == "" {
+		return fmt.Errorf("team name is required")
+	}
+
+	// Find the asset
+	asset, err := s.repo.FindByName(assetName)
+	if err != nil {
+		return fmt.Errorf("failed to find asset: %w", err)
+	}
+
+	// Remove the contributing team
+	if err := asset.RemoveContributingTeam(teamName); err != nil {
+		return fmt.Errorf("failed to remove contributing team: %w", err)
+	}
+
+	// Save the updated asset
+	if err := s.repo.Save(asset); err != nil {
+		return fmt.Errorf("failed to save asset: %w", err)
+	}
+
+	return nil
+}
