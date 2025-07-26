@@ -822,7 +822,7 @@ For more information about a command:
 							{
 								Name:  "list",
 								Usage: "List asset team assignments",
-								Action: func(ctx *cli.Context) error {
+								Action: func(_ *cli.Context) error {
 									assetTeams, err := a.assetService.GetAssetTeams()
 									if err != nil {
 										return err

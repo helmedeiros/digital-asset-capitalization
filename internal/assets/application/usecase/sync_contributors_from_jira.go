@@ -177,7 +177,7 @@ func (uc *SyncAssetContributorsFromJiraUseCase) groupTasksByAsset(tasks []JiraTa
 
 // processAssetContributors processes contributors for a single asset
 func (uc *SyncAssetContributorsFromJiraUseCase) processAssetContributors(
-	ctx context.Context,
+	_ context.Context,
 	assetLabel string,
 	tasks []JiraTaskInfo,
 	dryRun bool,
@@ -206,11 +206,7 @@ func (uc *SyncAssetContributorsFromJiraUseCase) processAssetContributors(
 	result.CurrentContributors = asset.GetContributingTeams()
 
 	// Extract teams from task assignees/reporters
-	teamsFound, err := uc.extractTeamsFromTasks(tasks)
-	if err != nil {
-		result.Error = fmt.Sprintf("failed to extract teams: %v", err)
-		return result
-	}
+	teamsFound := uc.extractTeamsFromTasks(tasks)
 
 	result.TeamsFound = teamsFound
 
@@ -244,9 +240,15 @@ func (uc *SyncAssetContributorsFromJiraUseCase) processAssetContributors(
 func (uc *SyncAssetContributorsFromJiraUseCase) extractAssetNameFromLabel(label string) string {
 	// Remove cap-asset- prefix
 	name := strings.TrimPrefix(strings.ToLower(label), "cap-asset-")
-	// Convert hyphens to spaces and title case
+	// Convert hyphens to spaces and capitalize first letters
 	name = strings.ReplaceAll(name, "-", " ")
-	return strings.Title(name)
+	words := strings.Fields(name)
+	for i, word := range words {
+		if len(word) > 0 {
+			words[i] = strings.ToUpper(word[:1]) + word[1:]
+		}
+	}
+	return strings.Join(words, " ")
 }
 
 // convertLabelToAssetName tries different name conversion strategies
@@ -254,19 +256,25 @@ func (uc *SyncAssetContributorsFromJiraUseCase) convertLabelToAssetName(label st
 	// For labels like cap-asset-omio-flex, try to find "Omio Flex"
 	name := strings.TrimPrefix(strings.ToLower(label), "cap-asset-")
 
-	// Strategy 1: Simple title case with spaces
-	converted := strings.Title(strings.ReplaceAll(name, "-", " "))
+	// Strategy 1: Capitalize first letters of words
+	words := strings.Split(name, "-")
+	for i, word := range words {
+		if len(word) > 0 {
+			words[i] = strings.ToUpper(word[:1]) + word[1:]
+		}
+	}
+	converted := strings.Join(words, " ")
 
 	// Strategy 2: Keep original casing for known patterns
 	if strings.Contains(name, "omio") {
-		converted = strings.ReplaceAll(converted, "omio", "Omio")
+		converted = strings.ReplaceAll(converted, "Omio", "Omio")
 	}
 
 	return converted
 }
 
 // extractTeamsFromTasks extracts team names from task assignees and reporters
-func (uc *SyncAssetContributorsFromJiraUseCase) extractTeamsFromTasks(tasks []JiraTaskInfo) ([]string, error) {
+func (uc *SyncAssetContributorsFromJiraUseCase) extractTeamsFromTasks(tasks []JiraTaskInfo) []string {
 	userSet := make(map[string]bool)
 	teamSet := make(map[string]bool)
 
@@ -298,7 +306,7 @@ func (uc *SyncAssetContributorsFromJiraUseCase) extractTeamsFromTasks(tasks []Ji
 		teams = append(teams, team)
 	}
 
-	return teams, nil
+	return teams
 }
 
 // findNewTeams returns teams that are in found but not in current

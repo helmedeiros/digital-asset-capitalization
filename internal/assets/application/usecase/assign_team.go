@@ -219,7 +219,7 @@ func ParseTeamsInput(teamsInput string) []string {
 	if teamsInput == "" {
 		return nil
 	}
-	
+
 	teams := strings.Split(teamsInput, ",")
 	var cleanTeams []string
 	for _, team := range teams {

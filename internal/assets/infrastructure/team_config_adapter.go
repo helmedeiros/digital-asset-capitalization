@@ -96,9 +96,5 @@ func (a *TeamConfigAdapter) matchesUser(userIdentifier, teamMember string) bool 
 	userNormalized := strings.ReplaceAll(strings.ReplaceAll(userIdentifier, " ", ""), ".", "")
 	memberNormalized := strings.ReplaceAll(strings.ReplaceAll(teamMember, " ", ""), ".", "")
 
-	if userNormalized == memberNormalized {
-		return true
-	}
-
-	return false
+	return userNormalized == memberNormalized
 }
