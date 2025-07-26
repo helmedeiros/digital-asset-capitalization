@@ -132,6 +132,8 @@ The tool uses:
 - Ensure branch is based on latest main/master branch
 - Never commit directly to main/master branch
 - **NEVER** include co-author information in commit messages for this project
+- **NEVER** include icons, markdown, or quality assurance information in commit messages
+- Commit messages should focus on: what the commit solves, why the decisions were made, and how the problem was solved
 
 ### Before Pushing Feature Branch
 
