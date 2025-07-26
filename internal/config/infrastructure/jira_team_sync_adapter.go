@@ -137,7 +137,7 @@ func (a *JiraTeamSyncAdapter) getAssignableUsers(projectKey string) ([]domain.Te
 		return nil, fmt.Errorf("failed to create request: %v", err)
 	}
 
-	req.Header.Set("Authorization", "Basic "+jiraConfig.AuthHeader())
+	req.Header.Set("Authorization", jiraConfig.AuthHeader())
 	req.Header.Set("Accept", "application/json")
 
 	resp, err := a.httpClient.Do(req)
@@ -190,7 +190,7 @@ func (a *JiraTeamSyncAdapter) getProjectRoleIDs(url string, jiraConfig *domain.J
 		return nil, fmt.Errorf("failed to create request: %v", err)
 	}
 
-	req.Header.Set("Authorization", "Basic "+jiraConfig.AuthHeader())
+	req.Header.Set("Authorization", jiraConfig.AuthHeader())
 	req.Header.Set("Accept", "application/json")
 
 	resp, err := a.httpClient.Do(req)
@@ -234,7 +234,7 @@ func (a *JiraTeamSyncAdapter) getProjectRoleDetails(url string, jiraConfig *doma
 		return nil, fmt.Errorf("failed to create request: %v", err)
 	}
 
-	req.Header.Set("Authorization", "Basic "+jiraConfig.AuthHeader())
+	req.Header.Set("Authorization", jiraConfig.AuthHeader())
 	req.Header.Set("Accept", "application/json")
 
 	resp, err := a.httpClient.Do(req)
