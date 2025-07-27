@@ -1,4 +1,14 @@
-.PHONY: test test-cover test-cover-detail test-race test-watch test-all test-all-detail install completion lint lint-fix check test-cover-gate pre-push
+.PHONY: test test-cover test-cover-detail test-race test-watch test-all test-all-detail install completion lint lint-fix check test-cover-gate pre-push build build-run
+
+# Build the binary
+build:
+	@echo "Building assetcap binary..."
+	@go build -o assetcap cmd/main.go
+	@echo "✅ Built assetcap binary"
+
+# Build and run assetcap with arguments
+build-run: build
+	@./assetcap $(ARGS)
 
 # Run all checks (lint + test)
 check: lint test
