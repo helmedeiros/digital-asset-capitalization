@@ -2,6 +2,35 @@
 
 A Go-based CLI tool for managing digital assets and calculating time allocation for tasks across different assets with AI-powered features.
 
+## 🚨 CRITICAL: Binary Usage
+
+**NEVER use `./main` - it's an outdated binary!**
+
+Always use the latest binary with one of these approaches:
+
+### Option 1: Build-then-run (Recommended)
+```bash
+# Always build first, then run
+make build && ./assetcap [commands]
+
+# Or use the convenient wrapper
+./bin/run-assetcap.sh [commands]
+```
+
+### Option 2: Direct build-run
+```bash
+# Build and run in one command
+make build-run ARGS="assets teams --help"
+make build-run ARGS="assets show --name 'Asset Name'"
+```
+
+### Option 3: Install and use globally
+```bash
+# Install to GOPATH (less preferred for development)
+make install
+assetcap [commands]
+```
+
 ## Project Structure
 
 This project follows hexagonal (ports and adapters) architecture:
@@ -13,42 +42,66 @@ This project follows hexagonal (ports and adapters) architecture:
 
 ## Key Commands
 
-### Development
+### Development Workflow
+
+**Always follow this 3-step process:**
+1. **Build first**: `make build`
+2. **Run latest binary**: `./assetcap [commands]`
+3. **For testing**: Use `./bin/run-assetcap.sh` wrapper
+
 ```bash
 # Build and test
+make build          # Build latest binary
 make test           # Run tests
 make test-cover     # Run tests with coverage
-make build          # Build binary
-make install        # Build and install
+make install        # Build and install globally
+
+# Quality checks (run before pushing)
+make lint           # Run linter
+make lint-fix       # Run linter and auto-fix
+make pre-push       # Full quality gate (required before push)
 
 # Development tools
-make lint           # Run linter
 go mod tidy         # Clean dependencies
+make build-run ARGS="command"  # Build and run in one step
 ```
 
 ### Application Commands
+
+**Remember to use `./assetcap` after `make build` or use build-run patterns:**
+
 ```bash
 # Configuration
-assetcap config init         # Initialize configuration
-assetcap config show         # Show current config
-assetcap config validate     # Validate configuration
-assetcap config sync-team --project "PROJECT"  # Sync team members from JIRA
+./assetcap config init         # Initialize configuration
+./assetcap config show         # Show current config
+./assetcap config validate     # Validate configuration
+./assetcap config sync-team --project "PROJECT"  # Sync team members from JIRA
 
 # Asset management
-assetcap assets create --name "Asset Name" --description "Description"
-assetcap assets list
-assetcap assets sync --space "SPACE" --label "cap-asset"
-assetcap assets enrich --name "Asset Name" --field "description"
-assetcap assets keywords --name "Asset Name"
+./assetcap assets create --name "Asset Name" --description "Description"
+./assetcap assets list
+./assetcap assets sync --space "MZN" --label "cap-asset"
+./assetcap assets enrich --name "Asset Name" --field "description"
+./assetcap assets keywords --name "Asset Name"
+
+# Team management (latest features)
+./assetcap assets teams assign --asset "Asset Name" --owner "TeamName"
+./assetcap assets teams add-contributor --asset "Asset Name" --team "TeamName"
+./assetcap assets teams show --asset "Asset Name"
+./assetcap assets teams list
 
 # Task management
-assetcap tasks fetch --project "PROJECT" --sprint "Sprint Name" --platform "jira"
-assetcap tasks classify --project "PROJECT" --sprint "Sprint Name" --platform "jira"
-assetcap tasks show --project "PROJECT" --sprint "Sprint Name"
+./assetcap tasks fetch --project "PROJECT" --sprint "Sprint Name" --platform "jira"
+./assetcap tasks classify --project "PROJECT" --sprint "Sprint Name" --platform "jira"
+./assetcap tasks show --project "PROJECT" --sprint "Sprint Name"
 
 # Sprint management
-assetcap sprint list --project "PROJECT" --period "Q1 2025"
-assetcap sprint allocate --project "PROJECT" --sprint "Sprint Name"
+./assetcap sprint list --project "PROJECT" --period "Q1 2025"
+./assetcap sprint allocate --project "PROJECT" --sprint "Sprint Name"
+
+# Using build-run pattern (alternative)
+make build-run ARGS="assets teams --help"
+make build-run ARGS="assets show --name 'Asset Name'"
 ```
 
 ## Configuration
@@ -205,6 +258,13 @@ make test-all          # Run tests with race detector and coverage
 - **Ensures code quality through automated gates**
 - **Blocks push if tests fail or coverage drops**
 - Reduces integration issues
+
+## Important Notes
+
+- **Binary Usage**: The source code has the latest team management features that old binaries lack
+- **Build First**: Building ensures you get all recent changes and prevents "command not found" errors
+- **Permission System**: The project explicitly denies usage of `./main` binary through configuration
+- **Development Wrapper**: Use `./bin/run-assetcap.sh` for convenient testing during development
 
 ## Key Features
 
