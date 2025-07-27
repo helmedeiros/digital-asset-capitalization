@@ -531,3 +531,77 @@ func TestConvertPageToAsset(t *testing.T) {
 		})
 	}
 }
+
+func TestBuildCQLQuery(t *testing.T) {
+	tests := []struct {
+		name        string
+		spaceKey    string
+		label       string
+		expectedCQL string
+	}{
+		{
+			name:        "all spaces - empty space key",
+			spaceKey:    "",
+			label:       "cap-asset",
+			expectedCQL: "type%3Dpage+AND+label%3D%22cap-asset%22",
+		},
+		{
+			name:        "all spaces - wildcard",
+			spaceKey:    "*",
+			label:       "cap-asset",
+			expectedCQL: "type%3Dpage+AND+label%3D%22cap-asset%22",
+		},
+		{
+			name:        "single space",
+			spaceKey:    "MZN",
+			label:       "cap-asset",
+			expectedCQL: "type%3Dpage+AND+label%3D%22cap-asset%22+AND+space%3D%22MZN%22",
+		},
+		{
+			name:        "multiple spaces",
+			spaceKey:    "MZN,CAP,DOC",
+			label:       "cap-asset",
+			expectedCQL: "type%3Dpage+AND+label%3D%22cap-asset%22+AND+space+in+%28%22MZN%22%2C+%22CAP%22%2C+%22DOC%22%29",
+		},
+		{
+			name:        "multiple spaces with whitespace",
+			spaceKey:    " MZN , CAP , DOC ",
+			label:       "cap-asset",
+			expectedCQL: "type%3Dpage+AND+label%3D%22cap-asset%22+AND+space+in+%28%22MZN%22%2C+%22CAP%22%2C+%22DOC%22%29",
+		},
+		{
+			name:        "multiple spaces with empty values",
+			spaceKey:    "MZN,,CAP, ,DOC",
+			label:       "cap-asset",
+			expectedCQL: "type%3Dpage+AND+label%3D%22cap-asset%22+AND+space+in+%28%22MZN%22%2C+%22CAP%22%2C+%22DOC%22%29",
+		},
+		{
+			name:        "single space with whitespace",
+			spaceKey:    " MZN ",
+			label:       "test-label",
+			expectedCQL: "type%3Dpage+AND+label%3D%22test-label%22+AND+space%3D%22MZN%22",
+		},
+		{
+			name:        "empty spaces result in all spaces",
+			spaceKey:    " , , ",
+			label:       "cap-asset",
+			expectedCQL: "type%3Dpage+AND+label%3D%22cap-asset%22",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			config := &Config{
+				SpaceKey: tt.spaceKey,
+				Label:    tt.label,
+			}
+			adapter := NewAdapter(config)
+
+			cql := adapter.buildCQLQuery()
+
+			if cql != tt.expectedCQL {
+				t.Errorf("buildCQLQuery() = %v, want %v", cql, tt.expectedCQL)
+			}
+		})
+	}
+}

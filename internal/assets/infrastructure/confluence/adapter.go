@@ -131,11 +131,50 @@ func (a *Adapter) buildSearchURL(spaceID string) string {
 	return searchURL + "?" + query.Encode()
 }
 
+// buildCQLQuery constructs the CQL query with proper space filtering
+func (a *Adapter) buildCQLQuery() string {
+	// Base query for pages with the specified label
+	cqlParts := []string{
+		"type=page",
+		fmt.Sprintf("label=\"%s\"", a.config.Label),
+	}
+
+	// Add space filtering based on SpaceKey configuration
+	if a.config.SpaceKey != "" && a.config.SpaceKey != "*" {
+		// Check if it's multiple spaces (comma-separated)
+		if strings.Contains(a.config.SpaceKey, ",") {
+			// Multiple spaces: use IN operator
+			spaces := strings.Split(a.config.SpaceKey, ",")
+			var quotedSpaces []string
+			for _, space := range spaces {
+				trimmedSpace := strings.TrimSpace(space)
+				if trimmedSpace != "" {
+					quotedSpaces = append(quotedSpaces, fmt.Sprintf("\"%s\"", trimmedSpace))
+				}
+			}
+			if len(quotedSpaces) > 0 {
+				cqlParts = append(cqlParts, fmt.Sprintf("space in (%s)", strings.Join(quotedSpaces, ", ")))
+			}
+		} else {
+			// Single space
+			cqlParts = append(cqlParts, fmt.Sprintf("space=\"%s\"", strings.TrimSpace(a.config.SpaceKey)))
+		}
+	}
+	// If SpaceKey is empty or "*", no space filter is added (search all spaces)
+
+	// Join parts with AND and URL encode
+	cqlQuery := strings.Join(cqlParts, " AND ")
+	return url.QueryEscape(cqlQuery)
+}
+
 // FetchAssets retrieves assets from Confluence
 func (a *Adapter) FetchAssets(ctx context.Context) ([]*domain.Asset, error) {
 	baseURL := strings.TrimRight(a.config.BaseURL, "/")
-	url := fmt.Sprintf("%s/wiki/rest/api/content/search?cql=type=page%%20AND%%20label=%%22%s%%22&expand=version,metadata.labels&limit=%d",
-		baseURL, a.config.Label, a.config.MaxResults)
+
+	// Build CQL query with proper space filtering
+	cqlQuery := a.buildCQLQuery()
+	url := fmt.Sprintf("%s/wiki/rest/api/content/search?cql=%s&expand=version,metadata.labels&limit=%d",
+		baseURL, cqlQuery, a.config.MaxResults)
 	if a.config.Debug {
 		fmt.Printf("Fetching pages from URL: %s\n", url)
 	}
