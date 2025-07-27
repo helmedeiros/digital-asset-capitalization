@@ -619,6 +619,116 @@ For more information about a command:
 						},
 					},
 					{
+						Name:  "sync-and-enrich",
+						Usage: "Sync assets from Confluence and enrich them with keywords and fields using AI",
+						Action: func(ctx *cli.Context) error {
+							spaceKey := ctx.String("space")
+							label := ctx.String("label")
+							debug := ctx.Bool("debug")
+							enrichKeywords := ctx.Bool("keywords")
+							enrichFields := ctx.StringSlice("fields")
+							dryRun := ctx.Bool("dry-run")
+
+							// Note: These parameters will be used when we implement the full orchestration
+							_ = ctx.String("field-filter") // fieldFilter for future use
+							_ = ctx.Int("max-concurrent")  // maxConcurrent for future use
+
+							// Validate required parameters
+							if label == "" {
+								return fmt.Errorf("label is required")
+							}
+
+							// Import the usecase package
+							// Note: This will need proper dependency injection in a real implementation
+							fmt.Printf("Starting sync-and-enrich workflow...\n")
+							fmt.Printf("Space: %s, Label: %s, Keywords: %v, Fields: %v\n", spaceKey, label, enrichKeywords, enrichFields)
+
+							if dryRun {
+								fmt.Printf("DRY RUN: Would sync assets and enrich with keywords=%v, fields=%v\n", enrichKeywords, enrichFields)
+								return nil
+							}
+
+							// For now, call the individual operations in sequence
+							// TODO: Replace with proper orchestration use case
+
+							// Step 1: Sync assets
+							fmt.Printf("Step 1: Syncing assets from Confluence...\n")
+							result, err := a.assetService.SyncFromConfluence(spaceKey, label, debug)
+							if err != nil {
+								return fmt.Errorf("failed to sync assets: %w", err)
+							}
+
+							fmt.Printf("Synced %d assets\n", len(result.SyncedAssets))
+
+							// Step 2: Enrich keywords if requested
+							if enrichKeywords && len(result.SyncedAssets) > 0 {
+								fmt.Printf("Step 2: Generating keywords for synced assets...\n")
+								for _, asset := range result.SyncedAssets {
+									if err := a.assetService.GenerateKeywords(asset.Name); err != nil {
+										fmt.Printf("Warning: Failed to generate keywords for %s: %v\n", asset.Name, err)
+									} else {
+										fmt.Printf("Generated keywords for: %s\n", asset.Name)
+									}
+								}
+							}
+
+							// Step 3: Enrich fields if requested
+							if len(enrichFields) > 0 && len(result.SyncedAssets) > 0 {
+								fmt.Printf("Step 3: Enriching fields %v for synced assets...\n", enrichFields)
+								for _, asset := range result.SyncedAssets {
+									for _, field := range enrichFields {
+										if err := a.assetService.EnrichAsset(asset.Name, field); err != nil {
+											fmt.Printf("Warning: Failed to enrich %s field for %s: %v\n", field, asset.Name, err)
+										} else {
+											fmt.Printf("Enriched %s field for: %s\n", field, asset.Name)
+										}
+									}
+								}
+							}
+
+							fmt.Printf("Sync-and-enrich workflow completed successfully!\n")
+							return nil
+						},
+						Flags: []cli.Flag{
+							&cli.StringFlag{
+								Name:     "space",
+								Usage:    "Confluence space key(s). Single: 'MZN', Multiple: 'MZN,CAP,DOC', All: '*' or omit",
+								Required: false,
+							},
+							&cli.StringFlag{
+								Name:     "label",
+								Usage:    "Confluence label to filter by (e.g., 'cap-asset')",
+								Required: true,
+							},
+							&cli.BoolFlag{
+								Name:  "debug",
+								Usage: "Enable debug output",
+							},
+							&cli.BoolFlag{
+								Name:  "keywords",
+								Usage: "Generate keywords for synced assets using AI",
+							},
+							&cli.StringSliceFlag{
+								Name:  "fields",
+								Usage: "Fields to enrich using AI (description, why, benefits, how, metrics). Can be specified multiple times",
+							},
+							&cli.StringFlag{
+								Name:  "field-filter",
+								Usage: "Filter for field enrichment: 'all', 'missing-fields', 'empty-fields'",
+								Value: "missing-fields",
+							},
+							&cli.IntFlag{
+								Name:  "max-concurrent",
+								Usage: "Maximum concurrent AI operations",
+								Value: 2,
+							},
+							&cli.BoolFlag{
+								Name:  "dry-run",
+								Usage: "Show what would be done without making changes",
+							},
+						},
+					},
+					{
 						Name:  "sync-contributors",
 						Usage: "Synchronize asset contributors from JIRA task assignments with optional filtering",
 						Action: func(ctx *cli.Context) error {
