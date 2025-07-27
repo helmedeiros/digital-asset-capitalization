@@ -380,8 +380,8 @@ For more information about a command:
 						Flags: []cli.Flag{
 							&cli.StringFlag{
 								Name:     "space",
-								Usage:    "Confluence space key (e.g. MZN)",
-								Required: true,
+								Usage:    "Confluence space key(s). Single: 'MZN', Multiple: 'MZN,CAP,DOC', All: '*' or omit",
+								Required: false,
 							},
 							&cli.StringFlag{
 								Name:     "label",

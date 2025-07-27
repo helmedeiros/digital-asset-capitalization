@@ -230,7 +230,8 @@ func (s *AssetServiceImpl) SyncFromConfluence(spaceKey, label string, debug bool
 		config.Token = os.Getenv("JIRA_TOKEN")
 	}
 
-	config.SpaceKey = spaceKey
+	// Configure space key with proper validation and normalization
+	config.SpaceKey = s.normalizeSpaceKey(spaceKey)
 	config.Label = label
 	config.Debug = debug
 
@@ -537,4 +538,38 @@ func (s *AssetServiceImpl) RemoveContributingTeam(assetName, teamName string) er
 	}
 
 	return nil
+}
+
+// normalizeSpaceKey validates and normalizes the space key parameter
+func (s *AssetServiceImpl) normalizeSpaceKey(spaceKey string) string {
+	// Handle empty or wildcard as "all spaces"
+	if spaceKey == "" || spaceKey == "*" {
+		return ""
+	}
+
+	// Handle single space key
+	if !strings.Contains(spaceKey, ",") {
+		return strings.TrimSpace(spaceKey)
+	}
+
+	// Handle comma-separated space keys
+	spaces := strings.Split(spaceKey, ",")
+	var validSpaces []string
+	spaceSet := make(map[string]bool)
+
+	for _, space := range spaces {
+		trimmedSpace := strings.TrimSpace(space)
+		if trimmedSpace != "" && !spaceSet[trimmedSpace] {
+			validSpaces = append(validSpaces, trimmedSpace)
+			spaceSet[trimmedSpace] = true
+		}
+	}
+
+	// Return empty string if no valid spaces (equivalent to "all spaces")
+	if len(validSpaces) == 0 {
+		return ""
+	}
+
+	// Return single space or comma-separated list
+	return strings.Join(validSpaces, ",")
 }
