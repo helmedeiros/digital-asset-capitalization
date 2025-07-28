@@ -25,15 +25,20 @@ func TestListAssetsUseCase(t *testing.T) {
 		{"asset3", "Third asset"},
 	}
 
+	expectedAssets := make([]*domain.Asset, 0, len(testAssets))
 	for _, asset := range testAssets {
-		_, err := domain.NewAsset(asset.name, asset.description)
+		domainAsset, err := domain.NewAsset(asset.name, asset.description)
 		require.NoError(t, err)
-		err = mockRepo.Save(&domain.Asset{
-			Name:        asset.name,
-			Description: asset.description,
-		})
+		expectedAssets = append(expectedAssets, domainAsset)
+
+		// Set up mock expectation for Save
+		mockRepo.On("Save", domainAsset).Return(nil)
+		err = mockRepo.Save(domainAsset)
 		require.NoError(t, err)
 	}
+
+	// Set up mock expectation for FindAll in the use case
+	mockRepo.On("FindAll").Return(expectedAssets, nil)
 
 	// Test listing assets
 	assets, err := useCase.Execute()

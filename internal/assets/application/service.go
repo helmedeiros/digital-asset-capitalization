@@ -8,7 +8,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/helmedeiros/digital-asset-capitalization/internal/assets/common"
 	"github.com/helmedeiros/digital-asset-capitalization/internal/assets/domain"
 	"github.com/helmedeiros/digital-asset-capitalization/internal/assets/domain/ports"
 	"github.com/helmedeiros/digital-asset-capitalization/internal/assets/infrastructure/confluence"
@@ -23,10 +22,11 @@ type AssetServiceImpl struct {
 	llama         LlamaClient
 	confluence    ConfluenceAdapter
 	configService *service.ConfigService
+	idGenerator   ports.IDGenerator
 }
 
 // NewAssetService creates a new AssetService instance using shared configuration
-func NewAssetService(repo ports.AssetRepository, configService *service.ConfigService) AssetService {
+func NewAssetService(repo ports.AssetRepository, configService *service.ConfigService, idGenerator ports.IDGenerator) AssetService {
 	// Initialize LLaMA client
 	llamaConfig := llama.DefaultConfig()
 	llamaClient, err := llama.NewClient(llamaConfig)
@@ -36,7 +36,7 @@ func NewAssetService(repo ports.AssetRepository, configService *service.ConfigSe
 	}
 
 	// Create Confluence adapter with shared configuration
-	confluenceAdapter, err := createConfluenceAdapter(configService)
+	confluenceAdapter, err := createConfluenceAdapter(configService, idGenerator)
 	if err != nil {
 		// Log the error but don't fail initialization
 		fmt.Printf("Warning: Failed to initialize Confluence adapter: %v\n", err)
@@ -47,12 +47,13 @@ func NewAssetService(repo ports.AssetRepository, configService *service.ConfigSe
 		llama:         llamaClient,
 		confluence:    confluenceAdapter,
 		configService: configService,
+		idGenerator:   idGenerator,
 	}
 }
 
 // NewAssetServiceLegacy creates a new AssetService instance using legacy environment variables
 // Deprecated: Use NewAssetService with ConfigService instead
-func NewAssetServiceLegacy(repo ports.AssetRepository) AssetService {
+func NewAssetServiceLegacy(repo ports.AssetRepository, idGenerator ports.IDGenerator) AssetService {
 	// Initialize LLaMA client
 	llamaConfig := llama.DefaultConfig()
 	llamaClient, err := llama.NewClient(llamaConfig)
@@ -65,17 +66,18 @@ func NewAssetServiceLegacy(repo ports.AssetRepository) AssetService {
 	config := confluence.DefaultConfig()
 	config.BaseURL = os.Getenv("JIRA_BASE_URL")
 	config.Token = os.Getenv("JIRA_TOKEN")
-	confluenceAdapter := confluence.NewAdapter(config)
+	confluenceAdapter := confluence.NewAdapter(config, idGenerator)
 
 	return &AssetServiceImpl{
-		repo:       repo,
-		llama:      llamaClient,
-		confluence: confluenceAdapter,
+		repo:        repo,
+		llama:       llamaClient,
+		confluence:  confluenceAdapter,
+		idGenerator: idGenerator,
 	}
 }
 
 // createConfluenceAdapter creates a Confluence adapter using shared configuration
-func createConfluenceAdapter(configService *service.ConfigService) (ConfluenceAdapter, error) {
+func createConfluenceAdapter(configService *service.ConfigService, idGenerator ports.IDGenerator) (ConfluenceAdapter, error) {
 	if configService == nil {
 		return nil, fmt.Errorf("config service is required")
 	}
@@ -90,7 +92,7 @@ func createConfluenceAdapter(configService *service.ConfigService) (ConfluenceAd
 	config.Username = jiraConfig.Email()
 	config.Token = jiraConfig.Token()
 
-	return confluence.NewAdapter(config), nil
+	return confluence.NewAdapter(config, idGenerator), nil
 }
 
 // CreateAsset creates a new asset with the given name and description
@@ -106,7 +108,7 @@ func (s *AssetServiceImpl) CreateAsset(name, description string) error {
 	}
 
 	// Generate ID and check if it already exists
-	id := common.GenerateID(name)
+	id := s.idGenerator.GenerateID(name)
 	if _, err := s.repo.FindByID(id); err == nil {
 		return fmt.Errorf("asset with ID '%s' already exists", id)
 	}
@@ -242,7 +244,7 @@ func (s *AssetServiceImpl) SyncFromConfluence(spaceKey, label string, debug bool
 		return nil, fmt.Errorf("Jira token is not configured. Please run 'assetcap config init' or set JIRA_TOKEN environment variable")
 	}
 
-	adapter := confluence.NewAdapter(config)
+	adapter := confluence.NewAdapter(config, s.idGenerator)
 	assets, err := adapter.FetchAssets(context.Background())
 	if err != nil {
 		if strings.Contains(err.Error(), "no assets found with label") {

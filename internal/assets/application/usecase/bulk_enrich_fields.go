@@ -4,10 +4,12 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"strings"
 	"sync"
 	"time"
 
-	"github.com/helmedeiros/digital-asset-capitalization/internal/assets/application"
+	"golang.org/x/sync/semaphore"
+
 	"github.com/helmedeiros/digital-asset-capitalization/internal/assets/domain"
 	"github.com/helmedeiros/digital-asset-capitalization/internal/assets/domain/ports"
 )
@@ -38,15 +40,23 @@ type BulkEnrichFieldsResult struct {
 
 // BulkEnrichFieldsUseCase handles bulk field enrichment for multiple assets
 type BulkEnrichFieldsUseCase struct {
-	repository  ports.AssetRepository
-	llamaClient application.LlamaClient
+	repository    ports.AssetRepository
+	fieldsService ports.FieldsEnrichmentService
+	validFields   map[string]bool
 }
 
 // NewBulkEnrichFieldsUseCase creates a new bulk enrich fields use case
-func NewBulkEnrichFieldsUseCase(repository ports.AssetRepository, llamaClient application.LlamaClient) *BulkEnrichFieldsUseCase {
+func NewBulkEnrichFieldsUseCase(repository ports.AssetRepository, fieldsService ports.FieldsEnrichmentService) *BulkEnrichFieldsUseCase {
 	return &BulkEnrichFieldsUseCase{
-		repository:  repository,
-		llamaClient: llamaClient,
+		repository:    repository,
+		fieldsService: fieldsService,
+		validFields: map[string]bool{
+			"description": true,
+			"why":         true,
+			"benefits":    true,
+			"how":         true,
+			"metrics":     true,
+		},
 	}
 }
 
@@ -54,106 +64,48 @@ func NewBulkEnrichFieldsUseCase(repository ports.AssetRepository, llamaClient ap
 func (uc *BulkEnrichFieldsUseCase) Execute(ctx context.Context, input BulkEnrichFieldsInput) (*BulkEnrichFieldsResult, error) {
 	startTime := time.Now()
 
-	// Validate input
-	if err := uc.validateInput(input); err != nil {
-		return nil, fmt.Errorf("invalid input: %w", err)
+	// Validate input fields
+	if err := uc.validateFields(input.Fields); err != nil {
+		return nil, err
 	}
-
-	// Set defaults
-	if input.MaxConcurrent <= 0 {
-		input.MaxConcurrent = 2 // Conservative for LLM calls which can be slow
-	}
-
-	// Get assets to process
-	assetsToProcess, err := uc.getAssetsToProcess(input)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get assets to process: %w", err)
-	}
-
-	if len(assetsToProcess) == 0 {
-		return &BulkEnrichFieldsResult{
-			TotalProcessed: 0,
-			Duration:       time.Since(startTime),
-			FailedAssets:   make(map[string]string),
-			FieldsEnriched: make(map[string]map[string]bool),
-		}, nil
-	}
-
-	log.Printf("Starting bulk field enrichment for %d assets, %d fields (max concurrent: %d, dry-run: %v)",
-		len(assetsToProcess), len(input.Fields), input.MaxConcurrent, input.DryRun)
 
 	result := &BulkEnrichFieldsResult{
 		FailedAssets:   make(map[string]string),
 		FieldsEnriched: make(map[string]map[string]bool),
 	}
 
-	// Process assets concurrently with limit
-	sem := make(chan struct{}, input.MaxConcurrent)
-	var wg sync.WaitGroup
-	var mu sync.Mutex
-
-	for _, asset := range assetsToProcess {
-		wg.Add(1)
-		go func(a *domain.Asset) {
-			defer wg.Done()
-
-			// Acquire semaphore
-			sem <- struct{}{}
-			defer func() { <-sem }()
-
-			// Process asset
-			fieldsEnriched, err := uc.processAsset(ctx, a, input.Fields, input.DryRun)
-
-			// Update results
-			mu.Lock()
-			result.ProcessedAssets = append(result.ProcessedAssets, a.Name)
-			result.FieldsEnriched[a.Name] = fieldsEnriched
-
-			if err != nil {
-				result.FailedAssets[a.Name] = err.Error()
-				result.TotalFailed++
-			} else {
-				result.SuccessfulAssets = append(result.SuccessfulAssets, a.Name)
-				result.TotalSuccessful++
-
-				// Count successful field enrichments
-				for _, success := range fieldsEnriched {
-					if success {
-						result.TotalFieldsEnriched++
-					}
-				}
-			}
-			mu.Unlock()
-		}(asset)
+	// Get assets to process
+	assets, err := uc.getAssetsToProcess(input)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get assets: %w", err)
 	}
 
-	wg.Wait()
+	// Apply filtering
+	filteredAssets := uc.applyFilter(assets, input.FilterBy, input.Fields)
 
-	result.TotalProcessed = len(assetsToProcess)
+	if len(filteredAssets) == 0 {
+		log.Printf("No assets matched the filter criteria")
+		result.Duration = time.Since(startTime)
+		return result, nil
+	}
+
+	log.Printf("Processing %d assets for field enrichment...", len(filteredAssets))
+
+	// Process assets concurrently
+	uc.processAssetsConcurrently(ctx, filteredAssets, input, result)
+
 	result.Duration = time.Since(startTime)
-
-	log.Printf("Bulk field enrichment completed: %d processed, %d successful, %d failed, %d fields enriched in %v",
-		result.TotalProcessed, result.TotalSuccessful, result.TotalFailed, result.TotalFieldsEnriched, result.Duration)
-
 	return result, nil
 }
 
-// validateInput validates the input parameters
-func (uc *BulkEnrichFieldsUseCase) validateInput(input BulkEnrichFieldsInput) error {
-	if len(input.Fields) == 0 {
+// validateFields validates that all specified fields are valid
+func (uc *BulkEnrichFieldsUseCase) validateFields(fields []string) error {
+	if len(fields) == 0 {
 		return fmt.Errorf("at least one field must be specified")
 	}
 
-	validFields := map[string]bool{
-		"description": true,
-		"why":         true,
-		"benefits":    true,
-		"how":         true,
-		"metrics":     true,
-	}
-
-	for _, field := range input.Fields {
-		if !validFields[field] {
+	for _, field := range fields {
+		if !uc.validFields[field] {
 			return fmt.Errorf("invalid field '%s'. Valid fields: description, why, benefits, how, metrics", field)
 		}
 	}
@@ -161,65 +113,61 @@ func (uc *BulkEnrichFieldsUseCase) validateInput(input BulkEnrichFieldsInput) er
 	return nil
 }
 
-// getAssetsToProcess determines which assets need field enrichment
+// getAssetsToProcess retrieves the assets that need to be processed
 func (uc *BulkEnrichFieldsUseCase) getAssetsToProcess(input BulkEnrichFieldsInput) ([]*domain.Asset, error) {
-	var assets []*domain.Asset
-
-	// If specific asset names provided, get those
 	if len(input.AssetNames) > 0 {
+		// Process specific assets
+		var assets []*domain.Asset
 		for _, name := range input.AssetNames {
 			asset, err := uc.repository.FindByName(name)
 			if err != nil {
-				return nil, fmt.Errorf("failed to find asset '%s': %w", name, err)
+				log.Printf("Asset '%s' not found: %v", name, err)
+				continue
 			}
 			assets = append(assets, asset)
 		}
 		return assets, nil
 	}
 
-	// Otherwise get all assets and apply filtering
-	allAssets, err := uc.repository.FindAll()
-	if err != nil {
-		return nil, fmt.Errorf("failed to get all assets: %w", err)
+	// Process all assets
+	return uc.repository.FindAll()
+}
+
+// applyFilter applies filtering logic to assets
+func (uc *BulkEnrichFieldsUseCase) applyFilter(assets []*domain.Asset, filterBy string, fields []string) []*domain.Asset {
+	if filterBy == "" || filterBy == "all" {
+		return assets
 	}
 
-	// Apply filtering based on FilterBy
-	switch input.FilterBy {
-	case "all", "":
-		assets = allAssets
-	case "missing-fields":
-		// Assets that have any of the target fields missing/empty
-		for _, asset := range allAssets {
-			needsEnrichment := false
-			for _, field := range input.Fields {
-				if uc.isFieldEmpty(asset, field) {
-					needsEnrichment = true
-					break
-				}
+	var filtered []*domain.Asset
+	for _, asset := range assets {
+		switch filterBy {
+		case "missing-fields", "empty-fields":
+			if uc.hasEmptyFields(asset, fields) {
+				filtered = append(filtered, asset)
 			}
-			if needsEnrichment {
-				assets = append(assets, asset)
+		case "empty-description":
+			// Specific filter for empty description field
+			if uc.isFieldEmpty(asset, "description") {
+				filtered = append(filtered, asset)
 			}
+		default:
+			// Unknown filter, return all assets
+			return assets
 		}
-	case "empty-fields":
-		// Same as missing-fields for backward compatibility
-		for _, asset := range allAssets {
-			needsEnrichment := false
-			for _, field := range input.Fields {
-				if uc.isFieldEmpty(asset, field) {
-					needsEnrichment = true
-					break
-				}
-			}
-			if needsEnrichment {
-				assets = append(assets, asset)
-			}
-		}
-	default:
-		return nil, fmt.Errorf("unsupported filter: %s. Supported filters: all, missing-fields, empty-fields", input.FilterBy)
 	}
 
-	return assets, nil
+	return filtered
+}
+
+// hasEmptyFields checks if any of the specified fields are empty for an asset
+func (uc *BulkEnrichFieldsUseCase) hasEmptyFields(asset *domain.Asset, fields []string) bool {
+	for _, field := range fields {
+		if uc.isFieldEmpty(asset, field) {
+			return true
+		}
+	}
+	return false
 }
 
 // isFieldEmpty checks if a specific field is empty for an asset
@@ -240,75 +188,121 @@ func (uc *BulkEnrichFieldsUseCase) isFieldEmpty(asset *domain.Asset, field strin
 	}
 }
 
-// processAsset enriches specified fields for a single asset
-func (uc *BulkEnrichFieldsUseCase) processAsset(ctx context.Context, asset *domain.Asset, fields []string, dryRun bool) (map[string]bool, error) {
-	fieldsEnriched := make(map[string]bool)
-
-	if dryRun {
-		log.Printf("DRY RUN: Would enrich fields %v for asset '%s'", fields, asset.Name)
-		for _, field := range fields {
-			fieldsEnriched[field] = true // Simulate success
-		}
-		return fieldsEnriched, nil
+// processAssetsConcurrently processes assets concurrently with semaphore control
+func (uc *BulkEnrichFieldsUseCase) processAssetsConcurrently(ctx context.Context, assets []*domain.Asset, input BulkEnrichFieldsInput, result *BulkEnrichFieldsResult) {
+	maxConcurrent := input.MaxConcurrent
+	if maxConcurrent <= 0 {
+		maxConcurrent = 5 // Default concurrency
 	}
 
-	log.Printf("Enriching fields %v for asset '%s'...", fields, asset.Name)
+	sem := semaphore.NewWeighted(int64(maxConcurrent))
+	var wg sync.WaitGroup
+	var mu sync.Mutex
 
+	for _, asset := range assets {
+		wg.Add(1)
+		go func(asset *domain.Asset) {
+			defer wg.Done()
+
+			if err := sem.Acquire(ctx, 1); err != nil {
+				mu.Lock()
+				result.FailedAssets[asset.Name] = fmt.Sprintf("failed to acquire semaphore: %v", err)
+				result.TotalFailed++
+				mu.Unlock()
+				return
+			}
+			defer sem.Release(1)
+
+			mu.Lock()
+			result.ProcessedAssets = append(result.ProcessedAssets, asset.Name)
+			result.TotalProcessed++
+			result.FieldsEnriched[asset.Name] = make(map[string]bool)
+			mu.Unlock()
+
+			if input.DryRun {
+				log.Printf("DRY RUN: Would enrich fields %v for asset '%s'", input.Fields, asset.Name)
+				mu.Lock()
+				result.SuccessfulAssets = append(result.SuccessfulAssets, asset.Name)
+				result.TotalSuccessful++
+				for _, field := range input.Fields {
+					result.FieldsEnriched[asset.Name][field] = true
+				}
+				result.TotalFieldsEnriched += len(input.Fields)
+				mu.Unlock()
+				return
+			}
+
+			enrichedCount, err := uc.processAsset(ctx, asset, input.Fields)
+			if err != nil {
+				mu.Lock()
+				result.FailedAssets[asset.Name] = err.Error()
+				result.TotalFailed++
+				mu.Unlock()
+				return
+			}
+
+			mu.Lock()
+			result.SuccessfulAssets = append(result.SuccessfulAssets, asset.Name)
+			result.TotalSuccessful++
+			result.TotalFieldsEnriched += enrichedCount
+			mu.Unlock()
+		}(asset)
+	}
+
+	wg.Wait()
+}
+
+// processAsset processes a single asset for field enrichment
+func (uc *BulkEnrichFieldsUseCase) processAsset(ctx context.Context, asset *domain.Asset, fields []string) (int, error) {
 	hasChanges := false
+	enrichedCount := 0
+	processingAttempts := 0
+	errors := []string{}
 
 	// Enrich each field
 	for _, field := range fields {
-		// Skip if field already has content (unless we want to re-enrich)
+		// Skip if field already has content
 		if !uc.isFieldEmpty(asset, field) {
 			log.Printf("Skipping field '%s' for asset '%s' - already has content", field, asset.Name)
-			fieldsEnriched[field] = false
 			continue
 		}
 
-		// Generate content for this field
-		content, err := uc.generateFieldContent(ctx, asset, field)
+		processingAttempts++
+
+		// Generate content for this field using the domain service
+		enrichedContent, err := uc.fieldsService.EnrichField(ctx, asset, field, "")
 		if err != nil {
 			log.Printf("Failed to enrich field '%s' for asset '%s': %v", field, asset.Name, err)
-			fieldsEnriched[field] = false
+			errors = append(errors, fmt.Sprintf("field '%s': %v", field, err))
 			continue
 		}
 
 		// Update the asset field
-		if err := uc.updateAssetField(asset, field, content); err != nil {
+		if err := uc.updateAssetField(asset, field, enrichedContent); err != nil {
 			log.Printf("Failed to update field '%s' for asset '%s': %v", field, asset.Name, err)
-			fieldsEnriched[field] = false
+			errors = append(errors, fmt.Sprintf("field '%s' update: %v", field, err))
 			continue
 		}
 
-		fieldsEnriched[field] = true
 		hasChanges = true
+		enrichedCount++
 		log.Printf("Successfully enriched field '%s' for asset '%s'", field, asset.Name)
+	}
+
+	// If we attempted to process fields but all failed, return an error
+	if processingAttempts > 0 && enrichedCount == 0 {
+		return 0, fmt.Errorf("all field enrichment attempts failed: %s", strings.Join(errors, "; "))
 	}
 
 	// Save the asset if any changes were made
 	if hasChanges {
 		asset.UpdatedAt = time.Now()
 		if err := uc.repository.Save(asset); err != nil {
-			return fieldsEnriched, fmt.Errorf("failed to save asset: %w", err)
+			return 0, fmt.Errorf("failed to save asset: %w", err)
 		}
 	}
 
-	return fieldsEnriched, nil
-}
-
-// generateFieldContent generates content for a specific field using LLM
-func (uc *BulkEnrichFieldsUseCase) generateFieldContent(_ context.Context, asset *domain.Asset, field string) (string, error) {
-	// Create content from existing asset information
-	existingContent := fmt.Sprintf("Asset: %s\nDescription: %s\nWhy: %s\nBenefits: %s\nHow: %s\nMetrics: %s",
-		asset.Name, asset.Description, asset.Why, asset.Benefits, asset.How, asset.Metrics)
-
-	// Generate enriched content using LLM
-	enrichedContent, err := uc.llamaClient.EnrichContent(existingContent, field, asset)
-	if err != nil {
-		return "", fmt.Errorf("LLM enrichment failed: %w", err)
-	}
-
-	return enrichedContent, nil
+	return enrichedCount, nil
 }
 
 // updateAssetField updates a specific field in the asset

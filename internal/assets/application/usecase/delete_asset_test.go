@@ -1,6 +1,7 @@
 package usecase
 
 import (
+	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -20,6 +21,9 @@ func TestDeleteAssetUseCase(t *testing.T) {
 		Name:        "test-asset",
 		Description: "Test description",
 	}
+
+	// Set up mock expectation for setup
+	mockRepo.On("Save", testAsset).Return(nil)
 	err := mockRepo.Save(testAsset)
 	require.NoError(t, err)
 
@@ -44,6 +48,18 @@ func TestDeleteAssetUseCase(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			// Reset mock expectations for each test
+			mockRepo.ExpectedCalls = nil
+
+			if tt.wantErr {
+				// Set up expectation for failed FindByName (asset doesn't exist)
+				mockRepo.On("FindByName", tt.assetName).Return(nil, fmt.Errorf("asset not found"))
+			} else {
+				// Set up expectations for successful execution
+				mockRepo.On("FindByName", tt.assetName).Return(testAsset, nil)
+				mockRepo.On("Delete", tt.assetName).Return(nil)
+			}
+
 			err := useCase.Execute(tt.assetName)
 
 			if tt.wantErr {
@@ -54,10 +70,8 @@ func TestDeleteAssetUseCase(t *testing.T) {
 
 			require.NoError(t, err)
 
-			// Verify asset was deleted
-			_, err = mockRepo.FindByName(tt.assetName)
-			require.Error(t, err)
-			assert.Equal(t, "asset not found", err.Error())
+			// Verify mock expectations were met
+			mockRepo.AssertExpectations(t)
 		})
 	}
 }

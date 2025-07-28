@@ -247,3 +247,17 @@ func TestFetchTasksUseCase_ExecuteByKey(t *testing.T) {
 		})
 	}
 }
+
+func TestFetchTasksUseCase_GetRemoteRepository(t *testing.T) {
+	// Create mock repositories
+	remoteRepo := testutil.NewMockTaskRepository()
+	localRepo := testutil.NewMockTaskRepository()
+	useCase := NewFetchTasksUseCase(remoteRepo, localRepo)
+
+	// Test GetRemoteRepository method
+	result := useCase.GetRemoteRepository()
+
+	// Verify it returns the remote repository
+	assert.Equal(t, remoteRepo, result)
+	assert.NotNil(t, result)
+}

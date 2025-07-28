@@ -7,10 +7,10 @@ import (
 	"sync"
 	"time"
 
-	"github.com/helmedeiros/digital-asset-capitalization/internal/assets/application"
+	"golang.org/x/sync/semaphore"
+
 	"github.com/helmedeiros/digital-asset-capitalization/internal/assets/domain"
 	"github.com/helmedeiros/digital-asset-capitalization/internal/assets/domain/ports"
-	"github.com/helmedeiros/digital-asset-capitalization/internal/assets/infrastructure/keywords"
 )
 
 // BulkEnrichKeywordsInput represents the input for bulk keywords enrichment
@@ -36,15 +36,15 @@ type BulkEnrichKeywordsResult struct {
 
 // BulkEnrichKeywordsUseCase handles bulk keywords generation for multiple assets
 type BulkEnrichKeywordsUseCase struct {
-	repository  ports.AssetRepository
-	llamaClient application.LlamaClient
+	repository      ports.AssetRepository
+	keywordsService ports.KeywordsEnrichmentService
 }
 
 // NewBulkEnrichKeywordsUseCase creates a new bulk enrich keywords use case
-func NewBulkEnrichKeywordsUseCase(repository ports.AssetRepository, llamaClient application.LlamaClient) *BulkEnrichKeywordsUseCase {
+func NewBulkEnrichKeywordsUseCase(repository ports.AssetRepository, keywordsService ports.KeywordsEnrichmentService) *BulkEnrichKeywordsUseCase {
 	return &BulkEnrichKeywordsUseCase{
-		repository:  repository,
-		llamaClient: llamaClient,
+		repository:      repository,
+		keywordsService: keywordsService,
 	}
 }
 
@@ -52,139 +52,153 @@ func NewBulkEnrichKeywordsUseCase(repository ports.AssetRepository, llamaClient 
 func (uc *BulkEnrichKeywordsUseCase) Execute(ctx context.Context, input BulkEnrichKeywordsInput) (*BulkEnrichKeywordsResult, error) {
 	startTime := time.Now()
 
-	// Set defaults
-	if input.MaxConcurrent <= 0 {
-		input.MaxConcurrent = 3 // Conservative default to avoid overwhelming LLM service
-	}
-
-	// Get assets to process
-	assetsToProcess, err := uc.getAssetsToProcess(input)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get assets to process: %w", err)
-	}
-
-	if len(assetsToProcess) == 0 {
-		return &BulkEnrichKeywordsResult{
-			TotalProcessed: 0,
-			Duration:       time.Since(startTime),
-		}, nil
-	}
-
-	log.Printf("Starting bulk keywords enrichment for %d assets (max concurrent: %d, dry-run: %v)",
-		len(assetsToProcess), input.MaxConcurrent, input.DryRun)
-
 	result := &BulkEnrichKeywordsResult{
 		FailedAssets: make(map[string]string),
 	}
 
-	// Process assets concurrently with limit
-	sem := make(chan struct{}, input.MaxConcurrent)
-	var wg sync.WaitGroup
-	var mu sync.Mutex
-
-	for _, asset := range assetsToProcess {
-		wg.Add(1)
-		go func(a *domain.Asset) {
-			defer wg.Done()
-
-			// Acquire semaphore
-			sem <- struct{}{}
-			defer func() { <-sem }()
-
-			// Process asset
-			err := uc.processAsset(ctx, a, input.DryRun)
-
-			// Update results
-			mu.Lock()
-			result.ProcessedAssets = append(result.ProcessedAssets, a.Name)
-			if err != nil {
-				result.FailedAssets[a.Name] = err.Error()
-				result.TotalFailed++
-			} else {
-				result.SuccessfulAssets = append(result.SuccessfulAssets, a.Name)
-				result.TotalSuccessful++
-			}
-			mu.Unlock()
-		}(asset)
+	// Get assets to process
+	assets, err := uc.getAssetsToProcess(input)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get assets: %w", err)
 	}
 
-	wg.Wait()
+	// Apply filtering
+	filteredAssets := uc.applyFilter(assets, input.FilterBy)
 
-	result.TotalProcessed = len(assetsToProcess)
+	if len(filteredAssets) == 0 {
+		log.Printf("No assets matched the filter criteria")
+		result.Duration = time.Since(startTime)
+		return result, nil
+	}
+
+	log.Printf("Processing %d assets for keywords enrichment...", len(filteredAssets))
+
+	// Process assets concurrently
+	uc.processAssetsConcurrently(ctx, filteredAssets, input, result)
+
 	result.Duration = time.Since(startTime)
-
-	log.Printf("Bulk keywords enrichment completed: %d processed, %d successful, %d failed in %v",
-		result.TotalProcessed, result.TotalSuccessful, result.TotalFailed, result.Duration)
-
 	return result, nil
 }
 
-// getAssetsToProcess determines which assets need keywords enrichment
+// getAssetsToProcess retrieves the assets that need to be processed
 func (uc *BulkEnrichKeywordsUseCase) getAssetsToProcess(input BulkEnrichKeywordsInput) ([]*domain.Asset, error) {
-	var assets []*domain.Asset
-
-	// If specific asset names provided, get those
 	if len(input.AssetNames) > 0 {
+		// Process specific assets
+		var assets []*domain.Asset
 		for _, name := range input.AssetNames {
 			asset, err := uc.repository.FindByName(name)
 			if err != nil {
-				return nil, fmt.Errorf("failed to find asset '%s': %w", name, err)
+				log.Printf("Asset '%s' not found: %v", name, err)
+				continue
 			}
 			assets = append(assets, asset)
 		}
 		return assets, nil
 	}
 
-	// Otherwise get all assets and apply filtering
-	allAssets, err := uc.repository.FindAll()
-	if err != nil {
-		return nil, fmt.Errorf("failed to get all assets: %w", err)
-	}
-
-	// Apply filtering based on FilterBy
-	switch input.FilterBy {
-	case "all", "":
-		assets = allAssets
-	case "missing-keywords":
-		for _, asset := range allAssets {
-			if len(asset.Keywords) == 0 {
-				assets = append(assets, asset)
-			}
-		}
-	case "outdated":
-		// Consider keywords outdated if asset was updated after keywords were last generated
-		// or if keywords are older than 30 days
-		cutoff := time.Now().AddDate(0, 0, -30)
-		for _, asset := range allAssets {
-			if len(asset.Keywords) == 0 || asset.UpdatedAt.After(cutoff) {
-				assets = append(assets, asset)
-			}
-		}
-	default:
-		return nil, fmt.Errorf("unsupported filter: %s. Supported filters: all, missing-keywords, outdated", input.FilterBy)
-	}
-
-	return assets, nil
+	// Process all assets
+	return uc.repository.FindAll()
 }
 
-// processAsset generates keywords for a single asset
-func (uc *BulkEnrichKeywordsUseCase) processAsset(_ context.Context, asset *domain.Asset, dryRun bool) error {
-	if dryRun {
-		log.Printf("DRY RUN: Would generate keywords for asset '%s'", asset.Name)
-		return nil
+// applyFilter applies filtering logic to assets
+func (uc *BulkEnrichKeywordsUseCase) applyFilter(assets []*domain.Asset, filterBy string) []*domain.Asset {
+	if filterBy == "" || filterBy == "all" {
+		return assets
 	}
 
-	log.Printf("Generating keywords for asset '%s'...", asset.Name)
+	var filtered []*domain.Asset
+	for _, asset := range assets {
+		switch filterBy {
+		case "missing-keywords":
+			if len(asset.Keywords) == 0 {
+				filtered = append(filtered, asset)
+			}
+		case "outdated":
+			// Simple heuristic: if keywords exist but were created more than 30 days ago
+			if len(asset.Keywords) > 0 && time.Since(asset.UpdatedAt) > 30*24*time.Hour {
+				filtered = append(filtered, asset)
+			}
+		case "empty-description":
+			// Specific filter for empty description field
+			if asset.Description == "" {
+				filtered = append(filtered, asset)
+			}
+		default:
+			// Unknown filter, return all assets
+			return assets
+		}
+	}
 
-	// Create keyword generator and generate keywords
-	generator := keywords.NewGenerator(uc.llamaClient)
-	keywordList, err := generator.GenerateKeywords(asset)
+	return filtered
+}
+
+// processAssetsConcurrently processes assets concurrently with semaphore control
+func (uc *BulkEnrichKeywordsUseCase) processAssetsConcurrently(ctx context.Context, assets []*domain.Asset, input BulkEnrichKeywordsInput, result *BulkEnrichKeywordsResult) {
+	maxConcurrent := input.MaxConcurrent
+	if maxConcurrent <= 0 {
+		maxConcurrent = 5 // Default concurrency
+	}
+
+	sem := semaphore.NewWeighted(int64(maxConcurrent))
+	var wg sync.WaitGroup
+	var mu sync.Mutex
+
+	for _, asset := range assets {
+		wg.Add(1)
+		go func(asset *domain.Asset) {
+			defer wg.Done()
+
+			if err := sem.Acquire(ctx, 1); err != nil {
+				mu.Lock()
+				result.FailedAssets[asset.Name] = fmt.Sprintf("failed to acquire semaphore: %v", err)
+				result.TotalFailed++
+				mu.Unlock()
+				return
+			}
+			defer sem.Release(1)
+
+			mu.Lock()
+			result.ProcessedAssets = append(result.ProcessedAssets, asset.Name)
+			result.TotalProcessed++
+			mu.Unlock()
+
+			if input.DryRun {
+				log.Printf("DRY RUN: Would generate keywords for asset '%s'", asset.Name)
+				mu.Lock()
+				result.SuccessfulAssets = append(result.SuccessfulAssets, asset.Name)
+				result.TotalSuccessful++
+				mu.Unlock()
+				return
+			}
+
+			if err := uc.processAsset(ctx, asset); err != nil {
+				mu.Lock()
+				result.FailedAssets[asset.Name] = err.Error()
+				result.TotalFailed++
+				mu.Unlock()
+				return
+			}
+
+			mu.Lock()
+			result.SuccessfulAssets = append(result.SuccessfulAssets, asset.Name)
+			result.TotalSuccessful++
+			mu.Unlock()
+		}(asset)
+	}
+
+	wg.Wait()
+}
+
+// processAsset processes a single asset for keywords enrichment
+func (uc *BulkEnrichKeywordsUseCase) processAsset(ctx context.Context, asset *domain.Asset) error {
+	// Generate keywords using the domain service
+	keywords, err := uc.keywordsService.GenerateKeywords(ctx, asset)
 	if err != nil {
 		return fmt.Errorf("failed to generate keywords: %w", err)
 	}
 
 	// Update asset with new keywords
-	asset.Keywords = keywordList
+	asset.Keywords = keywords
 	asset.UpdatedAt = time.Now()
 
 	// Save the updated asset
@@ -192,6 +206,5 @@ func (uc *BulkEnrichKeywordsUseCase) processAsset(_ context.Context, asset *doma
 		return fmt.Errorf("failed to save asset: %w", err)
 	}
 
-	log.Printf("Successfully generated %d keywords for asset '%s'", len(keywordList), asset.Name)
 	return nil
 }

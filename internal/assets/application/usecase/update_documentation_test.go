@@ -1,10 +1,12 @@
 package usecase
 
 import (
+	"fmt"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 
 	"github.com/helmedeiros/digital-asset-capitalization/internal/assets/application/usecase/testutil"
@@ -23,6 +25,9 @@ func TestUpdateDocumentationUseCase(t *testing.T) {
 		Description:     "Test description",
 		LastDocUpdateAt: initialTime,
 	}
+
+	// Set up mock expectation for setup
+	mockRepo.On("Save", testAsset).Return(nil)
 	err := mockRepo.Save(testAsset)
 	require.NoError(t, err)
 
@@ -47,6 +52,21 @@ func TestUpdateDocumentationUseCase(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			// Reset mock expectations for each test
+			mockRepo.ExpectedCalls = nil
+
+			if tt.wantErr {
+				// Set up expectation for failed FindByName
+				mockRepo.On("FindByName", tt.assetName).Return(nil, fmt.Errorf("asset not found"))
+			} else {
+				// Set up expectations for successful execution
+				mockRepo.On("FindByName", tt.assetName).Return(testAsset, nil)
+				// The asset will be modified, so we need to expect Save with the modified asset
+				mockRepo.On("Save", mock.MatchedBy(func(asset *domain.Asset) bool {
+					return asset.Name == tt.assetName && asset.LastDocUpdateAt.After(initialTime)
+				})).Return(nil)
+			}
+
 			err := useCase.Execute(tt.assetName)
 
 			if tt.wantErr {
@@ -57,10 +77,8 @@ func TestUpdateDocumentationUseCase(t *testing.T) {
 
 			require.NoError(t, err)
 
-			// Verify documentation was updated correctly
-			asset, err := mockRepo.FindByName(tt.assetName)
-			require.NoError(t, err)
-			assert.True(t, asset.LastDocUpdateAt.After(initialTime), "LastDocUpdateAt should be after initial time")
+			// Verify mock expectations were met
+			mockRepo.AssertExpectations(t)
 		})
 	}
 }

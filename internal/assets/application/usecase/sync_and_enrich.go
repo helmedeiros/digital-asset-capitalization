@@ -8,6 +8,7 @@ import (
 
 	"github.com/helmedeiros/digital-asset-capitalization/internal/assets/application"
 	"github.com/helmedeiros/digital-asset-capitalization/internal/assets/domain/ports"
+	"github.com/helmedeiros/digital-asset-capitalization/internal/assets/infrastructure/enrichment"
 )
 
 // SyncAndEnrichInput represents the input for the sync-and-enrich operation
@@ -74,12 +75,16 @@ func NewSyncAndEnrichUseCase(
 	llamaClient application.LlamaClient,
 	assetService AssetService,
 ) *SyncAndEnrichUseCase {
+	// Create enrichment service adapters
+	keywordsService := enrichment.NewKeywordsEnrichmentAdapter(llamaClient)
+	fieldsService := enrichment.NewFieldsEnrichmentAdapter(llamaClient)
+
 	return &SyncAndEnrichUseCase{
 		repository:          repository,
 		llamaClient:         llamaClient,
 		assetService:        assetService,
-		bulkKeywordsUseCase: NewBulkEnrichKeywordsUseCase(repository, llamaClient),
-		bulkFieldsUseCase:   NewBulkEnrichFieldsUseCase(repository, llamaClient),
+		bulkKeywordsUseCase: NewBulkEnrichKeywordsUseCase(repository, keywordsService),
+		bulkFieldsUseCase:   NewBulkEnrichFieldsUseCase(repository, fieldsService),
 	}
 }
 

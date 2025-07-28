@@ -15,6 +15,7 @@ import (
 	"github.com/helmedeiros/digital-asset-capitalization/internal/assets/domain"
 	"github.com/helmedeiros/digital-asset-capitalization/internal/assets/domain/ports"
 	"github.com/helmedeiros/digital-asset-capitalization/internal/assets/infrastructure/confluence"
+	"github.com/helmedeiros/digital-asset-capitalization/internal/assets/infrastructure/id"
 	"github.com/helmedeiros/digital-asset-capitalization/internal/assets/infrastructure/llama"
 	configdomain "github.com/helmedeiros/digital-asset-capitalization/internal/config/domain"
 )
@@ -120,7 +121,8 @@ func TestableAssetService(repo ports.AssetRepository, configService ConfigServic
 	}
 
 	// Create Confluence adapter with shared configuration
-	confluenceAdapter, err := testableCreateConfluenceAdapter(configService)
+	idGenerator := id.NewHashIDGenerator()
+	confluenceAdapter, err := testableCreateConfluenceAdapter(configService, idGenerator)
 	if err != nil {
 		// Log the error but don't fail initialization
 		fmt.Printf("Warning: Failed to initialize Confluence adapter: %v\n", err)
@@ -135,7 +137,7 @@ func TestableAssetService(repo ports.AssetRepository, configService ConfigServic
 }
 
 // testableCreateConfluenceAdapter creates a Confluence adapter for testing
-func testableCreateConfluenceAdapter(configService ConfigServiceInterface) (ConfluenceAdapter, error) {
+func testableCreateConfluenceAdapter(configService ConfigServiceInterface, idGenerator ports.IDGenerator) (ConfluenceAdapter, error) {
 	if configService == nil {
 		return nil, fmt.Errorf("config service is required")
 	}
@@ -150,7 +152,7 @@ func testableCreateConfluenceAdapter(configService ConfigServiceInterface) (Conf
 	config.Username = jiraConfig.Email()
 	config.Token = jiraConfig.Token()
 
-	return confluence.NewAdapter(config), nil
+	return confluence.NewAdapter(config, idGenerator), nil
 }
 
 func TestCreateAsset(t *testing.T) {
@@ -227,7 +229,7 @@ func TestCreateAsset(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			mockRepo := new(MockAssetRepository)
 			tt.setupMock(mockRepo)
-			service := NewAssetServiceLegacy(mockRepo)
+			service := NewAssetServiceLegacy(mockRepo, id.NewHashIDGenerator())
 
 			err := service.CreateAsset(tt.assetName, tt.description)
 
@@ -286,7 +288,7 @@ func TestListAssets(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			mockRepo := new(MockAssetRepository)
 			tt.setupMock(mockRepo)
-			service := NewAssetServiceLegacy(mockRepo)
+			service := NewAssetServiceLegacy(mockRepo, id.NewHashIDGenerator())
 
 			assets, err := service.ListAssets()
 
@@ -359,7 +361,7 @@ func TestUpdateAsset(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			mockRepo := new(MockAssetRepository)
 			tt.setupMock(mockRepo)
-			service := NewAssetServiceLegacy(mockRepo)
+			service := NewAssetServiceLegacy(mockRepo, id.NewHashIDGenerator())
 
 			err := service.UpdateAsset(tt.assetName, tt.description, tt.why, tt.benefits, tt.how, tt.metrics)
 
@@ -409,7 +411,7 @@ func TestUpdateDocumentation(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			mockRepo := new(MockAssetRepository)
 			tt.setupMock(mockRepo)
-			service := NewAssetServiceLegacy(mockRepo)
+			service := NewAssetServiceLegacy(mockRepo, id.NewHashIDGenerator())
 
 			err := service.UpdateDocumentation(tt.assetName)
 
@@ -438,7 +440,7 @@ func TestTaskCountOperations(t *testing.T) {
 			name:      "increment success",
 			assetName: "test-asset",
 			operation: func(mockRepo *MockAssetRepository, name string) error {
-				service := NewAssetServiceLegacy(mockRepo)
+				service := NewAssetServiceLegacy(mockRepo, id.NewHashIDGenerator())
 				return service.IncrementTaskCount(name)
 			},
 			setupMock: func(m *MockAssetRepository) {
@@ -454,7 +456,7 @@ func TestTaskCountOperations(t *testing.T) {
 			name:      "decrement success",
 			assetName: "test-asset",
 			operation: func(mockRepo *MockAssetRepository, name string) error {
-				service := NewAssetServiceLegacy(mockRepo)
+				service := NewAssetServiceLegacy(mockRepo, id.NewHashIDGenerator())
 				return service.DecrementTaskCount(name)
 			},
 			setupMock: func(m *MockAssetRepository) {
@@ -471,7 +473,7 @@ func TestTaskCountOperations(t *testing.T) {
 			name:      "decrement below zero",
 			assetName: "test-asset",
 			operation: func(mockRepo *MockAssetRepository, name string) error {
-				service := NewAssetServiceLegacy(mockRepo)
+				service := NewAssetServiceLegacy(mockRepo, id.NewHashIDGenerator())
 				return service.DecrementTaskCount(name)
 			},
 			setupMock: func(m *MockAssetRepository) {
@@ -487,7 +489,7 @@ func TestTaskCountOperations(t *testing.T) {
 			name:      "asset not found",
 			assetName: "non-existent",
 			operation: func(mockRepo *MockAssetRepository, name string) error {
-				service := NewAssetServiceLegacy(mockRepo)
+				service := NewAssetServiceLegacy(mockRepo, id.NewHashIDGenerator())
 				return service.IncrementTaskCount(name)
 			},
 			setupMock: func(m *MockAssetRepository) {
@@ -589,7 +591,7 @@ func TestGetAsset(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			mockRepo := new(MockAssetRepository)
 			tt.setupMock(mockRepo)
-			service := NewAssetServiceLegacy(mockRepo)
+			service := NewAssetServiceLegacy(mockRepo, id.NewHashIDGenerator())
 
 			asset, err := service.GetAsset(tt.identifier)
 
@@ -1007,7 +1009,7 @@ func TestGenerateKeywords(t *testing.T) {
 func TestNewAssetServiceLegacy(t *testing.T) {
 	mockRepo := new(MockAssetRepository)
 
-	service := NewAssetServiceLegacy(mockRepo)
+	service := NewAssetServiceLegacy(mockRepo, id.NewHashIDGenerator())
 
 	assert.NotNil(t, service)
 	assert.IsType(t, &AssetServiceImpl{}, service)
@@ -1042,7 +1044,7 @@ func TestDeleteAsset(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			mockRepo := new(MockAssetRepository)
 			tt.setupMock(mockRepo)
-			service := NewAssetServiceLegacy(mockRepo)
+			service := NewAssetServiceLegacy(mockRepo, id.NewHashIDGenerator())
 
 			err := service.DeleteAsset(tt.assetName)
 
@@ -1066,7 +1068,7 @@ func TestSyncFromConfluenceEnvironmentFallback(t *testing.T) {
 		os.Unsetenv("JIRA_TOKEN")
 
 		mockRepo := new(MockAssetRepository)
-		service := NewAssetServiceLegacy(mockRepo)
+		service := NewAssetServiceLegacy(mockRepo, id.NewHashIDGenerator())
 
 		_, err := service.SyncFromConfluence("TEST", "test-label", false)
 
@@ -1080,7 +1082,7 @@ func TestSyncFromConfluenceEnvironmentFallback(t *testing.T) {
 		os.Unsetenv("JIRA_TOKEN")
 
 		mockRepo := new(MockAssetRepository)
-		service := NewAssetServiceLegacy(mockRepo)
+		service := NewAssetServiceLegacy(mockRepo, id.NewHashIDGenerator())
 
 		_, err := service.SyncFromConfluence("TEST", "test-label", false)
 
@@ -1157,7 +1159,7 @@ func TestCreateConfluenceAdapter(t *testing.T) {
 		mockConfigService.On("GetJiraConfig").Return(jiraConfig, nil)
 
 		// Test the function
-		adapter, err := testableCreateConfluenceAdapter(mockConfigService)
+		adapter, err := testableCreateConfluenceAdapter(mockConfigService, id.NewHashIDGenerator())
 
 		// Verify results
 		assert.NoError(t, err, "Should not return error with valid config")
@@ -1167,7 +1169,7 @@ func TestCreateConfluenceAdapter(t *testing.T) {
 	})
 
 	t.Run("should return error with nil config service", func(t *testing.T) {
-		adapter, err := testableCreateConfluenceAdapter(nil)
+		adapter, err := testableCreateConfluenceAdapter(nil, id.NewHashIDGenerator())
 
 		assert.Error(t, err, "Should return error with nil config service")
 		assert.Nil(t, adapter, "Adapter should be nil")
@@ -1182,7 +1184,7 @@ func TestCreateConfluenceAdapter(t *testing.T) {
 		mockConfigService.On("GetJiraConfig").Return(nil, fmt.Errorf("config retrieval failed"))
 
 		// Test the function
-		adapter, err := testableCreateConfluenceAdapter(mockConfigService)
+		adapter, err := testableCreateConfluenceAdapter(mockConfigService, id.NewHashIDGenerator())
 
 		// Verify results
 		assert.Error(t, err, "Should return error when config retrieval fails")
@@ -1200,7 +1202,7 @@ func TestCreateConfluenceAdapter(t *testing.T) {
 		mockConfigService.On("GetJiraConfig").Return(nil, fmt.Errorf("invalid config"))
 
 		// Test the function
-		adapter, err := testableCreateConfluenceAdapter(mockConfigService)
+		adapter, err := testableCreateConfluenceAdapter(mockConfigService, id.NewHashIDGenerator())
 
 		// Verify results
 		assert.Error(t, err, "Should return error with invalid config")
@@ -1215,7 +1217,7 @@ func TestNewAssetServiceConstructor(t *testing.T) {
 		mockRepo := new(MockAssetRepository)
 
 		// This should work but confluence adapter creation will fail
-		assetService := NewAssetService(mockRepo, nil)
+		assetService := NewAssetService(mockRepo, nil, id.NewHashIDGenerator())
 
 		assert.NotNil(t, assetService, "Service should not be nil")
 		impl, ok := assetService.(*AssetServiceImpl)
@@ -1234,7 +1236,7 @@ func TestCreateConfluenceAdapterFunction(t *testing.T) {
 		// So we'll test the error cases that are easier to trigger
 
 		// Test with nil config service
-		adapter, err := createConfluenceAdapter(nil)
+		adapter, err := createConfluenceAdapter(nil, id.NewHashIDGenerator())
 
 		assert.Error(t, err, "Should return error with nil config service")
 		assert.Nil(t, adapter, "Adapter should be nil")
@@ -1243,7 +1245,7 @@ func TestCreateConfluenceAdapterFunction(t *testing.T) {
 }
 
 func TestCreateConfluenceAdapter_ConfigServiceNil_Error(t *testing.T) {
-	adapter, err := createConfluenceAdapter(nil)
+	adapter, err := createConfluenceAdapter(nil, id.NewHashIDGenerator())
 	assert.Nil(t, adapter)
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "config service is required")
@@ -1252,7 +1254,7 @@ func TestCreateConfluenceAdapter_ConfigServiceNil_Error(t *testing.T) {
 func TestAssetServiceImpl_DecrementTaskCount_ErrorBranch(t *testing.T) {
 	mockRepo := new(MockAssetRepository)
 	mockRepo.On("FindByName", "A").Return(&domain.Asset{ID: "1", Name: "A", AssociatedTaskCount: 0}, nil)
-	service := NewAssetServiceLegacy(mockRepo)
+	service := NewAssetServiceLegacy(mockRepo, id.NewHashIDGenerator())
 	err := service.DecrementTaskCount("A")
 	assert.Error(t, err)
 	assert.Equal(t, "task count cannot be negative", err.Error())
@@ -1392,7 +1394,7 @@ func TestAssetServiceImpl_SyncFromConfluence_SpaceNormalization(t *testing.T) {
 			mockRepo := new(MockAssetRepository)
 
 			// Create service using legacy constructor (which uses env vars)
-			service := NewAssetServiceLegacy(mockRepo)
+			service := NewAssetServiceLegacy(mockRepo, id.NewHashIDGenerator())
 
 			// We expect this to fail due to the confluence adapter trying to connect,
 			// but we can verify that space normalization is called by checking
@@ -1557,11 +1559,346 @@ func TestAssetServiceImpl_SyncFromConfluence_TokenError(t *testing.T) {
 		}()
 
 		mockRepo := new(MockAssetRepository)
-		service := NewAssetServiceLegacy(mockRepo)
+		service := NewAssetServiceLegacy(mockRepo, id.NewHashIDGenerator())
 
 		_, err := service.SyncFromConfluence("MZN", "test-label", false)
 
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "Jira token is not configured")
 	})
+}
+
+// Team management method tests to improve coverage
+func TestAssetServiceImpl_AssignTeam(t *testing.T) {
+	tests := []struct {
+		name              string
+		assetName         string
+		owningTeam        string
+		contributingTeams []string
+		setupMocks        func(*MockAssetRepository)
+		expectedError     string
+	}{
+		{
+			name:              "successful team assignment",
+			assetName:         "test-asset",
+			owningTeam:        "team-alpha",
+			contributingTeams: []string{"team-beta", "team-gamma"},
+			setupMocks: func(m *MockAssetRepository) {
+				asset := &domain.Asset{
+					ID:   "test-id",
+					Name: "test-asset",
+				}
+				m.On("FindByName", "test-asset").Return(asset, nil)
+				m.On("Save", mock.MatchedBy(func(a *domain.Asset) bool {
+					return a.GetOwningTeam() == "team-alpha" &&
+						len(a.GetContributingTeams()) == 2
+				})).Return(nil)
+			},
+		},
+		{
+			name:       "asset not found",
+			assetName:  "nonexistent",
+			owningTeam: "team-alpha",
+			setupMocks: func(m *MockAssetRepository) {
+				m.On("FindByName", "nonexistent").Return(nil, errors.New("not found"))
+			},
+			expectedError: "not found",
+		},
+		{
+			name:       "save error",
+			assetName:  "test-asset",
+			owningTeam: "team-alpha",
+			setupMocks: func(m *MockAssetRepository) {
+				asset := &domain.Asset{
+					ID:   "test-id",
+					Name: "test-asset",
+				}
+				m.On("FindByName", "test-asset").Return(asset, nil)
+				m.On("Save", mock.AnythingOfType("*domain.Asset")).Return(errors.New("save failed"))
+			},
+			expectedError: "save failed",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			mockRepo := new(MockAssetRepository)
+			tt.setupMocks(mockRepo)
+			service := NewAssetServiceLegacy(mockRepo, id.NewHashIDGenerator())
+
+			err := service.AssignTeam(tt.assetName, tt.owningTeam, tt.contributingTeams)
+
+			if tt.expectedError != "" {
+				assert.Error(t, err)
+				assert.Contains(t, err.Error(), tt.expectedError)
+			} else {
+				assert.NoError(t, err)
+			}
+
+			mockRepo.AssertExpectations(t)
+		})
+	}
+}
+
+func TestAssetServiceImpl_GetAssetTeams(t *testing.T) {
+	tests := []struct {
+		name          string
+		setupMocks    func(*MockAssetRepository)
+		expectedCount int
+		expectedError string
+	}{
+		{
+			name: "successful retrieval with teams",
+			setupMocks: func(m *MockAssetRepository) {
+				asset1 := &domain.Asset{Name: "asset1"}
+				asset1.SetOwningTeam("team-alpha")
+				asset1.AddContributingTeam("team-beta")
+
+				asset2 := &domain.Asset{Name: "asset2"}
+				asset2.SetOwningTeam("team-gamma")
+
+				asset3 := &domain.Asset{Name: "asset3"} // No teams
+
+				assets := []*domain.Asset{asset1, asset2, asset3}
+				m.On("FindAll").Return(assets, nil)
+			},
+			expectedCount: 2, // Only asset1 and asset2 have teams
+		},
+		{
+			name: "repository error",
+			setupMocks: func(m *MockAssetRepository) {
+				m.On("FindAll").Return(nil, errors.New("repo error"))
+			},
+			expectedError: "repo error",
+		},
+		{
+			name: "no assets with teams",
+			setupMocks: func(m *MockAssetRepository) {
+				asset1 := &domain.Asset{Name: "asset1"} // No teams
+				assets := []*domain.Asset{asset1}
+				m.On("FindAll").Return(assets, nil)
+			},
+			expectedCount: 0,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			mockRepo := new(MockAssetRepository)
+			tt.setupMocks(mockRepo)
+			service := NewAssetServiceLegacy(mockRepo, id.NewHashIDGenerator())
+
+			result, err := service.GetAssetTeams()
+
+			if tt.expectedError != "" {
+				assert.Error(t, err)
+				assert.Contains(t, err.Error(), tt.expectedError)
+			} else {
+				assert.NoError(t, err)
+				assert.Len(t, result, tt.expectedCount)
+			}
+
+			mockRepo.AssertExpectations(t)
+		})
+	}
+}
+
+func TestAssetServiceImpl_GetAssetTeamInfo(t *testing.T) {
+	tests := []struct {
+		name          string
+		assetName     string
+		setupMocks    func(*MockAssetRepository)
+		expectedError string
+	}{
+		{
+			name:      "successful retrieval",
+			assetName: "test-asset",
+			setupMocks: func(m *MockAssetRepository) {
+				asset := &domain.Asset{Name: "test-asset"}
+				asset.SetOwningTeam("team-alpha")
+				asset.AddContributingTeam("team-beta")
+				m.On("FindByName", "test-asset").Return(asset, nil)
+			},
+		},
+		{
+			name:      "asset not found",
+			assetName: "nonexistent",
+			setupMocks: func(m *MockAssetRepository) {
+				m.On("FindByName", "nonexistent").Return(nil, errors.New("not found"))
+			},
+			expectedError: "not found",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			mockRepo := new(MockAssetRepository)
+			tt.setupMocks(mockRepo)
+			service := NewAssetServiceLegacy(mockRepo, id.NewHashIDGenerator())
+
+			result, err := service.GetAssetTeamInfo(tt.assetName)
+
+			if tt.expectedError != "" {
+				assert.Error(t, err)
+				assert.Contains(t, err.Error(), tt.expectedError)
+			} else {
+				assert.NoError(t, err)
+				assert.NotNil(t, result)
+				assert.Equal(t, tt.assetName, result.AssetName)
+			}
+
+			mockRepo.AssertExpectations(t)
+		})
+	}
+}
+
+func TestAssetServiceImpl_AddContributingTeam(t *testing.T) {
+	tests := []struct {
+		name          string
+		assetName     string
+		teamName      string
+		setupMocks    func(*MockAssetRepository)
+		expectedError string
+	}{
+		{
+			name:      "successful addition",
+			assetName: "test-asset",
+			teamName:  "team-beta",
+			setupMocks: func(m *MockAssetRepository) {
+				asset := &domain.Asset{
+					ID:   "test-id",
+					Name: "test-asset",
+				}
+				m.On("FindByName", "test-asset").Return(asset, nil)
+				m.On("Save", mock.MatchedBy(func(a *domain.Asset) bool {
+					teams := a.GetContributingTeams()
+					for _, team := range teams {
+						if team == "team-beta" {
+							return true
+						}
+					}
+					return false
+				})).Return(nil)
+			},
+		},
+		{
+			name:      "asset not found",
+			assetName: "nonexistent",
+			teamName:  "team-beta",
+			setupMocks: func(m *MockAssetRepository) {
+				m.On("FindByName", "nonexistent").Return(nil, errors.New("not found"))
+			},
+			expectedError: "not found",
+		},
+		{
+			name:      "save error",
+			assetName: "test-asset",
+			teamName:  "team-beta",
+			setupMocks: func(m *MockAssetRepository) {
+				asset := &domain.Asset{
+					ID:   "test-id",
+					Name: "test-asset",
+				}
+				m.On("FindByName", "test-asset").Return(asset, nil)
+				m.On("Save", mock.AnythingOfType("*domain.Asset")).Return(errors.New("save failed"))
+			},
+			expectedError: "save failed",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			mockRepo := new(MockAssetRepository)
+			tt.setupMocks(mockRepo)
+			service := NewAssetServiceLegacy(mockRepo, id.NewHashIDGenerator())
+
+			err := service.AddContributingTeam(tt.assetName, tt.teamName)
+
+			if tt.expectedError != "" {
+				assert.Error(t, err)
+				assert.Contains(t, err.Error(), tt.expectedError)
+			} else {
+				assert.NoError(t, err)
+			}
+
+			mockRepo.AssertExpectations(t)
+		})
+	}
+}
+
+func TestAssetServiceImpl_RemoveContributingTeam(t *testing.T) {
+	tests := []struct {
+		name          string
+		assetName     string
+		teamName      string
+		setupMocks    func(*MockAssetRepository)
+		expectedError string
+	}{
+		{
+			name:      "successful removal",
+			assetName: "test-asset",
+			teamName:  "team-beta",
+			setupMocks: func(m *MockAssetRepository) {
+				asset := &domain.Asset{
+					ID:   "test-id",
+					Name: "test-asset",
+				}
+				asset.AddContributingTeam("team-beta")
+				asset.AddContributingTeam("team-gamma")
+				m.On("FindByName", "test-asset").Return(asset, nil)
+				m.On("Save", mock.MatchedBy(func(a *domain.Asset) bool {
+					teams := a.GetContributingTeams()
+					for _, team := range teams {
+						if team == "team-beta" {
+							return false // team-beta should be removed
+						}
+					}
+					return true
+				})).Return(nil)
+			},
+		},
+		{
+			name:      "asset not found",
+			assetName: "nonexistent",
+			teamName:  "team-beta",
+			setupMocks: func(m *MockAssetRepository) {
+				m.On("FindByName", "nonexistent").Return(nil, errors.New("not found"))
+			},
+			expectedError: "not found",
+		},
+		{
+			name:      "save error",
+			assetName: "test-asset",
+			teamName:  "team-beta",
+			setupMocks: func(m *MockAssetRepository) {
+				asset := &domain.Asset{
+					ID:   "test-id",
+					Name: "test-asset",
+				}
+				asset.AddContributingTeam("team-beta")
+				m.On("FindByName", "test-asset").Return(asset, nil)
+				m.On("Save", mock.AnythingOfType("*domain.Asset")).Return(errors.New("save failed"))
+			},
+			expectedError: "save failed",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			mockRepo := new(MockAssetRepository)
+			tt.setupMocks(mockRepo)
+			service := NewAssetServiceLegacy(mockRepo, id.NewHashIDGenerator())
+
+			err := service.RemoveContributingTeam(tt.assetName, tt.teamName)
+
+			if tt.expectedError != "" {
+				assert.Error(t, err)
+				assert.Contains(t, err.Error(), tt.expectedError)
+			} else {
+				assert.NoError(t, err)
+			}
+
+			mockRepo.AssertExpectations(t)
+		})
+	}
 }

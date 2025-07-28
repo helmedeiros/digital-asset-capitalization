@@ -13,6 +13,7 @@ import (
 	assetsapp "github.com/helmedeiros/digital-asset-capitalization/internal/assets/application"
 	assetsusecase "github.com/helmedeiros/digital-asset-capitalization/internal/assets/application/usecase"
 	assetsinfra "github.com/helmedeiros/digital-asset-capitalization/internal/assets/infrastructure"
+	assetid "github.com/helmedeiros/digital-asset-capitalization/internal/assets/infrastructure/id"
 	"github.com/helmedeiros/digital-asset-capitalization/internal/config/application/service"
 	"github.com/helmedeiros/digital-asset-capitalization/internal/config/application/usecase"
 	"github.com/helmedeiros/digital-asset-capitalization/internal/config/domain"
@@ -1610,12 +1611,15 @@ func initializeApp() (*App, error) {
 	}
 	assetRepo := assetsinfra.NewJSONRepository(repoConfig)
 
+	// Create ID generator
+	idGenerator := assetid.NewHashIDGenerator()
+
 	// Try to use shared configuration, fallback to legacy if config doesn't exist
 	var assetService assetsapp.AssetService
 	if configExists, _ := sharedConfigService.ConfigExists(); configExists {
-		assetService = assetsapp.NewAssetService(assetRepo, sharedConfigService)
+		assetService = assetsapp.NewAssetService(assetRepo, sharedConfigService, idGenerator)
 	} else {
-		assetService = assetsapp.NewAssetServiceLegacy(assetRepo)
+		assetService = assetsapp.NewAssetServiceLegacy(assetRepo, idGenerator)
 	}
 
 	// Initialize task repositories with graceful fallback

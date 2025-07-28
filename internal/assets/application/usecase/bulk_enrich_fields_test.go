@@ -2,13 +2,14 @@ package usecase
 
 import (
 	"context"
-	"errors"
+	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 
 	"github.com/helmedeiros/digital-asset-capitalization/internal/assets/domain"
+	"github.com/helmedeiros/digital-asset-capitalization/internal/assets/infrastructure/enrichment"
 )
 
 func TestBulkEnrichFieldsUseCase_Execute(t *testing.T) {
@@ -51,7 +52,7 @@ func TestBulkEnrichFieldsUseCase_Execute(t *testing.T) {
 			name: "dry run mode",
 			input: BulkEnrichFieldsInput{
 				Fields:        []string{"description"},
-				FilterBy:      "all",
+				FilterBy:      "missing-fields",
 				MaxConcurrent: 1,
 				DryRun:        true,
 			},
@@ -60,21 +61,23 @@ func TestBulkEnrichFieldsUseCase_Execute(t *testing.T) {
 					{ID: "1", Name: "Test Asset", Description: ""},
 				}
 				repo.On("FindAll").Return(assets, nil)
-				// No Save or LLaMA calls should be made in dry run
+				// No enrichment calls should be made in dry run
 			},
 			expectedResult: func(t *testing.T, result *BulkEnrichFieldsResult, err error) {
 				assert.NoError(t, err)
+				assert.NotNil(t, result)
 				assert.Equal(t, 1, result.TotalProcessed)
-				assert.Equal(t, 1, result.TotalSuccessful) // Dry run simulates success
+				assert.Equal(t, 1, result.TotalFieldsEnriched) // Dry run still counts potential enrichments
 			},
 		},
 		{
 			name: "validation error - no fields",
 			input: BulkEnrichFieldsInput{
-				Fields: []string{}, // Empty fields
+				Fields:        []string{},
+				MaxConcurrent: 1,
 			},
 			setupMocks: func(_ *TestMockAssetRepository, _ *TestMockLlamaClient) {
-				// No mocks needed - validation fails early
+				// No mocks needed for validation error
 			},
 			expectedResult: func(t *testing.T, result *BulkEnrichFieldsResult, err error) {
 				assert.Error(t, err)
@@ -85,234 +88,185 @@ func TestBulkEnrichFieldsUseCase_Execute(t *testing.T) {
 		{
 			name: "validation error - invalid field",
 			input: BulkEnrichFieldsInput{
-				Fields: []string{"invalid_field"},
+				Fields:        []string{"invalid_field"},
+				MaxConcurrent: 1,
 			},
 			setupMocks: func(_ *TestMockAssetRepository, _ *TestMockLlamaClient) {
-				// No mocks needed - validation fails early
+				// No mocks needed for validation error
 			},
 			expectedResult: func(t *testing.T, result *BulkEnrichFieldsResult, err error) {
 				assert.Error(t, err)
-				assert.Contains(t, err.Error(), "invalid field 'invalid_field'")
+				assert.Contains(t, err.Error(), "invalid field")
 				assert.Nil(t, result)
 			},
 		},
 		{
 			name: "specific asset names",
 			input: BulkEnrichFieldsInput{
-				AssetNames: []string{"Asset1"},
-				Fields:     []string{"description"},
+				Fields:        []string{"description"},
+				AssetNames:    []string{"Asset1"},
+				MaxConcurrent: 1,
+				DryRun:        false,
 			},
 			setupMocks: func(repo *TestMockAssetRepository, llama *TestMockLlamaClient) {
-				asset := &domain.Asset{ID: "1", Name: "Asset1", Description: ""}
-				repo.On("FindByName", "Asset1").Return(asset, nil)
-				llama.On("EnrichContent", mock.AnythingOfType("string"), "description", asset).Return("New description", nil)
-				repo.On("Save", asset).Return(nil)
+				asset1 := &domain.Asset{ID: "1", Name: "Asset1", Description: ""}
+				repo.On("FindByName", "Asset1").Return(asset1, nil)
+				llama.On("EnrichContent", mock.AnythingOfType("string"), "description", mock.AnythingOfType("*domain.Asset")).Return("Generated description", nil)
+				repo.On("Save", mock.AnythingOfType("*domain.Asset")).Return(nil)
 			},
 			expectedResult: func(t *testing.T, result *BulkEnrichFieldsResult, err error) {
 				assert.NoError(t, err)
+				assert.NotNil(t, result)
+				assert.Equal(t, 1, result.TotalProcessed) // Only Asset1 should be processed
+			},
+		},
+		{
+			name: "repository error",
+			input: BulkEnrichFieldsInput{
+				Fields:        []string{"description"},
+				MaxConcurrent: 1,
+			},
+			setupMocks: func(repo *TestMockAssetRepository, _ *TestMockLlamaClient) {
+				repo.On("FindAll").Return(nil, fmt.Errorf("repository error"))
+			},
+			expectedResult: func(t *testing.T, result *BulkEnrichFieldsResult, err error) {
+				assert.Error(t, err)
+				assert.Contains(t, err.Error(), "repository error")
+				assert.Nil(t, result)
+			},
+		},
+		{
+			name: "enrichment service error",
+			input: BulkEnrichFieldsInput{
+				Fields:        []string{"description"},
+				MaxConcurrent: 1,
+			},
+			setupMocks: func(repo *TestMockAssetRepository, llama *TestMockLlamaClient) {
+				assets := []*domain.Asset{
+					{ID: "1", Name: "Test Asset", Description: ""},
+				}
+				repo.On("FindAll").Return(assets, nil)
+				llama.On("EnrichContent", mock.AnythingOfType("string"), "description", mock.AnythingOfType("*domain.Asset")).Return("", fmt.Errorf("enrichment error"))
+			},
+			expectedResult: func(t *testing.T, result *BulkEnrichFieldsResult, err error) {
+				assert.NoError(t, err) // Use case should not fail, but track errors
+				assert.NotNil(t, result)
 				assert.Equal(t, 1, result.TotalProcessed)
+				assert.Equal(t, 0, result.TotalSuccessful) // Asset should fail enrichment
+				assert.Equal(t, 1, result.TotalFailed)
+			},
+		},
+		{
+			name: "save error after enrichment",
+			input: BulkEnrichFieldsInput{
+				Fields:        []string{"description"},
+				MaxConcurrent: 1,
+			},
+			setupMocks: func(repo *TestMockAssetRepository, llama *TestMockLlamaClient) {
+				assets := []*domain.Asset{
+					{ID: "1", Name: "Test Asset", Description: ""},
+				}
+				repo.On("FindAll").Return(assets, nil)
+				llama.On("EnrichContent", mock.AnythingOfType("string"), "description", mock.AnythingOfType("*domain.Asset")).Return("Generated description", nil)
+				repo.On("Save", mock.AnythingOfType("*domain.Asset")).Return(fmt.Errorf("save error"))
+			},
+			expectedResult: func(t *testing.T, result *BulkEnrichFieldsResult, err error) {
+				assert.NoError(t, err) // Use case should not fail, but track errors
+				assert.NotNil(t, result)
+				assert.Equal(t, 1, result.TotalProcessed)
+				assert.Equal(t, 0, result.TotalSuccessful) // Asset should fail due to save error
+				assert.Equal(t, 1, result.TotalFailed)
+			},
+		},
+		{
+			name: "all field types coverage",
+			input: BulkEnrichFieldsInput{
+				Fields:        []string{"description", "why", "benefits", "how", "metrics"},
+				MaxConcurrent: 1,
+			},
+			setupMocks: func(repo *TestMockAssetRepository, llama *TestMockLlamaClient) {
+				assets := []*domain.Asset{
+					{
+						ID:          "1",
+						Name:        "Test Asset",
+						Description: "",
+						Why:         "",
+						Benefits:    "",
+						How:         "",
+						Metrics:     "",
+					},
+				}
+				repo.On("FindAll").Return(assets, nil)
+				llama.On("EnrichContent", mock.AnythingOfType("string"), mock.AnythingOfType("string"), mock.AnythingOfType("*domain.Asset")).Return("Generated content", nil)
+				repo.On("Save", mock.AnythingOfType("*domain.Asset")).Return(nil)
+			},
+			expectedResult: func(t *testing.T, result *BulkEnrichFieldsResult, err error) {
+				assert.NoError(t, err)
+				assert.NotNil(t, result)
+				assert.Equal(t, 1, result.TotalProcessed)
+				assert.Equal(t, 1, result.TotalSuccessful)
+				assert.Equal(t, 5, result.TotalFieldsEnriched) // All 5 fields should be enriched
+			},
+		},
+		{
+			name: "filter by empty-description",
+			input: BulkEnrichFieldsInput{
+				Fields:        []string{"description"},
+				FilterBy:      "empty-description",
+				MaxConcurrent: 1,
+			},
+			setupMocks: func(repo *TestMockAssetRepository, llama *TestMockLlamaClient) {
+				assets := []*domain.Asset{
+					{ID: "1", Name: "Asset1", Description: ""},        // Should be included
+					{ID: "2", Name: "Asset2", Description: "Content"}, // Should be excluded
+				}
+				repo.On("FindAll").Return(assets, nil)
+				llama.On("EnrichContent", mock.AnythingOfType("string"), "description", mock.AnythingOfType("*domain.Asset")).Return("Generated description", nil)
+				repo.On("Save", mock.AnythingOfType("*domain.Asset")).Return(nil)
+			},
+			expectedResult: func(t *testing.T, result *BulkEnrichFieldsResult, err error) {
+				assert.NoError(t, err)
+				assert.NotNil(t, result)
+				assert.Equal(t, 1, result.TotalProcessed) // Only Asset1 should be processed
+			},
+		},
+		{
+			name: "no assets match filter",
+			input: BulkEnrichFieldsInput{
+				Fields:        []string{"description"},
+				FilterBy:      "empty-description",
+				MaxConcurrent: 1,
+			},
+			setupMocks: func(repo *TestMockAssetRepository, _ *TestMockLlamaClient) {
+				assets := []*domain.Asset{
+					{ID: "1", Name: "Asset1", Description: "Has content"}, // Should be excluded
+				}
+				repo.On("FindAll").Return(assets, nil)
+			},
+			expectedResult: func(t *testing.T, result *BulkEnrichFieldsResult, err error) {
+				assert.NoError(t, err)
+				assert.NotNil(t, result)
+				assert.Equal(t, 0, result.TotalProcessed) // No assets should be processed
 			},
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			repo := new(TestMockAssetRepository)
-			llama := new(TestMockLlamaClient)
+			mockRepo := &TestMockAssetRepository{}
+			mockLlama := &TestMockLlamaClient{}
 
-			tt.setupMocks(repo, llama)
+			enrichmentService := enrichment.NewFieldsEnrichmentAdapter(mockLlama)
+			useCase := NewBulkEnrichFieldsUseCase(mockRepo, enrichmentService)
 
-			useCase := NewBulkEnrichFieldsUseCase(repo, llama)
+			tt.setupMocks(mockRepo, mockLlama)
+
 			result, err := useCase.Execute(context.Background(), tt.input)
 
 			tt.expectedResult(t, result, err)
 
-			repo.AssertExpectations(t)
-			llama.AssertExpectations(t)
+			mockRepo.AssertExpectations(t)
+			mockLlama.AssertExpectations(t)
 		})
 	}
-}
-
-func TestBulkEnrichFieldsUseCase_validateInput(t *testing.T) {
-	useCase := &BulkEnrichFieldsUseCase{}
-
-	tests := []struct {
-		name        string
-		input       BulkEnrichFieldsInput
-		expectError bool
-		errorMsg    string
-	}{
-		{
-			name: "valid fields",
-			input: BulkEnrichFieldsInput{
-				Fields: []string{"description", "why", "benefits"},
-			},
-			expectError: false,
-		},
-		{
-			name:        "no fields",
-			input:       BulkEnrichFieldsInput{Fields: []string{}},
-			expectError: true,
-			errorMsg:    "at least one field must be specified",
-		},
-		{
-			name: "invalid field",
-			input: BulkEnrichFieldsInput{
-				Fields: []string{"description", "invalid"},
-			},
-			expectError: true,
-			errorMsg:    "invalid field 'invalid'",
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			err := useCase.validateInput(tt.input)
-			if tt.expectError {
-				assert.Error(t, err)
-				assert.Contains(t, err.Error(), tt.errorMsg)
-			} else {
-				assert.NoError(t, err)
-			}
-		})
-	}
-}
-
-func TestBulkEnrichFieldsUseCase_isFieldEmpty(t *testing.T) {
-	useCase := &BulkEnrichFieldsUseCase{}
-
-	asset := &domain.Asset{
-		Description: "Has description",
-		Why:         "",
-		Benefits:    "Has benefits",
-		How:         "",
-		Metrics:     "Has metrics",
-	}
-
-	tests := []struct {
-		field    string
-		expected bool
-	}{
-		{"description", false}, // Has content
-		{"why", true},          // Empty
-		{"benefits", false},    // Has content
-		{"how", true},          // Empty
-		{"metrics", false},     // Has content
-		{"unknown", false},     // Unknown field
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.field, func(t *testing.T) {
-			result := useCase.isFieldEmpty(asset, tt.field)
-			assert.Equal(t, tt.expected, result)
-		})
-	}
-}
-
-func TestBulkEnrichFieldsUseCase_updateAssetField(t *testing.T) {
-	useCase := &BulkEnrichFieldsUseCase{}
-	asset := &domain.Asset{}
-
-	tests := []struct {
-		field   string
-		content string
-		verify  func(*domain.Asset)
-	}{
-		{
-			field:   "description",
-			content: "New description",
-			verify:  func(a *domain.Asset) { assert.Equal(t, "New description", a.Description) },
-		},
-		{
-			field:   "why",
-			content: "New why",
-			verify:  func(a *domain.Asset) { assert.Equal(t, "New why", a.Why) },
-		},
-		{
-			field:   "benefits",
-			content: "New benefits",
-			verify:  func(a *domain.Asset) { assert.Equal(t, "New benefits", a.Benefits) },
-		},
-		{
-			field:   "how",
-			content: "New how",
-			verify:  func(a *domain.Asset) { assert.Equal(t, "New how", a.How) },
-		},
-		{
-			field:   "metrics",
-			content: "New metrics",
-			verify:  func(a *domain.Asset) { assert.Equal(t, "New metrics", a.Metrics) },
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.field, func(t *testing.T) {
-			err := useCase.updateAssetField(asset, tt.field, tt.content)
-			assert.NoError(t, err)
-			tt.verify(asset)
-		})
-	}
-
-	// Test unknown field
-	err := useCase.updateAssetField(asset, "unknown", "content")
-	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "unknown field")
-}
-
-func TestBulkEnrichFieldsUseCase_processAsset(t *testing.T) {
-	t.Run("dry run", func(t *testing.T) {
-		repo := new(TestMockAssetRepository)
-		llama := new(TestMockLlamaClient)
-
-		useCase := NewBulkEnrichFieldsUseCase(repo, llama)
-		asset := &domain.Asset{Name: "Test Asset"}
-
-		fieldsEnriched, err := useCase.processAsset(context.Background(), asset, []string{"description"}, true)
-
-		assert.NoError(t, err)
-		assert.True(t, fieldsEnriched["description"]) // Dry run simulates success
-
-		repo.AssertExpectations(t)
-		llama.AssertExpectations(t)
-	})
-
-	t.Run("skip field with existing content", func(t *testing.T) {
-		repo := new(TestMockAssetRepository)
-		llama := new(TestMockLlamaClient)
-
-		useCase := NewBulkEnrichFieldsUseCase(repo, llama)
-		asset := &domain.Asset{
-			Name:        "Test Asset",
-			Description: "Existing description", // Not empty - should be skipped
-		}
-
-		fieldsEnriched, err := useCase.processAsset(context.Background(), asset, []string{"description"}, false)
-
-		assert.NoError(t, err)
-		assert.False(t, fieldsEnriched["description"]) // Should be skipped
-
-		repo.AssertExpectations(t)
-		llama.AssertExpectations(t)
-	})
-
-	t.Run("LLM enrichment failure", func(t *testing.T) {
-		repo := new(TestMockAssetRepository)
-		llama := new(TestMockLlamaClient)
-
-		asset := &domain.Asset{
-			Name:        "Test Asset",
-			Description: "", // Empty - should try to enrich
-		}
-
-		llama.On("EnrichContent", mock.AnythingOfType("string"), "description", asset).Return("", errors.New("LLM error"))
-
-		useCase := NewBulkEnrichFieldsUseCase(repo, llama)
-		fieldsEnriched, err := useCase.processAsset(context.Background(), asset, []string{"description"}, false)
-
-		assert.NoError(t, err)                         // Function doesn't fail on individual field errors
-		assert.False(t, fieldsEnriched["description"]) // Should be marked as failed
-
-		repo.AssertExpectations(t)
-		llama.AssertExpectations(t)
-	})
 }
