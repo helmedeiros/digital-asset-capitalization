@@ -431,3 +431,150 @@ func TestAsset_DecrementTaskCount_ErrorBranch(t *testing.T) {
 		t.Errorf("expected ErrNegativeTaskCount, got %v", err)
 	}
 }
+
+func TestAsset_TeamManagement(t *testing.T) {
+	asset, err := NewAsset("test-asset", "Test description")
+	require.NoError(t, err)
+
+	t.Run("SetOwningTeam and GetOwningTeam", func(t *testing.T) {
+		// Test setting owning team
+		asset.SetOwningTeam("team-alpha")
+		assert.Equal(t, "team-alpha", asset.GetOwningTeam())
+
+		// Test empty team
+		asset.SetOwningTeam("")
+		assert.Equal(t, "", asset.GetOwningTeam())
+	})
+
+	t.Run("AddContributingTeam", func(t *testing.T) {
+		// Reset for clean test
+		asset.SetContributingTeams([]string{})
+
+		// Test adding first team
+		asset.AddContributingTeam("team-beta")
+		teams := asset.GetContributingTeams()
+		assert.Len(t, teams, 1)
+		assert.Contains(t, teams, "team-beta")
+
+		// Test adding second team
+		asset.AddContributingTeam("team-gamma")
+		teams = asset.GetContributingTeams()
+		assert.Len(t, teams, 2)
+		assert.Contains(t, teams, "team-beta")
+		assert.Contains(t, teams, "team-gamma")
+
+		// Test adding duplicate team (should not add)
+		asset.AddContributingTeam("team-beta")
+		teams = asset.GetContributingTeams()
+		assert.Len(t, teams, 2) // Should still be 2
+
+		// Test adding empty team (should not add)
+		asset.AddContributingTeam("")
+		teams = asset.GetContributingTeams()
+		assert.Len(t, teams, 2) // Should still be 2
+	})
+
+	t.Run("RemoveContributingTeam", func(t *testing.T) {
+		// Set up initial teams
+		asset.SetContributingTeams([]string{"team-beta", "team-gamma", "team-delta"})
+
+		// Test removing existing team
+		asset.RemoveContributingTeam("team-gamma")
+		teams := asset.GetContributingTeams()
+		assert.Len(t, teams, 2)
+		assert.Contains(t, teams, "team-beta")
+		assert.Contains(t, teams, "team-delta")
+		assert.NotContains(t, teams, "team-gamma")
+
+		// Test removing non-existent team (should not change anything)
+		asset.RemoveContributingTeam("team-nonexistent")
+		teams = asset.GetContributingTeams()
+		assert.Len(t, teams, 2)
+
+		// Test removing empty team (should not change anything)
+		asset.RemoveContributingTeam("")
+		teams = asset.GetContributingTeams()
+		assert.Len(t, teams, 2)
+
+		// Test removing last teams
+		asset.RemoveContributingTeam("team-beta")
+		asset.RemoveContributingTeam("team-delta")
+		teams = asset.GetContributingTeams()
+		assert.Len(t, teams, 0)
+	})
+
+	t.Run("SetContributingTeams and GetContributingTeams", func(t *testing.T) {
+		// Test setting teams
+		teams := []string{"team-alpha", "team-beta", "team-gamma"}
+		asset.SetContributingTeams(teams)
+		retrievedTeams := asset.GetContributingTeams()
+		assert.Len(t, retrievedTeams, 3)
+		assert.Contains(t, retrievedTeams, "team-alpha")
+		assert.Contains(t, retrievedTeams, "team-beta")
+		assert.Contains(t, retrievedTeams, "team-gamma")
+
+		// Test setting empty teams
+		asset.SetContributingTeams([]string{})
+		retrievedTeams = asset.GetContributingTeams()
+		assert.Len(t, retrievedTeams, 0)
+
+		// Test setting nil teams
+		asset.SetContributingTeams(nil)
+		retrievedTeams = asset.GetContributingTeams()
+		assert.Len(t, retrievedTeams, 0)
+	})
+
+	t.Run("IsTeamAssociated", func(t *testing.T) {
+		// Set up teams
+		asset.SetOwningTeam("team-owner")
+		asset.SetContributingTeams([]string{"team-alpha", "team-beta"})
+
+		// Test owning team
+		assert.True(t, asset.IsTeamAssociated("team-owner"))
+
+		// Test contributing teams
+		assert.True(t, asset.IsTeamAssociated("team-alpha"))
+		assert.True(t, asset.IsTeamAssociated("team-beta"))
+
+		// Test non-associated team
+		assert.False(t, asset.IsTeamAssociated("team-nonexistent"))
+
+		// Test empty team
+		assert.False(t, asset.IsTeamAssociated(""))
+
+		// Test with no teams
+		asset.SetOwningTeam("")
+		asset.SetContributingTeams([]string{})
+		assert.False(t, asset.IsTeamAssociated("team-alpha"))
+	})
+
+	t.Run("GetAllAssociatedTeams", func(t *testing.T) {
+		// Set up teams
+		asset.SetOwningTeam("team-owner")
+		asset.SetContributingTeams([]string{"team-alpha", "team-beta"})
+
+		allTeams := asset.GetAllAssociatedTeams()
+		assert.Len(t, allTeams, 3)
+		assert.Contains(t, allTeams, "team-owner")
+		assert.Contains(t, allTeams, "team-alpha")
+		assert.Contains(t, allTeams, "team-beta")
+
+		// Test with no owning team
+		asset.SetOwningTeam("")
+		allTeams = asset.GetAllAssociatedTeams()
+		assert.Len(t, allTeams, 2)
+		assert.Contains(t, allTeams, "team-alpha")
+		assert.Contains(t, allTeams, "team-beta")
+
+		// Test with no teams at all
+		asset.SetContributingTeams([]string{})
+		allTeams = asset.GetAllAssociatedTeams()
+		assert.Len(t, allTeams, 0)
+
+		// Test with only owning team
+		asset.SetOwningTeam("team-owner")
+		allTeams = asset.GetAllAssociatedTeams()
+		assert.Len(t, allTeams, 1)
+		assert.Contains(t, allTeams, "team-owner")
+	})
+}

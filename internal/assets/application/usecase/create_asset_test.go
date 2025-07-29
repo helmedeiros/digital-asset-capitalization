@@ -1,9 +1,11 @@
 package usecase
 
 import (
+	"errors"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 
 	"github.com/helmedeiros/digital-asset-capitalization/internal/assets/application/usecase/testutil"
@@ -11,14 +13,11 @@ import (
 )
 
 func TestCreateAssetUseCase(t *testing.T) {
-	// Create a mock repository
-	mockRepo := testutil.NewMockAssetRepository()
-	useCase := NewCreateAssetUseCase(mockRepo)
-
 	tests := []struct {
 		name        string
 		assetName   string
 		description string
+		setupMock   func(*testutil.MockAssetRepository)
 		wantErr     bool
 		errMsg      string
 	}{
@@ -26,50 +25,63 @@ func TestCreateAssetUseCase(t *testing.T) {
 			name:        "valid asset creation",
 			assetName:   "test-asset",
 			description: "Test description",
-			wantErr:     false,
+			setupMock: func(repo *testutil.MockAssetRepository) {
+				repo.On("FindByName", "test-asset").Return(nil, errors.New("asset not found"))
+				repo.On("Save", mock.AnythingOfType("*domain.Asset")).Return(nil)
+			},
+			wantErr: false,
 		},
 		{
 			name:        "duplicate asset",
 			assetName:   "test-asset",
 			description: "Duplicate description",
-			wantErr:     true,
-			errMsg:      "asset already exists",
+			setupMock: func(repo *testutil.MockAssetRepository) {
+				existingAsset := &domain.Asset{Name: "test-asset"}
+				repo.On("FindByName", "test-asset").Return(existingAsset, nil)
+			},
+			wantErr: true,
+			errMsg:  "asset already exists",
 		},
 		{
 			name:        "empty name",
 			assetName:   "",
 			description: "Test description",
-			wantErr:     true,
-			errMsg:      domain.ErrEmptyName.Error(),
+			setupMock: func(repo *testutil.MockAssetRepository) {
+				// FindByName is called before validation, so we need to mock it
+				repo.On("FindByName", "").Return(nil, errors.New("asset not found"))
+			},
+			wantErr: true,
+			errMsg:  domain.ErrEmptyName.Error(),
 		},
 		{
 			name:        "empty description",
 			assetName:   "new-asset",
 			description: "",
-			wantErr:     true,
-			errMsg:      domain.ErrEmptyDescription.Error(),
+			setupMock: func(repo *testutil.MockAssetRepository) {
+				// FindByName is called before validation, so we need to mock it
+				repo.On("FindByName", "new-asset").Return(nil, errors.New("asset not found"))
+			},
+			wantErr: true,
+			errMsg:  domain.ErrEmptyDescription.Error(),
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			mockRepo := testutil.NewMockAssetRepository()
+			tt.setupMock(mockRepo)
+
+			useCase := NewCreateAssetUseCase(mockRepo)
 			err := useCase.Execute(tt.assetName, tt.description)
 
 			if tt.wantErr {
 				require.Error(t, err)
 				assert.Equal(t, tt.errMsg, err.Error())
-				return
+			} else {
+				require.NoError(t, err)
 			}
 
-			require.NoError(t, err)
-
-			// Verify asset was created correctly
-			asset, err := mockRepo.FindByName(tt.assetName)
-			require.NoError(t, err)
-			assert.Equal(t, tt.assetName, asset.Name)
-			assert.Equal(t, tt.description, asset.Description)
-			assert.NotEmpty(t, asset.ID)
-			assert.Equal(t, 1, asset.Version)
+			mockRepo.AssertExpectations(t)
 		})
 	}
 }

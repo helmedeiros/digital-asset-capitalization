@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/helmedeiros/digital-asset-capitalization/internal/assets/domain"
+	"github.com/helmedeiros/digital-asset-capitalization/internal/assets/infrastructure/id"
 )
 
 func TestNewAdapter(t *testing.T) {
@@ -21,7 +22,7 @@ func TestNewAdapter(t *testing.T) {
 		MaxResults: 25,
 	}
 
-	adapter := NewAdapter(config)
+	adapter := NewAdapter(config, id.NewHashIDGenerator())
 
 	if adapter.config != config {
 		t.Error("config not set correctly")
@@ -86,7 +87,7 @@ func TestGetSpaceID(t *testing.T) {
 				SpaceKey: "TEST",
 				Token:    "test-token",
 			}
-			adapter := NewAdapter(config)
+			adapter := NewAdapter(config, id.NewHashIDGenerator())
 
 			id, err := adapter.getSpaceID(context.Background())
 
@@ -112,7 +113,7 @@ func TestBuildSearchURL(t *testing.T) {
 		BaseURL:    "https://test.atlassian.net",
 		MaxResults: 25,
 	}
-	adapter := NewAdapter(config)
+	adapter := NewAdapter(config, id.NewHashIDGenerator())
 
 	spaceID := "test-space-id"
 	url := adapter.buildSearchURL(spaceID)
@@ -255,7 +256,7 @@ func TestFetchAssets(t *testing.T) {
 				tt.config = &Config{}
 			}
 			tt.config.BaseURL = server.URL
-			adapter := NewAdapter(tt.config)
+			adapter := NewAdapter(tt.config, id.NewHashIDGenerator())
 
 			assets, err := adapter.FetchAssets(context.Background())
 
@@ -595,7 +596,7 @@ func TestBuildCQLQuery(t *testing.T) {
 				SpaceKey: tt.spaceKey,
 				Label:    tt.label,
 			}
-			adapter := NewAdapter(config)
+			adapter := NewAdapter(config, id.NewHashIDGenerator())
 
 			cql := adapter.buildCQLQuery()
 

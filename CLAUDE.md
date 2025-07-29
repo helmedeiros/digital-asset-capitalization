@@ -84,6 +84,11 @@ make build-run ARGS="command"  # Build and run in one step
 ./assetcap assets enrich --name "Asset Name" --field "description"
 ./assetcap assets keywords --name "Asset Name"
 
+# Bulk asset sync and enrichment (NEW)
+./assetcap assets sync-and-enrich --label "cap-asset" --keywords --fields description --fields benefits
+./assetcap assets sync-and-enrich --space "MZN,CAP" --label "cap-asset" --keywords --dry-run
+./assetcap assets sync-and-enrich --label "cap-asset" --fields description --fields why --fields benefits --max-concurrent 3
+
 # Team management (latest features)
 ./assetcap assets teams assign --asset "Asset Name" --owner "TeamName"
 ./assetcap assets teams add-contributor --asset "Asset Name" --team "TeamName"
@@ -271,5 +276,55 @@ make test-all          # Run tests with race detector and coverage
 1. **Asset Management**: Create, update, sync, and enrich digital assets
 2. **Task Classification**: AI-powered classification of tasks to assets
 3. **Time Allocation**: Calculate sprint time allocation for capitalization
-4. **Documentation Sync**: Sync assets from Confluence spaces
+4. **Documentation Sync**: Sync assets from Confluence spaces with multi-space support
 5. **Keyword Generation**: AI-generated keywords for better task matching
+6. **Bulk Asset Enrichment**: Sync and enrich multiple assets with AI-powered content and keywords
+7. **Intelligent Filtering**: Only enrich missing content to preserve existing data
+8. **Concurrent Processing**: Configurable parallel AI operations for efficiency
+
+## Sync-and-Enrich Workflow (NEW)
+
+The `sync-and-enrich` command provides a powerful workflow that combines asset synchronization from Confluence with AI-powered bulk enrichment:
+
+### Features
+- **Multi-Space Sync**: Support for single space, multiple spaces, or all spaces
+- **AI-Powered Keywords**: Bulk generation of keywords for assets using LLaMA 3
+- **Field Enrichment**: Bulk enrichment of specific fields (description, why, benefits, how, metrics)
+- **Smart Filtering**: Only enriches missing/empty content by default
+- **Concurrent Processing**: Configurable parallelism for optimal performance
+- **Dry Run Mode**: Preview what will be done without making changes
+- **Progress Tracking**: Detailed logging and error handling
+
+### Usage Examples
+
+```bash
+# Basic sync and keyword generation
+./assetcap assets sync-and-enrich --label "cap-asset" --keywords
+
+# Multi-space sync with field enrichment
+./assetcap assets sync-and-enrich --space "MZN,CAP,DOC" --label "cap-asset" --fields description --fields benefits
+
+# Full workflow with all options
+./assetcap assets sync-and-enrich \
+  --space "MZN,CAP" \
+  --label "cap-asset" \
+  --keywords \
+  --fields description \
+  --fields why \
+  --fields benefits \
+  --max-concurrent 3 \
+  --debug
+
+# Preview mode (dry run)
+./assetcap assets sync-and-enrich --label "cap-asset" --keywords --fields description --dry-run
+```
+
+### Parameters
+- `--space`: Confluence space key(s). Single: 'MZN', Multiple: 'MZN,CAP,DOC', All: '*' or omit
+- `--label`: Confluence label to filter by (required, e.g., 'cap-asset')
+- `--keywords`: Generate AI-powered keywords for synced assets
+- `--fields`: Fields to enrich using AI (can be repeated for multiple fields)
+- `--field-filter`: Filter strategy ('all', 'missing-fields', 'empty-fields')
+- `--max-concurrent`: Maximum concurrent AI operations (default: 2)
+- `--dry-run`: Show what would be done without making changes
+- `--debug`: Enable detailed debug output

@@ -11,8 +11,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/helmedeiros/digital-asset-capitalization/internal/assets/common"
 	"github.com/helmedeiros/digital-asset-capitalization/internal/assets/domain"
+	"github.com/helmedeiros/digital-asset-capitalization/internal/assets/domain/ports"
 )
 
 // Page represents a page in Confluence
@@ -64,14 +64,16 @@ type SpaceResponse struct {
 
 // Adapter handles communication with Confluence API
 type Adapter struct {
-	config     *Config
-	httpClient *http.Client
+	config      *Config
+	httpClient  *http.Client
+	idGenerator ports.IDGenerator
 }
 
 // NewAdapter creates a new Confluence adapter
-func NewAdapter(config *Config) *Adapter {
+func NewAdapter(config *Config, idGenerator ports.IDGenerator) *Adapter {
 	return &Adapter{
-		config: config,
+		config:      config,
+		idGenerator: idGenerator,
 		httpClient: &http.Client{
 			Timeout: 30 * time.Second,
 		},
@@ -299,7 +301,7 @@ func (a *Adapter) convertPageToAsset(page Page) (*domain.Asset, error) {
 
 	// If still no identifier, generate one
 	if metadata.Identifier == "" {
-		metadata.Identifier = common.GenerateID(page.Title)
+		metadata.Identifier = a.idGenerator.GenerateID(page.Title)
 	}
 
 	// Ensure we have the full URL for DocLink
