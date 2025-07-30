@@ -51,13 +51,21 @@ assetcap
 │   ├── show
 │   ├── update
 │   ├── sync
+│   ├── sync-and-enrich  # Bulk sync and AI enrichment workflow
+│   ├── sync-contributors # Sync contributors from JIRA assignments
 │   ├── enrich
 │   ├── keywords
 │   ├── documentation
 │   │   └── update
-│   └── tasks
-│       ├── increment
-│       └── decrement
+│   ├── tasks
+│   │   ├── increment
+│   │   └── decrement
+│   └── teams        # Manage asset team assignments
+│       ├── assign
+│       ├── list
+│       ├── show
+│       ├── add-contributor
+│       └── remove-contributor
 ├── tasks            # Manage tasks from various platforms
 │   ├── fetch
 │   ├── show
@@ -78,10 +86,14 @@ assetcap
 - **Create/Update Assets**: `assets create`, `assets update`
 - **Asset Discovery**: `assets list`, `assets show`
 - **Confluence Integration**: `assets sync` (from Confluence pages)
+- **Multi-Space Sync**: `assets sync` (supports multiple spaces and wildcard)
+- **Bulk Sync and Enrichment**: `assets sync-and-enrich` (combined workflow)
 - **AI Enhancement**: `assets enrich` (field-specific using LLM)
 - **Keyword Generation**: `assets keywords` (AI-powered)
 - **Documentation Tracking**: `assets documentation update`
 - **Task Count Management**: `assets tasks increment/decrement`
+- **Team Management**: `assets teams` (assign owners and contributors)
+- **Contributor Sync**: `assets sync-contributors` (from JIRA assignments)
 
 ### 2. Task Classification and Management
 

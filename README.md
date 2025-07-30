@@ -67,6 +67,12 @@ assetcap assets sync --space "MZN" --label "cap-asset" [--debug]
 # Sync from Confluence with debug output (shows detailed API calls and responses)
 assetcap assets sync --space "TECH" --label "cap-asset" --debug
 
+# Multi-space sync (sync from multiple Confluence spaces)
+assetcap assets sync --space "MZN,CAP,DOC" --label "cap-asset"
+
+# Sync from all spaces (using wildcard)
+assetcap assets sync --space "*" --label "cap-asset"
+
 # Enrich asset fields using LLaMA 3
 assetcap assets enrich --name "Frontend App" --field "description"
 
@@ -104,6 +110,158 @@ The generated keywords are:
 - Single words or short phrases (2-3 words max)
 - Automatically cleaned and normalized
 - Stored with the asset for future reference
+
+### Multi-Space Sync
+
+AssetCap supports syncing assets from multiple Confluence spaces simultaneously, providing flexibility for organizations with distributed documentation:
+
+```bash
+# Sync from single space
+assetcap assets sync --space "MZN" --label "cap-asset"
+
+# Sync from multiple specific spaces
+assetcap assets sync --space "MZN,CAP,DOC" --label "cap-asset"
+
+# Sync from all accessible spaces
+assetcap assets sync --space "*" --label "cap-asset"
+
+# Multi-space sync with debug output
+assetcap assets sync --space "MZN,CAP,DOC" --label "cap-asset" --debug
+```
+
+**Multi-Space Sync Features:**
+
+- **Single Space**: Use a single space key like `"MZN"`
+- **Multiple Spaces**: Use comma-separated space keys like `"MZN,CAP,DOC"`
+- **All Spaces**: Use `"*"` to sync from all accessible Confluence spaces
+- **Label Filtering**: Apply consistent label filtering across all specified spaces
+- **Debug Mode**: Get detailed output for each space being processed
+
+The multi-space sync automatically:
+- Processes each space independently
+- Handles permissions gracefully (skips inaccessible spaces)
+- Maintains consistent asset metadata across spaces
+- Provides detailed logging for troubleshooting
+
+### Sync-and-Enrich Workflow
+
+The sync-and-enrich command provides a powerful workflow that combines asset synchronization from Confluence with AI-powered bulk enrichment operations:
+
+```bash
+# Basic sync and keyword generation
+assetcap assets sync-and-enrich --label "cap-asset" --keywords
+
+# Multi-space sync with field enrichment
+assetcap assets sync-and-enrich --space "MZN,CAP,DOC" --label "cap-asset" --fields description --fields benefits
+
+# Complete workflow with all options
+assetcap assets sync-and-enrich \
+  --space "MZN,CAP" \
+  --label "cap-asset" \
+  --keywords \
+  --fields description \
+  --fields why \
+  --fields benefits \
+  --max-concurrent 3 \
+  --debug
+
+# Preview mode (dry run)
+assetcap assets sync-and-enrich --label "cap-asset" --keywords --fields description --dry-run
+```
+
+**Sync-and-Enrich Features:**
+
+- **Multi-Space Support**: Sync from single space, multiple spaces, or all spaces
+- **AI-Powered Keywords**: Bulk generation of keywords for assets using LLaMA 3
+- **Field Enrichment**: Bulk enrichment of specific fields (description, why, benefits, how, metrics)
+- **Smart Filtering**: Only enriches missing/empty content by default
+- **Concurrent Processing**: Configurable parallelism for optimal performance
+- **Dry Run Mode**: Preview what will be done without making changes
+- **Progress Tracking**: Detailed logging and error handling
+
+**Available Parameters:**
+
+- `--space`: Confluence space key(s). Single: 'MZN', Multiple: 'MZN,CAP,DOC', All: '*' or omit
+- `--label`: Confluence label to filter by (required, e.g., 'cap-asset')
+- `--keywords`: Generate AI-powered keywords for synced assets
+- `--fields`: Fields to enrich using AI (can be repeated for multiple fields)
+- `--field-filter`: Filter strategy ('all', 'missing-fields', 'empty-fields')
+- `--max-concurrent`: Maximum concurrent AI operations (default: 2)
+- `--dry-run`: Show what would be done without making changes
+- `--debug`: Enable detailed debug output
+
+**Workflow Process:**
+
+1. **Sync Phase**: Retrieves assets from specified Confluence spaces with label filtering
+2. **Filter Phase**: Applies field filters to determine which assets need enrichment
+3. **Enrich Phase**: Performs AI-powered keyword generation and field enrichment in parallel
+4. **Save Phase**: Updates local asset storage with enriched content
+
+### Team Management
+
+AssetCap provides comprehensive team management functionality to track asset ownership and contributors:
+
+```bash
+# Assign a team as the owner of an asset
+assetcap assets teams assign --asset "Frontend App" --owner "TeamName"
+
+# Add a contributing team to an asset
+assetcap assets teams add-contributor --asset "Frontend App" --team "TeamName"
+
+# Remove a contributing team from an asset
+assetcap assets teams remove-contributor --asset "Frontend App" --team "TeamName"
+
+# Show team assignments for a specific asset
+assetcap assets teams show --asset "Frontend App"
+
+# List all asset team assignments
+assetcap assets teams list
+
+# Automatically sync contributors from JIRA task assignments
+assetcap assets sync-contributors
+
+# Sync contributors with filtering options
+assetcap assets sync-contributors --project "FN" --sprint "Sprint 42"
+
+# Preview sync without making changes
+assetcap assets sync-contributors --dry-run
+
+# Sync for specific asset or team
+assetcap assets sync-contributors --asset "Frontend App"
+assetcap assets sync-contributors --team "FrontendTeam"
+```
+
+**Team Management Features:**
+
+- **Asset Ownership**: Assign primary ownership teams to assets
+- **Contributing Teams**: Track teams that contribute to but don't own assets
+- **Team Assignment Viewing**: Display team assignments for specific assets or all assets
+- **Team Assignment Management**: Add and remove team assignments as needed
+- **Automatic Contributor Sync**: Synchronize asset contributors from JIRA task assignments
+- **Filtered Synchronization**: Sync contributors with project, sprint, team, or asset filters
+
+**Team Assignment Structure:**
+
+Each asset can have:
+- **One Owner Team**: The primary team responsible for the asset
+- **Multiple Contributing Teams**: Teams that contribute to the asset but don't own it
+- **Clear Hierarchy**: Distinction between ownership and contribution roles
+
+**Contributor Synchronization:**
+
+The `sync-contributors` command automatically analyzes JIRA task assignments to identify which teams are actively working on assets:
+
+- **JIRA Integration**: Analyzes task assignees to determine asset contributors
+- **Smart Filtering**: Supports filtering by project, sprint, team, or specific assets
+- **Dry Run Mode**: Preview changes before applying them
+- **Automatic Updates**: Keeps team assignments current with actual work patterns
+
+This helps with:
+- **Accountability**: Clear ownership for asset maintenance and development
+- **Collaboration**: Tracking which teams collaborate on assets
+- **Resource Planning**: Understanding team workloads and asset responsibilities
+- **Documentation**: Maintaining clear team-asset relationships
+- **Current State**: Keeping team assignments aligned with actual JIRA work patterns
 
 ### Task Management
 
@@ -411,6 +569,52 @@ assetcap assets update \
 # Track task associations
 assetcap assets tasks increment --asset "Payment Gateway"
 assetcap assets documentation update --asset "Payment Gateway"
+```
+
+### Multi-Space and Bulk Operations
+
+```bash
+# Complete multi-space sync and enrichment workflow
+assetcap assets sync-and-enrich \
+  --space "MZN,CAP,DOC" \
+  --label "cap-asset" \
+  --keywords \
+  --fields description \
+  --fields benefits \
+  --fields metrics \
+  --max-concurrent 3 \
+  --debug
+
+# Bulk keyword generation for existing assets
+assetcap assets sync-and-enrich --space "*" --label "cap-asset" --keywords --dry-run
+
+# Multi-space sync with selective field enrichment
+assetcap assets sync-and-enrich \
+  --space "TECH,DOCS" \
+  --label "cap-asset" \
+  --fields description \
+  --field-filter "empty-fields" \
+  --max-concurrent 2
+```
+
+### Team Management Workflows
+
+```bash
+# Complete team assignment workflow
+assetcap assets teams assign --asset "Payment Gateway" --owner "BackendTeam"
+assetcap assets teams add-contributor --asset "Payment Gateway" --team "SecurityTeam"
+assetcap assets teams add-contributor --asset "Payment Gateway" --team "DevOpsTeam"
+
+# Sync contributors based on actual JIRA work
+assetcap assets sync-contributors --project "FN" --sprint "Sprint 42" --dry-run
+assetcap assets sync-contributors --project "FN" --sprint "Sprint 42"
+
+# Comprehensive team management review
+assetcap assets teams list
+assetcap assets teams show --asset "Payment Gateway"
+
+# Sync contributors for specific team's assets
+assetcap assets sync-contributors --team "BackendTeam" --max-results 500
 ```
 
 ### Configuration and Troubleshooting

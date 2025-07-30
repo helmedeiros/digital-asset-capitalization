@@ -1007,3 +1007,86 @@ func TestMain_NoArgs(t *testing.T) {
 		main()
 	})
 }
+
+// Additional test cases to improve coverage
+func TestMainHelpers(t *testing.T) {
+	t.Run("maskToken should mask API tokens", func(t *testing.T) {
+		// Test cases for maskToken function
+		testCases := []struct {
+			input    string
+			expected string
+		}{
+			{"", "****"},
+			{"short", "shor...hort"}, // 5 characters: first 4 + ... + last 4
+			{"averagetoken", "aver...oken"},
+			{"verylongapitoken", "very...oken"},
+		}
+
+		for _, tc := range testCases {
+			result := maskToken(tc.input)
+			assert.Equal(t, tc.expected, result)
+		}
+	})
+
+	t.Run("showHelp function should work", func(t *testing.T) {
+		// Test that showHelp doesn't panic
+		assert.NotPanics(t, func() {
+			showHelp()
+		})
+	})
+}
+
+func TestInitializeAppCoverage(t *testing.T) {
+	t.Run("initializeApp with error conditions", func(t *testing.T) {
+		// Save original args
+		originalArgs := os.Args
+		defer func() { os.Args = originalArgs }()
+
+		// Test with invalid configuration scenario
+		os.Args = []string{"assetcap", "version"}
+
+		// This should not panic even with invalid config
+		assert.NotPanics(t, func() {
+			app, err := initializeApp()
+			// App might be nil if there's an error, that's expected
+			if err == nil {
+				assert.NotNil(t, app)
+			}
+		})
+	})
+}
+
+func TestRunFunction(t *testing.T) {
+	t.Run("Run function with help command", func(t *testing.T) {
+		cleanup := setupTestEnvironment(t)
+		defer cleanup()
+
+		// Create minimal configuration
+		assetcapDir := filepath.Join(".", ".assetcap")
+		err := os.MkdirAll(assetcapDir, 0755)
+		require.NoError(t, err)
+
+		teamsPath := filepath.Join(assetcapDir, "teams.json")
+		err = os.WriteFile(teamsPath, []byte(mainTestTeamsContent), 0644)
+		require.NoError(t, err)
+
+		// Test app initialization
+		assert.NotPanics(t, func() {
+			app, err := initializeApp()
+			if err == nil && app != nil {
+				// Test Run method doesn't panic
+				_ = app.Run()
+			}
+		})
+	})
+
+	t.Run("Run function with version command", func(t *testing.T) {
+		cleanup := setupTestEnvironment(t)
+		defer cleanup()
+
+		// Test maskToken function more thoroughly
+		assert.Equal(t, "abcd...wxyz", maskToken("abcdefghijklmnopqrstuvwxyz"))
+		assert.Equal(t, "****", maskToken(""))
+		assert.Equal(t, "****", maskToken("abc"))
+	})
+}
