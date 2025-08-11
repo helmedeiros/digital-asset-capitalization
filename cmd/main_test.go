@@ -20,6 +20,7 @@ import (
 	configdomain "github.com/helmedeiros/digital-asset-capitalization/internal/config/domain"
 	sprintusecase "github.com/helmedeiros/digital-asset-capitalization/internal/sprint/application/usecase"
 	sprintdomain "github.com/helmedeiros/digital-asset-capitalization/internal/sprint/domain"
+	sprintports "github.com/helmedeiros/digital-asset-capitalization/internal/sprint/domain/ports"
 	tasksdomain "github.com/helmedeiros/digital-asset-capitalization/internal/tasks/domain"
 	taskports "github.com/helmedeiros/digital-asset-capitalization/internal/tasks/domain/ports"
 )
@@ -265,7 +266,7 @@ func setupTestEnvironment(t *testing.T) func() {
 	}
 }
 
-func captureOutput(f func() error) (string, error) {
+func captureOutput(f func() error) (string, error) { //nolint:unparam
 	r, w, err := os.Pipe()
 	if err != nil {
 		return "", err
@@ -1089,4 +1090,217 @@ func TestRunFunction(t *testing.T) {
 		assert.Equal(t, "****", maskToken(""))
 		assert.Equal(t, "****", maskToken("abc"))
 	})
+}
+
+func TestAdditionalCLICommands(t *testing.T) {
+	tests := []struct {
+		name    string
+		args    []string
+		setup   func(*MockAssetService, *MockTaskService, *MockSprintService)
+		wantErr bool
+	}{
+		{
+			name: "assets sync command",
+			args: []string{"assets", "sync", "--label", "test-label", "--space", "TEST"},
+			setup: func(mas *MockAssetService, _ *MockTaskService, _ *MockSprintService) {
+				syncResult := &assetsdomain.SyncResult{
+					SyncedAssets:    []*assetsdomain.Asset{{Name: "Test Asset"}},
+					NotSyncedAssets: []*assetsdomain.NotSyncedAsset{},
+				}
+				mas.On("SyncFromConfluence", "TEST", "test-label", false).Return(syncResult, nil)
+			},
+			wantErr: false,
+		},
+		{
+			name: "assets enrich command",
+			args: []string{"assets", "enrich", "--name", "test", "--field", "description"},
+			setup: func(mas *MockAssetService, _ *MockTaskService, _ *MockSprintService) {
+				mas.On("EnrichAsset", "test", "description").Return(nil)
+			},
+			wantErr: false,
+		},
+		{
+			name: "assets update command",
+			args: []string{"assets", "update", "--name", "test", "--description", "desc", "--why", "why", "--benefits", "benefits", "--how", "how", "--metrics", "metrics"},
+			setup: func(mas *MockAssetService, _ *MockTaskService, _ *MockSprintService) {
+				mas.On("UpdateAsset", "test", "desc", "why", "benefits", "how", "metrics").Return(nil)
+			},
+			wantErr: false,
+		},
+		{
+			name: "assets sync-and-enrich command",
+			args: []string{"assets", "sync-and-enrich", "--label", "test-label", "--keywords", "--fields", "description"},
+			setup: func(mas *MockAssetService, _ *MockTaskService, _ *MockSprintService) {
+				syncResult := &assetsdomain.SyncResult{
+					SyncedAssets: []*assetsdomain.Asset{{Name: "Test Asset"}},
+				}
+				mas.On("SyncFromConfluence", "", "test-label", false).Return(syncResult, nil)
+				mas.On("GenerateKeywords", "Test Asset").Return(nil)
+				mas.On("EnrichAsset", "Test Asset", "description").Return(nil)
+			},
+			wantErr: false,
+		},
+		{
+			name: "assets teams assign command",
+			args: []string{"assets", "teams", "assign", "--asset", "test", "--owner", "TeamA", "--contributors", "TeamB,TeamC"},
+			setup: func(mas *MockAssetService, _ *MockTaskService, _ *MockSprintService) {
+				mas.On("AssignTeam", "test", "TeamA", []string{"TeamB", "TeamC"}).Return(nil)
+			},
+			wantErr: false,
+		},
+		{
+			name: "assets teams list command",
+			args: []string{"assets", "teams", "list"},
+			setup: func(mas *MockAssetService, _ *MockTaskService, _ *MockSprintService) {
+				teamInfo := []assetsapp.AssetTeamInfo{{AssetName: "Test Asset", OwningTeam: "TeamA"}}
+				mas.On("GetAssetTeams").Return(teamInfo, nil)
+			},
+			wantErr: false,
+		},
+		{
+			name: "assets teams show command",
+			args: []string{"assets", "teams", "show", "--asset", "test"},
+			setup: func(mas *MockAssetService, _ *MockTaskService, _ *MockSprintService) {
+				teamInfo := &assetsapp.AssetTeamInfo{AssetName: "test", OwningTeam: "TeamA"}
+				mas.On("GetAssetTeamInfo", "test").Return(teamInfo, nil)
+			},
+			wantErr: false,
+		},
+		{
+			name: "assets teams add-contributor command",
+			args: []string{"assets", "teams", "add-contributor", "--asset", "test", "--team", "TeamB"},
+			setup: func(mas *MockAssetService, _ *MockTaskService, _ *MockSprintService) {
+				mas.On("AddContributingTeam", "test", "TeamB").Return(nil)
+			},
+			wantErr: false,
+		},
+		{
+			name: "assets teams remove-contributor command",
+			args: []string{"assets", "teams", "remove-contributor", "--asset", "test", "--team", "TeamB"},
+			setup: func(mas *MockAssetService, _ *MockTaskService, _ *MockSprintService) {
+				mas.On("RemoveContributingTeam", "test", "TeamB").Return(nil)
+			},
+			wantErr: false,
+		},
+		{
+			name: "tasks fetch with key",
+			args: []string{"tasks", "fetch", "--key", "TEST-123", "--platform", "jira"},
+			setup: func(_ *MockAssetService, mts *MockTaskService, _ *MockSprintService) {
+				mts.On("FetchTaskByKey", mock.Anything, "TEST-123", "jira").Return(nil)
+			},
+			wantErr: false,
+		},
+		{
+			name: "tasks fetch with project and sprint",
+			args: []string{"tasks", "fetch", "--project", "TEST", "--sprint", "Sprint1", "--platform", "jira"},
+			setup: func(_ *MockAssetService, mts *MockTaskService, _ *MockSprintService) {
+				mts.On("FetchTasks", mock.Anything, "TEST", "Sprint1", "jira").Return(nil)
+			},
+			wantErr: false,
+		},
+		{
+			name: "tasks show with project and sprint",
+			args: []string{"tasks", "show", "--project", "TEST", "--sprint", "Sprint1"},
+			setup: func(_ *MockAssetService, mts *MockTaskService, _ *MockSprintService) {
+				tasks := []*tasksdomain.Task{{Key: "TEST-1", Summary: "Test task"}}
+				mts.On("GetTasks", mock.Anything, "TEST", "Sprint1").Return(tasks, nil)
+			},
+			wantErr: false,
+		},
+		{
+			name: "tasks inspect",
+			args: []string{"tasks", "inspect", "--key", "TEST-123"},
+			setup: func(_ *MockAssetService, mts *MockTaskService, _ *MockSprintService) {
+				task := &tasksdomain.Task{Key: "TEST-123", Summary: "Test task"}
+				mts.On("GetTaskByKey", mock.Anything, "TEST-123").Return(task, nil)
+			},
+			wantErr: false,
+		},
+		{
+			name: "tasks migrate",
+			args: []string{"tasks", "migrate", "--dry-run"},
+			setup: func(_ *MockAssetService, _ *MockTaskService, _ *MockSprintService) {
+				// No mock setup needed for migration command with dry-run
+			},
+			wantErr: false,
+		},
+		{
+			name: "completion zsh",
+			args: []string{"completion", "zsh"},
+			setup: func(_ *MockAssetService, _ *MockTaskService, _ *MockSprintService) {
+			},
+			wantErr: false,
+		},
+		{
+			name: "completion fish",
+			args: []string{"completion", "fish"},
+			setup: func(_ *MockAssetService, _ *MockTaskService, _ *MockSprintService) {
+			},
+			wantErr: false,
+		},
+		{
+			name: "version command",
+			args: []string{"version"},
+			setup: func(_ *MockAssetService, _ *MockTaskService, _ *MockSprintService) {
+			},
+			wantErr: false,
+		},
+		{
+			name: "sprint list command",
+			args: []string{"sprint", "list", "--project", "TEST", "--period", "Q1 2025"},
+			setup: func(_ *MockAssetService, _ *MockTaskService, mss *MockSprintService) {
+				result := &sprintusecase.ListSprintsResult{
+					Sprints:   []sprintports.Sprint{{Name: "Sprint1"}},
+					BoardInfo: []sprintports.BoardInfo{{Name: "Test Board"}},
+				}
+				mss.On("ListSprints", "TEST", "Q1 2025").Return(result, nil)
+			},
+			wantErr: false,
+		},
+		{
+			name: "sprint allocate with sprint-bounded",
+			args: []string{"sprint", "allocate", "--project", "TEST", "--sprint", "Sprint1", "--sprint-bounded"},
+			setup: func(_ *MockAssetService, _ *MockTaskService, mss *MockSprintService) {
+				mss.On("ProcessJiraIssuesWithStrategy", "TEST", "Sprint1", "", true).Return("Sprint-bounded result", nil)
+			},
+			wantErr: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cleanup := setupTestEnvironment(t)
+			defer cleanup()
+
+			// Create mocks
+			mockAssetService := new(MockAssetService)
+			mockTaskService := new(MockTaskService)
+			mockSprintService := new(MockSprintService)
+
+			// Set up mock behavior if provided
+			if tt.setup != nil {
+				tt.setup(mockAssetService, mockTaskService, mockSprintService)
+			}
+
+			// Create app with mocks
+			app := NewApp(mockAssetService, mockTaskService, mockSprintService)
+
+			// Run the test
+			_, err := captureOutput(func() error {
+				os.Args = append([]string{"assetcap"}, tt.args...)
+				return app.Run()
+			})
+
+			if tt.wantErr {
+				assert.Error(t, err)
+			} else {
+				assert.NoError(t, err)
+			}
+
+			// Verify mock expectations
+			mockAssetService.AssertExpectations(t)
+			mockTaskService.AssertExpectations(t)
+			mockSprintService.AssertExpectations(t)
+		})
+	}
 }

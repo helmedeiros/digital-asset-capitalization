@@ -27,6 +27,10 @@ func (u *FetchTasksUseCase) Execute(ctx context.Context, project, sprint, platfo
 		return fmt.Errorf("project is required")
 	}
 
+	if sprint == "" {
+		return fmt.Errorf("sprint is required")
+	}
+
 	if platform == "" {
 		return fmt.Errorf("platform is required")
 	}
@@ -71,6 +75,10 @@ func (u *FetchTasksUseCase) ExecuteByKey(ctx context.Context, key, platform stri
 	task, err := u.remoteRepo.FindByKey(ctx, key)
 	if err != nil {
 		return fmt.Errorf("failed to fetch task %s: %w", key, err)
+	}
+
+	if task == nil {
+		return fmt.Errorf("failed to fetch task %s: task not found", key)
 	}
 
 	// Save task to local storage

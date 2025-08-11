@@ -7,22 +7,22 @@ import (
 
 // MockAssetService is a mock implementation of AssetService for testing
 type MockAssetService struct {
-	createAssetFunc             func(name, description string) error
-	listAssetsFunc              func() ([]*domain.Asset, error)
-	getAssetFunc                func(identifier string) (*domain.Asset, error)
-	deleteAssetFunc             func(name string) error
-	updateAssetFunc             func(name, description, why, benefits, how, metrics string) error
-	updateDocumentationFunc     func(assetName string) error
-	incrementTaskCountFunc      func(name string) error
-	decrementTaskCountFunc      func(name string) error
-	syncFromConfluenceFunc      func(spaceKey, label string, debug bool) (*domain.SyncResult, error)
-	enrichAssetFunc             func(name, field string) error
-	generateKeywordsFunc        func(name string) error
-	assignTeamFunc              func(assetName, owningTeam string, contributingTeams []string) error
-	getAssetTeamsFunc           func() ([]application.AssetTeamInfo, error)
-	getAssetTeamInfoFunc        func(assetName string) (*application.AssetTeamInfo, error)
-	addContributingTeamFunc     func(assetName, teamName string) error
-	removeContributingTeamFunc  func(assetName, teamName string) error
+	createAssetFunc            func(name, description string) error
+	listAssetsFunc             func() ([]*domain.Asset, error)
+	getAssetFunc               func(identifier string) (*domain.Asset, error)
+	deleteAssetFunc            func(name string) error
+	updateAssetFunc            func(name, description, why, benefits, how, metrics string) error
+	updateDocumentationFunc    func(assetName string) error
+	incrementTaskCountFunc     func(name string) error
+	decrementTaskCountFunc     func(name string) error
+	syncFromConfluenceFunc     func(spaceKey, label string, debug bool) (*domain.SyncResult, error)
+	enrichAssetFunc            func(name, field string) error
+	generateKeywordsFunc       func(name string) error
+	assignTeamFunc             func(assetName, owningTeam string, contributingTeams []string) error
+	getAssetTeamsFunc          func() ([]application.AssetTeamInfo, error)
+	getAssetTeamInfoFunc       func(assetName string) (*application.AssetTeamInfo, error)
+	addContributingTeamFunc    func(assetName, teamName string) error
+	removeContributingTeamFunc func(assetName, teamName string) error
 }
 
 // NewMockAssetService creates a new mock asset service

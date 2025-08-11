@@ -139,9 +139,9 @@ func (CommonTestScenarios) WithAssets(assets ...*domain.Asset) func(*MockAssetRe
 // SuccessfulLlamaClient returns a test scenario with a working LLM client
 func (CommonTestScenarios) SuccessfulLlamaClient(response string) func(*MockLlamaClient) {
 	return func(client *MockLlamaClient) {
-		client.On("EnrichContent", 
-			mock.AnythingOfType("string"), 
-			mock.AnythingOfType("string"), 
+		client.On("EnrichContent",
+			mock.AnythingOfType("string"),
+			mock.AnythingOfType("string"),
 			mock.AnythingOfType("*domain.Asset")).Return(response, nil)
 	}
 }
@@ -149,9 +149,9 @@ func (CommonTestScenarios) SuccessfulLlamaClient(response string) func(*MockLlam
 // FailingLlamaClient returns a test scenario with a failing LLM client
 func (CommonTestScenarios) FailingLlamaClient(err error) func(*MockLlamaClient) {
 	return func(client *MockLlamaClient) {
-		client.On("EnrichContent", 
-			mock.AnythingOfType("string"), 
-			mock.AnythingOfType("string"), 
+		client.On("EnrichContent",
+			mock.AnythingOfType("string"),
+			mock.AnythingOfType("string"),
 			mock.AnythingOfType("*domain.Asset")).Return("", err)
 	}
 }
