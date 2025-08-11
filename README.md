@@ -372,6 +372,91 @@ The tool automatically:
 3. Filters sprints based on the specified time period
 4. Displays sprint details including ID, name, dates, and state
 
+### Investment Calculation
+
+AssetCap provides comprehensive investment calculation functionality for digital asset capitalization, helping organizations track the true financial cost of developing and maintaining digital assets:
+
+```bash
+# Initialize cost model for a project
+assetcap investment init-cost-model --project "PROJECT"
+
+# Set individual engineer hourly rates
+assetcap investment set-engineer-rate --project "PROJECT" --engineer "Engineer Name" --rate "75.50" --level "senior"
+
+# Show current cost configuration
+assetcap investment show-rates --project "PROJECT"
+
+# Calculate investment for a specific asset across multiple sprints
+assetcap investment calculate --asset "Payment Gateway" --project "PROJECT" --sprints "Sprint1,Sprint2,Sprint3"
+
+# Calculate investment for a single sprint
+assetcap investment sprint --project "PROJECT" --sprint "Sprint Name" --start-date "2025-01-01" --end-date "2025-01-15"
+
+# List all saved investment calculations
+assetcap investment list --project "PROJECT"
+```
+
+**Investment Calculation Features:**
+
+- **Real Cost Tracking**: Configure actual hourly rates per engineer for accurate calculations
+- **Multi-Sprint Analysis**: Calculate investment across multiple development sprints
+- **Automatic Time Allocation**: Uses existing sprint allocation data for precise hour tracking
+- **Overhead Calculation**: Includes configurable overhead multipliers for benefits, office space, etc.
+- **Infrastructure Costs**: Accounts for cloud, tooling, and licensing costs over time
+- **Financial Reporting**: Generates detailed breakdowns by engineer, task, and work type
+- **Persistent Storage**: Saves calculations for historical tracking and reporting
+
+**Cost Model Configuration:**
+
+Each project can have its own cost model including:
+- **Individual Engineer Rates**: Specific hourly rates per team member
+- **Default Rates by Level**: Fallback rates for junior, mid, senior, staff, and principal levels
+- **Overhead Multiplier**: Factor to account for benefits, equipment, and office costs (typically 1.5-2.5x)
+- **Infrastructure Costs**: Monthly cloud, tooling, and license expenses
+- **Currency Settings**: Support for EUR, USD, GBP, and other currencies
+- **Working Hours**: Configurable daily working hours (typically 8 hours)
+
+**Investment Calculation Methods:**
+
+```
+Total Investment = (Engineer Hours × Hourly Rate × Overhead Multiplier) + Infrastructure Costs
+
+Where:
+- Engineer Hours: Calculated from sprint allocation percentages and sprint duration
+- Hourly Rate: Individual engineer rate or default by level
+- Overhead Multiplier: Accounts for non-salary costs (benefits, office, equipment)
+- Infrastructure Costs: Prorated cloud, tooling, and licensing expenses
+```
+
+**Engineer Rate Management:**
+
+```bash
+# Set specific rates for team members
+assetcap investment set-engineer-rate --project "PROJECT" --engineer "Alice Johnson" --rate "68.00" --level "senior"
+assetcap investment set-engineer-rate --project "PROJECT" --engineer "Bob Smith" --rate "63.50" --level "mid"
+assetcap investment set-engineer-rate --project "PROJECT" --engineer "Carol Davis" --rate "78.00" --level "staff"
+
+# View all configured rates
+assetcap investment show-rates --project "PROJECT"
+```
+
+**Investment Analysis Output:**
+
+The investment calculator provides detailed breakdowns including:
+- **Total Investment Amount**: Complete financial cost in configured currency
+- **Cost Breakdown**: Separate tracking of engineer costs, overhead, and infrastructure
+- **Engineer Analysis**: Hours worked, hourly rates, and total cost per team member
+- **Work Type Breakdown**: Investment distribution across development, discovery, and maintenance
+- **Timeline Analysis**: Investment duration and average daily/hourly costs
+- **Task-Level Detail**: Individual task contributions to total investment
+
+This enables accurate:
+- **Capitalization Reporting**: Proper financial categorization of development costs
+- **Budget Planning**: Data-driven estimates for future feature development
+- **ROI Analysis**: Cost basis for return on investment calculations
+- **Resource Allocation**: Understanding true cost of different types of work
+- **Historical Tracking**: Trend analysis of development costs over time
+
 ### Configuration Management
 
 Manage application configuration and settings:
@@ -615,6 +700,83 @@ assetcap assets teams show --asset "Payment Gateway"
 
 # Sync contributors for specific team's assets
 assetcap assets sync-contributors --team "BackendTeam" --max-results 500
+```
+
+### Investment Calculation Workflows
+
+```bash
+# Complete investment setup and calculation workflow
+# 1. Initialize cost model with default rates
+assetcap investment init-cost-model --project "PROJECT"
+
+# 2. Configure real engineer rates based on salary data
+assetcap investment set-engineer-rate --project "PROJECT" --engineer "Senior Engineer" --rate "78.00" --level "senior"
+assetcap investment set-engineer-rate --project "PROJECT" --engineer "Mid Engineer" --rate "65.00" --level "mid"
+assetcap investment set-engineer-rate --project "PROJECT" --engineer "Staff Engineer" --rate "85.00" --level "staff"
+
+# 3. Verify cost configuration
+assetcap investment show-rates --project "PROJECT"
+
+# 4. Calculate investment for multi-sprint feature development
+assetcap investment calculate \
+  --asset "User Authentication System" \
+  --project "PROJECT" \
+  --sprints "AuthSprint1,AuthSprint2,AuthSprint3"
+
+# 5. Calculate investment for individual sprints
+assetcap investment sprint --project "PROJECT" --sprint "AuthSprint1" \
+  --start-date "2025-01-01" --end-date "2025-01-15"
+
+# 6. Review all investment calculations
+assetcap investment list --project "PROJECT"
+
+# Advanced: Calculate investment with custom infrastructure costs
+# Edit .assetcap/cost-model-PROJECT.json to adjust:
+# - cloud_costs_per_month: 3000 (for higher AWS usage)
+# - tooling_costs_per_month: 800 (for additional development tools)
+# - overhead_multiplier: 2.2 (for higher benefits/office costs)
+```
+
+### Cost Model Customization Examples
+
+```bash
+# Scenario 1: High-performance team with senior engineers
+assetcap investment set-engineer-rate --project "CORE" --engineer "Tech Lead" --rate "95.00" --level "principal"
+assetcap investment set-engineer-rate --project "CORE" --engineer "Senior Dev 1" --rate "82.00" --level "senior"
+assetcap investment set-engineer-rate --project "CORE" --engineer "Senior Dev 2" --rate "78.00" --level "senior"
+
+# Scenario 2: Distributed team with varying costs
+assetcap investment set-engineer-rate --project "GLOBAL" --engineer "US Engineer" --rate "85.00" --level "senior"
+assetcap investment set-engineer-rate --project "GLOBAL" --engineer "EU Engineer" --rate "72.00" --level "senior"
+assetcap investment set-engineer-rate --project "GLOBAL" --engineer "Remote Engineer" --rate "58.00" --level "mid"
+
+# Scenario 3: Specialized team with contractors
+assetcap investment set-engineer-rate --project "ML" --engineer "ML Specialist" --rate "120.00" --level "principal"
+assetcap investment set-engineer-rate --project "ML" --engineer "Data Scientist" --rate "105.00" --level "staff"
+assetcap investment set-engineer-rate --project "ML" --engineer "Contractor" --rate "95.00" --level "senior"
+```
+
+### Investment Analysis and Reporting
+
+```bash
+# Generate comprehensive investment report for a major feature
+assetcap investment calculate \
+  --asset "Payment Processing Platform" \
+  --project "FINTECH" \
+  --sprints "PaymentSprint1,PaymentSprint2,PaymentSprint3,PaymentSprint4"
+
+# Compare investment across different features
+assetcap investment calculate --asset "User Dashboard" --project "FINTECH" --sprints "UISprint1,UISprint2"
+assetcap investment calculate --asset "API Gateway" --project "FINTECH" --sprints "APISprint1,APISprint2"
+assetcap investment calculate --asset "Data Analytics" --project "FINTECH" --sprints "DataSprint1,DataSprint2"
+
+# Review all investments for budget analysis
+assetcap investment list --project "FINTECH"
+
+# Track investment trends over time by calculating investments for consecutive sprints
+assetcap investment sprint --project "FINTECH" --sprint "Q1Sprint1" --start-date "2025-01-01" --end-date "2025-01-14"
+assetcap investment sprint --project "FINTECH" --sprint "Q1Sprint2" --start-date "2025-01-15" --end-date "2025-01-28"
+assetcap investment sprint --project "FINTECH" --sprint "Q1Sprint3" --start-date "2025-01-29" --end-date "2025-02-11"
 ```
 
 ### Configuration and Troubleshooting

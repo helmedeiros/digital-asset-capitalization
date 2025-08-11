@@ -349,3 +349,65 @@ func TestTeamConfig_ToMap(t *testing.T) {
 		assert.Equal(t, expected, result["PROJECT-A"], "Should preserve order within team")
 	})
 }
+
+func TestTeamConfig_SetTeam(t *testing.T) {
+	config, err := NewTeamConfig(map[string][]string{})
+	require.NoError(t, err)
+
+	t.Run("successful team setting", func(t *testing.T) {
+		err := config.SetTeam("PROJECT-A", []string{"Alice", "Bob"})
+		require.NoError(t, err)
+
+		team, exists := config.GetTeam("PROJECT-A")
+		assert.True(t, exists)
+		expected := []string{"Alice", "Bob"}
+		assert.Equal(t, expected, team)
+	})
+
+	t.Run("empty project key", func(t *testing.T) {
+		err := config.SetTeam("", []string{"Alice"})
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "project key cannot be empty")
+	})
+
+	t.Run("whitespace project key", func(t *testing.T) {
+		err := config.SetTeam("   ", []string{"Alice"})
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "project key cannot be empty")
+	})
+
+	t.Run("empty team member", func(t *testing.T) {
+		err := config.SetTeam("PROJECT-B", []string{"Alice", ""})
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "team member cannot be empty")
+	})
+
+	t.Run("duplicate team member", func(t *testing.T) {
+		err := config.SetTeam("PROJECT-C", []string{"Alice", "Alice"})
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "duplicate team member")
+	})
+
+	t.Run("trim whitespace from project and members", func(t *testing.T) {
+		err := config.SetTeam("  PROJECT-D  ", []string{"  Alice  ", "  Bob  "})
+		require.NoError(t, err)
+
+		team, exists := config.GetTeam("PROJECT-D")
+		assert.True(t, exists)
+		expected := []string{"Alice", "Bob"}
+		assert.Equal(t, expected, team)
+	})
+
+	t.Run("overwrite existing team", func(t *testing.T) {
+		err := config.SetTeam("PROJECT-E", []string{"Alice"})
+		require.NoError(t, err)
+
+		err = config.SetTeam("PROJECT-E", []string{"Bob", "Charlie"})
+		require.NoError(t, err)
+
+		team, exists := config.GetTeam("PROJECT-E")
+		assert.True(t, exists)
+		expected := []string{"Bob", "Charlie"}
+		assert.Equal(t, expected, team)
+	})
+}

@@ -9,6 +9,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -1496,9 +1497,9 @@ func TestFetchTasksWithFallback(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			queryCount := 0
+			var queryCount int64
 			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-				queryCount++
+				atomic.AddInt64(&queryCount, 1)
 				w.Header().Set("Content-Type", "application/json")
 
 				var responseData map[string]interface{}
@@ -1531,7 +1532,7 @@ func TestFetchTasksWithFallback(t *testing.T) {
 			tasks, err := client.FetchTasks(context.Background(), "TEST", tt.sprint)
 			require.NoError(t, err)
 
-			assert.Equal(t, tt.expectedQueryCount, queryCount, "Expected number of queries")
+			assert.Equal(t, tt.expectedQueryCount, int(atomic.LoadInt64(&queryCount)), "Expected number of queries")
 			assert.Equal(t, tt.expectedTaskCount, len(tasks), "Expected number of tasks")
 
 			if tt.expectedTaskCount > 0 {
