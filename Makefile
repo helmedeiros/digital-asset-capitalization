@@ -3,7 +3,7 @@
 # Build the binary
 build:
 	@echo "Building assetcap binary..."
-	@go build -o assetcap cmd/main.go
+	@go build -o assetcap cmd/main.go cmd/console.go
 	@echo "✅ Built assetcap binary"
 
 # Build and run assetcap with arguments

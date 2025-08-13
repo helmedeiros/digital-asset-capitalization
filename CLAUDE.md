@@ -328,3 +328,49 @@ The `sync-and-enrich` command provides a powerful workflow that combines asset s
 - `--max-concurrent`: Maximum concurrent AI operations (default: 2)
 - `--dry-run`: Show what would be done without making changes
 - `--debug`: Enable detailed debug output
+
+## AI Console Mode (In Development)
+
+The AssetCap AI Console provides natural language interaction with the tool, allowing users to execute commands conversationally:
+
+### Overview
+- **Natural Language**: Use plain English instead of CLI syntax
+- **Context Awareness**: Remembers previous commands and entities
+- **Smart Interpretation**: AI-powered command translation using LLaMA 3
+- **Interactive Help**: Ask questions about capabilities
+
+### Architecture
+The AI Console follows the same hexagonal architecture:
+- **Domain Layer** (`internal/console/domain/`) - Command and context entities
+- **Application Layer** (`internal/console/application/`) - Console service and use cases
+- **Infrastructure Layer** (`internal/console/infrastructure/`) - AI interpreter and executor
+- **Interface Layer** (`cmd/console.go`) - Console command entry point
+
+### Usage (Coming Soon)
+```bash
+# Start interactive console
+./assetcap console
+
+# Example interactions:
+> Show me all assets
+> Create an asset called Payment Processing
+> What tasks are assigned to it?
+> Calculate investment for the last 3 sprints
+```
+
+### Key Components
+- **AI Interpreter**: Converts natural language to CLI commands using LLaMA 3
+- **Command Executor**: Runs interpreted commands using existing services
+- **Context Store**: Maintains conversation state for follow-up questions
+- **Prompt Handler**: Interactive UI with command history
+
+### Implementation Status
+- Documentation: ✅ Complete (see `docs/ai-console/`)
+- Domain Design: 🔄 In Progress
+- Infrastructure: 📋 Planned
+- Testing: 📋 Planned
+
+For implementation details, see:
+- `docs/ai-console/IMPLEMENTATION.md` - Architecture and design
+- `docs/ai-console/PROMPT_ENGINEERING.md` - AI prompt templates
+- `docs/ai-console/CONTEXT_GUIDE.md` - Context management
