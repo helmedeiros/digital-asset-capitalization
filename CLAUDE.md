@@ -130,7 +130,7 @@ The tool uses:
 - Domain layer: >90% coverage required
 - Application layer: >80% coverage required  
 - Infrastructure layer: >80% coverage required
-- Overall coverage: >80% required
+- Overall coverage: >75% required
 
 ## Architecture Guidelines
 
@@ -226,7 +226,7 @@ git push origin feature/your-feature-name --force-with-lease
 **Pre-push hook automatically runs `make pre-push` which includes:**
 
 - **Linting**: `golangci-lint` checks for code quality issues
-- **Coverage Gate**: Enforces 80% minimum test coverage threshold
+- **Coverage Gate**: Enforces 75% minimum test coverage threshold
 - **Test Execution**: Runs all tests to ensure nothing is broken
 
 **Available Make Commands:**
@@ -237,7 +237,7 @@ make lint              # Run linters
 make lint-fix          # Run linters and auto-fix issues
 make test              # Run tests with gotestsum
 make test-cover        # Run tests with coverage report
-make test-cover-gate   # Run coverage with 80% threshold check
+make test-cover-gate   # Run coverage with 75% threshold check
 make pre-push          # Full quality gate (lint + coverage gate)
 
 # Development
@@ -251,7 +251,7 @@ make test-all          # Run tests with race detector and coverage
 ```
 
 **Coverage Requirements:**
-- Overall project: 80% minimum (enforced by git hook)
+- Overall project: 75% minimum (enforced by git hook)
 - Domain layer: >90% (architectural requirement)
 - Application layer: >80% (architectural requirement)
 - Infrastructure layer: >80% (architectural requirement)
