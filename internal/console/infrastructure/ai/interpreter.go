@@ -55,8 +55,16 @@ func (i *Interpreter) Interpret(ctx context.Context, input string, sessionContex
 	// Parse the response
 	var result InterpretationResult
 	if err := json.Unmarshal([]byte(response), &result); err != nil {
-		// If JSON parsing fails, try to extract command from plain text
-		result = i.parseTextResponse(response)
+		// If JSON parsing fails, try to extract JSON from within the response
+		if extractedJSON := i.extractJSONFromResponse(response); extractedJSON != "" {
+			if jsonErr := json.Unmarshal([]byte(extractedJSON), &result); jsonErr != nil {
+				// Fall back to text parsing if extracted JSON is also invalid
+				result = i.parseTextResponse(response)
+			}
+		} else {
+			// Fall back to text parsing
+			result = i.parseTextResponse(response)
+		}
 	}
 
 	// Create command from result
@@ -192,7 +200,7 @@ Current context:
 
 User request: %s
 
-Analyze the request and respond with a JSON object:
+Analyze the request and respond with ONLY a valid JSON object (no explanations or extra text):
 {
   "command": "the exact CLI command to execute",
   "confidence": 0.0-1.0,
@@ -204,6 +212,7 @@ Analyze the request and respond with a JSON object:
   "interpreted_intent": "brief description of what the user wants"
 }
 
+Important: Return ONLY the JSON object above, no markdown code blocks, no explanations.
 If the request is ambiguous, set requires_clarification to true and provide a clarification_prompt.`, contextInfo, input)
 }
 
@@ -273,6 +282,47 @@ func (i *Interpreter) callLLaMA(ctx context.Context, prompt string) (string, err
 	}
 
 	return strings.TrimSpace(result.Response), nil
+}
+
+// extractJSONFromResponse tries to extract JSON from a text response
+func (i *Interpreter) extractJSONFromResponse(text string) string {
+	// Look for JSON between ``` markers
+	lines := strings.Split(text, "\n")
+	var jsonLines []string
+	inJSON := false
+	inCodeBlock := false
+
+	for _, line := range lines {
+		trimmed := strings.TrimSpace(line)
+
+		// Look for code block markers
+		if strings.HasPrefix(trimmed, "```json") {
+			inCodeBlock = true
+			inJSON = true
+			continue
+		} else if strings.HasPrefix(trimmed, "```") && inCodeBlock {
+			break
+		}
+
+		// Look for direct JSON patterns
+		if !inJSON && (strings.HasPrefix(trimmed, "{") || strings.HasPrefix(trimmed, "[")) {
+			inJSON = true
+		}
+
+		if inJSON {
+			jsonLines = append(jsonLines, line)
+			// Stop at closing brace if not in code block
+			if !inCodeBlock && (strings.HasSuffix(trimmed, "}") || strings.HasSuffix(trimmed, "},")) {
+				break
+			}
+		}
+	}
+
+	if len(jsonLines) > 0 {
+		return strings.Join(jsonLines, "\n")
+	}
+
+	return ""
 }
 
 // parseTextResponse attempts to parse a plain text response
