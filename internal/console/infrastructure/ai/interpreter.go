@@ -208,16 +208,23 @@ Current context:
 
 User request: %s
 
-Important interpretation notes:
-- "team members" queries usually refer to project team members (use config sync-team)
-- "team assignments" or "asset teams" refer to asset ownership (use assets teams commands)
-- "show teams" without context likely means asset team assignments (use assets teams list)
+CRITICAL: Team query disambiguation:
+1. TEAM MEMBERS (people working on projects) → use CONFIG commands
+2. TEAM ASSIGNMENTS (which teams own assets) → use ASSETS TEAMS commands
 
-Common mappings:
-- "show team members for project X" → config sync-team --project "X"
-- "list all team assignments" → assets teams list
-- "show teams" → assets teams list
+REQUIRED mappings:
+- "team members for project X" → config sync-team --project "X" 
+- "team members for X project" → config sync-team --project "X"
+- "show team members for X" → config sync-team --project "X"
+- "all team members for X" → config sync-team --project "X"
+- "list team assignments" → assets teams list
+- "show teams" (without project) → assets teams list
 - "who owns asset X" → assets teams show --asset "X"
+
+Examples:
+- "show me team members for AD" = config sync-team --project "AD"
+- "team members for FN project" = config sync-team --project "FN"
+- "show teams" = assets teams list
 
 Analyze the request and respond with ONLY a valid JSON object (no explanations or extra text):
 {

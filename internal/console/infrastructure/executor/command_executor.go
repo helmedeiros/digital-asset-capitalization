@@ -239,6 +239,20 @@ func (e *CommandExecutor) GetAvailableCommands() []ports.CommandInfo {
 				{Name: "sprints", Description: "Sprint names", Required: false, Type: "string"},
 			},
 		},
+		{
+			Command:     "config sync-team",
+			Description: "Sync team members from JIRA for a project",
+			Examples:    []string{"show team members for project FN", "sync team for AD project", "get team members for FN"},
+			Parameters: []ports.ParameterInfo{
+				{Name: "project", Description: "Project key", Required: true, Type: "string"},
+			},
+		},
+		{
+			Command:     "config show",
+			Description: "Show current configuration",
+			Examples:    []string{"show configuration", "display config"},
+			Parameters:  []ports.ParameterInfo{},
+		},
 	}
 }
 
@@ -534,6 +548,9 @@ func (e *CommandExecutor) executeConfigCommand(ctx context.Context, action strin
 		return e.configService.ValidateConfig(ctx)
 	case "sync-team":
 		project, _ := command.GetStringParameter("project")
+		if project == "" {
+			return nil, ports.NewValidationError("project", "project is required")
+		}
 		return e.configService.SyncTeam(ctx, project)
 	default:
 		return nil, ports.NewExecutionError(command.Interpreted,
