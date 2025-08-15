@@ -83,10 +83,13 @@ func (i *Interpreter) Interpret(ctx context.Context, input string, sessionContex
 		i.setCommandIntent(command, result)
 	}
 
-	// Add parameters
+	// Add parameters from result
 	for k, v := range result.Parameters {
 		command.AddParameter(k, v)
 	}
+
+	// Parse CLI-style parameters from the interpreted command
+	i.parseCommandParameters(command, result.Command)
 
 	// Check if clarification is needed
 	if result.RequiresClarification && result.ClarificationPrompt != "" {
@@ -451,6 +454,70 @@ func (i *Interpreter) mapResourceType(resource string) domain.ResourceType {
 	default:
 		return domain.ResourceTypeUnknown
 	}
+}
+
+// parseCommandParameters extracts parameters from CLI-style commands
+func (i *Interpreter) parseCommandParameters(command *domain.Command, cmdStr string) {
+	// Split command into parts, handling quoted values
+	parts := i.splitCommandWithQuotes(cmdStr)
+
+	// Parse --flag "value" patterns
+	for j := 0; j < len(parts); j++ {
+		part := parts[j]
+		if strings.HasPrefix(part, "--") {
+			paramName := strings.TrimPrefix(part, "--")
+
+			// Check if next part is the value
+			if j+1 < len(parts) && !strings.HasPrefix(parts[j+1], "--") {
+				paramValue := parts[j+1]
+				// Remove quotes if present
+				if (strings.HasPrefix(paramValue, "\"") && strings.HasSuffix(paramValue, "\"")) ||
+					(strings.HasPrefix(paramValue, "'") && strings.HasSuffix(paramValue, "'")) {
+					paramValue = paramValue[1 : len(paramValue)-1]
+				}
+				command.AddParameter(paramName, paramValue)
+				j++ // Skip the value in next iteration
+			} else {
+				// Boolean flag without value
+				command.AddParameter(paramName, true)
+			}
+		}
+	}
+}
+
+// splitCommandWithQuotes splits a command string respecting quoted values
+func (i *Interpreter) splitCommandWithQuotes(cmdStr string) []string {
+	var parts []string
+	var current strings.Builder
+	inQuotes := false
+	quoteChar := byte(0)
+
+	for j := 0; j < len(cmdStr); j++ {
+		ch := cmdStr[j]
+
+		if !inQuotes && (ch == '"' || ch == '\'') {
+			inQuotes = true
+			quoteChar = ch
+			current.WriteByte(ch)
+		} else if inQuotes && ch == quoteChar {
+			inQuotes = false
+			quoteChar = 0
+			current.WriteByte(ch)
+		} else if !inQuotes && ch == ' ' {
+			if current.Len() > 0 {
+				parts = append(parts, current.String())
+				current.Reset()
+			}
+		} else {
+			current.WriteByte(ch)
+		}
+	}
+
+	if current.Len() > 0 {
+		parts = append(parts, current.String())
+	}
+
+	return parts
 }
 
 // InterpretationResult represents the result of command interpretation

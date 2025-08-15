@@ -174,3 +174,65 @@ func TestInterpreter_GetClarification_Fallback(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, "Could you please clarify what you meant?", clarification)
 }
+
+func TestInterpreter_parseCommandParameters(t *testing.T) {
+	interpreter := NewInterpreter(DefaultConfig())
+
+	// Test basic parameter parsing
+	command, err := domain.NewCommand("test-session", "original input", "config sync-team --project \"FN\"", 0.9)
+	assert.NoError(t, err)
+
+	interpreter.parseCommandParameters(command, "config sync-team --project \"FN\"")
+
+	project, ok := command.GetStringParameter("project")
+	assert.True(t, ok)
+	assert.Equal(t, "FN", project)
+
+	// Test multiple parameters
+	command2, err := domain.NewCommand("test-session", "original", "assets create --name \"Test Asset\" --description \"Test Desc\"", 0.9)
+	assert.NoError(t, err)
+
+	interpreter.parseCommandParameters(command2, "assets create --name \"Test Asset\" --description \"Test Desc\"")
+
+	name, ok := command2.GetStringParameter("name")
+	assert.True(t, ok)
+	assert.Equal(t, "Test Asset", name)
+
+	desc, ok := command2.GetStringParameter("description")
+	assert.True(t, ok)
+	assert.Equal(t, "Test Desc", desc)
+
+	// Test boolean flag
+	command3, err := domain.NewCommand("test-session", "original", "assets sync --keywords", 0.9)
+	assert.NoError(t, err)
+
+	interpreter.parseCommandParameters(command3, "assets sync --keywords")
+
+	keywords, ok := command3.GetParameter("keywords")
+	assert.True(t, ok)
+	assert.Equal(t, true, keywords)
+}
+
+func TestInterpreter_splitCommandWithQuotes(t *testing.T) {
+	interpreter := NewInterpreter(DefaultConfig())
+
+	// Test simple command
+	parts := interpreter.splitCommandWithQuotes("config sync-team --project \"FN\"")
+	expected := []string{"config", "sync-team", "--project", "\"FN\""}
+	assert.Equal(t, expected, parts)
+
+	// Test single quotes
+	parts = interpreter.splitCommandWithQuotes("assets create --name 'Test Asset'")
+	expected = []string{"assets", "create", "--name", "'Test Asset'"}
+	assert.Equal(t, expected, parts)
+
+	// Test no quotes
+	parts = interpreter.splitCommandWithQuotes("assets list")
+	expected = []string{"assets", "list"}
+	assert.Equal(t, expected, parts)
+
+	// Test multiple quoted parameters
+	parts = interpreter.splitCommandWithQuotes("assets create --name \"Payment System\" --description \"Main payment processing\"")
+	expected = []string{"assets", "create", "--name", "\"Payment System\"", "--description", "\"Main payment processing\""}
+	assert.Equal(t, expected, parts)
+}
