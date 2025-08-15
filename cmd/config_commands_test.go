@@ -221,8 +221,10 @@ func TestConfigInitFlags(t *testing.T) {
 func TestConfigShowCommand(t *testing.T) {
 	t.Run("should display current configuration", func(t *testing.T) {
 		// Set up test environment
-		cleanup := setupTestEnvironment(t)
-		defer cleanup()
+		tempDir := t.TempDir()
+		originalWd, _ := os.Getwd()
+		defer os.Chdir(originalWd)
+		os.Chdir(tempDir)
 
 		// Set some environment variables for testing
 		os.Setenv("JIRA_BASE_URL", "https://test.atlassian.net")
@@ -274,8 +276,10 @@ func TestConfigShowCommand(t *testing.T) {
 
 func TestConfigValidateCommand(t *testing.T) {
 	t.Run("should validate configuration successfully", func(t *testing.T) {
-		cleanup := setupTestEnvironment(t)
-		defer cleanup()
+		tempDir := t.TempDir()
+		originalWd, _ := os.Getwd()
+		defer os.Chdir(originalWd)
+		os.Chdir(tempDir)
 
 		// Set valid environment variables
 		os.Setenv("JIRA_BASE_URL", "https://test.atlassian.net")
@@ -321,8 +325,10 @@ func TestConfigValidateCommand(t *testing.T) {
 	})
 
 	t.Run("should report validation errors", func(t *testing.T) {
-		cleanup := setupTestEnvironment(t)
-		defer cleanup()
+		tempDir := t.TempDir()
+		originalWd, _ := os.Getwd()
+		defer os.Chdir(originalWd)
+		os.Chdir(tempDir)
 
 		// Don't set environment variables to trigger validation errors
 		// Clear any existing env vars

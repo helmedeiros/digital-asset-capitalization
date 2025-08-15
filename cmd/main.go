@@ -1970,6 +1970,7 @@ For more information about a command:
 					},
 				},
 			},
+			a.createConsoleCommand(),
 		},
 	}
 
@@ -2122,6 +2123,7 @@ func showHelp() {
 	fmt.Println("   assets      Manage digital assets")
 	fmt.Println("   tasks       Manage tasks and classification")
 	fmt.Println("   sprint      Manage sprint-related operations")
+	fmt.Println("   console     Start AI-powered interactive console")
 	fmt.Println("   help        Show this help message")
 	fmt.Println()
 	fmt.Println("GLOBAL OPTIONS:")
