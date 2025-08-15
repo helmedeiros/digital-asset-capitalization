@@ -486,14 +486,14 @@ func (h *Handler) isTaskList(output []interface{}) bool {
 func (h *Handler) displayAssetTable(output []interface{}) {
 	factory := ui.NewAssetCapTableFactory()
 	table := factory.CreateAssetListTable()
-	
+
 	// Convert output to table data
 	for _, item := range output {
 		if assetData, ok := item.(map[string]interface{}); ok {
 			table.AddRow(assetData)
 		}
 	}
-	
+
 	fmt.Println(table.Render())
 }
 
@@ -501,13 +501,13 @@ func (h *Handler) displayAssetTable(output []interface{}) {
 func (h *Handler) displayTeamAssignmentTable(output []interface{}) {
 	factory := ui.NewAssetCapTableFactory()
 	table := factory.CreateTeamAssignmentTable()
-	
+
 	for _, item := range output {
 		if teamData, ok := item.(map[string]interface{}); ok {
 			table.AddRow(teamData)
 		}
 	}
-	
+
 	fmt.Println(table.Render())
 }
 
@@ -515,13 +515,13 @@ func (h *Handler) displayTeamAssignmentTable(output []interface{}) {
 func (h *Handler) displayTaskTable(output []interface{}) {
 	factory := ui.NewAssetCapTableFactory()
 	table := factory.CreateTaskListTable()
-	
+
 	for _, item := range output {
 		if taskData, ok := item.(map[string]interface{}); ok {
 			table.AddRow(taskData)
 		}
 	}
-	
+
 	fmt.Println(table.Render())
 }
 

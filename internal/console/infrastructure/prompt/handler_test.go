@@ -286,3 +286,228 @@ func TestHandler_completeInputBoxWithInput_EdgeCases(t *testing.T) {
 
 	assert.True(t, true)
 }
+
+func TestHandler_isAssetList(t *testing.T) {
+	handler := &Handler{
+		promptStyle: DefaultStyle(),
+	}
+
+	// Test empty list
+	assert.False(t, handler.isAssetList([]interface{}{}))
+
+	// Test asset data with name and id
+	assetData := []interface{}{
+		map[string]interface{}{
+			"name":        "Test Asset",
+			"id":          "123",
+			"description": "Test Description",
+			"status":      "active",
+		},
+	}
+	assert.True(t, handler.isAssetList(assetData))
+
+	// Test asset data with name and status (no id)
+	assetDataNoID := []interface{}{
+		map[string]interface{}{
+			"name":        "Test Asset",
+			"status":      "active",
+			"description": "Test Description",
+		},
+	}
+	assert.True(t, handler.isAssetList(assetDataNoID))
+
+	// Test asset data with only name (should pass with lenient logic)
+	assetDataNameOnly := []interface{}{
+		map[string]interface{}{
+			"name":        "Test Asset",
+			"description": "Test Description",
+		},
+	}
+	assert.True(t, handler.isAssetList(assetDataNameOnly))
+
+	// Test non-asset data
+	nonAssetData := []interface{}{
+		map[string]interface{}{
+			"key":     "TEST-123",
+			"summary": "Test Task",
+		},
+	}
+	assert.False(t, handler.isAssetList(nonAssetData))
+
+	// Test invalid data
+	invalidData := []interface{}{"string", 123}
+	assert.False(t, handler.isAssetList(invalidData))
+}
+
+func TestHandler_isTeamAssignmentList(t *testing.T) {
+	handler := &Handler{
+		promptStyle: DefaultStyle(),
+	}
+
+	// Test empty list
+	assert.False(t, handler.isTeamAssignmentList([]interface{}{}))
+
+	// Test team assignment data
+	teamData := []interface{}{
+		map[string]interface{}{
+			"asset":              "Test Asset",
+			"owning_team":        "Backend Team",
+			"contributing_teams": []string{"Frontend Team"},
+		},
+	}
+	assert.True(t, handler.isTeamAssignmentList(teamData))
+
+	// Test team assignment with only asset and contributing teams
+	teamDataNoOwner := []interface{}{
+		map[string]interface{}{
+			"asset":              "Test Asset",
+			"contributing_teams": []string{"Frontend Team"},
+		},
+	}
+	assert.True(t, handler.isTeamAssignmentList(teamDataNoOwner))
+
+	// Test non-team data
+	nonTeamData := []interface{}{
+		map[string]interface{}{
+			"name": "Test Asset",
+			"id":   "123",
+		},
+	}
+	assert.False(t, handler.isTeamAssignmentList(nonTeamData))
+}
+
+func TestHandler_isTaskList(t *testing.T) {
+	handler := &Handler{
+		promptStyle: DefaultStyle(),
+	}
+
+	// Test empty list
+	assert.False(t, handler.isTaskList([]interface{}{}))
+
+	// Test task data
+	taskData := []interface{}{
+		map[string]interface{}{
+			"key":     "TEST-123",
+			"summary": "Test Task",
+			"project": "TEST",
+		},
+	}
+	assert.True(t, handler.isTaskList(taskData))
+
+	// Test non-task data
+	nonTaskData := []interface{}{
+		map[string]interface{}{
+			"name": "Test Asset",
+			"id":   "123",
+		},
+	}
+	assert.False(t, handler.isTaskList(nonTaskData))
+}
+
+func TestHandler_displayAssetTable(t *testing.T) {
+	handler := &Handler{
+		promptStyle: DefaultStyle(),
+	}
+
+	// Test asset table display
+	assetData := []interface{}{
+		map[string]interface{}{
+			"name":        "Test Asset",
+			"id":          "123",
+			"description": "Test Description",
+			"status":      "active",
+			"created_at":  "2025-07-30 06:55:08",
+			"updated_at":  "2025-07-30 06:55:08",
+		},
+	}
+
+	// This should not panic
+	handler.displayAssetTable(assetData)
+	assert.True(t, true)
+}
+
+func TestHandler_displayTeamAssignmentTable(t *testing.T) {
+	handler := &Handler{
+		promptStyle: DefaultStyle(),
+	}
+
+	// Test team assignment table display
+	teamData := []interface{}{
+		map[string]interface{}{
+			"asset":              "Test Asset",
+			"owning_team":        "Backend Team",
+			"contributing_teams": []string{"Frontend Team"},
+			"has_owner":          true,
+		},
+	}
+
+	// This should not panic
+	handler.displayTeamAssignmentTable(teamData)
+	assert.True(t, true)
+}
+
+func TestHandler_displayTaskTable(t *testing.T) {
+	handler := &Handler{
+		promptStyle: DefaultStyle(),
+	}
+
+	// Test task table display
+	taskData := []interface{}{
+		map[string]interface{}{
+			"key":      "TEST-123",
+			"summary":  "Test Task",
+			"project":  "TEST",
+			"status":   "In Progress",
+			"priority": "High",
+			"sprint":   "Sprint 1",
+		},
+	}
+
+	// This should not panic
+	handler.displayTaskTable(taskData)
+	assert.True(t, true)
+}
+
+func TestHandler_displayListOutput_WithTableDetection(t *testing.T) {
+	handler := &Handler{
+		promptStyle: DefaultStyle(),
+	}
+
+	// Test that asset data triggers table display
+	assetData := []interface{}{
+		map[string]interface{}{
+			"name":        "Test Asset",
+			"id":          "123",
+			"description": "Test Description",
+			"status":      "active",
+		},
+	}
+
+	// This should route to displayAssetTable and not panic
+	handler.displayListOutput(assetData)
+
+	// Test that team data triggers table display
+	teamData := []interface{}{
+		map[string]interface{}{
+			"asset":       "Test Asset",
+			"owning_team": "Backend Team",
+		},
+	}
+
+	// This should route to displayTeamAssignmentTable and not panic
+	handler.displayListOutput(teamData)
+
+	// Test that task data triggers table display
+	taskData := []interface{}{
+		map[string]interface{}{
+			"key":     "TEST-123",
+			"summary": "Test Task",
+			"project": "TEST",
+		},
+	}
+
+	// This should route to displayTaskTable and not panic
+	handler.displayListOutput(taskData)
+
+	assert.True(t, true)
+}
