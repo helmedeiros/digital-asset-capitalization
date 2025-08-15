@@ -156,7 +156,7 @@ func (a *AssetServiceAdapter) ListAssets(_ context.Context) (interface{}, error)
 	}
 
 	// Transform for console display
-	result := make([]map[string]interface{}, 0, len(assets))
+	result := make([]interface{}, 0, len(assets))
 	for _, asset := range assets {
 		assetInfo := map[string]interface{}{
 			"name":        asset.Name,

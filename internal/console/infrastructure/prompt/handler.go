@@ -448,7 +448,8 @@ func (h *Handler) isAssetList(output []interface{}) bool {
 		_, hasID := item["id"]
 		_, hasDescription := item["description"]
 		_, hasStatus := item["status"]
-		return hasName && hasID && (hasDescription || hasStatus)
+		// Be more lenient - just need name and either id or status for asset detection
+		return hasName && (hasID || hasStatus || hasDescription)
 	}
 	return false
 }
