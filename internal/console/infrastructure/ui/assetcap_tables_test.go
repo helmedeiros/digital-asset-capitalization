@@ -607,13 +607,13 @@ func TestTeamFormatterWithComplexData(t *testing.T) {
 			expected: "AD",
 		},
 		{
-			name: "direct string",
-			input: "TeamAlpha",
+			name:     "direct string",
+			input:    "TeamAlpha",
 			expected: "TeamAlpha",
 		},
 		{
-			name: "empty map",
-			input: map[string]interface{}{},
+			name:     "empty map",
+			input:    map[string]interface{}{},
 			expected: "(no team)",
 		},
 	}
@@ -631,7 +631,7 @@ func TestTeamFormatterWithComplexData(t *testing.T) {
 			} else {
 				value = tt.input
 			}
-			
+
 			result := TeamFormatter(value)
 			assert.Contains(t, result, tt.expected)
 		})
@@ -665,12 +665,12 @@ func TestConvertTeamAssignmentToRows(t *testing.T) {
 	}
 
 	assert.Len(t, rows, 2)
-	
+
 	// Verify first row
 	assert.Equal(t, "Dynamic Markup", rows[0]["asset"])
 	assert.Equal(t, "FN", rows[0]["owner"])
 	assert.Equal(t, []string{"AD"}, rows[0]["contributors"])
-	
+
 	// Verify second row
 	assert.Equal(t, "Flight Delay Insurance", rows[1]["asset"])
 	assert.Equal(t, "AD", rows[1]["owner"])

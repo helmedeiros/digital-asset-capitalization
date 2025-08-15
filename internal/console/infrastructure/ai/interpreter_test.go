@@ -305,7 +305,7 @@ func TestInterpreter_TeamAssignmentQueries(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			// Skip actual LLM calls in tests - just verify the structure
 			t.Logf("Test case: %s - %s", tt.name, tt.description)
-			
+
 			// Verify prompt building includes team commands
 			prompt := interpreter.buildInterpretationPrompt(tt.input, contextObj)
 			assert.Contains(t, prompt, "assets teams")
@@ -317,49 +317,49 @@ func TestInterpreter_TeamAssignmentQueries(t *testing.T) {
 // TestInterpreter_TeamQueryDisambiguation tests disambiguation between team members and asset teams
 func TestInterpreter_TeamQueryDisambiguation(t *testing.T) {
 	interpreter := NewInterpreter(DefaultConfig())
-	
+
 	tests := []struct {
-		name        string
-		input       string
+		name           string
+		input          string
 		shouldBeConfig bool
-		description string
+		description    string
 	}{
 		{
-			name:        "Team members query",
-			input:       "show team members",
+			name:           "Team members query",
+			input:          "show team members",
 			shouldBeConfig: true,
-			description: "Should map to config show for team members",
+			description:    "Should map to config show for team members",
 		},
 		{
-			name:        "Asset teams query",
-			input:       "show asset teams",
+			name:           "Asset teams query",
+			input:          "show asset teams",
 			shouldBeConfig: false,
-			description: "Should map to assets teams for asset ownership",
+			description:    "Should map to assets teams for asset ownership",
 		},
 		{
-			name:        "List teams context",
-			input:       "list all teams",
+			name:           "List teams context",
+			input:          "list all teams",
 			shouldBeConfig: false,
-			description: "In asset context, should map to asset teams",
+			description:    "In asset context, should map to asset teams",
 		},
 		{
-			name:        "Who is on FN team",
-			input:       "who is on the FN team",
+			name:           "Who is on FN team",
+			input:          "who is on the FN team",
 			shouldBeConfig: true,
-			description: "Asking about people should map to config",
+			description:    "Asking about people should map to config",
 		},
 		{
-			name:        "Which assets does FN own",
-			input:       "which assets does FN team own",
+			name:           "Which assets does FN own",
+			input:          "which assets does FN team own",
 			shouldBeConfig: false,
-			description: "Asking about assets should map to asset teams",
+			description:    "Asking about assets should map to asset teams",
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			prompt := interpreter.buildInterpretationPrompt(tt.input, domain.NewContext("test"))
-			
+
 			if tt.shouldBeConfig {
 				assert.Contains(t, prompt, "config show")
 			} else {
@@ -409,9 +409,9 @@ func TestInterpreter_TeamParameterExtraction(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			cmd, err := domain.NewCommand("test-session", "original", tt.command, 0.9)
 			assert.NoError(t, err)
-			
+
 			interpreter.parseCommandParameters(cmd, tt.command)
-			
+
 			for key, expectedValue := range tt.expectedParams {
 				actualValue, ok := cmd.GetParameter(key)
 				assert.True(t, ok, "Parameter %s should exist", key)
@@ -424,11 +424,11 @@ func TestInterpreter_TeamParameterExtraction(t *testing.T) {
 // TestInterpreter_ContextAwareTeamCommands tests team commands with context
 func TestInterpreter_ContextAwareTeamCommands(t *testing.T) {
 	interpreter := NewInterpreter(DefaultConfig())
-	
+
 	// Create context with recent asset
 	ctx := domain.NewContext("test-session")
 	ctx.RecentAssets = []string{"Dynamic Markup", "Price Lock"}
-	
+
 	tests := []struct {
 		name          string
 		input         string
@@ -454,7 +454,7 @@ func TestInterpreter_ContextAwareTeamCommands(t *testing.T) {
 			description:   "Should reference current asset",
 		},
 	}
-	
+
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			prompt := interpreter.buildInterpretationPrompt(tt.input, ctx)
@@ -468,7 +468,7 @@ func TestInterpreter_ContextAwareTeamCommands(t *testing.T) {
 func TestInterpreter_TeamErrorCases(t *testing.T) {
 	interpreter := NewInterpreter(DefaultConfig())
 	ctx := domain.NewContext("test-session")
-	
+
 	tests := []struct {
 		name        string
 		input       string
@@ -500,11 +500,11 @@ func TestInterpreter_TeamErrorCases(t *testing.T) {
 			description: "Should handle alternative phrasing",
 		},
 	}
-	
+
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			prompt := interpreter.buildInterpretationPrompt(tt.input, ctx)
-			
+
 			// Verify the prompt includes clarification handling
 			if tt.shouldError {
 				assert.Contains(t, prompt, "clarification")
@@ -517,7 +517,7 @@ func TestInterpreter_TeamErrorCases(t *testing.T) {
 func TestInterpreter_BulkTeamOperations(t *testing.T) {
 	interpreter := NewInterpreter(DefaultConfig())
 	ctx := domain.NewContext("test-session")
-	
+
 	tests := []struct {
 		name        string
 		input       string
@@ -544,7 +544,7 @@ func TestInterpreter_BulkTeamOperations(t *testing.T) {
 			description: "Should handle ownership transfers",
 		},
 	}
-	
+
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			prompt := interpreter.buildInterpretationPrompt(tt.input, ctx)
