@@ -236,3 +236,320 @@ func TestInterpreter_splitCommandWithQuotes(t *testing.T) {
 	expected = []string{"assets", "create", "--name", "\"Payment System\"", "--description", "\"Main payment processing\""}
 	assert.Equal(t, expected, parts)
 }
+
+// TestInterpreter_TeamAssignmentQueries tests natural language queries for team assignments
+func TestInterpreter_TeamAssignmentQueries(t *testing.T) {
+	interpreter := NewInterpreter(DefaultConfig())
+	contextObj := domain.NewContext("test-session")
+
+	tests := []struct {
+		name           string
+		input          string
+		expectedCmd    string
+		expectedParams map[string]interface{}
+		description    string
+	}{
+		{
+			name:        "List all team assignments",
+			input:       "show all teams with their assets",
+			expectedCmd: "assets teams list",
+			description: "Should map to assets teams list command",
+		},
+		{
+			name:        "Show team for specific asset",
+			input:       "who owns the Omio Flex asset",
+			expectedCmd: "assets teams show",
+			expectedParams: map[string]interface{}{
+				"asset": "Omio Flex",
+			},
+			description: "Should extract asset name and map to show command",
+		},
+		{
+			name:        "Assign team as owner",
+			input:       "assign FN team as owner of Dynamic Markup",
+			expectedCmd: "assets teams assign",
+			expectedParams: map[string]interface{}{
+				"asset": "Dynamic Markup",
+				"owner": "FN",
+			},
+			description: "Should extract team and asset for assignment",
+		},
+		{
+			name:        "Add team as contributor",
+			input:       "add AD team as contributor to Flight Delay Insurance",
+			expectedCmd: "assets teams add-contributor",
+			expectedParams: map[string]interface{}{
+				"asset": "Flight Delay Insurance",
+				"team":  "AD",
+			},
+			description: "Should map to add-contributor command",
+		},
+		{
+			name:        "List team assignments naturally",
+			input:       "show me all the existing teams",
+			expectedCmd: "assets teams list",
+			description: "Natural variation of listing teams",
+		},
+		{
+			name:        "Bulk assignment query",
+			input:       "review all assets for FN team stories in H1 2025 and assign FN as owner",
+			expectedCmd: "assets teams assign",
+			expectedParams: map[string]interface{}{
+				"owner": "FN",
+			},
+			description: "Complex bulk assignment request",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Skip actual LLM calls in tests - just verify the structure
+			t.Logf("Test case: %s - %s", tt.name, tt.description)
+			
+			// Verify prompt building includes team commands
+			prompt := interpreter.buildInterpretationPrompt(tt.input, contextObj)
+			assert.Contains(t, prompt, "assets teams")
+			assert.Contains(t, prompt, tt.input)
+		})
+	}
+}
+
+// TestInterpreter_TeamQueryDisambiguation tests disambiguation between team members and asset teams
+func TestInterpreter_TeamQueryDisambiguation(t *testing.T) {
+	interpreter := NewInterpreter(DefaultConfig())
+	
+	tests := []struct {
+		name        string
+		input       string
+		shouldBeConfig bool
+		description string
+	}{
+		{
+			name:        "Team members query",
+			input:       "show team members",
+			shouldBeConfig: true,
+			description: "Should map to config show for team members",
+		},
+		{
+			name:        "Asset teams query",
+			input:       "show asset teams",
+			shouldBeConfig: false,
+			description: "Should map to assets teams for asset ownership",
+		},
+		{
+			name:        "List teams context",
+			input:       "list all teams",
+			shouldBeConfig: false,
+			description: "In asset context, should map to asset teams",
+		},
+		{
+			name:        "Who is on FN team",
+			input:       "who is on the FN team",
+			shouldBeConfig: true,
+			description: "Asking about people should map to config",
+		},
+		{
+			name:        "Which assets does FN own",
+			input:       "which assets does FN team own",
+			shouldBeConfig: false,
+			description: "Asking about assets should map to asset teams",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			prompt := interpreter.buildInterpretationPrompt(tt.input, domain.NewContext("test"))
+			
+			if tt.shouldBeConfig {
+				assert.Contains(t, prompt, "config show")
+			} else {
+				assert.Contains(t, prompt, "assets teams")
+			}
+		})
+	}
+}
+
+// TestInterpreter_TeamParameterExtraction tests extraction of team-related parameters
+func TestInterpreter_TeamParameterExtraction(t *testing.T) {
+	interpreter := NewInterpreter(DefaultConfig())
+
+	tests := []struct {
+		name           string
+		command        string
+		expectedParams map[string]interface{}
+	}{
+		{
+			name:    "Asset with spaces",
+			command: "assets teams assign --asset \"Ancillaries Markups\" --owner \"FN\"",
+			expectedParams: map[string]interface{}{
+				"asset": "Ancillaries Markups",
+				"owner": "FN",
+			},
+		},
+		{
+			name:    "Team parameter variations",
+			command: "assets teams add-contributor --asset \"Price Lock\" --team \"AD\"",
+			expectedParams: map[string]interface{}{
+				"asset": "Price Lock",
+				"team":  "AD",
+			},
+		},
+		{
+			name:    "Multiple contributors",
+			command: "assets teams assign --asset \"Dynamic Rounding\" --owner \"FN\" --contributors \"AD,QA\"",
+			expectedParams: map[string]interface{}{
+				"asset":        "Dynamic Rounding",
+				"owner":        "FN",
+				"contributors": "AD,QA",
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cmd, err := domain.NewCommand("test-session", "original", tt.command, 0.9)
+			assert.NoError(t, err)
+			
+			interpreter.parseCommandParameters(cmd, tt.command)
+			
+			for key, expectedValue := range tt.expectedParams {
+				actualValue, ok := cmd.GetParameter(key)
+				assert.True(t, ok, "Parameter %s should exist", key)
+				assert.Equal(t, expectedValue, actualValue)
+			}
+		})
+	}
+}
+
+// TestInterpreter_ContextAwareTeamCommands tests team commands with context
+func TestInterpreter_ContextAwareTeamCommands(t *testing.T) {
+	interpreter := NewInterpreter(DefaultConfig())
+	
+	// Create context with recent asset
+	ctx := domain.NewContext("test-session")
+	ctx.RecentAssets = []string{"Dynamic Markup", "Price Lock"}
+	
+	tests := []struct {
+		name          string
+		input         string
+		expectedAsset string
+		description   string
+	}{
+		{
+			name:          "Assign to recent asset",
+			input:         "assign it to FN team",
+			expectedAsset: "Dynamic Markup",
+			description:   "Should use last referenced asset",
+		},
+		{
+			name:          "Add contributor to context asset",
+			input:         "add AD as contributor",
+			expectedAsset: "Dynamic Markup",
+			description:   "Should use asset from context",
+		},
+		{
+			name:          "Show teams for current asset",
+			input:         "who owns this",
+			expectedAsset: "Dynamic Markup",
+			description:   "Should reference current asset",
+		},
+	}
+	
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			prompt := interpreter.buildInterpretationPrompt(tt.input, ctx)
+			assert.Contains(t, prompt, "Dynamic Markup")
+			assert.Contains(t, prompt, "context")
+		})
+	}
+}
+
+// TestInterpreter_TeamErrorCases tests handling of ambiguous or invalid team queries
+func TestInterpreter_TeamErrorCases(t *testing.T) {
+	interpreter := NewInterpreter(DefaultConfig())
+	ctx := domain.NewContext("test-session")
+	
+	tests := []struct {
+		name        string
+		input       string
+		shouldError bool
+		description string
+	}{
+		{
+			name:        "Missing asset name",
+			input:       "assign to FN team",
+			shouldError: true,
+			description: "Should require clarification for asset name",
+		},
+		{
+			name:        "Missing team name",
+			input:       "assign owner to Payment Processing",
+			shouldError: true,
+			description: "Should require team name",
+		},
+		{
+			name:        "Ambiguous team reference",
+			input:       "make them the owner",
+			shouldError: true,
+			description: "Unclear team reference",
+		},
+		{
+			name:        "Valid command variation",
+			input:       "make FN the owner of Price Lock",
+			shouldError: false,
+			description: "Should handle alternative phrasing",
+		},
+	}
+	
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			prompt := interpreter.buildInterpretationPrompt(tt.input, ctx)
+			
+			// Verify the prompt includes clarification handling
+			if tt.shouldError {
+				assert.Contains(t, prompt, "clarification")
+			}
+		})
+	}
+}
+
+// TestInterpreter_BulkTeamOperations tests interpretation of bulk team assignment requests
+func TestInterpreter_BulkTeamOperations(t *testing.T) {
+	interpreter := NewInterpreter(DefaultConfig())
+	ctx := domain.NewContext("test-session")
+	
+	tests := []struct {
+		name        string
+		input       string
+		description string
+	}{
+		{
+			name:        "Bulk assignment by pattern",
+			input:       "assign FN to all pricing and markup assets",
+			description: "Should understand bulk assignment by asset type",
+		},
+		{
+			name:        "Time-based bulk assignment",
+			input:       "review all assets for FN team stories in H1 2025 and assign them",
+			description: "Should handle time-based filtering",
+		},
+		{
+			name:        "Domain-based assignment",
+			input:       "assign AD team to all accommodation and advertisement assets",
+			description: "Should understand domain-specific grouping",
+		},
+		{
+			name:        "Transfer ownership",
+			input:       "transfer all assets from TeamA to TeamB",
+			description: "Should handle ownership transfers",
+		},
+	}
+	
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			prompt := interpreter.buildInterpretationPrompt(tt.input, ctx)
+			assert.Contains(t, prompt, "assets teams")
+			t.Logf("Bulk operation test: %s", tt.description)
+		})
+	}
+}

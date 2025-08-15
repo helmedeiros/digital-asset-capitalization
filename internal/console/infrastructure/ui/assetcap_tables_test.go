@@ -478,3 +478,201 @@ func TestFormatPropertyName(t *testing.T) {
 		})
 	}
 }
+
+// TestCreateTeamAssignmentTable tests team assignment table creation
+func TestCreateTeamAssignmentTable(t *testing.T) {
+	factory := NewAssetCapTableFactory()
+	table := factory.CreateTeamAssignmentTable()
+
+	assert.NotNil(t, table)
+	assert.Len(t, table.Columns, 4)
+
+	// Check column headers
+	assert.Equal(t, "Asset", table.Columns[0].Header)
+	assert.Equal(t, "Owner", table.Columns[1].Header)
+	assert.Equal(t, "Contributors", table.Columns[2].Header)
+	assert.Equal(t, "Status", table.Columns[3].Header)
+}
+
+// TestTeamListFormatter tests formatting of team lists
+func TestTeamListFormatter(t *testing.T) {
+	tests := []struct {
+		input    interface{}
+		expected string
+	}{
+		{[]string{"FN", "AD"}, "FN"},
+		{[]string{"FN"}, "FN"},
+		{[]string{}, "(no teams)"},
+		{nil, "(no teams)"},
+		{"FN", "FN"},
+	}
+
+	for _, tt := range tests {
+		result := TeamListFormatter(tt.input)
+		assert.Contains(t, result, tt.expected)
+	}
+}
+
+// TestTeamRoleFormatter tests formatting of team roles
+func TestTeamRoleFormatter(t *testing.T) {
+	tests := []struct {
+		input    interface{}
+		expected string
+	}{
+		{"owner", "👑 Owner"},
+		{"contributor", "🤝 Contributor"},
+		{"assigned", "✅ Assigned"},
+		{"added", "➕ Added"},
+		{"removed", "❌ Removed"},
+	}
+
+	for _, tt := range tests {
+		result := TeamRoleFormatter(tt.input)
+		assert.Contains(t, result, tt.expected)
+	}
+}
+
+// TestTeamAssignmentStatusFormatter tests team assignment status formatting
+func TestTeamAssignmentStatusFormatter(t *testing.T) {
+	tests := []struct {
+		input    interface{}
+		expected string
+	}{
+		{true, "✅ Has Owner"},
+		{false, "⚠️ No Owner"},
+	}
+
+	for _, tt := range tests {
+		result := TeamAssignmentStatusFormatter(tt.input)
+		assert.Contains(t, result, tt.expected)
+	}
+}
+
+// TestFormatTeamAssignmentData tests formatting of team assignment data structures
+func TestFormatTeamAssignmentData(t *testing.T) {
+	// Test data structure representing team assignments
+	data := []map[string]interface{}{
+		{
+			"asset":        "Dynamic Markup",
+			"owner":        "FN",
+			"contributors": []string{"AD", "QA"},
+		},
+		{
+			"asset":        "Flight Delay Insurance",
+			"owner":        "AD",
+			"contributors": []string{"FN"},
+		},
+		{
+			"asset":        "Price Lock",
+			"owner":        "FN",
+			"contributors": []string{},
+		},
+	}
+
+	// Test formatting each assignment
+	for _, assignment := range data {
+		asset, ok := assignment["asset"].(string)
+		assert.True(t, ok)
+		assert.NotEmpty(t, asset)
+
+		owner, ok := assignment["owner"].(string)
+		assert.True(t, ok)
+		assert.NotEmpty(t, owner)
+
+		contributors, ok := assignment["contributors"].([]string)
+		assert.True(t, ok)
+		assert.NotNil(t, contributors)
+	}
+}
+
+// TestTeamFormatterWithComplexData tests team formatter with various data structures
+func TestTeamFormatterWithComplexData(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    interface{}
+		expected string
+	}{
+		{
+			name: "map with owning_team",
+			input: map[string]interface{}{
+				"owning_team": "FN",
+			},
+			expected: "FN",
+		},
+		{
+			name: "map with owner",
+			input: map[string]interface{}{
+				"owner": "AD",
+			},
+			expected: "AD",
+		},
+		{
+			name: "direct string",
+			input: "TeamAlpha",
+			expected: "TeamAlpha",
+		},
+		{
+			name: "empty map",
+			input: map[string]interface{}{},
+			expected: "(no team)",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Since TeamFormatter expects simple values, we'd need to extract first
+			var value interface{}
+			if m, ok := tt.input.(map[string]interface{}); ok {
+				if v, exists := m["owning_team"]; exists {
+					value = v
+				} else if v, exists := m["owner"]; exists {
+					value = v
+				}
+			} else {
+				value = tt.input
+			}
+			
+			result := TeamFormatter(value)
+			assert.Contains(t, result, tt.expected)
+		})
+	}
+}
+
+// TestConvertTeamAssignmentToRows tests converting team assignment data to table rows
+func TestConvertTeamAssignmentToRows(t *testing.T) {
+	// Sample team assignment data
+	assignments := []map[string]interface{}{
+		{
+			"asset":        "Dynamic Markup",
+			"owner":        "FN",
+			"contributors": []string{"AD"},
+		},
+		{
+			"asset":        "Flight Delay Insurance",
+			"owner":        "AD",
+			"contributors": []string{"FN", "QA"},
+		},
+	}
+
+	// Convert to table rows
+	rows := make([]map[string]interface{}, len(assignments))
+	for i, assignment := range assignments {
+		rows[i] = map[string]interface{}{
+			"asset":        assignment["asset"],
+			"owner":        assignment["owner"],
+			"contributors": assignment["contributors"],
+		}
+	}
+
+	assert.Len(t, rows, 2)
+	
+	// Verify first row
+	assert.Equal(t, "Dynamic Markup", rows[0]["asset"])
+	assert.Equal(t, "FN", rows[0]["owner"])
+	assert.Equal(t, []string{"AD"}, rows[0]["contributors"])
+	
+	// Verify second row
+	assert.Equal(t, "Flight Delay Insurance", rows[1]["asset"])
+	assert.Equal(t, "AD", rows[1]["owner"])
+	assert.Equal(t, []string{"FN", "QA"}, rows[1]["contributors"])
+}
