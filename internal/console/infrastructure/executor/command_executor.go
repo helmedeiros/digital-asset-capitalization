@@ -36,6 +36,14 @@ type AssetServiceInterface interface {
 	SyncAssets(ctx context.Context, space, label string) (interface{}, error)
 	EnrichAsset(ctx context.Context, name, field string) (interface{}, error)
 	GenerateKeywords(ctx context.Context, name string) (interface{}, error)
+	// Team management methods
+	AssignTeamOwner(ctx context.Context, asset, team string) (interface{}, error)
+	AddContributingTeam(ctx context.Context, asset, team string) (interface{}, error)
+	RemoveContributingTeam(ctx context.Context, asset, team string) (interface{}, error)
+	ShowTeamAssignments(ctx context.Context, asset string) (interface{}, error)
+	ListTeamAssignments(ctx context.Context) (interface{}, error)
+	// Advanced asset operations
+	SyncAndEnrich(ctx context.Context, space, label string, keywords bool, fields []string) (interface{}, error)
 }
 
 type TaskServiceInterface interface {
@@ -160,6 +168,38 @@ func (e *CommandExecutor) GetAvailableCommands() []ports.CommandInfo {
 			Parameters: []ports.ParameterInfo{
 				{Name: "name", Description: "Asset name", Required: true, Type: "string"},
 			},
+		},
+		{
+			Command:     "assets teams assign",
+			Description: "Assign team ownership to an asset",
+			Examples:    []string{"assign team Platform to asset Payment Processing", "make team Backend owner of User Authentication"},
+			Parameters: []ports.ParameterInfo{
+				{Name: "asset", Description: "Asset name", Required: true, Type: "string"},
+				{Name: "team", Description: "Team name", Required: true, Type: "string"},
+			},
+		},
+		{
+			Command:     "assets teams add-contributor",
+			Description: "Add contributing team to an asset",
+			Examples:    []string{"add team Frontend as contributor to Payment Processing"},
+			Parameters: []ports.ParameterInfo{
+				{Name: "asset", Description: "Asset name", Required: true, Type: "string"},
+				{Name: "team", Description: "Team name", Required: true, Type: "string"},
+			},
+		},
+		{
+			Command:     "assets teams show",
+			Description: "Show team assignments for an asset",
+			Examples:    []string{"show teams for Payment Processing", "who owns User Authentication"},
+			Parameters: []ports.ParameterInfo{
+				{Name: "asset", Description: "Asset name", Required: true, Type: "string"},
+			},
+		},
+		{
+			Command:     "assets teams list",
+			Description: "List all team assignments",
+			Examples:    []string{"show all team assignments", "list asset ownership"},
+			Parameters:  []ports.ParameterInfo{},
 		},
 		{
 			Command:     "tasks fetch",
@@ -309,10 +349,83 @@ func (e *CommandExecutor) executeAssetCommand(ctx context.Context, action string
 			return nil, ports.NewValidationError("name", "asset name is required")
 		}
 		return e.assetService.GenerateKeywords(ctx, name)
+	case "teams":
+		return e.executeAssetTeamsCommand(ctx, command)
+	case "sync-and-enrich":
+		space, _ := command.GetStringParameter("space")
+		label, _ := command.GetStringParameter("label")
+		keywords, _ := command.GetParameter("keywords")
+		keywordsBool, _ := keywords.(bool)
+		fieldsParam, _ := command.GetParameter("fields")
+		var fields []string
+		if fieldsStr, ok := fieldsParam.(string); ok && fieldsStr != "" {
+			fields = strings.Split(fieldsStr, ",")
+		}
+		return e.assetService.SyncAndEnrich(ctx, space, label, keywordsBool, fields)
 	default:
 		return nil, ports.NewExecutionError(command.Interpreted,
 			fmt.Sprintf("Unknown asset action: %s", action),
-			"Available actions: list, create, show, update, delete, sync, enrich, keywords")
+			"Available actions: list, create, show, update, delete, sync, enrich, keywords, teams, sync-and-enrich")
+	}
+}
+
+// executeAssetTeamsCommand executes asset team management commands
+func (e *CommandExecutor) executeAssetTeamsCommand(ctx context.Context, command *domain.Command) (interface{}, error) {
+	if e.assetService == nil {
+		return nil, fmt.Errorf("asset service not available")
+	}
+
+	// Parse the teams subcommand from the interpreted command
+	parts := strings.Fields(command.Interpreted)
+	if len(parts) < 3 {
+		return nil, ports.NewValidationError("subcommand", "teams command requires a subcommand (assign, add-contributor, remove-contributor, show, list)")
+	}
+
+	subcommand := parts[2] // assets teams [subcommand]
+
+	switch subcommand {
+	case "assign":
+		asset, _ := command.GetStringParameter("asset")
+		team, _ := command.GetStringParameter("team")
+		if asset == "" {
+			return nil, ports.NewValidationError("asset", "asset name is required")
+		}
+		if team == "" {
+			return nil, ports.NewValidationError("team", "team name is required")
+		}
+		return e.assetService.AssignTeamOwner(ctx, asset, team)
+	case "add-contributor":
+		asset, _ := command.GetStringParameter("asset")
+		team, _ := command.GetStringParameter("team")
+		if asset == "" {
+			return nil, ports.NewValidationError("asset", "asset name is required")
+		}
+		if team == "" {
+			return nil, ports.NewValidationError("team", "team name is required")
+		}
+		return e.assetService.AddContributingTeam(ctx, asset, team)
+	case "remove-contributor":
+		asset, _ := command.GetStringParameter("asset")
+		team, _ := command.GetStringParameter("team")
+		if asset == "" {
+			return nil, ports.NewValidationError("asset", "asset name is required")
+		}
+		if team == "" {
+			return nil, ports.NewValidationError("team", "team name is required")
+		}
+		return e.assetService.RemoveContributingTeam(ctx, asset, team)
+	case commandShow:
+		asset, _ := command.GetStringParameter("asset")
+		if asset == "" {
+			return nil, ports.NewValidationError("asset", "asset name is required")
+		}
+		return e.assetService.ShowTeamAssignments(ctx, asset)
+	case commandList:
+		return e.assetService.ListTeamAssignments(ctx)
+	default:
+		return nil, ports.NewExecutionError(command.Interpreted,
+			fmt.Sprintf("Unknown teams subcommand: %s", subcommand),
+			"Available subcommands: assign, add-contributor, remove-contributor, show, list")
 	}
 }
 

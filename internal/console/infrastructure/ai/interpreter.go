@@ -176,9 +176,11 @@ ASSETS:
 - assets enrich --name "NAME" --field "FIELD"
 - assets keywords --name "NAME"
 - assets sync-and-enrich --label "LABEL" [--keywords] [--fields FIELD]
-- assets teams assign --asset "NAME" --owner "TEAM"
-- assets teams add-contributor --asset "NAME" --team "TEAM"
-- assets teams show --asset "NAME"
+- assets teams assign --asset "NAME" --team "TEAM" (assign team ownership)
+- assets teams add-contributor --asset "NAME" --team "TEAM" (add contributing team)
+- assets teams remove-contributor --asset "NAME" --team "TEAM" (remove contributing team)
+- assets teams show --asset "NAME" (show team assignments for asset)
+- assets teams list (list all team assignments)
 
 TASKS:
 - tasks fetch --project "PROJECT" --sprint "SPRINT" --platform "jira"

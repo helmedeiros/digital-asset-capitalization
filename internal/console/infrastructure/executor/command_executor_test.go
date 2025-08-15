@@ -55,6 +55,38 @@ func (m *MockAssetService) GenerateKeywords(ctx context.Context, name string) (i
 	return args.Get(0), args.Error(1)
 }
 
+// Team management methods
+func (m *MockAssetService) AssignTeamOwner(ctx context.Context, asset, team string) (interface{}, error) {
+	args := m.Called(ctx, asset, team)
+	return args.Get(0), args.Error(1)
+}
+
+func (m *MockAssetService) AddContributingTeam(ctx context.Context, asset, team string) (interface{}, error) {
+	args := m.Called(ctx, asset, team)
+	return args.Get(0), args.Error(1)
+}
+
+func (m *MockAssetService) RemoveContributingTeam(ctx context.Context, asset, team string) (interface{}, error) {
+	args := m.Called(ctx, asset, team)
+	return args.Get(0), args.Error(1)
+}
+
+func (m *MockAssetService) ShowTeamAssignments(ctx context.Context, asset string) (interface{}, error) {
+	args := m.Called(ctx, asset)
+	return args.Get(0), args.Error(1)
+}
+
+func (m *MockAssetService) ListTeamAssignments(ctx context.Context) (interface{}, error) {
+	args := m.Called(ctx)
+	return args.Get(0), args.Error(1)
+}
+
+// Advanced asset operations
+func (m *MockAssetService) SyncAndEnrich(ctx context.Context, space, label string, keywords bool, fields []string) (interface{}, error) {
+	args := m.Called(ctx, space, label, keywords, fields)
+	return args.Get(0), args.Error(1)
+}
+
 func TestNewCommandExecutor(t *testing.T) {
 	mockAsset := &MockAssetService{}
 

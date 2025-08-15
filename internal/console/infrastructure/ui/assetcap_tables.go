@@ -167,6 +167,70 @@ func TeamFormatter(value interface{}) string {
 	return Colorize(fmt.Sprintf("%v", value), ColorInfo)
 }
 
+// TeamRoleFormatter formats team roles with icons and colors
+func TeamRoleFormatter(value interface{}) string {
+	role := strings.ToLower(fmt.Sprintf("%v", value))
+	switch role {
+	case "owner":
+		return Colorize("👑 Owner", ColorSuccess)
+	case "contributor":
+		return Colorize("🤝 Contributor", ColorInfo)
+	case "removed":
+		return Colorize("❌ Removed", ColorError)
+	case "assigned":
+		return Colorize("✅ Assigned", ColorSuccess)
+	case "added":
+		return Colorize("➕ Added", ColorSuccess)
+	default:
+		return fmt.Sprintf("%v", value)
+	}
+}
+
+// TeamListFormatter formats team arrays for display
+func TeamListFormatter(value interface{}) string {
+	switch v := value.(type) {
+	case []string:
+		if len(v) == 0 {
+			return MutedText("(no teams)")
+		}
+		formatted := make([]string, len(v))
+		for i, team := range v {
+			formatted[i] = Colorize(team, ColorInfo)
+		}
+		return strings.Join(formatted, ", ")
+	case []interface{}:
+		if len(v) == 0 {
+			return MutedText("(no teams)")
+		}
+		formatted := make([]string, len(v))
+		for i, team := range v {
+			formatted[i] = Colorize(fmt.Sprintf("%v", team), ColorInfo)
+		}
+		return strings.Join(formatted, ", ")
+	case nil:
+		return MutedText("(no teams)")
+	default:
+		str := fmt.Sprintf("%v", value)
+		if str == "" {
+			return MutedText("(no teams)")
+		}
+		return str
+	}
+}
+
+// TeamAssignmentStatusFormatter formats assignment status with icons
+func TeamAssignmentStatusFormatter(value interface{}) string {
+	hasOwner, ok := value.(bool)
+	if !ok {
+		return fmt.Sprintf("%v", value)
+	}
+
+	if hasOwner {
+		return Colorize("✅ Has Owner", ColorSuccess)
+	}
+	return Colorize("⚠️ No Owner", ColorWarning)
+}
+
 // CountFormatter formats count values
 func CountFormatter(value interface{}) string {
 	count := fmt.Sprintf("%v", value)
