@@ -340,6 +340,14 @@ func (h *Handler) displayResult(result *application.ProcessResult) {
 
 // displayMapOutput formats and displays map output
 func (h *Handler) displayMapOutput(output map[string]interface{}) {
+	// Check if this is a single asset detail view
+	if h.isAssetDetail(output) {
+		result := ui.RenderDetailView("Asset Details", output, []string{"description"})
+		fmt.Print(result)
+		return
+	}
+
+	// Default map output handling
 	for key, value := range output {
 		switch key {
 		case "message":
@@ -482,47 +490,61 @@ func (h *Handler) isTaskList(output []interface{}) bool {
 	return false
 }
 
-// displayAssetTable displays assets using beautiful table formatting
-func (h *Handler) displayAssetTable(output []interface{}) {
-	factory := ui.NewAssetCapTableFactory()
-	table := factory.CreateAssetListTable()
+// isAssetDetail checks if the output is a single asset detail view
+func (h *Handler) isAssetDetail(output map[string]interface{}) bool {
+	// Check for asset-specific fields that indicate a detailed view
+	_, hasName := output["name"]
+	_, hasDescription := output["description"]
+	_, hasID := output["id"]
+	_, hasStatus := output["status"]
 
-	// Convert output to table data
+	// Asset detail views typically have name + description + additional fields
+	return hasName && hasDescription && (hasID || hasStatus)
+}
+
+// displayAssetTable displays assets using clean list formatting
+func (h *Handler) displayAssetTable(output []interface{}) {
+	// Convert to the format expected by RenderCleanList
+	items := make([]map[string]interface{}, 0, len(output))
 	for _, item := range output {
 		if assetData, ok := item.(map[string]interface{}); ok {
-			table.AddRow(assetData)
+			items = append(items, assetData)
 		}
 	}
 
-	fmt.Println(table.Render())
+	// Use clean list format with asset categories if available
+	result := ui.RenderCleanList("Your assets include:", items, "category", "name", "description")
+	fmt.Print(result)
 }
 
-// displayTeamAssignmentTable displays team assignments using table formatting
+// displayTeamAssignmentTable displays team assignments using clean list formatting
 func (h *Handler) displayTeamAssignmentTable(output []interface{}) {
-	factory := ui.NewAssetCapTableFactory()
-	table := factory.CreateTeamAssignmentTable()
-
+	// Convert to the format expected by RenderCleanList
+	items := make([]map[string]interface{}, 0, len(output))
 	for _, item := range output {
 		if teamData, ok := item.(map[string]interface{}); ok {
-			table.AddRow(teamData)
+			items = append(items, teamData)
 		}
 	}
 
-	fmt.Println(table.Render())
+	// Use clean list format for team assignments
+	result := ui.RenderCleanList("Team assignments:", items, "", "asset", "owning_team")
+	fmt.Print(result)
 }
 
-// displayTaskTable displays tasks using table formatting
+// displayTaskTable displays tasks using clean list formatting
 func (h *Handler) displayTaskTable(output []interface{}) {
-	factory := ui.NewAssetCapTableFactory()
-	table := factory.CreateTaskListTable()
-
+	// Convert to the format expected by RenderCleanList
+	items := make([]map[string]interface{}, 0, len(output))
 	for _, item := range output {
 		if taskData, ok := item.(map[string]interface{}); ok {
-			table.AddRow(taskData)
+			items = append(items, taskData)
 		}
 	}
 
-	fmt.Println(table.Render())
+	// Use clean list format for tasks, grouped by status if available
+	result := ui.RenderCleanList("Tasks:", items, "status", "key", "summary")
+	fmt.Print(result)
 }
 
 // ErrExitRequested indicates the user requested to exit

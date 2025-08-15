@@ -277,3 +277,75 @@ func TestSortMapKeys(t *testing.T) {
 		}
 	}
 }
+
+func TestRenderCleanList(t *testing.T) {
+	// Test with categories
+	items := []map[string]interface{}{
+		{"name": "Payment Gateway", "description": "Process payments", "category": "Revenue"},
+		{"name": "User Auth", "description": "Authentication system", "category": "Core"},
+		{"name": "Analytics", "description": "Track usage", "category": "Data"},
+		{"name": "Email Service", "description": "Send notifications", "category": "Core"},
+	}
+
+	result := RenderCleanList("Your assets include:", items, "category", "name", "description")
+
+	if !strings.Contains(result, "⏺") || !strings.Contains(result, "Your assets include:") {
+		t.Error("Expected result to contain title with bullet")
+	}
+	if !strings.Contains(result, "Total: 4 items") {
+		t.Error("Expected result to contain total count")
+	}
+
+	// Test without categories
+	result2 := RenderCleanList("Simple list:", items, "", "name", "description")
+
+	if !strings.Contains(result2, "⏺") || !strings.Contains(result2, "Simple list:") {
+		t.Error("Expected simple list to contain title")
+	}
+	if !strings.Contains(result2, "- Payment Gateway: Process payments") {
+		t.Error("Expected simple list to contain item with description")
+	}
+
+	// Test empty list
+	result3 := RenderCleanList("Empty:", []map[string]interface{}{}, "", "name", "")
+	if !strings.Contains(result3, "⏺") || !strings.Contains(result3, "No items to display") {
+		t.Error("Expected empty list message")
+	}
+}
+
+func TestRenderDetailView(t *testing.T) {
+	data := map[string]interface{}{
+		"name":        "Omio Flex",
+		"description": "For different modes and routes, Omio displays many non-refundable and semi-refundable fares. These fares are something Omio directly inherits from the travel service providers. Users' plans can always change, so we would like to offer extra flexibility, improving peace of mind during the travel planning phase.",
+		"purpose":     "Addresses customer concerns about changing travel plans",
+		"revenue":     "15% of total ticket value (VAT included)",
+		"_command":    "./assetcap assets show --name \"Omio Flex\"",
+	}
+
+	result := RenderDetailView("Asset Details", data, []string{"description"})
+
+	if !strings.Contains(result, "⏺") || !strings.Contains(result, "Bash(./assetcap assets show --name \"Omio Flex\")") {
+		t.Error("Expected result to contain command header")
+	}
+	if !strings.Contains(result, "⎿") || !strings.Contains(result, "Omio Flex") {
+		t.Error("Expected result to contain asset name")
+	}
+	if !strings.Contains(result, "Purpose: Addresses customer concerns") {
+		t.Error("Expected result to contain purpose field")
+	}
+	if !strings.Contains(result, "Revenue: 15% of total ticket value") {
+		t.Error("Expected result to contain revenue field")
+	}
+}
+
+func TestExtractSummary(t *testing.T) {
+	data := map[string]interface{}{
+		"name":        "Omio Flex",
+		"description": "Provides additional flexibility for non-refundable fares. Users benefit from this service.",
+	}
+
+	result := extractSummary(data)
+	if !strings.Contains(result, "Omio Flex") {
+		t.Error("Expected summary to contain asset name")
+	}
+}

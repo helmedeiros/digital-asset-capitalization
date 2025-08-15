@@ -495,6 +495,157 @@ func SimpleList(items []string, bullet string) string {
 	return result.String()
 }
 
+// RenderCleanList renders data in a clean, readable list format
+func RenderCleanList(title string, items []map[string]interface{}, categoryKey string, nameKey string, descKey string) string {
+	if len(items) == 0 {
+		return fmt.Sprintf("%s No items to display.\n", InfoText("⏺"))
+	}
+
+	var result strings.Builder
+
+	// Add title with bullet
+	result.WriteString(fmt.Sprintf("%s %s\n", InfoText("⏺"), BoldText(title)))
+
+	// Group items by category if categoryKey is provided
+	if categoryKey != "" {
+		categories := make(map[string][]map[string]interface{})
+		for _, item := range items {
+			category := "Other"
+			if cat, exists := item[categoryKey]; exists && cat != nil {
+				category = fmt.Sprintf("%v", cat)
+			}
+			categories[category] = append(categories[category], item)
+		}
+
+		// Sort categories for consistent output
+		var sortedCategories []string
+		for cat := range categories {
+			sortedCategories = append(sortedCategories, cat)
+		}
+		sort.Strings(sortedCategories)
+
+		// Render each category
+		for _, category := range sortedCategories {
+			categoryItems := categories[category]
+			result.WriteString(fmt.Sprintf("  - %s (", category))
+
+			var itemNames []string
+			for _, item := range categoryItems {
+				name := ""
+				if nameVal, exists := item[nameKey]; exists && nameVal != nil {
+					name = fmt.Sprintf("%v", nameVal)
+				}
+				if desc, exists := item[descKey]; exists && desc != nil && desc != "" {
+					name = fmt.Sprintf("%s: %v", name, desc)
+				}
+				if name != "" {
+					itemNames = append(itemNames, name)
+				}
+			}
+
+			result.WriteString(strings.Join(itemNames, ", "))
+			result.WriteString(")\n")
+		}
+
+		// Add total count
+		result.WriteString(fmt.Sprintf("\n  Total: %d items.\n", len(items)))
+	} else {
+		// Simple list without categories
+		for _, item := range items {
+			name := ""
+			if nameVal, exists := item[nameKey]; exists && nameVal != nil {
+				name = fmt.Sprintf("%v", nameVal)
+			}
+			if desc, exists := item[descKey]; exists && desc != nil && desc != "" {
+				name = fmt.Sprintf("%s: %v", name, desc)
+			}
+			if name != "" {
+				result.WriteString(fmt.Sprintf("  - %s\n", name))
+			}
+		}
+
+		result.WriteString(fmt.Sprintf("\n  Total: %d items.\n", len(items)))
+	}
+
+	return result.String()
+}
+
+// RenderDetailView renders a detailed view with expandable sections
+func RenderDetailView(title string, data map[string]interface{}, _ []string) string {
+	var result strings.Builder
+
+	// Command execution header
+	if cmd, exists := data["_command"]; exists && cmd != nil {
+		result.WriteString(fmt.Sprintf("%s %s\n", InfoText("⏺"), MutedText(fmt.Sprintf("Bash(%v)", cmd))))
+	}
+
+	// Asset/item header with name
+	if name, exists := data["name"]; exists && name != nil {
+		result.WriteString(fmt.Sprintf("  %s %s: %s\n", InfoText("⎿"), BoldText("Asset"), BoldText(fmt.Sprintf("%v", name))))
+	} else {
+		result.WriteString(fmt.Sprintf("  %s %s\n", InfoText("⎿"), BoldText(title)))
+	}
+
+	// Description with wrapping and expansion
+	if desc, exists := data["description"]; exists && desc != nil {
+		descStr := fmt.Sprintf("%v", desc)
+		if len(descStr) > 200 {
+			// Truncated description with expansion hint
+			truncated := descStr[:200]
+			lastSpace := strings.LastIndex(truncated, " ")
+			if lastSpace > 0 {
+				truncated = truncated[:lastSpace]
+			}
+			result.WriteString(fmt.Sprintf("    %s: %s...\n", "Description", truncated))
+			result.WriteString(fmt.Sprintf("    … +%d lines (ctrl+r to expand)\n\n", strings.Count(descStr[200:], "\n")+1))
+		} else {
+			result.WriteString(fmt.Sprintf("    %s: %s\n\n", "Description", descStr))
+		}
+	}
+
+	// Main summary with bullet
+	summary := extractSummary(data)
+	if summary != "" {
+		result.WriteString(fmt.Sprintf("%s %s\n\n", InfoText("⏺"), BoldText(summary)))
+	}
+
+	// Key details in clean format
+	keyFields := []string{"purpose", "revenue", "implementation", "goal", "documentation", "why", "benefits", "how", "metrics"}
+
+	for _, field := range keyFields {
+		if value, exists := data[field]; exists && value != nil && fmt.Sprintf("%v", value) != "" {
+			fieldName := strings.ToUpper(field[:1]) + field[1:]
+			result.WriteString(fmt.Sprintf("  - %s: %v\n", fieldName, value))
+		}
+	}
+
+	return result.String()
+}
+
+// extractSummary creates a summary from asset data
+func extractSummary(data map[string]interface{}) string {
+	name, hasName := data["name"]
+	desc, hasDesc := data["description"]
+
+	if hasName && hasDesc {
+		nameStr := fmt.Sprintf("%v", name)
+		descStr := fmt.Sprintf("%v", desc)
+
+		// Try to extract a concise summary from the description
+		if len(descStr) > 100 {
+			sentences := strings.Split(descStr, ". ")
+			if len(sentences) > 0 && len(sentences[0]) < 150 {
+				return fmt.Sprintf("%s %s", nameStr, strings.ToLower(sentences[0]))
+			}
+		}
+
+		// Fallback to name with brief desc
+		return fmt.Sprintf("%s provides additional capabilities", nameStr)
+	}
+
+	return ""
+}
+
 // NumberedList renders a numbered list
 func NumberedList(items []string) string {
 	var result strings.Builder
