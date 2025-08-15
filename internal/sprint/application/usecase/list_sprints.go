@@ -63,13 +63,18 @@ func (u *ListSprintsUseCase) Execute(project, period string) (*ListSprintsResult
 	}, nil
 }
 
-// parsePeriod parses a period string (e.g., "Q2 2025") and returns start and end dates
+// parsePeriod parses a period string (e.g., "Q2 2025", "H1 2025") and returns start and end dates
 func (u *ListSprintsUseCase) parsePeriod(period string) (time.Time, time.Time, error) {
 	period = strings.TrimSpace(period)
 
 	// Handle quarter format: "Q1 2025", "Q2 2025", etc.
 	if strings.HasPrefix(strings.ToUpper(period), "Q") {
 		return u.parseQuarter(period)
+	}
+
+	// Handle half-year format: "H1 2025", "H2 2025"
+	if strings.HasPrefix(strings.ToUpper(period), "H") {
+		return u.parseHalf(period)
 	}
 
 	// Handle year format: "2025"
@@ -115,6 +120,38 @@ func (u *ListSprintsUseCase) parseQuarter(period string) (time.Time, time.Time, 
 		return startDate, endDate, nil
 	default:
 		return time.Time{}, time.Time{}, fmt.Errorf("invalid quarter number: %s", quarter)
+	}
+}
+
+// parseHalf parses half-year format like "H1 2025", "H2 2025"
+func (u *ListSprintsUseCase) parseHalf(period string) (time.Time, time.Time, error) {
+	parts := strings.Fields(period)
+	if len(parts) != 2 {
+		return time.Time{}, time.Time{}, fmt.Errorf("invalid half-year format: %s", period)
+	}
+
+	halfStr := strings.ToUpper(parts[0])
+	yearStr := parts[1]
+
+	if !strings.HasPrefix(halfStr, "H") {
+		return time.Time{}, time.Time{}, fmt.Errorf("invalid half-year format: %s", period)
+	}
+
+	half := halfStr[1:]
+
+	switch half {
+	case "1":
+		// H1 = January to June
+		startDate := time.Date(parseYear(yearStr), 1, 1, 0, 0, 0, 0, time.UTC)
+		endDate := time.Date(parseYear(yearStr), 6, 30, 23, 59, 59, 0, time.UTC)
+		return startDate, endDate, nil
+	case "2":
+		// H2 = July to December
+		startDate := time.Date(parseYear(yearStr), 7, 1, 0, 0, 0, 0, time.UTC)
+		endDate := time.Date(parseYear(yearStr), 12, 31, 23, 59, 59, 0, time.UTC)
+		return startDate, endDate, nil
+	default:
+		return time.Time{}, time.Time{}, fmt.Errorf("invalid half-year number: %s", half)
 	}
 }
 

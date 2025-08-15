@@ -318,3 +318,49 @@ func TestListSprintsUseCase_parseQuarter_ValidQuarters(t *testing.T) {
 		assert.Equal(t, tt.end, end, tt.input)
 	}
 }
+
+func TestListSprintsUseCase_parseHalf_ValidHalves(t *testing.T) {
+	u := NewListSprintsUseCase(nil)
+
+	tests := []struct {
+		input string
+		start time.Time
+		end   time.Time
+	}{
+		{"H1 2025", time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC), time.Date(2025, 6, 30, 23, 59, 59, 0, time.UTC)},
+		{"H2 2025", time.Date(2025, 7, 1, 0, 0, 0, 0, time.UTC), time.Date(2025, 12, 31, 23, 59, 59, 0, time.UTC)},
+		{"h1 2025", time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC), time.Date(2025, 6, 30, 23, 59, 59, 0, time.UTC)},  // case insensitive
+		{"h2 2025", time.Date(2025, 7, 1, 0, 0, 0, 0, time.UTC), time.Date(2025, 12, 31, 23, 59, 59, 0, time.UTC)}, // case insensitive
+	}
+
+	for _, tt := range tests {
+		start, end, err := u.parseHalf(tt.input)
+		assert.NoError(t, err, tt.input)
+		assert.Equal(t, tt.start, start, tt.input)
+		assert.Equal(t, tt.end, end, tt.input)
+	}
+}
+
+func TestListSprintsUseCase_parseHalf_InvalidHalves(t *testing.T) {
+	u := NewListSprintsUseCase(nil)
+
+	// Test invalid half number
+	_, _, err := u.parseHalf("H3 2025")
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "invalid half-year number")
+
+	// Test invalid format
+	_, _, err = u.parseHalf("H1")
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "invalid half-year format")
+
+	// Test invalid half prefix
+	_, _, err = u.parseHalf("X1 2025")
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "invalid half-year format")
+
+	// Test empty half number
+	_, _, err = u.parseHalf("H 2025")
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "invalid half-year number")
+}
