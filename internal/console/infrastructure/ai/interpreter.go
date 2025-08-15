@@ -197,10 +197,27 @@ INVESTMENT:
 - investment list --project "PROJECT"
 - investment show-rates --project "PROJECT"
 
+CONFIG:
+- config init (initialize configuration)
+- config show (show current configuration)  
+- config validate (validate configuration)
+- config sync-team --project "PROJECT" (sync team members from JIRA)
+
 Current context:
 %s
 
 User request: %s
+
+Important interpretation notes:
+- "team members" queries usually refer to project team members (use config sync-team)
+- "team assignments" or "asset teams" refer to asset ownership (use assets teams commands)
+- "show teams" without context likely means asset team assignments (use assets teams list)
+
+Common mappings:
+- "show team members for project X" → config sync-team --project "X"
+- "list all team assignments" → assets teams list
+- "show teams" → assets teams list
+- "who owns asset X" → assets teams show --asset "X"
 
 Analyze the request and respond with ONLY a valid JSON object (no explanations or extra text):
 {
