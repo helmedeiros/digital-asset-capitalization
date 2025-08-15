@@ -12,6 +12,7 @@ import (
 
 	"github.com/helmedeiros/digital-asset-capitalization/internal/console/application"
 	"github.com/helmedeiros/digital-asset-capitalization/internal/console/domain"
+	"github.com/helmedeiros/digital-asset-capitalization/internal/console/infrastructure/ui"
 )
 
 // Handler manages the interactive console prompt
@@ -357,6 +358,30 @@ func (h *Handler) displayMapOutput(output map[string]interface{}) {
 
 // displayListOutput formats and displays list output
 func (h *Handler) displayListOutput(output []interface{}) {
+	if len(output) == 0 {
+		h.displayInfo("No items to display")
+		return
+	}
+
+	// Check if this is asset data and use table formatting
+	if h.isAssetList(output) {
+		h.displayAssetTable(output)
+		return
+	}
+
+	// Check if this is team assignment data
+	if h.isTeamAssignmentList(output) {
+		h.displayTeamAssignmentTable(output)
+		return
+	}
+
+	// Check if this is task data
+	if h.isTaskList(output) {
+		h.displayTaskTable(output)
+		return
+	}
+
+	// Default formatting for other list types
 	for i, item := range output {
 		fmt.Printf("%d. %v\n", i+1, item)
 	}
@@ -409,6 +434,94 @@ func (h *Handler) endSession(ctx context.Context) error {
 		return h.consoleService.EndSession(ctx, h.sessionContext.SessionID)
 	}
 	return nil
+}
+
+// isAssetList checks if the output contains asset data
+func (h *Handler) isAssetList(output []interface{}) bool {
+	if len(output) == 0 {
+		return false
+	}
+	// Check first item for asset-specific fields
+	if item, ok := output[0].(map[string]interface{}); ok {
+		// Assets have name, id, description, status fields
+		_, hasName := item["name"]
+		_, hasID := item["id"]
+		_, hasDescription := item["description"]
+		_, hasStatus := item["status"]
+		return hasName && hasID && (hasDescription || hasStatus)
+	}
+	return false
+}
+
+// isTeamAssignmentList checks if the output contains team assignment data
+func (h *Handler) isTeamAssignmentList(output []interface{}) bool {
+	if len(output) == 0 {
+		return false
+	}
+	if item, ok := output[0].(map[string]interface{}); ok {
+		_, hasAsset := item["asset"]
+		_, hasOwningTeam := item["owning_team"]
+		_, hasContributingTeams := item["contributing_teams"]
+		return hasAsset && (hasOwningTeam || hasContributingTeams)
+	}
+	return false
+}
+
+// isTaskList checks if the output contains task data
+func (h *Handler) isTaskList(output []interface{}) bool {
+	if len(output) == 0 {
+		return false
+	}
+	if item, ok := output[0].(map[string]interface{}); ok {
+		_, hasKey := item["key"]
+		_, hasSummary := item["summary"]
+		_, hasProject := item["project"]
+		return hasKey && hasSummary && hasProject
+	}
+	return false
+}
+
+// displayAssetTable displays assets using beautiful table formatting
+func (h *Handler) displayAssetTable(output []interface{}) {
+	factory := ui.NewAssetCapTableFactory()
+	table := factory.CreateAssetListTable()
+	
+	// Convert output to table data
+	for _, item := range output {
+		if assetData, ok := item.(map[string]interface{}); ok {
+			table.AddRow(assetData)
+		}
+	}
+	
+	fmt.Println(table.Render())
+}
+
+// displayTeamAssignmentTable displays team assignments using table formatting
+func (h *Handler) displayTeamAssignmentTable(output []interface{}) {
+	factory := ui.NewAssetCapTableFactory()
+	table := factory.CreateTeamAssignmentTable()
+	
+	for _, item := range output {
+		if teamData, ok := item.(map[string]interface{}); ok {
+			table.AddRow(teamData)
+		}
+	}
+	
+	fmt.Println(table.Render())
+}
+
+// displayTaskTable displays tasks using table formatting
+func (h *Handler) displayTaskTable(output []interface{}) {
+	factory := ui.NewAssetCapTableFactory()
+	table := factory.CreateTaskListTable()
+	
+	for _, item := range output {
+		if taskData, ok := item.(map[string]interface{}); ok {
+			table.AddRow(taskData)
+		}
+	}
+	
+	fmt.Println(table.Render())
 }
 
 // ErrExitRequested indicates the user requested to exit

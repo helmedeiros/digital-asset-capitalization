@@ -130,6 +130,20 @@ func (f *AssetCapTableFactory) CreateSprintTable() *Table {
 	return table
 }
 
+// CreateTeamAssignmentTable creates a table for team assignment information
+func (f *AssetCapTableFactory) CreateTeamAssignmentTable() *Table {
+	columns := []TableColumn{
+		{Header: "Asset", Key: "asset", Align: "left", Width: 25, Formatter: AssetNameFormatter},
+		{Header: "Owner", Key: "owning_team", Align: "left", Width: 15, Formatter: TeamFormatter},
+		{Header: "Contributors", Key: "contributing_teams", Align: "left", Width: 25, Formatter: TeamListFormatter},
+		{Header: "Status", Key: "has_owner", Align: "center", Width: 12, Formatter: TeamAssignmentStatusFormatter},
+	}
+
+	table := NewTable(columns)
+	table.Style = f.style
+	return table
+}
+
 // Specialized Formatters for AssetCap Data
 
 // AssetNameFormatter formats asset names with appropriate styling
