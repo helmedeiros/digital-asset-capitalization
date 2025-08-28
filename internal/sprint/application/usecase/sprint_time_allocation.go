@@ -5,6 +5,7 @@ import (
 	"encoding/csv"
 	"encoding/json"
 	"fmt"
+	"sort"
 	"strings"
 	"time"
 
@@ -406,7 +407,13 @@ func (p *SprintTimeAllocationUseCase) calculatePercentageLoad(team domain.Team, 
 
 func (p *SprintTimeAllocationUseCase) generateCSV(team domain.Team, results []map[string]interface{}) (string, error) {
 	headers := []string{"sprint", "issueKey", "issueType", "issueTitle", "workType", "assetName", "status", "dateStarted", "dateCompleted"}
-	headers = append(headers, team.Team...)
+
+	// Sort engineer names alphabetically before adding to headers
+	sortedTeamMembers := make([]string, len(team.Team))
+	copy(sortedTeamMembers, team.Team)
+	sort.Strings(sortedTeamMembers)
+
+	headers = append(headers, sortedTeamMembers...)
 
 	csvData, err := p.structArrayToCSVOrdered(results, headers)
 	if err != nil {
