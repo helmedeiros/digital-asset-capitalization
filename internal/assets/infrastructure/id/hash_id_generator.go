@@ -1,14 +1,13 @@
 package id
 
 import (
-	"crypto/sha256"
-	"encoding/hex"
-	"time"
+	"fmt"
+	"strings"
 
 	"github.com/helmedeiros/digital-asset-capitalization/internal/assets/domain/ports"
 )
 
-// HashIDGenerator implements the IDGenerator interface using hash-based ID generation
+// HashIDGenerator implements the IDGenerator interface using cap-asset-* ID generation
 type HashIDGenerator struct{}
 
 // NewHashIDGenerator creates a new hash-based ID generator
@@ -16,10 +15,17 @@ func NewHashIDGenerator() ports.IDGenerator {
 	return &HashIDGenerator{}
 }
 
-// GenerateID creates a unique ID based on the given name and timestamp
+// GenerateID creates a unique ID based on the given name in cap-asset-* format
 func (g *HashIDGenerator) GenerateID(name string) string {
-	hash := sha256.New()
-	hash.Write([]byte(name))
-	hash.Write([]byte(time.Now().String()))
-	return hex.EncodeToString(hash.Sum(nil))[:16]
+	// Convert name to lowercase and replace spaces with hyphens
+	id := strings.ToLower(name)
+	id = strings.ReplaceAll(id, " ", "-")
+	// Remove special characters that aren't suitable for labels
+	id = strings.ReplaceAll(id, "(", "")
+	id = strings.ReplaceAll(id, ")", "")
+	id = strings.ReplaceAll(id, "&", "and")
+	id = strings.ReplaceAll(id, "/", "-")
+	id = strings.ReplaceAll(id, ".", "-")
+
+	return fmt.Sprintf("cap-asset-%s", id)
 }

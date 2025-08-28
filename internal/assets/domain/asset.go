@@ -1,8 +1,6 @@
 package domain
 
 import (
-	"crypto/sha256"
-	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -17,6 +15,7 @@ var (
 	ErrEmptyDescription  = errors.New("asset description cannot be empty")
 	ErrInvalidVersion    = errors.New("invalid version")
 	ErrNegativeTaskCount = errors.New("task count cannot be negative")
+	ErrInvalidAssetID    = errors.New("asset ID must follow cap-asset-* format")
 )
 
 // Asset represents a digital asset in the system
@@ -187,12 +186,39 @@ func (a *Asset) GetVersion() int {
 	return a.Version
 }
 
-// generateID creates a unique ID for an asset based on its name
+// GetID returns the asset ID safely
+func (a *Asset) GetID() string {
+	a.mu.RLock()
+	defer a.mu.RUnlock()
+	return a.ID
+}
+
+// generateID creates a unique ID for an asset based on its name in cap-asset-* format
 func generateID(name string) string {
-	hash := sha256.New()
-	hash.Write([]byte(name))
-	hash.Write([]byte(time.Now().String()))
-	return hex.EncodeToString(hash.Sum(nil))[:16]
+	// Convert name to lowercase and replace spaces with hyphens
+	id := strings.ToLower(name)
+	id = strings.ReplaceAll(id, " ", "-")
+	// Remove special characters that aren't suitable for labels
+	id = strings.ReplaceAll(id, "(", "")
+	id = strings.ReplaceAll(id, ")", "")
+	id = strings.ReplaceAll(id, "&", "and")
+	id = strings.ReplaceAll(id, "/", "-")
+	id = strings.ReplaceAll(id, ".", "-")
+
+	return fmt.Sprintf("cap-asset-%s", id)
+}
+
+// ValidateAssetID checks if an asset ID follows the cap-asset-* format
+func ValidateAssetID(id string) error {
+	if !strings.HasPrefix(id, "cap-asset-") {
+		return ErrInvalidAssetID
+	}
+	return nil
+}
+
+// IsValidAssetID returns true if the ID follows the cap-asset-* format
+func IsValidAssetID(id string) bool {
+	return strings.HasPrefix(id, "cap-asset-") && len(id) > len("cap-asset-")
 }
 
 // SetDateStarted sets the date when the asset development started
