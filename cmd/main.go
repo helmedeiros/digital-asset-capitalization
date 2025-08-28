@@ -16,6 +16,7 @@ import (
 	assetsusecase "github.com/helmedeiros/digital-asset-capitalization/internal/assets/application/usecase"
 	assetsinfra "github.com/helmedeiros/digital-asset-capitalization/internal/assets/infrastructure"
 	assetid "github.com/helmedeiros/digital-asset-capitalization/internal/assets/infrastructure/id"
+	configapp "github.com/helmedeiros/digital-asset-capitalization/internal/config/application"
 	"github.com/helmedeiros/digital-asset-capitalization/internal/config/application/service"
 	"github.com/helmedeiros/digital-asset-capitalization/internal/config/application/usecase"
 	"github.com/helmedeiros/digital-asset-capitalization/internal/config/domain"
@@ -60,6 +61,7 @@ type App struct {
 	sprintService     sprintapp.SprintService
 	configService     ConfigService
 	investmentService *investmentservice.InvestmentService
+	teamResolver      *configapp.TeamResolverService
 }
 
 // ConfigService interface for configuration operations
@@ -210,6 +212,16 @@ For more information about a command:
 						Action: func(ctx *cli.Context) error {
 							project := ctx.String("project")
 							period := ctx.String("period")
+
+							// Resolve team identifier to actual project code
+							if a.teamResolver != nil && project != "" {
+								resolvedProject, err := a.teamResolver.ResolveProjectIdentifier(project)
+								if err != nil {
+									return fmt.Errorf("unknown project or team nickname: %s", project)
+								}
+								project = resolvedProject
+							}
+
 							result, err := a.sprintService.ListSprints(project, period)
 							if err != nil {
 								return err
@@ -245,6 +257,15 @@ For more information about a command:
 							sprint := ctx.String("sprint")
 							override := ctx.String("override")
 							sprintBounded := ctx.Bool("sprint-bounded")
+
+							// Resolve team identifier to actual project code
+							if a.teamResolver != nil && project != "" {
+								resolvedProject, err := a.teamResolver.ResolveProjectIdentifier(project)
+								if err != nil {
+									return fmt.Errorf("unknown project or team nickname: %s", project)
+								}
+								project = resolvedProject
+							}
 
 							if sprintBounded {
 								// Use the new sprint-bounded calculation
@@ -1095,6 +1116,16 @@ For more information about a command:
 							if project == "" || sprint == "" {
 								return fmt.Errorf("either --key or both --project and --sprint must be provided")
 							}
+
+							// Resolve team identifier to actual project code
+							if a.teamResolver != nil && project != "" {
+								resolvedProject, err := a.teamResolver.ResolveProjectIdentifier(project)
+								if err != nil {
+									return fmt.Errorf("unknown project or team nickname: %s", project)
+								}
+								project = resolvedProject
+							}
+
 							if err := a.taskService.FetchTasks(context.Background(), project, sprint, platform); err != nil {
 								return err
 							}
@@ -1201,6 +1232,16 @@ For more information about a command:
 							platform := ctx.String("platform")
 							dryRun := ctx.Bool("dry-run")
 							apply := ctx.Bool("apply")
+
+							// Resolve team identifier to actual project code
+							if a.teamResolver != nil && project != "" {
+								resolvedProject, err := a.teamResolver.ResolveProjectIdentifier(project)
+								if err != nil {
+									return fmt.Errorf("unknown project or team nickname: %s", project)
+								}
+								project = resolvedProject
+							}
+
 							input := tasksdomain.ClassifyTasksInput{
 								Project: project,
 								Sprint:  sprint,
@@ -1590,6 +1631,113 @@ For more information about a command:
 							},
 						},
 					},
+					{
+						Name:  "team-nicknames",
+						Usage: "Manage team nicknames",
+						Subcommands: []*cli.Command{
+							{
+								Name:  "add",
+								Usage: "Add nicknames for a project",
+								Action: func(ctx *cli.Context) error {
+									project := ctx.String("project")
+									nickname := ctx.String("nickname")
+
+									if project == "" {
+										return fmt.Errorf("project is required")
+									}
+									if nickname == "" {
+										return fmt.Errorf("nickname is required")
+									}
+
+									// Split comma-separated nicknames
+									nicknames := strings.Split(nickname, ",")
+									for i, nick := range nicknames {
+										nicknames[i] = strings.TrimSpace(nick)
+									}
+
+									fmt.Printf("⚠️  Note: Nickname management requires implementation of team config update functionality\n")
+									fmt.Printf("Would add nickname(s) %s for project %s\n",
+										strings.Join(nicknames, ", "), project)
+
+									return nil
+								},
+								Flags: []cli.Flag{
+									&cli.StringFlag{
+										Name:     "project",
+										Usage:    "Project key (e.g., FN)",
+										Required: true,
+									},
+									&cli.StringFlag{
+										Name:     "nickname",
+										Usage:    "Comma-separated nicknames (e.g., 'Pricing,Fintech')",
+										Required: true,
+									},
+								},
+							},
+							{
+								Name:  "list",
+								Usage: "List all team nicknames",
+								Action: func(_ *cli.Context) error {
+									if a.teamResolver == nil {
+										return fmt.Errorf("team resolver not available")
+									}
+
+									mappings := a.teamResolver.GetAllMappings()
+									if len(mappings) == 0 {
+										fmt.Println("No team nicknames configured")
+										return nil
+									}
+
+									fmt.Println("Team Nicknames:")
+									fmt.Println("================")
+
+									// Group by project
+									projectMap := make(map[string][]string)
+									for nickname, project := range mappings {
+										projectMap[project] = append(projectMap[project], nickname)
+									}
+
+									for project, nicks := range projectMap {
+										fmt.Printf("%s: %s\n", project, strings.Join(nicks, ", "))
+									}
+
+									return nil
+								},
+							},
+							{
+								Name:  "show",
+								Usage: "Show nicknames for a specific project",
+								Action: func(ctx *cli.Context) error {
+									project := ctx.String("project")
+									if project == "" {
+										return fmt.Errorf("project is required")
+									}
+
+									if a.teamResolver == nil {
+										return fmt.Errorf("team resolver not available")
+									}
+
+									// Resolve project to ensure it exists
+									resolvedProject, err := a.teamResolver.ResolveProjectIdentifier(project)
+									if err != nil {
+										return fmt.Errorf("unknown project: %s", project)
+									}
+
+									displayName := a.teamResolver.GetProjectWithNicknames(resolvedProject)
+									fmt.Printf("Project: %s\n", displayName)
+
+									return nil
+								},
+								Flags: []cli.Flag{
+									&cli.StringFlag{
+										Name:     "project",
+										Usage:    "Project key or nickname (e.g., FN or Pricing)",
+										Required: true,
+									},
+								},
+							},
+						},
+					},
 				},
 			},
 			{
@@ -1607,6 +1755,15 @@ For more information about a command:
 							assetName := ctx.String("asset")
 							project := ctx.String("project")
 							sprintsStr := ctx.String("sprints")
+
+							// Resolve team identifier to actual project code
+							if a.teamResolver != nil && project != "" {
+								resolvedProject, err := a.teamResolver.ResolveProjectIdentifier(project)
+								if err != nil {
+									return fmt.Errorf("unknown project or team nickname: %s", project)
+								}
+								project = resolvedProject
+							}
 
 							var sprints []string
 							if sprintsStr != "" {
@@ -2071,9 +2228,18 @@ func initializeApp() (*App, error) {
 	investmentRepo := investmentinfra.NewInvestmentJSONRepository(configDir)
 	investmentService := investmentservice.NewInvestmentService(costModelRepo, allocationProvider, investmentRepo)
 
+	// Initialize team resolver
+	teamConfig, err := sharedConfigService.GetTeamConfig()
+	if err != nil {
+		// Create empty team config if not exists
+		teamConfig, _ = domain.NewTeamConfig(make(map[string][]string))
+	}
+	teamResolver := configapp.NewTeamResolverService(teamConfig)
+
 	app := NewApp(assetService, taskService, sprintService)
 	app.configService = configService
 	app.investmentService = investmentService
+	app.teamResolver = teamResolver
 	return app, nil
 }
 
