@@ -1,6 +1,7 @@
 package id
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -12,22 +13,27 @@ func TestHashIdGenerator_GenerateID(t *testing.T) {
 	tests := []struct {
 		name     string
 		input    string
-		expected int // expected length
+		expected string
 	}{
 		{
 			name:     "generates ID for asset name",
 			input:    "test-asset",
-			expected: 16,
+			expected: "cap-asset-test-asset",
 		},
 		{
 			name:     "generates ID for empty string",
 			input:    "",
-			expected: 16,
+			expected: "cap-asset-",
 		},
 		{
-			name:     "generates ID for long name",
-			input:    "very-long-asset-name-with-many-characters",
-			expected: 16,
+			name:     "generates ID with special characters",
+			input:    "Test Asset (Special)",
+			expected: "cap-asset-test-asset-special",
+		},
+		{
+			name:     "handles complex name",
+			input:    "Very/Long Asset Name & More",
+			expected: "cap-asset-very-long-asset-name-and-more",
 		},
 	}
 
@@ -35,35 +41,30 @@ func TestHashIdGenerator_GenerateID(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			id := generator.GenerateID(tt.input)
 
-			// Check that ID has expected length
-			assert.Equal(t, tt.expected, len(id))
+			// Check that ID matches expected format
+			assert.Equal(t, tt.expected, id)
 
-			// Check that ID is not empty
-			assert.NotEmpty(t, id)
-
-			// Check that ID is hexadecimal
-			assert.Regexp(t, "^[a-f0-9]+$", id)
+			// Check that ID starts with cap-asset-
+			assert.True(t, strings.HasPrefix(id, "cap-asset-"), "ID should start with cap-asset-")
 		})
 	}
-}
-
-func TestHashIdGenerator_GenerateID_Uniqueness(t *testing.T) {
-	generator := NewHashIDGenerator()
-
-	// Generate multiple IDs for the same input
-	// They should be different due to timestamp
-	id1 := generator.GenerateID("test")
-	id2 := generator.GenerateID("test")
-
-	assert.NotEqual(t, id1, id2, "IDs should be unique even for same input due to timestamp")
 }
 
 func TestHashIdGenerator_GenerateID_Deterministic(t *testing.T) {
 	generator := NewHashIDGenerator()
 
-	// Different inputs should produce different IDs
-	id1 := generator.GenerateID("asset-1")
-	id2 := generator.GenerateID("asset-2")
+	// Same inputs should produce same IDs (deterministic)
+	id1 := generator.GenerateID("test")
+	id2 := generator.GenerateID("test")
 
-	assert.NotEqual(t, id1, id2, "Different inputs should produce different IDs")
+	assert.Equal(t, id1, id2, "Same inputs should produce same IDs")
+	assert.Equal(t, "cap-asset-test", id1)
+
+	// Different inputs should produce different IDs
+	id3 := generator.GenerateID("asset-1")
+	id4 := generator.GenerateID("asset-2")
+
+	assert.NotEqual(t, id3, id4, "Different inputs should produce different IDs")
+	assert.Equal(t, "cap-asset-asset-1", id3)
+	assert.Equal(t, "cap-asset-asset-2", id4)
 }

@@ -7,12 +7,19 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
+	"github.com/stretchr/testify/require"
 
 	assetsdomain "github.com/helmedeiros/digital-asset-capitalization/internal/assets/domain"
 	"github.com/helmedeiros/digital-asset-capitalization/internal/tasks/application/usecase/testutil"
 	"github.com/helmedeiros/digital-asset-capitalization/internal/tasks/domain"
 	"github.com/helmedeiros/digital-asset-capitalization/internal/tasks/domain/ports"
 )
+
+// createTestAsset creates a test asset for testing purposes
+func createTestAsset(name string) *assetsdomain.Asset {
+	asset, _ := assetsdomain.NewAsset(name, "Test description")
+	return asset
+}
 
 const (
 	testProject = "TEST"
@@ -652,7 +659,7 @@ func TestBuildUpdatedLabels(t *testing.T) {
 			existingLabels: []string{"existing-label"},
 			workType:       domain.WorkTypeDevelopment,
 			assetResult: &ports.AssetClassificationResult{
-				Asset:      &assetsdomain.Asset{Name: "Test Asset"},
+				Asset:      createTestAsset("Test Asset"),
 				Confidence: 0.85,
 				Reason:     "keyword match",
 			},
@@ -663,7 +670,7 @@ func TestBuildUpdatedLabels(t *testing.T) {
 			existingLabels: []string{"cap-asset-existing", "cap-maintenance", "other-label"},
 			workType:       domain.WorkTypeDevelopment,
 			assetResult: &ports.AssetClassificationResult{
-				Asset:      &assetsdomain.Asset{Name: "Existing Asset"},
+				Asset:      createTestAsset("Existing Asset"),
 				Confidence: 0.95,
 				Reason:     "existing asset label preserved",
 			},
@@ -674,7 +681,7 @@ func TestBuildUpdatedLabels(t *testing.T) {
 			existingLabels: []string{"cap-asset-old", "cap-maintenance", "other-label"},
 			workType:       domain.WorkTypeDevelopment,
 			assetResult: &ports.AssetClassificationResult{
-				Asset:      &assetsdomain.Asset{Name: "New Asset"},
+				Asset:      createTestAsset("New Asset"),
 				Confidence: 0.75,
 				Reason:     "keyword match",
 			},
@@ -692,7 +699,7 @@ func TestBuildUpdatedLabels(t *testing.T) {
 			existingLabels: []string{"cap-asset-old1", "cap-asset-old2", "other-label"},
 			workType:       domain.WorkTypeDevelopment,
 			assetResult: &ports.AssetClassificationResult{
-				Asset:      &assetsdomain.Asset{Name: "New Asset"},
+				Asset:      createTestAsset("New Asset"),
 				Confidence: 0.90,
 				Reason:     "best match found",
 			},
@@ -721,7 +728,7 @@ func TestBuildUpdatedLabels(t *testing.T) {
 			existingLabels: []string{"cap-asset-preserved", "cap-maintenance", "bug", "priority-high"},
 			workType:       domain.WorkTypeDevelopment,
 			assetResult: &ports.AssetClassificationResult{
-				Asset:      &assetsdomain.Asset{Name: "Preserved Asset"},
+				Asset:      createTestAsset("Preserved Asset"),
 				Confidence: 0.98,
 				Reason:     "existing asset label preserved",
 			},
@@ -823,11 +830,9 @@ func TestClassifyTasksComprehensive(t *testing.T) {
 			{Key: "TEST-2", Summary: "Task 2"},
 		}
 
-		// Create test asset
-		testAsset := &assetsdomain.Asset{
-			Name:        "Test Asset",
-			Description: "Test asset description",
-		}
+		// Create test asset with proper ID
+		testAsset, err := assetsdomain.NewAsset("Test Asset", "Test asset description")
+		require.NoError(t, err)
 
 		comprehensiveResults := []*ports.ComprehensiveClassificationResult{
 			{
@@ -855,7 +860,7 @@ func TestClassifyTasksComprehensive(t *testing.T) {
 		remoteRepo.On("UpdateLabels", ctx, "TEST-2", []string{"cap-maintenance"}).Return(nil)
 
 		// Act
-		err := uc.Execute(ctx, input)
+		err = uc.Execute(ctx, input)
 
 		// Assert
 		assert.NoError(t, err)
@@ -1798,7 +1803,7 @@ func TestAdditionalErrorHandlingAndEdgeCases(t *testing.T) {
 				Task:     task,
 				WorkType: domain.WorkTypeDevelopment,
 				Asset: &ports.AssetClassificationResult{
-					Asset:      &assetsdomain.Asset{Name: "New Asset"},
+					Asset:      createTestAsset("Test Asset"),
 					Confidence: 0.90,
 					Reason:     "keyword match",
 				},
@@ -1806,7 +1811,7 @@ func TestAdditionalErrorHandlingAndEdgeCases(t *testing.T) {
 			},
 		}
 
-		expectedLabels := []string{"existing-label", "cap-development", "cap-asset-new-asset"}
+		expectedLabels := []string{"existing-label", "cap-development", "cap-asset-test-asset"}
 
 		localRepo.On("FindByProjectAndSprint", ctx, testProject, testSprint).Return([]*domain.Task{task}, nil)
 		comprehensiveClassifier.On("ClassifyTasksComprehensive", []*domain.Task{task}).Return(results, nil)

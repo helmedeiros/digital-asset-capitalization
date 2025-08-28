@@ -156,13 +156,17 @@ func TestTaskCountOperations(t *testing.T) {
 }
 
 func TestGenerateID(t *testing.T) {
-	// Test that IDs are unique
+	// Test that IDs follow cap-asset-* format
 	id1 := generateID("test-asset")
-	id2 := generateID("test-asset")
-	assert.NotEqual(t, id1, id2, "Generated IDs should be unique")
+	assert.Equal(t, "cap-asset-test-asset", id1, "Expected cap-asset-* format")
 
-	// Test ID length
-	assert.Len(t, id1, 16, "Expected ID length 16")
+	// Test special character handling
+	id2 := generateID("Test Asset (Special)")
+	assert.Equal(t, "cap-asset-test-asset-special", id2, "Expected special characters to be handled")
+
+	// Test that same names generate same IDs (deterministic)
+	id3 := generateID("test-asset")
+	assert.Equal(t, id1, id3, "Same names should generate same IDs")
 }
 
 func TestDateStarted(t *testing.T) {
