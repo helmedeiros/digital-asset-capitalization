@@ -411,3 +411,278 @@ func TestTeamConfig_SetTeam(t *testing.T) {
 		assert.Equal(t, expected, team)
 	})
 }
+
+// Tests for nickname functionality
+
+func TestNewTeamConfigWithNicknames(t *testing.T) {
+	tests := []struct {
+		name      string
+		teams     map[string][]string
+		nicknames map[string][]string
+		wantErr   bool
+	}{
+		{
+			name: "valid teams and nicknames",
+			teams: map[string][]string{
+				"FN": {"Alice", "Bob"},
+				"AD": {"Carol", "Dave"},
+			},
+			nicknames: map[string][]string{
+				"FN": {"pricing", "fintech"},
+				"AD": {"ads", "advertisement"},
+			},
+			wantErr: false,
+		},
+		{
+			name: "nickname for non-existent team",
+			teams: map[string][]string{
+				"FN": {"Alice", "Bob"},
+			},
+			nicknames: map[string][]string{
+				"UNKNOWN": {"test"},
+			},
+			wantErr: true,
+		},
+		{
+			name: "duplicate nicknames for same project",
+			teams: map[string][]string{
+				"FN": {"Alice", "Bob"},
+			},
+			nicknames: map[string][]string{
+				"FN": {"pricing", "pricing"},
+			},
+			wantErr: true,
+		},
+		{
+			name: "empty nickname",
+			teams: map[string][]string{
+				"FN": {"Alice", "Bob"},
+			},
+			nicknames: map[string][]string{
+				"FN": {""},
+			},
+			wantErr: true,
+		},
+		{
+			name: "teams without nicknames",
+			teams: map[string][]string{
+				"FN": {"Alice", "Bob"},
+			},
+			nicknames: map[string][]string{},
+			wantErr:   false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			_, err := NewTeamConfigWithNicknames(tt.teams, tt.nicknames)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("NewTeamConfigWithNicknames() error = %v, wantErr %v", err, tt.wantErr)
+			}
+		})
+	}
+}
+
+func TestTeamConfig_ResolveTeamIdentifier(t *testing.T) {
+	teams := map[string][]string{
+		"FN": {"Alice", "Bob"},
+		"AD": {"Carol", "Dave"},
+	}
+	nicknames := map[string][]string{
+		"FN": {"pricing", "fintech"},
+		"AD": {"ads", "advertisement"},
+	}
+
+	config, err := NewTeamConfigWithNicknames(teams, nicknames)
+	require.NoError(t, err)
+
+	tests := []struct {
+		name       string
+		identifier string
+		want       string
+		wantErr    bool
+	}{
+		{
+			name:       "resolve existing project code",
+			identifier: "FN",
+			want:       "FN",
+			wantErr:    false,
+		},
+		{
+			name:       "resolve lowercase nickname",
+			identifier: "pricing",
+			want:       "FN",
+			wantErr:    false,
+		},
+		{
+			name:       "resolve uppercase nickname",
+			identifier: "PRICING",
+			want:       "FN",
+			wantErr:    false,
+		},
+		{
+			name:       "resolve mixed case nickname",
+			identifier: "Pricing",
+			want:       "FN",
+			wantErr:    false,
+		},
+		{
+			name:       "resolve another project nickname",
+			identifier: "ads",
+			want:       "AD",
+			wantErr:    false,
+		},
+		{
+			name:       "resolve project code case insensitive",
+			identifier: "fn",
+			want:       "FN",
+			wantErr:    false,
+		},
+		{
+			name:       "unknown identifier",
+			identifier: "unknown",
+			want:       "",
+			wantErr:    true,
+		},
+		{
+			name:       "empty identifier",
+			identifier: "",
+			want:       "",
+			wantErr:    true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := config.ResolveTeamIdentifier(tt.identifier)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("ResolveTeamIdentifier() error = %v, wantErr %v", err, tt.wantErr)
+				return
+			}
+			if got != tt.want {
+				t.Errorf("ResolveTeamIdentifier() got = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestTeamConfig_SetNicknames(t *testing.T) {
+	teams := map[string][]string{
+		"FN": {"Alice", "Bob"},
+	}
+
+	config, err := NewTeamConfig(teams)
+	require.NoError(t, err)
+
+	tests := []struct {
+		name      string
+		project   string
+		nicknames []string
+		wantErr   bool
+	}{
+		{
+			name:      "set valid nicknames",
+			project:   "FN",
+			nicknames: []string{"pricing", "fintech"},
+			wantErr:   false,
+		},
+		{
+			name:      "set nicknames for non-existent project",
+			project:   "UNKNOWN",
+			nicknames: []string{"test"},
+			wantErr:   true,
+		},
+		{
+			name:      "set duplicate nicknames",
+			project:   "FN",
+			nicknames: []string{"pricing", "pricing"},
+			wantErr:   true,
+		},
+		{
+			name:      "set empty nickname",
+			project:   "FN",
+			nicknames: []string{""},
+			wantErr:   true,
+		},
+		{
+			name:      "empty project",
+			project:   "",
+			nicknames: []string{"test"},
+			wantErr:   true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := config.SetNicknames(tt.project, tt.nicknames)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("SetNicknames() error = %v, wantErr %v", err, tt.wantErr)
+			}
+		})
+	}
+}
+
+func TestTeamConfig_GetNicknames(t *testing.T) {
+	teams := map[string][]string{
+		"FN": {"Alice", "Bob"},
+		"AD": {"Carol", "Dave"},
+	}
+	nicknames := map[string][]string{
+		"FN": {"pricing", "fintech"},
+	}
+
+	config, err := NewTeamConfigWithNicknames(teams, nicknames)
+	require.NoError(t, err)
+
+	tests := []struct {
+		name    string
+		project string
+		want    []string
+	}{
+		{
+			name:    "get existing nicknames",
+			project: "FN",
+			want:    []string{"pricing", "fintech"},
+		},
+		{
+			name:    "get nicknames for project without nicknames",
+			project: "AD",
+			want:    nil,
+		},
+		{
+			name:    "get nicknames for non-existent project",
+			project: "UNKNOWN",
+			want:    nil,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := config.GetNicknames(tt.project)
+			assert.Equal(t, tt.want, got)
+		})
+	}
+}
+
+func TestTeamConfig_GetAllNicknameMappings(t *testing.T) {
+	teams := map[string][]string{
+		"FN": {"Alice", "Bob"},
+		"AD": {"Carol", "Dave"},
+	}
+	nicknames := map[string][]string{
+		"FN": {"pricing", "fintech"},
+		"AD": {"ads"},
+	}
+
+	config, err := NewTeamConfigWithNicknames(teams, nicknames)
+	require.NoError(t, err)
+
+	mappings := config.GetAllNicknameMappings()
+	expected := map[string]string{
+		"pricing": "FN",
+		"fintech": "FN",
+		"ads":     "AD",
+	}
+
+	assert.Equal(t, expected, mappings)
+}

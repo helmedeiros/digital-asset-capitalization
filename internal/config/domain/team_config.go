@@ -8,13 +8,15 @@ import (
 
 // TeamConfig represents the team configuration domain entity
 type TeamConfig struct {
-	teams map[string][]string
+	teams     map[string][]string
+	nicknames map[string][]string // project -> nicknames mapping
 }
 
 // NewTeamConfig creates a new TeamConfig with validation
 func NewTeamConfig(teams map[string][]string) (*TeamConfig, error) {
 	config := &TeamConfig{
-		teams: make(map[string][]string),
+		teams:     make(map[string][]string),
+		nicknames: make(map[string][]string),
 	}
 
 	for project, members := range teams {
@@ -41,6 +43,50 @@ func NewTeamConfig(teams map[string][]string) (*TeamConfig, error) {
 		}
 
 		config.teams[trimmedProject] = trimmedMembers
+	}
+
+	return config, nil
+}
+
+// NewTeamConfigWithNicknames creates a new TeamConfig with teams and nicknames
+func NewTeamConfigWithNicknames(teams map[string][]string, nicknames map[string][]string) (*TeamConfig, error) {
+	// First create config with teams
+	config, err := NewTeamConfig(teams)
+	if err != nil {
+		return nil, err
+	}
+
+	// Then add nicknames with validation
+	for project, nicks := range nicknames {
+		trimmedProject := strings.TrimSpace(project)
+		if trimmedProject == "" {
+			return nil, fmt.Errorf("project key cannot be empty in nicknames")
+		}
+
+		// Ensure project exists in teams
+		if _, exists := config.teams[trimmedProject]; !exists {
+			return nil, fmt.Errorf("project '%s' has nicknames but no team defined", trimmedProject)
+		}
+
+		trimmedNicks := make([]string, 0, len(nicks))
+		nickSet := make(map[string]bool)
+
+		for _, nick := range nicks {
+			// Convert to lowercase for case-insensitive matching
+			trimmedNick := strings.ToLower(strings.TrimSpace(nick))
+			if trimmedNick == "" {
+				return nil, fmt.Errorf("nickname cannot be empty")
+			}
+
+			if nickSet[trimmedNick] {
+				return nil, fmt.Errorf("duplicate nickname '%s' for project '%s'", trimmedNick, trimmedProject)
+			}
+
+			nickSet[trimmedNick] = true
+			trimmedNicks = append(trimmedNicks, trimmedNick)
+		}
+
+		config.nicknames[trimmedProject] = trimmedNicks
 	}
 
 	return config, nil
@@ -162,4 +208,109 @@ func (tc *TeamConfig) ToMap() map[string][]string {
 		result[project] = membersCopy
 	}
 	return result
+}
+
+// GetNicknames returns the nicknames for a given project
+func (tc *TeamConfig) GetNicknames(project string) []string {
+	nicks, exists := tc.nicknames[project]
+	if !exists {
+		return nil
+	}
+	// Return a copy to prevent external modification
+	result := make([]string, len(nicks))
+	copy(result, nicks)
+	return result
+}
+
+// SetNicknames sets the nicknames for a project
+func (tc *TeamConfig) SetNicknames(project string, nicknames []string) error {
+	trimmedProject := strings.TrimSpace(project)
+	if trimmedProject == "" {
+		return fmt.Errorf("project key cannot be empty")
+	}
+
+	// Ensure project exists in teams
+	if _, exists := tc.teams[trimmedProject]; !exists {
+		return fmt.Errorf("project '%s' does not exist", trimmedProject)
+	}
+
+	// Validate and normalize nicknames
+	trimmedNicks := make([]string, 0, len(nicknames))
+	nickSet := make(map[string]bool)
+
+	for _, nick := range nicknames {
+		trimmedNick := strings.ToLower(strings.TrimSpace(nick))
+		if trimmedNick == "" {
+			return fmt.Errorf("nickname cannot be empty")
+		}
+
+		if nickSet[trimmedNick] {
+			return fmt.Errorf("duplicate nickname '%s'", trimmedNick)
+		}
+
+		nickSet[trimmedNick] = true
+		trimmedNicks = append(trimmedNicks, trimmedNick)
+	}
+
+	tc.nicknames[trimmedProject] = trimmedNicks
+	return nil
+}
+
+// ResolveTeamIdentifier resolves a team identifier (project code or nickname) to the actual project code
+func (tc *TeamConfig) ResolveTeamIdentifier(identifier string) (string, error) {
+	if identifier == "" {
+		return "", fmt.Errorf("identifier cannot be empty")
+	}
+
+	// First check if it's already a valid project code (case-sensitive)
+	if _, exists := tc.teams[identifier]; exists {
+		return identifier, nil
+	}
+
+	// Then check if it's a nickname (case-insensitive)
+	lowerIdentifier := strings.ToLower(strings.TrimSpace(identifier))
+
+	for project, nicks := range tc.nicknames {
+		for _, nick := range nicks {
+			if nick == lowerIdentifier {
+				return project, nil
+			}
+		}
+	}
+
+	// Also check project codes case-insensitively as a fallback
+	for project := range tc.teams {
+		if strings.ToLower(project) == lowerIdentifier {
+			return project, nil
+		}
+	}
+
+	return "", fmt.Errorf("unknown project or nickname: %s", identifier)
+}
+
+// GetAllNicknameMappings returns a map of all nicknames to their project codes
+func (tc *TeamConfig) GetAllNicknameMappings() map[string]string {
+	result := make(map[string]string)
+
+	for project, nicks := range tc.nicknames {
+		for _, nick := range nicks {
+			result[nick] = project
+		}
+	}
+
+	return result
+}
+
+// ToMapWithNicknames returns both teams and nicknames maps
+func (tc *TeamConfig) ToMapWithNicknames() (map[string][]string, map[string][]string) {
+	teams := tc.ToMap()
+
+	nicknames := make(map[string][]string, len(tc.nicknames))
+	for project, nicks := range tc.nicknames {
+		nicksCopy := make([]string, len(nicks))
+		copy(nicksCopy, nicks)
+		nicknames[project] = nicksCopy
+	}
+
+	return teams, nicknames
 }

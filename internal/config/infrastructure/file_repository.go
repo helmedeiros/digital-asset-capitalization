@@ -96,22 +96,28 @@ func (r *FileRepository) LoadTeamConfig() (*domain.TeamConfig, error) {
 		return nil, fmt.Errorf("failed to read team config: %w", err)
 	}
 
-	// Parse existing file format: {"FN": {"team": ["member1", "member2"]}}
+	// Parse existing file format: {"FN": {"team": ["member1", "member2"], "nicknames": ["pricing", "fintech"]}}
 	var fileFormat map[string]struct {
-		Team []string `json:"team"`
+		Team      []string `json:"team"`
+		Nicknames []string `json:"nicknames,omitempty"`
 	}
 
 	if err := json.Unmarshal(data, &fileFormat); err != nil {
 		return nil, fmt.Errorf("failed to parse team config: %w", err)
 	}
 
-	// Transform to domain format: {"FN": ["member1", "member2"]}
-	domainFormat := make(map[string][]string)
+	// Transform to domain format
+	teams := make(map[string][]string)
+	nicknames := make(map[string][]string)
+
 	for project, teamInfo := range fileFormat {
-		domainFormat[project] = teamInfo.Team
+		teams[project] = teamInfo.Team
+		if len(teamInfo.Nicknames) > 0 {
+			nicknames[project] = teamInfo.Nicknames
+		}
 	}
 
-	return domain.NewTeamConfig(domainFormat)
+	return domain.NewTeamConfigWithNicknames(teams, nicknames)
 }
 
 // SaveTeamConfig saves team configuration to file with format transformation
@@ -119,17 +125,26 @@ func (r *FileRepository) SaveTeamConfig(config *domain.TeamConfig) error {
 	path := filepath.Join(r.configDir, "teams.json")
 
 	// Transform from domain format to file format
-	domainMap := config.ToMap()
+	teams, nicknames := config.ToMapWithNicknames()
 	fileFormat := make(map[string]struct {
-		Team []string `json:"team"`
+		Team      []string `json:"team"`
+		Nicknames []string `json:"nicknames,omitempty"`
 	})
 
-	for project, members := range domainMap {
-		fileFormat[project] = struct {
-			Team []string `json:"team"`
+	for project, members := range teams {
+		entry := struct {
+			Team      []string `json:"team"`
+			Nicknames []string `json:"nicknames,omitempty"`
 		}{
 			Team: members,
 		}
+
+		// Add nicknames if they exist for this project
+		if nicks, exists := nicknames[project]; exists && len(nicks) > 0 {
+			entry.Nicknames = nicks
+		}
+
+		fileFormat[project] = entry
 	}
 
 	data, err := json.MarshalIndent(fileFormat, "", "  ")
