@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"math"
+	"strings"
 	"time"
 )
 
@@ -85,35 +86,46 @@ func (scp StatusChangePeriod) Duration() time.Duration {
 
 // IsWorkTime determines if a status represents active work time
 func (scp StatusChangePeriod) IsWorkTime() bool {
-	workStatuses := []string{
-		StatusInProgress,
-		"Under Review",
-		"Code Review",
-		"Testing",
-		"QA",
-		"Ready for Review",
+	// First check for exact matches to handle custom statuses
+	normalizedStatus := strings.ToLower(strings.TrimSpace(scp.Status))
+
+	// Explicitly exclude non-work statuses (including custom ones)
+	nonWorkPatterns := []string{
+		"done",
+		"deployed",
+		"closed",
+		"resolved",
+		"won't",
+		"cancelled",
+		"duplicate",
+		"to do",
+		"todo",
+		"open",
+		"backlog",
+		"blocked",
+		"on hold",
 	}
 
-	// Explicitly exclude non-work statuses
-	nonWorkStatuses := []string{
-		"To Do",
-		"Blocked",
-		"Done",
-		StatusWontDo,
-		"Cancelled",
-		"On Hold",
-	}
-
-	// Check if it's explicitly a non-work status
-	for _, status := range nonWorkStatuses {
-		if scp.Status == status {
+	// Check if it's a non-work status
+	for _, pattern := range nonWorkPatterns {
+		if strings.Contains(normalizedStatus, pattern) {
 			return false
 		}
 	}
 
+	// Work status patterns
+	workPatterns := []string{
+		"in progress",
+		"progress",
+		"development",
+		"review",
+		"testing",
+		"qa",
+	}
+
 	// Check if it's explicitly a work status
-	for _, status := range workStatuses {
-		if scp.Status == status {
+	for _, pattern := range workPatterns {
+		if strings.Contains(normalizedStatus, pattern) {
 			return true
 		}
 	}
@@ -152,9 +164,17 @@ func (calc *SprintBoundedTimeCalculator) CalculateWorkingHours(_ context.Context
 		}
 	}
 
-	// Apply minimum hour rule for same-day completion within sprint
-	if totalHours == 0 && calc.hasCompletionInSprint(issue, sprintBoundary) {
-		totalHours = 1.0
+	// Apply fallback logic for tasks without proper history
+	if totalHours == 0 {
+		// Check if task was completed within sprint
+		if calc.hasCompletionInSprint(issue, sprintBoundary) {
+			totalHours = 1.0
+		} else if calc.isCurrentlyDone(issue) && len(issue.GetStatusChanges()) > 0 {
+			// Task is done and has some changelog activity - give default hours
+			// This handles tasks that were bulk-updated or have incomplete changelog
+			// Only apply if there's some activity history, not for completely unchanged tasks
+			totalHours = 8.0
+		}
 	}
 
 	// Round to avoid floating-point precision issues
@@ -246,6 +266,15 @@ func (calc *SprintBoundedTimeCalculator) calculatePeriodHours(period StatusChang
 	return hours
 }
 
+// isCurrentlyDone checks if the issue's current status is a done state
+func (calc *SprintBoundedTimeCalculator) isCurrentlyDone(issue JiraIssue) bool {
+	currentStatus := strings.ToLower(strings.TrimSpace(issue.Fields.Status.Name))
+	return strings.Contains(currentStatus, "done") ||
+		strings.Contains(currentStatus, "deployed") ||
+		strings.Contains(currentStatus, "closed") ||
+		strings.Contains(currentStatus, "resolved")
+}
+
 // hasCompletionInSprint checks if the issue was completed within the sprint
 func (calc *SprintBoundedTimeCalculator) hasCompletionInSprint(issue JiraIssue, sprintBoundary SprintBoundary) bool {
 	statusChanges := issue.GetStatusChanges()
@@ -262,8 +291,17 @@ func (calc *SprintBoundedTimeCalculator) hasCompletionInSprint(issue JiraIssue, 
 
 		if sprintBoundary.Contains(timestamp) {
 			for _, item := range change.Items {
-				if item.IsStatusChange() && (item.ToString == StatusDone || item.ToString == StatusWontDo) {
-					return true
+				if item.IsStatusChange() {
+					// Check if status indicates completion using normalized checks
+					normalizedStatus := strings.ToLower(strings.TrimSpace(item.ToString))
+					if strings.Contains(normalizedStatus, "done") ||
+						strings.Contains(normalizedStatus, "deployed") ||
+						strings.Contains(normalizedStatus, "closed") ||
+						strings.Contains(normalizedStatus, "resolved") ||
+						strings.Contains(normalizedStatus, "won't") ||
+						strings.Contains(normalizedStatus, "cancelled") {
+						return true
+					}
 				}
 			}
 		}
@@ -328,8 +366,14 @@ func (calc *LegacyTimeCalculator) getIssueTimeRange(issue JiraIssue) (time.Time,
 			}
 			historyTime = historyTime.UTC()
 
-			// Look for transition into StatusInProgress state
-			if item.ToString == StatusInProgress {
+			// Normalize the status for checking
+			normalizedToStatus := strings.ToLower(strings.TrimSpace(item.ToString))
+
+			// Look for transition into in-progress state
+			if strings.Contains(normalizedToStatus, "progress") ||
+				strings.Contains(normalizedToStatus, "development") ||
+				strings.Contains(normalizedToStatus, "review") ||
+				strings.Contains(normalizedToStatus, "testing") {
 				if firstInProgressTime.IsZero() {
 					firstInProgressTime = historyTime
 				}
@@ -337,8 +381,13 @@ func (calc *LegacyTimeCalculator) getIssueTimeRange(issue JiraIssue) (time.Time,
 				inProgress = true
 			}
 
-			// Look for transition to "Done" or "Won't Do" state
-			if item.ToString == StatusDone || item.ToString == StatusWontDo {
+			// Look for transition to completion state
+			if strings.Contains(normalizedToStatus, "done") ||
+				strings.Contains(normalizedToStatus, "deployed") ||
+				strings.Contains(normalizedToStatus, "closed") ||
+				strings.Contains(normalizedToStatus, "resolved") ||
+				strings.Contains(normalizedToStatus, "won't") ||
+				strings.Contains(normalizedToStatus, "cancelled") {
 				endTime = historyTime
 				// If we weren't in progress, use the completion time as start time
 				if !inProgress && startTime.IsZero() {

@@ -268,14 +268,14 @@ For more information about a command:
 							}
 
 							if sprintBounded {
-								// Use the new sprint-bounded calculation
+								// Use sprint-bounded calculation (default)
 								result, err := a.sprintService.ProcessJiraIssuesWithStrategy(project, sprint, override, true)
 								if err != nil {
 									return err
 								}
 								fmt.Print(result)
 							} else {
-								// Use legacy calculation (default)
+								// Use legacy calculation (when --sprint-bounded=false)
 								result, err := a.sprintService.ProcessJiraIssues(project, sprint, override)
 								if err != nil {
 									return err
@@ -306,7 +306,7 @@ For more information about a command:
 								Name:    "sprint-bounded",
 								Aliases: []string{"sb"},
 								Usage:   "Use sprint-bounded time calculation (respects sprint date boundaries)",
-								Value:   false,
+								Value:   true, // Changed to true to use sprint-bounded by default
 							},
 						},
 					},

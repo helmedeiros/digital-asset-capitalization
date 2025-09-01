@@ -219,7 +219,12 @@ func (a *JiraAdapter) GetSprintsForProject(project string, states []string) ([]p
 	for _, board := range boards {
 		sprints, err := a.getSprintsForBoard(board.ID, states)
 		if err != nil {
-			// Log error but continue with other boards
+			// Skip Kanban boards silently (they don't support sprints)
+			errMsg := err.Error()
+			if strings.Contains(errMsg, "board does not support sprints") || strings.Contains(errMsg, "Board does not support sprints") {
+				continue
+			}
+			// Log other errors but continue with other boards
 			fmt.Printf("Warning: failed to get sprints for board %d: %v\n", board.ID, err)
 			continue
 		}
@@ -254,6 +259,11 @@ func (a *JiraAdapter) GetSprintsForProjectWithBoardInfo(project string, states [
 		})
 
 		if err != nil {
+			// Skip Kanban boards silently (they don't support sprints)
+			errMsg := err.Error()
+			if strings.Contains(errMsg, "board does not support sprints") || strings.Contains(errMsg, "Board does not support sprints") {
+				continue
+			}
 			// Don't log warning here - we'll handle it in the formatter
 			continue
 		}
