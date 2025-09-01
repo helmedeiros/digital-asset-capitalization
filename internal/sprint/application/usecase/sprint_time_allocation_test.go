@@ -857,7 +857,7 @@ func TestGenerateCSV(t *testing.T) {
 					"engineer1":     "50.00%",
 				},
 			},
-			expectedHeader: `"sprint","issueKey","issueType","issueTitle","workType","assetName","status","dateStarted","dateCompleted","engineer1"`,
+			expectedHeader: `sprint,issueKey,issueType,issueTitle,workType,assetName,status,dateStarted,dateCompleted,engineer1`,
 			wantErr:        false,
 		},
 		{
@@ -879,7 +879,7 @@ func TestGenerateCSV(t *testing.T) {
 					"engineer1":     "50.00%",
 				},
 			},
-			expectedHeader: `"sprint","issueKey","issueType","issueTitle","workType","assetName","status","dateStarted","dateCompleted","engineer1"`,
+			expectedHeader: `sprint,issueKey,issueType,issueTitle,workType,assetName,status,dateStarted,dateCompleted,engineer1`,
 			wantErr:        false,
 		},
 		{
@@ -903,7 +903,7 @@ func TestGenerateCSV(t *testing.T) {
 					"engineer3":     "",
 				},
 			},
-			expectedHeader: `"sprint","issueKey","issueType","issueTitle","workType","assetName","status","dateStarted","dateCompleted","engineer1","engineer2","engineer3"`,
+			expectedHeader: `sprint,issueKey,issueType,issueTitle,workType,assetName,status,dateStarted,dateCompleted,engineer1,engineer2,engineer3`,
 			wantErr:        false,
 		},
 		{
@@ -924,7 +924,7 @@ func TestGenerateCSV(t *testing.T) {
 					"dateCompleted": "2024-03-21",
 				},
 			},
-			expectedHeader: `"sprint","issueKey","issueType","issueTitle","workType","assetName","status","dateStarted","dateCompleted"`,
+			expectedHeader: `sprint,issueKey,issueType,issueTitle,workType,assetName,status,dateStarted,dateCompleted`,
 			wantErr:        false,
 		},
 		{
@@ -976,7 +976,7 @@ func TestGenerateCSV(t *testing.T) {
 						value, exists := result[engineer]
 						assert.True(t, exists, "Each engineer should have a column in the result")
 						if value != "" {
-							assert.Contains(t, row, fmt.Sprintf("%q", value),
+							assert.Contains(t, row, fmt.Sprintf("%v", value),
 								"Engineer's percentage should be in the CSV row")
 						}
 					}

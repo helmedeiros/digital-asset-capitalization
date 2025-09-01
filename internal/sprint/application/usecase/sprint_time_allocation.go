@@ -544,19 +544,7 @@ func (p *SprintTimeAllocationUseCase) structArrayToCSVOrdered(data []map[string]
 		return "", err
 	}
 
-	// Add quotes to all fields
-	lines := strings.Split(buffer.String(), "\n")
-	for i, line := range lines {
-		if line == "" {
-			continue
-		}
-		fields := strings.Split(line, ",")
-		for j, field := range fields {
-			fields[j] = fmt.Sprintf("%q", field)
-		}
-		lines[i] = strings.Join(fields, ",")
-	}
-	return strings.Join(lines, "\n"), nil
+	return buffer.String(), nil
 }
 
 // JiraDoer is the main entry point for processing Jira issues
