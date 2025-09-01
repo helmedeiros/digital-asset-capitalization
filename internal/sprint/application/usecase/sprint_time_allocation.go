@@ -270,8 +270,14 @@ func (p *SprintTimeAllocationUseCase) getIssueTimeRange(issue domain.JiraIssue) 
 				inProgress = true
 			}
 
-			// Look for transition to "Done" or "Won't Do" state
-			if item.ToString == statusDone || item.ToString == statusWontDo {
+			// Look for transition to completion state using normalized matching
+			normalizedToStatus := strings.ToLower(strings.TrimSpace(item.ToString))
+			if strings.Contains(normalizedToStatus, "done") ||
+				strings.Contains(normalizedToStatus, "deployed") ||
+				strings.Contains(normalizedToStatus, "closed") ||
+				strings.Contains(normalizedToStatus, "resolved") ||
+				strings.Contains(normalizedToStatus, "won't") ||
+				strings.Contains(normalizedToStatus, "cancelled") {
 				endTime = historyTime
 				// If we weren't in progress, use the completion time as start time
 				if !inProgress && startTime.IsZero() {
@@ -279,12 +285,18 @@ func (p *SprintTimeAllocationUseCase) getIssueTimeRange(issue domain.JiraIssue) 
 				}
 			}
 
-			// If moving out of "In Progress" to a non-Done state, consider this a pause
-			if inProgress && item.FromString == "In Progress" &&
-				item.ToString != statusDone && item.ToString != statusWontDo {
-				// This was an interruption in progress, but we don't calculate hours here
-				// since we're only determining the overall time range in this method
-				inProgress = false
+			// If moving out of "In Progress" to a non-completion state, consider this a pause
+			if inProgress && strings.Contains(strings.ToLower(item.FromString), "progress") {
+				// Check if this is NOT a completion transition
+				if !(strings.Contains(normalizedToStatus, "done") ||
+					strings.Contains(normalizedToStatus, "deployed") ||
+					strings.Contains(normalizedToStatus, "closed") ||
+					strings.Contains(normalizedToStatus, "resolved") ||
+					strings.Contains(normalizedToStatus, "won't") ||
+					strings.Contains(normalizedToStatus, "cancelled")) {
+					// This was an interruption in progress
+					inProgress = false
+				}
 			}
 		}
 	}
@@ -388,8 +400,34 @@ func (p *SprintTimeAllocationUseCase) calculatePercentageLoad(team domain.Team, 
 		result["workingHours"] = workingHours
 
 		// Only set completion date if the issue is actually completed
-		if issue.Fields.Status.Name == statusDone || issue.Fields.Status.Name == statusWontDo {
-			result["dateCompleted"] = endTime.Format("2006-01-02")
+		// Check for completion using normalized status patterns
+		normalizedStatus := strings.ToLower(strings.TrimSpace(issue.Fields.Status.Name))
+		isCompleted := strings.Contains(normalizedStatus, "done") ||
+			strings.Contains(normalizedStatus, "deployed") ||
+			strings.Contains(normalizedStatus, "closed") ||
+			strings.Contains(normalizedStatus, "resolved") ||
+			strings.Contains(normalizedStatus, "won't") ||
+			strings.Contains(normalizedStatus, "cancelled")
+
+		if isCompleted {
+			// Only set dateCompleted if we have a valid end time
+			if !endTime.IsZero() {
+				completionDate := endTime
+				// For sprint-bounded calculation, clamp completion date to sprint boundary
+				if p.sprintBoundary != nil && completionDate.After(p.sprintBoundary.EndDate) {
+					// Task was completed after sprint, use sprint end date for reporting
+					completionDate = p.sprintBoundary.EndDate
+				}
+				result["dateCompleted"] = completionDate.Format("2006-01-02")
+			} else {
+				// If completed but no end time from changelog, provide fallback
+				// Use sprint end date as reasonable completion estimate
+				if p.sprintBoundary != nil {
+					result["dateCompleted"] = p.sprintBoundary.EndDate.Format("2006-01-02")
+				} else {
+					result["dateCompleted"] = ""
+				}
+			}
 		} else {
 			result["dateCompleted"] = ""
 		}

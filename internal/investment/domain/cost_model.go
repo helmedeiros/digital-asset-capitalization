@@ -148,10 +148,15 @@ func (cm *CostModel) GetTotalMonthlyCost() float64 {
 
 // InferEngineerLevel infers engineer level from hourly rate
 func (cm *CostModel) InferEngineerLevel(rate float64) EngineerLevel {
-	// Check against default rates to infer level (within 10% tolerance)
-	for level, defaultRate := range cm.DefaultRatesByLevel {
-		if rate >= defaultRate*0.9 && rate <= defaultRate*1.1 {
-			return level
+	// Check against default rates in order of seniority (to handle overlapping tolerances)
+	// When ranges overlap, prefer the lower level (more conservative)
+	levels := []EngineerLevel{Junior, Mid, Senior, Staff, Principal}
+
+	for _, level := range levels {
+		if defaultRate, exists := cm.DefaultRatesByLevel[level]; exists {
+			if rate >= defaultRate*0.9 && rate <= defaultRate*1.1 {
+				return level
+			}
 		}
 	}
 
