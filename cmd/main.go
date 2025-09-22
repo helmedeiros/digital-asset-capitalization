@@ -29,6 +29,7 @@ import (
 	sprintinfra "github.com/helmedeiros/digital-asset-capitalization/internal/sprint/infrastructure"
 	"github.com/helmedeiros/digital-asset-capitalization/internal/sprint/infrastructure/formatting"
 	tasksapp "github.com/helmedeiros/digital-asset-capitalization/internal/tasks/application"
+	tasksusecase "github.com/helmedeiros/digital-asset-capitalization/internal/tasks/application/usecase"
 	tasksdomain "github.com/helmedeiros/digital-asset-capitalization/internal/tasks/domain"
 	taskports "github.com/helmedeiros/digital-asset-capitalization/internal/tasks/domain/ports"
 	"github.com/helmedeiros/digital-asset-capitalization/internal/tasks/infrastructure/classifier"
@@ -2207,14 +2208,19 @@ func initializeApp() (*App, error) {
 	taskClassifier := classifier.NewComprehensiveClassifierAdapter(classificationChain)
 
 	userInput := cliui.NewUserInput()
-	taskService := tasksapp.NewTasksService(jiraRepo, localRepo, taskClassifier, userInput, assetService)
 
-	// Initialize sprint service
+	// Initialize sprint service first (needed for SprintResolver)
 	jiraAdapter, err := sprintinfra.NewJiraAdapter()
 	if err != nil {
 		return nil, fmt.Errorf("failed to initialize Jira adapter: %v", err)
 	}
 	sprintService := sprintapp.NewSprintService(jiraAdapter)
+
+	// Create SprintResolver with interactive selection capability
+	sprintResolver := tasksusecase.NewSprintResolver(jiraAdapter, userInput)
+
+	// Initialize task service with SprintResolver
+	taskService := tasksapp.NewTasksService(jiraRepo, localRepo, taskClassifier, userInput, assetService, sprintResolver)
 
 	// Initialize config service for CLI
 	configService := &configServiceImpl{

@@ -18,7 +18,7 @@ func TestFetchTasksUseCase(t *testing.T) {
 	// Create mock repositories
 	remoteRepo := testutil.NewMockTaskRepository()
 	localRepo := testutil.NewMockTaskRepository()
-	useCase := NewFetchTasksUseCase(remoteRepo, localRepo)
+	useCase := NewFetchTasksUseCase(remoteRepo, localRepo, nil)
 
 	// Create test tasks
 	now := time.Now()
@@ -140,7 +140,7 @@ func TestFetchTasksUseCase_ExecuteByKey(t *testing.T) {
 	// Create mock repositories
 	remoteRepo := testutil.NewMockTaskRepository()
 	localRepo := testutil.NewMockTaskRepository()
-	useCase := NewFetchTasksUseCase(remoteRepo, localRepo)
+	useCase := NewFetchTasksUseCase(remoteRepo, localRepo, nil)
 
 	// Create test task
 	now := time.Now()
@@ -253,7 +253,7 @@ func TestFetchTasksUseCase_GetRemoteRepository(t *testing.T) {
 	// Create mock repositories
 	remoteRepo := testutil.NewMockTaskRepository()
 	localRepo := testutil.NewMockTaskRepository()
-	useCase := NewFetchTasksUseCase(remoteRepo, localRepo)
+	useCase := NewFetchTasksUseCase(remoteRepo, localRepo, nil)
 
 	// Test GetRemoteRepository method
 	result := useCase.GetRemoteRepository()
@@ -268,7 +268,7 @@ func TestFetchTasksUseCase_EdgeCases(t *testing.T) {
 		// Create mock repositories
 		remoteRepo := testutil.NewMockTaskRepository()
 		localRepo := testutil.NewMockTaskRepository()
-		useCase := NewFetchTasksUseCase(remoteRepo, localRepo)
+		useCase := NewFetchTasksUseCase(remoteRepo, localRepo, nil)
 
 		remoteRepo.SetFindByKeyFunc(func(_ context.Context, _ string) (*domain.Task, error) {
 			return nil, nil // Return nil task without error
@@ -286,7 +286,7 @@ func TestFetchTasksUseCase_EdgeCases(t *testing.T) {
 		// Create mock repositories
 		remoteRepo := testutil.NewMockTaskRepository()
 		localRepo := testutil.NewMockTaskRepository()
-		useCase := NewFetchTasksUseCase(remoteRepo, localRepo)
+		useCase := NewFetchTasksUseCase(remoteRepo, localRepo, nil)
 
 		// Execute use case with empty sprint
 		err := useCase.Execute(context.Background(), "TEST", "", "jira")
@@ -300,7 +300,7 @@ func TestFetchTasksUseCase_EdgeCases(t *testing.T) {
 		// Create mock repositories
 		remoteRepo := testutil.NewMockTaskRepository()
 		localRepo := testutil.NewMockTaskRepository()
-		useCase := NewFetchTasksUseCase(remoteRepo, localRepo)
+		useCase := NewFetchTasksUseCase(remoteRepo, localRepo, nil)
 
 		// Setup mock to return empty tasks
 		remoteRepo.SetFindByProjectAndSprintFunc(func(_ context.Context, _, _ string) ([]*domain.Task, error) {
@@ -318,7 +318,7 @@ func TestFetchTasksUseCase_EdgeCases(t *testing.T) {
 		// Create mock repositories
 		remoteRepo := testutil.NewMockTaskRepository()
 		localRepo := testutil.NewMockTaskRepository()
-		useCase := NewFetchTasksUseCase(remoteRepo, localRepo)
+		useCase := NewFetchTasksUseCase(remoteRepo, localRepo, nil)
 
 		// Create multiple test tasks
 		now := time.Now()
@@ -351,7 +351,7 @@ func TestFetchTasksUseCase_EdgeCases(t *testing.T) {
 		// Create mock repositories
 		remoteRepo := testutil.NewMockTaskRepository()
 		localRepo := testutil.NewMockTaskRepository()
-		useCase := NewFetchTasksUseCase(remoteRepo, localRepo)
+		useCase := NewFetchTasksUseCase(remoteRepo, localRepo, nil)
 
 		// Create multiple test tasks
 		now := time.Now()
@@ -387,7 +387,7 @@ func TestFetchTasksUseCase_EdgeCases(t *testing.T) {
 		// Create mock repositories
 		remoteRepo := testutil.NewMockTaskRepository()
 		localRepo := testutil.NewMockTaskRepository()
-		useCase := NewFetchTasksUseCase(remoteRepo, localRepo)
+		useCase := NewFetchTasksUseCase(remoteRepo, localRepo, nil)
 
 		// Test all parameter validations
 		testCases := []struct {
