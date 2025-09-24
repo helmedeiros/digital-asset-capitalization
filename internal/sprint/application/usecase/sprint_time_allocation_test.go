@@ -548,6 +548,11 @@ func TestGetIssueTimeRange(t *testing.T) {
 			name: "Through In Progress to Done",
 			issue: domain.JiraIssue{
 				Key: "TEST-2",
+				Fields: domain.JiraFields{
+					Assignee: domain.JiraAssignee{
+						DisplayName: "test.user",
+					},
+				},
 				Changelog: domain.JiraChangelog{
 					Histories: []domain.JiraChangeHistory{
 						{
@@ -580,6 +585,11 @@ func TestGetIssueTimeRange(t *testing.T) {
 			name: "Multiple In Progress periods",
 			issue: domain.JiraIssue{
 				Key: "TEST-3",
+				Fields: domain.JiraFields{
+					Assignee: domain.JiraAssignee{
+						DisplayName: "test.user",
+					},
+				},
 				Changelog: domain.JiraChangelog{
 					Histories: []domain.JiraChangeHistory{
 						{
@@ -632,6 +642,11 @@ func TestGetIssueTimeRange(t *testing.T) {
 			name: "Still In Progress",
 			issue: domain.JiraIssue{
 				Key: "TEST-4",
+				Fields: domain.JiraFields{
+					Assignee: domain.JiraAssignee{
+						DisplayName: "test.user",
+					},
+				},
 				Changelog: domain.JiraChangelog{
 					Histories: []domain.JiraChangeHistory{
 						{
@@ -654,6 +669,11 @@ func TestGetIssueTimeRange(t *testing.T) {
 			name: "No status changes",
 			issue: domain.JiraIssue{
 				Key: "TEST-5",
+				Fields: domain.JiraFields{
+					Assignee: domain.JiraAssignee{
+						DisplayName: "test.user",
+					},
+				},
 				Changelog: domain.JiraChangelog{
 					Histories: []domain.JiraChangeHistory{
 						{
@@ -740,6 +760,11 @@ func TestGetIssueTimeRange(t *testing.T) {
 			name: "Multiple Non-Progress Status Changes",
 			issue: domain.JiraIssue{
 				Key: "TEST-8",
+				Fields: domain.JiraFields{
+					Assignee: domain.JiraAssignee{
+						DisplayName: "test.user",
+					},
+				},
 				Changelog: domain.JiraChangelog{
 					Histories: []domain.JiraChangeHistory{
 						{
@@ -782,6 +807,11 @@ func TestGetIssueTimeRange(t *testing.T) {
 			name: "Multiple Status Changes Before Won't Do",
 			issue: domain.JiraIssue{
 				Key: "TEST-9",
+				Fields: domain.JiraFields{
+					Assignee: domain.JiraAssignee{
+						DisplayName: "test.user",
+					},
+				},
 				Changelog: domain.JiraChangelog{
 					Histories: []domain.JiraChangeHistory{
 						{
