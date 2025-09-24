@@ -513,6 +513,11 @@ func TestGetIssueTimeRange(t *testing.T) {
 	processor := &SprintTimeAllocationUseCase{
 		project:    "DEFAULT", // Use DEFAULT project for fallback status mapping
 		statusPort: createBasicStatusService(),
+		teams: domain.TeamMap{
+			"DEFAULT": domain.Team{
+				Team: []string{"test.user"},
+			},
+		},
 	}
 
 	tests := []struct {
