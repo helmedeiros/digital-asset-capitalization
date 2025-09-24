@@ -3,7 +3,9 @@ package domain
 import (
 	"context"
 	"errors"
+	"fmt"
 	"math"
+	"sort"
 	"strings"
 	"time"
 )
@@ -86,6 +88,33 @@ func (scp StatusChangePeriod) Duration() time.Duration {
 
 // IsWorkTime determines if a status represents active work time
 func (scp StatusChangePeriod) IsWorkTime() bool {
+	// This method is now just a fallback - the main logic should use
+	// IsWorkTimeWithStatusChecker when a status checker is available
+	return scp.isWorkTimeFallback()
+}
+
+// IsWorkTimeWithStatusChecker determines if a status represents active work time using status checker
+func (scp StatusChangePeriod) IsWorkTimeWithStatusChecker(statusChecker StatusChecker, teamKey, boardID string) bool {
+	if statusChecker == nil {
+		return scp.isWorkTimeFallback()
+	}
+
+	// Use team-specific status mapping for accurate recognition
+	if statusChecker.IsInProgress(scp.Status, teamKey, boardID) {
+		return true
+	}
+
+	// Explicitly check for completion statuses (not work time)
+	if statusChecker.IsDone(scp.Status, teamKey, boardID) || statusChecker.IsWontDo(scp.Status, teamKey, boardID) {
+		return false
+	}
+
+	// If not explicitly in-progress or done, fall back to pattern matching
+	return scp.isWorkTimeFallback()
+}
+
+// isWorkTimeFallback provides the original pattern-based logic as fallback
+func (scp StatusChangePeriod) isWorkTimeFallback() bool {
 	// First check for exact matches to handle custom statuses
 	normalizedStatus := strings.ToLower(strings.TrimSpace(scp.Status))
 
@@ -137,12 +166,32 @@ func (scp StatusChangePeriod) IsWorkTime() bool {
 // SprintBoundedTimeCalculator implements TimeCalculationStrategy
 // This is the main implementation that respects sprint boundaries
 type SprintBoundedTimeCalculator struct {
-	// Could add configuration options here if needed
+	// StatusChecker defines the interface for status validation in the domain layer
+	statusChecker StatusChecker
+	teamKey       string
+	boardID       string
+}
+
+// StatusChecker defines the interface for status validation in the domain layer
+// This allows the time calculator to check statuses without depending on infrastructure
+type StatusChecker interface {
+	IsInProgress(status string, teamKey string, boardID string) bool
+	IsDone(status string, teamKey string, boardID string) bool
+	IsWontDo(status string, teamKey string, boardID string) bool
 }
 
 // NewSprintBoundedTimeCalculator creates a new sprint-bounded time calculator
 func NewSprintBoundedTimeCalculator() *SprintBoundedTimeCalculator {
 	return &SprintBoundedTimeCalculator{}
+}
+
+// NewSprintBoundedTimeCalculatorWithStatusChecker creates a new calculator with status checker
+func NewSprintBoundedTimeCalculatorWithStatusChecker(statusChecker StatusChecker, teamKey, boardID string) *SprintBoundedTimeCalculator {
+	return &SprintBoundedTimeCalculator{
+		statusChecker: statusChecker,
+		teamKey:       teamKey,
+		boardID:       boardID,
+	}
 }
 
 // CalculateWorkingHours calculates working hours within sprint boundaries
@@ -158,7 +207,15 @@ func (calc *SprintBoundedTimeCalculator) CalculateWorkingHours(_ context.Context
 	// Calculate work time within sprint boundaries
 	var totalHours float64
 	for _, period := range periods {
-		if period.IsWorkTime() {
+		// Use status checker if available, otherwise fall back to pattern matching
+		var isWorkTime bool
+		if calc.statusChecker != nil {
+			isWorkTime = period.IsWorkTimeWithStatusChecker(calc.statusChecker, calc.teamKey, calc.boardID)
+		} else {
+			isWorkTime = period.IsWorkTime()
+		}
+
+		if isWorkTime {
 			hours := calc.calculatePeriodHours(period, sprintBoundary)
 			totalHours += hours
 		}
@@ -185,24 +242,29 @@ func (calc *SprintBoundedTimeCalculator) CalculateWorkingHours(_ context.Context
 func (calc *SprintBoundedTimeCalculator) extractStatusChangePeriods(issue JiraIssue) []StatusChangePeriod {
 	var periods []StatusChangePeriod
 
-	// Sort status changes chronologically
+	// Get status changes and sort them chronologically (oldest first)
 	statusChanges := issue.GetStatusChanges()
 	if len(statusChanges) == 0 {
 		return periods
 	}
 
+	// Sort by created timestamp (ascending - oldest first)
+	sort.Slice(statusChanges, func(i, j int) bool {
+		timeI, errI := parseTimestamp(statusChanges[i].Created)
+		timeJ, errJ := parseTimestamp(statusChanges[j].Created)
+		if errI != nil || errJ != nil {
+			return false // Keep original order if parsing fails
+		}
+		return timeI.Before(timeJ)
+	})
+
 	// Create periods between status changes
 	for i := 0; i < len(statusChanges); i++ {
 		// Parse timestamp
-		startTime, err := time.Parse("2006-01-02T15:04:05.000Z", statusChanges[i].Created)
+		startTime, err := parseTimestamp(statusChanges[i].Created)
 		if err != nil {
-			// Try RFC3339 format
-			startTime, err = time.Parse(time.RFC3339, statusChanges[i].Created)
-			if err != nil {
-				continue
-			}
+			continue
 		}
-		startTime = startTime.UTC()
 
 		// Get the status that this change transitions TO
 		var status string
@@ -216,14 +278,10 @@ func (calc *SprintBoundedTimeCalculator) extractStatusChangePeriods(issue JiraIs
 		// Determine end time (next status change or zero if it's the last one)
 		var endTime time.Time
 		if i+1 < len(statusChanges) {
-			endTime, err = time.Parse("2006-01-02T15:04:05.000Z", statusChanges[i+1].Created)
+			endTime, err = parseTimestamp(statusChanges[i+1].Created)
 			if err != nil {
-				endTime, err = time.Parse(time.RFC3339, statusChanges[i+1].Created)
-				if err != nil {
-					continue
-				}
+				continue
 			}
-			endTime = endTime.UTC()
 		}
 
 		periods = append(periods, StatusChangePeriod{
@@ -268,6 +326,13 @@ func (calc *SprintBoundedTimeCalculator) calculatePeriodHours(period StatusChang
 
 // isCurrentlyDone checks if the issue's current status is a done state
 func (calc *SprintBoundedTimeCalculator) isCurrentlyDone(issue JiraIssue) bool {
+	// Use status checker if available for team-specific status mapping
+	if calc.statusChecker != nil {
+		return calc.statusChecker.IsDone(issue.Fields.Status.Name, calc.teamKey, calc.boardID) ||
+			calc.statusChecker.IsWontDo(issue.Fields.Status.Name, calc.teamKey, calc.boardID)
+	}
+
+	// Fall back to pattern matching
 	currentStatus := strings.ToLower(strings.TrimSpace(issue.Fields.Status.Name))
 	return strings.Contains(currentStatus, "done") ||
 		strings.Contains(currentStatus, "deployed") ||
@@ -292,15 +357,23 @@ func (calc *SprintBoundedTimeCalculator) hasCompletionInSprint(issue JiraIssue, 
 		if sprintBoundary.Contains(timestamp) {
 			for _, item := range change.Items {
 				if item.IsStatusChange() {
-					// Check if status indicates completion using normalized checks
-					normalizedStatus := strings.ToLower(strings.TrimSpace(item.ToString))
-					if strings.Contains(normalizedStatus, "done") ||
-						strings.Contains(normalizedStatus, "deployed") ||
-						strings.Contains(normalizedStatus, "closed") ||
-						strings.Contains(normalizedStatus, "resolved") ||
-						strings.Contains(normalizedStatus, "won't") ||
-						strings.Contains(normalizedStatus, "cancelled") {
-						return true
+					// Use status checker if available for team-specific status mapping
+					if calc.statusChecker != nil {
+						if calc.statusChecker.IsDone(item.ToString, calc.teamKey, calc.boardID) ||
+							calc.statusChecker.IsWontDo(item.ToString, calc.teamKey, calc.boardID) {
+							return true
+						}
+					} else {
+						// Fall back to pattern matching
+						normalizedStatus := strings.ToLower(strings.TrimSpace(item.ToString))
+						if strings.Contains(normalizedStatus, "done") ||
+							strings.Contains(normalizedStatus, "deployed") ||
+							strings.Contains(normalizedStatus, "closed") ||
+							strings.Contains(normalizedStatus, "resolved") ||
+							strings.Contains(normalizedStatus, "won't") ||
+							strings.Contains(normalizedStatus, "cancelled") {
+							return true
+						}
 					}
 				}
 			}
@@ -427,6 +500,24 @@ func (calc *WorkTimeCalculator) CalculateWorkingHours(ctx context.Context, issue
 // SetStrategy allows changing the calculation strategy at runtime
 func (calc *WorkTimeCalculator) SetStrategy(strategy TimeCalculationStrategy) {
 	calc.strategy = strategy
+}
+
+// parseTimestamp parses a timestamp using various format attempts
+func parseTimestamp(timestampStr string) (time.Time, error) {
+	// Try different timestamp formats
+	formats := []string{
+		"2006-01-02T15:04:05.000Z",
+		time.RFC3339,
+		"2006-01-02T15:04:05.000-0700",
+	}
+
+	for _, format := range formats {
+		if t, err := time.Parse(format, timestampStr); err == nil {
+			return t.UTC(), nil
+		}
+	}
+
+	return time.Time{}, fmt.Errorf("unable to parse timestamp: %s", timestampStr)
 }
 
 // roundHours rounds hours to 2 decimal places to avoid floating-point precision issues
