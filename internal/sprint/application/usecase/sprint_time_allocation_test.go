@@ -510,15 +510,9 @@ func (m *MockJiraAdapter) GetSprintByName(_, _ string) (*ports.Sprint, error) {
 }
 
 func TestGetIssueTimeRange(t *testing.T) {
-	processor := &SprintTimeAllocationUseCase{
-		project:    "DEFAULT", // Use DEFAULT project for fallback status mapping
-		statusPort: createBasicStatusService(),
-		teams: domain.TeamMap{
-			"DEFAULT": domain.Team{
-				Team: []string{"test.user"},
-			},
-		},
-	}
+	// Use proper test isolation
+	cleanup := setupTestEnv(t)
+	defer cleanup()
 
 	tests := []struct {
 		name           string
@@ -858,8 +852,26 @@ func TestGetIssueTimeRange(t *testing.T) {
 	}
 
 	for _, tt := range tests {
+		tt := tt // Capture range variable for parallel tests
 		t.Run(tt.name, func(t *testing.T) {
-			startTime, endTime := processor.getIssueTimeRange(tt.issue)
+			// Don't mark as parallel for now to avoid race conditions
+			// t.Parallel()
+
+			// Create a fresh status service for each test to ensure isolation
+			statusService := createBasicStatusService()
+
+			// Ensure test runs with proper isolation by not sharing processor
+			testProcessor := &SprintTimeAllocationUseCase{
+				project:    "DEFAULT",
+				statusPort: statusService,
+				teams: domain.TeamMap{
+					"DEFAULT": domain.Team{
+						Team: []string{"test.user"},
+					},
+				},
+			}
+
+			startTime, endTime := testProcessor.getIssueTimeRange(tt.issue)
 			assert.Equal(t, tt.expectedStart, startTime, "Start time mismatch for %s", tt.name)
 			assert.Equal(t, tt.expectedEnd, endTime, "End time mismatch for %s", tt.name)
 		})
@@ -867,6 +879,10 @@ func TestGetIssueTimeRange(t *testing.T) {
 }
 
 func TestCalculatePercentageLoad(t *testing.T) {
+	// Use proper test isolation
+	cleanup := setupTestEnv(t)
+	defer cleanup()
+
 	processor := &SprintTimeAllocationUseCase{
 		sprint:     "Test Sprint",
 		project:    "DEFAULT",
@@ -921,6 +937,10 @@ func TestCalculatePercentageLoad(t *testing.T) {
 }
 
 func TestGenerateCSV(t *testing.T) {
+	// Use proper test isolation
+	cleanup := setupTestEnv(t)
+	defer cleanup()
+
 	tests := []struct {
 		name           string
 		team           domain.Team
@@ -1078,6 +1098,10 @@ func TestGenerateCSV(t *testing.T) {
 }
 
 func TestTimeCalculations(t *testing.T) {
+	// Use proper test isolation
+	cleanup := setupTestEnv(t)
+	defer cleanup()
+
 	processor := &SprintTimeAllocationUseCase{
 		project:    "DEFAULT",
 		statusPort: createBasicStatusService(),
@@ -1286,6 +1310,10 @@ func TestTimeCalculations(t *testing.T) {
 }
 
 func TestFilterSubtasks(t *testing.T) {
+	// Use proper test isolation
+	cleanup := setupTestEnv(t)
+	defer cleanup()
+
 	processor := &SprintTimeAllocationUseCase{
 		sprint:     "Test Sprint",
 		project:    "DEFAULT",
@@ -1364,6 +1392,10 @@ func TestFilterSubtasks(t *testing.T) {
 }
 
 func TestUncompletedIssues(t *testing.T) {
+	// Use proper test isolation
+	cleanup := setupTestEnv(t)
+	defer cleanup()
+
 	// Create test data
 	team := domain.Team{
 		Team: []string{"Test User 1"},
@@ -1423,6 +1455,10 @@ func TestUncompletedIssues(t *testing.T) {
 }
 
 func TestMinimumHoursForDirectDone(t *testing.T) {
+	// Use proper test isolation
+	cleanup := setupTestEnv(t)
+	defer cleanup()
+
 	processor := &SprintTimeAllocationUseCase{
 		sprint:     "Test Sprint",
 		project:    "DEFAULT",
@@ -1532,6 +1568,10 @@ func TestMinimumHoursForDirectDone(t *testing.T) {
 }
 
 func TestPercentageLoadWithMinimumHours(t *testing.T) {
+	// Use proper test isolation
+	cleanup := setupTestEnv(t)
+	defer cleanup()
+
 	processor := &SprintTimeAllocationUseCase{
 		sprint:     "Test Sprint",
 		project:    "DEFAULT",
@@ -1685,6 +1725,10 @@ func TestPercentageLoadWithMinimumHours(t *testing.T) {
 // TestSprintTimeAllocationWithCustomStatuses_AD_Team tests time allocation with AD team's custom JIRA statuses
 // This test verifies the FIX where custom statuses ARE properly recognized
 func TestSprintTimeAllocationWithCustomStatuses_AD_Team(t *testing.T) {
+	// Use proper test isolation
+	cleanup := setupTestEnv(t)
+	defer cleanup()
+
 	// Create mock status service with AD team configuration
 	testTeamConfigs := map[string]sharedDomain.TeamConfig{
 		"AD": {
@@ -1843,6 +1887,10 @@ func TestSprintTimeAllocationWithCustomStatuses_AD_Team(t *testing.T) {
 // TestSprintTimeAllocationWithDefaultStatuses_FN_Team tests time allocation with FN team's default JIRA statuses
 // This test should PASS to ensure we don't break existing functionality
 func TestSprintTimeAllocationWithDefaultStatuses_FN_Team(t *testing.T) {
+	// Use proper test isolation
+	cleanup := setupTestEnv(t)
+	defer cleanup()
+
 	// Create empty status service - should fall back to default status mapping
 	statusService := service.NewStatusServiceWithConfigs(map[string]sharedDomain.TeamConfig{})
 
