@@ -32,6 +32,7 @@ func TestEnhancedHandler_HandleEnhancedInput_EmptyInput(t *testing.T) {
 }
 
 func TestEnhancedHandler_HandleSpecialCommands_WithoutService(t *testing.T) {
+	t.Cleanup(setupTestEnvironment(t))
 	handler := NewEnhancedHandler(nil)
 
 	tests := []struct {

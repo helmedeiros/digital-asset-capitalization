@@ -27,6 +27,7 @@ const (
 	TaskStatusInProgress TaskStatus = "IN_PROGRESS"
 	TaskStatusDone       TaskStatus = "DONE"
 	TaskStatusBlocked    TaskStatus = "BLOCKED"
+	TaskStatusWontDo     TaskStatus = "WONT_DO"
 )
 
 // TaskType represents the type of task

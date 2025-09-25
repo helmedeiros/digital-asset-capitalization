@@ -42,6 +42,12 @@ type JiraChangeHistory struct {
 	Items   []JiraChangeItem `json:"items"`
 }
 
+// JiraParent represents a parent issue reference
+type JiraParent struct {
+	Key    string     `json:"key"`
+	Fields JiraFields `json:"fields"`
+}
+
 // JiraFields represents the fields of a Jira issue
 type JiraFields struct {
 	Summary     string       `json:"summary"`
@@ -52,6 +58,7 @@ type JiraFields struct {
 	WorkType    string       `json:"customfield_10014"`
 	AssetName   string       `json:"customfield_10015"`
 	Labels      []string     `json:"labels"`
+	Parent      *JiraParent  `json:"parent"`
 }
 
 // JiraStatus represents the status of a Jira issue
@@ -141,6 +148,24 @@ func (i *JiraIssue) GetAssetName() string {
 		if strings.HasPrefix(label, "cap-asset-") {
 			return label
 		}
+	}
+	return ""
+}
+
+// IsSubTask checks if this issue is a sub-task
+func (i *JiraIssue) IsSubTask() bool {
+	return i.Fields.IssueType.Name == "Sub-task"
+}
+
+// HasParent checks if this issue has a parent
+func (i *JiraIssue) HasParent() bool {
+	return i.Fields.Parent != nil
+}
+
+// GetParentKey returns the parent issue key if it exists
+func (i *JiraIssue) GetParentKey() string {
+	if i.HasParent() {
+		return i.Fields.Parent.Key
 	}
 	return ""
 }

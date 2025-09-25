@@ -67,6 +67,8 @@ func mapJiraStatus(status string) domain.TaskStatus {
 		return domain.TaskStatusInProgress
 	case "DONE", "CLOSED", "RESOLVED":
 		return domain.TaskStatusDone
+	case "WON'T DO":
+		return domain.TaskStatusWontDo
 	case "BLOCKED", "IMPEDIMENT":
 		return domain.TaskStatusBlocked
 	default:

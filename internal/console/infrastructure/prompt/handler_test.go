@@ -64,6 +64,7 @@ func TestHandler_completeInputBoxWithInput_MultiLine(t *testing.T) {
 }
 
 func TestHandler_displayMethods(t *testing.T) {
+	t.Cleanup(setupTestEnvironment(t))
 	handler := &Handler{
 		promptStyle: DefaultStyle(),
 	}
@@ -100,6 +101,7 @@ func TestHandler_NewHandlerWithService(t *testing.T) {
 }
 
 func TestHandler_displayMapOutput(t *testing.T) {
+	t.Cleanup(setupTestEnvironment(t))
 	handler := &Handler{
 		promptStyle: DefaultStyle(),
 	}
@@ -117,6 +119,7 @@ func TestHandler_displayMapOutput(t *testing.T) {
 }
 
 func TestHandler_displayListOutput(t *testing.T) {
+	t.Cleanup(setupTestEnvironment(t))
 	handler := &Handler{
 		promptStyle: DefaultStyle(),
 	}
@@ -130,6 +133,7 @@ func TestHandler_displayListOutput(t *testing.T) {
 }
 
 func TestHandler_displayCommandHelp(t *testing.T) {
+	t.Cleanup(setupTestEnvironment(t))
 	handler := &Handler{
 		promptStyle: DefaultStyle(),
 	}
@@ -149,6 +153,7 @@ func TestHandler_displayCommandHelp(t *testing.T) {
 }
 
 func TestHandler_displayCompleteInputBox(t *testing.T) {
+	t.Cleanup(setupTestEnvironment(t))
 	handler := &Handler{
 		promptStyle: DefaultStyle(),
 	}
@@ -159,6 +164,7 @@ func TestHandler_displayCompleteInputBox(t *testing.T) {
 }
 
 func TestHandler_displayResult(t *testing.T) {
+	t.Cleanup(setupTestEnvironment(t))
 	handler := &Handler{
 		promptStyle: DefaultStyle(),
 	}
@@ -206,6 +212,7 @@ func TestHandler_displayResult(t *testing.T) {
 }
 
 func TestHandler_displayContext(t *testing.T) {
+	t.Cleanup(setupTestEnvironment(t))
 	handler := &Handler{
 		promptStyle: DefaultStyle(),
 	}

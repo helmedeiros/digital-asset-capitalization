@@ -11,16 +11,11 @@ import (
 
 	configService "github.com/helmedeiros/digital-asset-capitalization/internal/config/application/service"
 	configInfrastructure "github.com/helmedeiros/digital-asset-capitalization/internal/config/infrastructure"
+	"github.com/helmedeiros/digital-asset-capitalization/internal/sprint/application/service"
 	"github.com/helmedeiros/digital-asset-capitalization/internal/sprint/config"
 	"github.com/helmedeiros/digital-asset-capitalization/internal/sprint/domain"
 	"github.com/helmedeiros/digital-asset-capitalization/internal/sprint/domain/ports"
 	"github.com/helmedeiros/digital-asset-capitalization/internal/sprint/infrastructure"
-)
-
-const (
-	issueTypeSubTask = "Sub-task"
-	statusDone       = domain.StatusDone
-	statusWontDo     = domain.StatusWontDo
 )
 
 // SprintTimeAllocationUseCase handles the processing of Jira issues and time calculations
@@ -31,6 +26,7 @@ type SprintTimeAllocationUseCase struct {
 	sprint         string
 	override       string
 	jiraPort       ports.JiraPort
+	statusPort     ports.StatusPort
 	timeCalculator *domain.WorkTimeCalculator
 	sprintBoundary *domain.SprintBoundary
 }
@@ -64,6 +60,12 @@ func NewSprintTimeAllocationUseCaseWithStrategy(project, sprint, override string
 		return nil, fmt.Errorf("failed to load team configuration: %w", err)
 	}
 
+	// Create StatusService for team-specific status mapping
+	statusService, err := service.NewStatusService()
+	if err != nil {
+		return nil, fmt.Errorf("failed to create status service: %w", err)
+	}
+
 	// Set up time calculation strategy
 	var timeCalculator *domain.WorkTimeCalculator
 	var sprintBoundary *domain.SprintBoundary
@@ -93,7 +95,9 @@ func NewSprintTimeAllocationUseCaseWithStrategy(project, sprint, override string
 		}
 		sprintBoundary = &boundary
 
-		// Use sprint-bounded time calculator
+		// Use sprint-bounded time calculator with status checker
+		// For sprint-bounded calculation, we need team info which we'll get from the first issue processed
+		// For now, create without status checker and update it dynamically per issue
 		strategy := domain.NewSprintBoundedTimeCalculator()
 		timeCalculator = domain.NewWorkTimeCalculator(strategy)
 	} else {
@@ -109,6 +113,7 @@ func NewSprintTimeAllocationUseCaseWithStrategy(project, sprint, override string
 		sprint:         sprint,
 		override:       override,
 		jiraPort:       jiraAdapter,
+		statusPort:     statusService,
 		timeCalculator: timeCalculator,
 		sprintBoundary: sprintBoundary,
 	}, nil
@@ -215,31 +220,122 @@ func (p *SprintTimeAllocationUseCase) calculateTotalHours(team domain.Team, issu
 		totalHoursByPerson[person] = 0
 	}
 
-	for _, issue := range issues {
-		assignee := issue.Fields.Assignee.DisplayName
+	// Process issues with sub-task aggregation
+	processedStories := make(map[string]bool)
 
+	for _, issue := range issues {
+		// Skip if already processed as part of parent-child aggregation
+		if processedStories[issue.Key] {
+			continue
+		}
+
+		assignee := issue.Fields.Assignee.DisplayName
 		if !team.IsTeamMember(assignee) {
 			continue
 		}
 
-		// Skip Sub-tasks
-		if issue.Fields.IssueType.Name == issueTypeSubTask {
+		// If this is a sub-task, skip it here - it will be processed with its parent
+		if issue.IsSubTask() {
 			continue
 		}
 
-		// Use the new time calculation strategy
-		workingHours := p.calculateWorkingHours(issue.Key, manualAdjustments, issue)
+		// Check if this story has sub-tasks
+		subTasks := p.findSubTasksForParent(issue.Key, issues)
 
-		totalHoursByPerson[assignee] += workingHours
+		var totalWorkingHours float64
+		if len(subTasks) > 0 {
+			// Aggregate sub-task hours and distribute to actual assignees
+			subTaskHours := p.aggregateSubTaskHours(subTasks, manualAdjustments, team)
+			for assigneeName, hours := range subTaskHours {
+				totalHoursByPerson[assigneeName] += hours
+			}
+			// Mark all sub-tasks as processed
+			for _, subTask := range subTasks {
+				processedStories[subTask.Key] = true
+			}
+		} else {
+			// No sub-tasks, process parent story normally
+			totalWorkingHours = p.calculateWorkingHours(issue.Key, manualAdjustments, issue)
+
+			// Apply minimum hours logic for same-day completion (preserve original behavior)
+			teamKey := p.getTeamKeyForAssignee(assignee)
+			boardID := p.statusPort.GetBoardIDForTeam(teamKey)
+			isCompleted := p.statusPort.IsDone(issue.Fields.Status.Name, teamKey, boardID) ||
+				p.statusPort.IsWontDo(issue.Fields.Status.Name, teamKey, boardID)
+
+			if totalWorkingHours < 1 && isCompleted {
+				startTime, endTime := p.getIssueTimeRange(issue)
+				if !startTime.IsZero() && !endTime.IsZero() &&
+					startTime.Year() == endTime.Year() &&
+					startTime.Month() == endTime.Month() &&
+					startTime.Day() == endTime.Day() {
+					totalWorkingHours = 1 // Minimum 1 hour for same-day completion
+				}
+			}
+
+			totalHoursByPerson[assignee] += totalWorkingHours
+		}
+
+		// Mark parent as processed
+		processedStories[issue.Key] = true
 	}
 
 	return totalHoursByPerson
+}
+
+// findSubTasksForParent finds all sub-tasks that belong to a given parent story
+func (p *SprintTimeAllocationUseCase) findSubTasksForParent(parentKey string, issues []domain.JiraIssue) []domain.JiraIssue {
+	var subTasks []domain.JiraIssue
+	for _, issue := range issues {
+		if issue.IsSubTask() && issue.GetParentKey() == parentKey {
+			subTasks = append(subTasks, issue)
+		}
+	}
+	return subTasks
+}
+
+// aggregateSubTaskHours calculates total working hours from sub-tasks, grouped by assignee
+func (p *SprintTimeAllocationUseCase) aggregateSubTaskHours(subTasks []domain.JiraIssue, manualAdjustments map[string]float64, team domain.Team) map[string]float64 {
+	hoursByAssignee := make(map[string]float64)
+
+	for _, subTask := range subTasks {
+		assignee := subTask.Fields.Assignee.DisplayName
+
+		// Only count hours for team members
+		if !team.IsTeamMember(assignee) {
+			continue
+		}
+
+		// Calculate working hours for this sub-task
+		workingHours := p.calculateWorkingHours(subTask.Key, manualAdjustments, subTask)
+		hoursByAssignee[assignee] += workingHours
+	}
+
+	return hoursByAssignee
+}
+
+// getTeamKeyForAssignee determines which team an assignee belongs to
+func (p *SprintTimeAllocationUseCase) getTeamKeyForAssignee(assignee string) string {
+	for teamKey, team := range p.teams {
+		if team.IsTeamMember(assignee) {
+			return teamKey
+		}
+	}
+
+	// Return project as fallback for unmapped assignees
+	// This allows fallback to default status mapping
+	return p.project
 }
 
 func (p *SprintTimeAllocationUseCase) getIssueTimeRange(issue domain.JiraIssue) (time.Time, time.Time) {
 	var startTime, endTime time.Time
 	var inProgress bool
 	var firstInProgressTime time.Time
+
+	// Get team information for status mapping
+	assignee := issue.Fields.Assignee.DisplayName
+	teamKey := p.getTeamKeyForAssignee(assignee)
+	boardID := p.statusPort.GetBoardIDForTeam(teamKey)
 
 	// Process histories in chronological order
 	for i := 0; i < len(issue.Changelog.Histories); i++ {
@@ -261,23 +357,20 @@ func (p *SprintTimeAllocationUseCase) getIssueTimeRange(issue domain.JiraIssue) 
 			}
 			historyTime = historyTime.UTC()
 
-			// Look for transition into "In Progress" state
-			if item.ToString == "In Progress" {
+			// Look for transition into in-progress state using team-specific status mapping
+			isInProgressStatus := p.statusPort.IsInProgress(item.ToString, teamKey, boardID)
+			if isInProgressStatus {
 				if firstInProgressTime.IsZero() {
 					firstInProgressTime = historyTime
 				}
-				startTime = firstInProgressTime // Always use the first In Progress time
+				startTime = firstInProgressTime // Always use the first in-progress time
 				inProgress = true
 			}
 
-			// Look for transition to completion state using normalized matching
-			normalizedToStatus := strings.ToLower(strings.TrimSpace(item.ToString))
-			if strings.Contains(normalizedToStatus, "done") ||
-				strings.Contains(normalizedToStatus, "deployed") ||
-				strings.Contains(normalizedToStatus, "closed") ||
-				strings.Contains(normalizedToStatus, "resolved") ||
-				strings.Contains(normalizedToStatus, "won't") ||
-				strings.Contains(normalizedToStatus, "cancelled") {
+			// Look for transition to completion state using team-specific status mapping
+			isDoneStatus := p.statusPort.IsDone(item.ToString, teamKey, boardID)
+			isWontDoStatus := p.statusPort.IsWontDo(item.ToString, teamKey, boardID)
+			if isDoneStatus || isWontDoStatus {
 				endTime = historyTime
 				// If we weren't in progress, use the completion time as start time
 				if !inProgress && startTime.IsZero() {
@@ -285,15 +378,10 @@ func (p *SprintTimeAllocationUseCase) getIssueTimeRange(issue domain.JiraIssue) 
 				}
 			}
 
-			// If moving out of "In Progress" to a non-completion state, consider this a pause
-			if inProgress && strings.Contains(strings.ToLower(item.FromString), "progress") {
+			// If moving out of in-progress state to a non-completion state, consider this a pause
+			if inProgress && p.statusPort.IsInProgress(item.FromString, teamKey, boardID) {
 				// Check if this is NOT a completion transition
-				if !(strings.Contains(normalizedToStatus, "done") ||
-					strings.Contains(normalizedToStatus, "deployed") ||
-					strings.Contains(normalizedToStatus, "closed") ||
-					strings.Contains(normalizedToStatus, "resolved") ||
-					strings.Contains(normalizedToStatus, "won't") ||
-					strings.Contains(normalizedToStatus, "cancelled")) {
+				if !(p.statusPort.IsDone(item.ToString, teamKey, boardID) || p.statusPort.IsWontDo(item.ToString, teamKey, boardID)) {
 					// This was an interruption in progress
 					inProgress = false
 				}
@@ -312,82 +400,73 @@ func (p *SprintTimeAllocationUseCase) getIssueTimeRange(issue domain.JiraIssue) 
 
 func (p *SprintTimeAllocationUseCase) calculatePercentageLoad(team domain.Team, issues []domain.JiraIssue, manualAdjustments map[string]float64, totalHoursByPerson map[string]float64) []map[string]interface{} {
 	var results = make([]map[string]interface{}, 0, len(issues))
-	personHours := make(map[string]float64) // Track total hours per person
+	processedStories := make(map[string]bool)
 
-	// First pass: calculate raw hours and percentages
 	for _, issue := range issues {
-		assignee := issue.Fields.Assignee.DisplayName
+		// Skip if already processed or if this is a sub-task
+		if processedStories[issue.Key] || issue.IsSubTask() {
+			continue
+		}
 
+		assignee := issue.Fields.Assignee.DisplayName
 		if !team.IsTeamMember(assignee) {
 			continue
 		}
 
-		// Skip Sub-tasks
-		if issue.Fields.IssueType.Name == issueTypeSubTask {
-			continue
+		// Check if this story has sub-tasks
+		subTasks := p.findSubTasksForParent(issue.Key, issues)
+
+		var storyHoursByAssignee map[string]float64
+		var storyTotalHours float64
+		var storyStartTime, storyEndTime time.Time
+
+		if len(subTasks) > 0 {
+			// Process story with sub-tasks
+			storyHoursByAssignee = p.aggregateSubTaskHours(subTasks, manualAdjustments, team)
+			storyStartTime, storyEndTime = p.getSubTaskTimeRange(subTasks)
+
+			// Calculate total hours for this story
+			for _, hours := range storyHoursByAssignee {
+				storyTotalHours += hours
+			}
+
+			// Mark all sub-tasks as processed
+			for _, subTask := range subTasks {
+				processedStories[subTask.Key] = true
+			}
+		} else {
+			// Process story without sub-tasks (original logic)
+			storyStartTime, storyEndTime = p.getIssueTimeRange(issue)
+			workingHours := p.calculateWorkingHours(issue.Key, manualAdjustments, issue)
+
+			// Apply minimum hours logic for same-day completion (preserve original behavior)
+			teamKey := p.getTeamKeyForAssignee(assignee)
+			boardID := p.statusPort.GetBoardIDForTeam(teamKey)
+			isCompleted := p.statusPort.IsDone(issue.Fields.Status.Name, teamKey, boardID) ||
+				p.statusPort.IsWontDo(issue.Fields.Status.Name, teamKey, boardID)
+
+			if workingHours < 1 && !storyStartTime.IsZero() && !storyEndTime.IsZero() &&
+				storyStartTime.Year() == storyEndTime.Year() &&
+				storyStartTime.Month() == storyEndTime.Month() &&
+				storyStartTime.Day() == storyEndTime.Day() && isCompleted {
+				workingHours = 1 // Minimum 1 hour for same-day completion
+			}
+
+			storyHoursByAssignee = map[string]float64{assignee: workingHours}
+			storyTotalHours = workingHours
 		}
 
-		startTime, endTime := p.getIssueTimeRange(issue)
-		if startTime.IsZero() && len(issue.Changelog.Histories) > 0 {
-			// If there's no start time but we have changelog entries,
-			// use the first changelog entry as the start time
-			startTime, _ = time.Parse(time.RFC3339, issue.Changelog.Histories[0].Created)
+		// Handle time range fallbacks for stories without sub-tasks
+		if storyStartTime.IsZero() && len(issue.Changelog.Histories) > 0 {
+			storyStartTime, _ = time.Parse(time.RFC3339, issue.Changelog.Histories[0].Created)
 		}
-		if startTime.IsZero() {
+		if storyStartTime.IsZero() {
 			// If we still don't have a start time, use a default duration of 8 hours
-			endTime = time.Now()
-			startTime = endTime.Add(-8 * time.Hour)
+			storyEndTime = time.Now()
+			storyStartTime = storyEndTime.Add(-8 * time.Hour)
 		}
 
-		workingHours := p.calculateWorkingHours(issue.Key, manualAdjustments, issue)
-
-		// For percentage calculations, ensure a minimum of 1 hour for completed issues in the same day
-		if workingHours < 1 && startTime.Year() == endTime.Year() && startTime.Month() == endTime.Month() && startTime.Day() == endTime.Day() &&
-			(issue.Fields.Status.Name == statusDone || issue.Fields.Status.Name == statusWontDo) {
-			workingHours = 1
-		}
-
-		personHours[assignee] += workingHours
-	}
-
-	// Second pass: calculate normalized percentages
-	for _, issue := range issues {
-		assignee := issue.Fields.Assignee.DisplayName
-
-		if !team.IsTeamMember(assignee) {
-			continue
-		}
-
-		// Skip Sub-tasks
-		if issue.Fields.IssueType.Name == issueTypeSubTask {
-			continue
-		}
-
-		startTime, endTime := p.getIssueTimeRange(issue)
-		if startTime.IsZero() && len(issue.Changelog.Histories) > 0 {
-			startTime, _ = time.Parse(time.RFC3339, issue.Changelog.Histories[0].Created)
-		}
-		if startTime.IsZero() {
-			endTime = time.Now()
-			startTime = endTime.Add(-8 * time.Hour)
-		}
-
-		workingHours := p.calculateWorkingHours(issue.Key, manualAdjustments, issue)
-
-		// For percentage calculations, ensure a minimum of 1 hour for completed issues in the same day
-		if workingHours < 1 && startTime.Year() == endTime.Year() && startTime.Month() == endTime.Month() && startTime.Day() == endTime.Day() &&
-			(issue.Fields.Status.Name == statusDone || issue.Fields.Status.Name == statusWontDo) {
-			workingHours = 1
-		}
-
-		totalHours := totalHoursByPerson[assignee]
-		percentageLoad := 0.0
-		if totalHours != 0 {
-			// Calculate percentage based on the proportion of hours this issue represents
-			// of the person's total hours across all issues
-			percentageLoad = (workingHours / personHours[assignee]) * 100
-		}
-
+		// Create CSV result for this parent story
 		result := make(map[string]interface{})
 		result["sprint"] = p.sprint
 		result["issueKey"] = issue.Key
@@ -396,51 +475,58 @@ func (p *SprintTimeAllocationUseCase) calculatePercentageLoad(team domain.Team, 
 		result["workType"] = issue.GetWorkType()
 		result["assetName"] = issue.GetAssetName()
 		result["status"] = issue.Fields.Status.Name
-		result["dateStarted"] = startTime.Format("2006-01-02")
-		result["workingHours"] = workingHours
+		result["dateStarted"] = storyStartTime.Format("2006-01-02")
+		result["workingHours"] = storyTotalHours
 
-		// Only set completion date if the issue is actually completed
-		// Check for completion using normalized status patterns
-		normalizedStatus := strings.ToLower(strings.TrimSpace(issue.Fields.Status.Name))
-		isCompleted := strings.Contains(normalizedStatus, "done") ||
-			strings.Contains(normalizedStatus, "deployed") ||
-			strings.Contains(normalizedStatus, "closed") ||
-			strings.Contains(normalizedStatus, "resolved") ||
-			strings.Contains(normalizedStatus, "won't") ||
-			strings.Contains(normalizedStatus, "cancelled")
+		// Handle completion date
+		teamKey := p.getTeamKeyForAssignee(assignee)
+		boardID := p.statusPort.GetBoardIDForTeam(teamKey)
+		isCompleted := p.statusPort.IsDone(issue.Fields.Status.Name, teamKey, boardID) ||
+			p.statusPort.IsWontDo(issue.Fields.Status.Name, teamKey, boardID)
 
-		if isCompleted {
-			// Only set dateCompleted if we have a valid end time
-			if !endTime.IsZero() {
-				completionDate := endTime
-				// For sprint-bounded calculation, clamp completion date to sprint boundary
-				if p.sprintBoundary != nil && completionDate.After(p.sprintBoundary.EndDate) {
-					// Task was completed after sprint, use sprint end date for reporting
-					completionDate = p.sprintBoundary.EndDate
-				}
-				result["dateCompleted"] = completionDate.Format("2006-01-02")
-			} else {
-				// If completed but no end time from changelog, provide fallback
-				// Use sprint end date as reasonable completion estimate
-				if p.sprintBoundary != nil {
-					result["dateCompleted"] = p.sprintBoundary.EndDate.Format("2006-01-02")
-				} else {
-					result["dateCompleted"] = ""
-				}
-			}
+		if isCompleted && !storyEndTime.IsZero() {
+			result["dateCompleted"] = storyEndTime.Format("2006-01-02")
 		} else {
 			result["dateCompleted"] = ""
 		}
 
+		// Initialize all team member columns to empty
 		for _, person := range team.Team {
 			result[person] = ""
 		}
 
-		result[assignee] = fmt.Sprintf("%.2f%%", percentageLoad)
+		// Distribute percentages based on actual work done by each assignee
+		for assigneeName, hours := range storyHoursByAssignee {
+			if totalHoursByPerson[assigneeName] > 0 {
+				percentageLoad := (hours / totalHoursByPerson[assigneeName]) * 100
+				result[assigneeName] = fmt.Sprintf("%.2f%%", percentageLoad)
+			}
+		}
+
 		results = append(results, result)
+		processedStories[issue.Key] = true
 	}
 
 	return results
+}
+
+// getSubTaskTimeRange calculates the overall time range for a set of sub-tasks
+func (p *SprintTimeAllocationUseCase) getSubTaskTimeRange(subTasks []domain.JiraIssue) (time.Time, time.Time) {
+	var earliestStart, latestEnd time.Time
+
+	for _, subTask := range subTasks {
+		startTime, endTime := p.getIssueTimeRange(subTask)
+
+		if !startTime.IsZero() && (earliestStart.IsZero() || startTime.Before(earliestStart)) {
+			earliestStart = startTime
+		}
+
+		if !endTime.IsZero() && (latestEnd.IsZero() || endTime.After(latestEnd)) {
+			latestEnd = endTime
+		}
+	}
+
+	return earliestStart, latestEnd
 }
 
 func (p *SprintTimeAllocationUseCase) generateCSV(team domain.Team, results []map[string]interface{}) (string, error) {
@@ -474,8 +560,16 @@ func (p *SprintTimeAllocationUseCase) calculateWorkingHours(issueKey string, man
 	ctx := context.Background()
 
 	if p.sprintBoundary != nil {
-		// Use sprint-bounded calculation
-		hours, err := p.timeCalculator.CalculateWorkingHours(ctx, issue, *p.sprintBoundary)
+		// For sprint-bounded calculation, use team-specific status mapping
+		assignee := issue.Fields.Assignee.DisplayName
+		teamKey := p.getTeamKeyForAssignee(assignee)
+		boardID := p.statusPort.GetBoardIDForTeam(teamKey)
+
+		// Create calculator with proper status checking for this specific issue
+		strategy := domain.NewSprintBoundedTimeCalculatorWithStatusChecker(p.statusPort, teamKey, boardID)
+		calculator := domain.NewWorkTimeCalculator(strategy)
+
+		hours, err := calculator.CalculateWorkingHours(ctx, issue, *p.sprintBoundary)
 		if err != nil {
 			// Fall back to legacy calculation on error
 			return p.calculateWorkingHoursLegacy(issue)
