@@ -27,7 +27,7 @@ import (
 // createBasicStatusService creates a basic status service for testing with proper status mappings
 func createBasicStatusService() *service.StatusService {
 	commonStatusMappings := map[string][]string{
-		"done":        {domain.StatusDone, domain.StatusWontDo, domain.StatusCancelled},
+		"done":        {domain.StatusDone},
 		"in_progress": {domain.StatusInProgress}, // Only exact "In Progress" to match original behavior
 		"wont_do":     {domain.StatusWontDo, domain.StatusCancelled},
 		"todo":        {domain.StatusToDo, domain.StatusOnHold, domain.StatusBlocked, domain.StatusUnderReview, domain.StatusCodeReview, domain.StatusTesting, domain.StatusQA, domain.StatusReadyForReview},
@@ -510,9 +510,8 @@ func (m *MockJiraAdapter) GetSprintByName(_, _ string) (*ports.Sprint, error) {
 }
 
 func TestGetIssueTimeRange(t *testing.T) {
-	// Use proper test isolation
-	cleanup := setupTestEnv(t)
-	defer cleanup()
+	// Don't run sub-tests in parallel to avoid directory conflicts
+	// The setupTestEnv changes working directory which can affect parallel tests
 
 	tests := []struct {
 		name           string
@@ -852,11 +851,9 @@ func TestGetIssueTimeRange(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		tt := tt // Capture range variable for parallel tests
+		tt := tt // Capture range variable
 		t.Run(tt.name, func(t *testing.T) {
-			// Don't mark as parallel for now to avoid race conditions
-			// t.Parallel()
-
+			// Don't mark as parallel - tests may interfere with each other
 			// Create a fresh status service for each test to ensure isolation
 			statusService := createBasicStatusService()
 
