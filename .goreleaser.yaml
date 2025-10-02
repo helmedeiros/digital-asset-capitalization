@@ -26,10 +26,10 @@ builds:
       - -s -w -X main.version={{.Version}} -X main.commit={{.Commit}} -X main.date={{.Date}}
 
 archives:
-  - format_overrides:
+  - name_template: "assetcap_{{ .Os }}_{{ .Arch }}"
+    format_overrides:
       - goos: windows
         format: zip
-    name_template: "assetcap_{{ .Os }}_{{ .Arch }}"
     files:
       - README.md
       - LICENSE
