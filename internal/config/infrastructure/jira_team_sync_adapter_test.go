@@ -11,7 +11,7 @@ import (
 	"github.com/helmedeiros/digital-asset-capitalization/internal/config/domain"
 )
 
-const searchPath = "/rest/api/3/search"
+const searchPath = "/rest/api/3/search/jql"
 
 // MockConfigService for testing
 type MockConfigService struct {

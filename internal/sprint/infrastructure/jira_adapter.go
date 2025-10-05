@@ -100,7 +100,7 @@ func (a *JiraAdapter) GetIssuesForSprint(project, sprintID string) ([]ports.Jira
 	query := fmt.Sprintf("project = %s AND sprint = '%s'", project, sprintID)
 	encodedQuery := url.QueryEscape(query)
 	fields := "summary,assignee,status,changelog,issuetype,customfield_10014,customfield_10015,labels"
-	jiraURL := fmt.Sprintf("%s/rest/api/3/search?jql=%s&expand=changelog&fields=%s",
+	jiraURL := fmt.Sprintf("%s/rest/api/3/search/jql?jql=%s&expand=changelog&fields=%s",
 		a.config.GetBaseURL(), encodedQuery, fields)
 
 	issues, err := a.httpClient.GetJiraIssues(jiraURL)
@@ -116,7 +116,7 @@ func (a *JiraAdapter) GetIssuesForTeamMember(member string) ([]ports.JiraIssue, 
 	query := fmt.Sprintf("assignee = '%s'", member)
 	encodedQuery := url.QueryEscape(query)
 	fields := "summary,assignee,status,changelog,issuetype,customfield_10014,customfield_10015,labels"
-	jiraURL := fmt.Sprintf("%s/rest/api/3/search?jql=%s&expand=changelog&fields=%s",
+	jiraURL := fmt.Sprintf("%s/rest/api/3/search/jql?jql=%s&expand=changelog&fields=%s",
 		a.config.GetBaseURL(), encodedQuery, fields)
 
 	issues, err := a.httpClient.GetJiraIssues(jiraURL)

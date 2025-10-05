@@ -153,7 +153,7 @@ func TestJiraAdapter_GetIssues(t *testing.T) {
 
 	// Create a test server
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		assert.Equal(t, "/rest/api/3/search", r.URL.Path)
+		assert.Equal(t, "/rest/api/3/search/jql", r.URL.Path)
 		assert.Equal(t, "jql=project+%3D+TEST+AND+sprint+%3D+%27Test+Sprint%27&expand=changelog&fields=summary,assignee,status,changelog,issuetype,customfield_10014,customfield_10015,labels", r.URL.RawQuery)
 		w.WriteHeader(http.StatusOK)
 		w.Write([]byte(`{
@@ -198,7 +198,7 @@ func TestJiraAdapter_GetTeamIssues(t *testing.T) {
 
 	// Create a test server
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		assert.Equal(t, "/rest/api/3/search", r.URL.Path)
+		assert.Equal(t, "/rest/api/3/search/jql", r.URL.Path)
 		assert.Equal(t, "jql=assignee+%3D+%27Test+User+1%27&expand=changelog&fields=summary,assignee,status,changelog,issuetype,customfield_10014,customfield_10015,labels", r.URL.RawQuery)
 		w.WriteHeader(http.StatusOK)
 		w.Write([]byte(`{
@@ -291,7 +291,7 @@ func TestJiraAdapter_GetSprintIssues(t *testing.T) {
 
 	// Create a test server
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		assert.Equal(t, "/rest/api/3/search", r.URL.Path)
+		assert.Equal(t, "/rest/api/3/search/jql", r.URL.Path)
 		assert.Equal(t, "jql=project+%3D+TEST+AND+sprint+%3D+%27Test+Sprint%27&expand=changelog&fields=summary,assignee,status,changelog,issuetype,customfield_10014,customfield_10015,labels", r.URL.RawQuery)
 		w.WriteHeader(http.StatusOK)
 		w.Write([]byte(`{
@@ -460,7 +460,7 @@ func TestJiraAdapter_GetTeamIssuesComplete(t *testing.T) {
 
 	// Create a test server
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		assert.Equal(t, "/rest/api/3/search", r.URL.Path)
+		assert.Equal(t, "/rest/api/3/search/jql", r.URL.Path)
 		w.WriteHeader(http.StatusOK)
 		w.Write([]byte(`{
 			"issues": [
