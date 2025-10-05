@@ -82,7 +82,7 @@ func (a *JiraQueryAdapter) SearchTasksByLabelPrefix(ctx context.Context, labelPr
 		searchMaxResults = 5000 // JIRA limit
 	}
 
-	searchURL := fmt.Sprintf("%s/rest/api/3/search?jql=%s&maxResults=%d&fields=assignee,reporter,labels",
+	searchURL := fmt.Sprintf("%s/rest/api/3/search/jql?jql=%s&maxResults=%d&fields=assignee,reporter,labels",
 		jiraConfig.BaseURL(), encodedJQL, searchMaxResults)
 
 	// Create the request
@@ -197,7 +197,7 @@ func (a *JiraQueryAdapter) SearchTasksWithFilters(ctx context.Context, filters u
 		searchMaxResults = 5000 // JIRA limit
 	}
 
-	searchURL := fmt.Sprintf("%s/rest/api/3/search?jql=%s&maxResults=%d&fields=assignee,reporter,labels",
+	searchURL := fmt.Sprintf("%s/rest/api/3/search/jql?jql=%s&maxResults=%d&fields=assignee,reporter,labels",
 		jiraConfig.BaseURL(), encodedJQL, searchMaxResults)
 
 	// Create the request

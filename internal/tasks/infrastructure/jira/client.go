@@ -466,7 +466,7 @@ func (c *client) mergeAndDeduplicateTasks(specificTasks, broadTasks []*domain.Ta
 // search executes a JQL query and returns the raw search results
 func (c *client) search(ctx context.Context, jql string) (*api.SearchResult, error) {
 	// Build request URL with fields and expand parameters
-	requestURL := fmt.Sprintf("%s/rest/api/3/search?jql=%s&fields=*all&expand=changelog",
+	requestURL := fmt.Sprintf("%s/rest/api/3/search/jql?jql=%s&fields=*all&expand=changelog",
 		c.config.GetBaseURL(),
 		url.QueryEscape(jql))
 
@@ -541,7 +541,7 @@ func (c *client) FetchTaskByKey(ctx context.Context, key string) (*domain.Task, 
 	}
 
 	// Build the URL for fetching a single issue
-	issueURL := fmt.Sprintf("%s/rest/api/2/issue/%s?expand=changelog", c.config.BaseURL, key)
+	issueURL := fmt.Sprintf("%s/rest/api/3/issue/%s?expand=changelog", c.config.BaseURL, key)
 
 	// Create the request
 	req, err := http.NewRequestWithContext(ctx, "GET", issueURL, nil)
@@ -737,7 +737,7 @@ type Field struct {
 
 // getSprintFieldID retrieves the custom field ID for sprint
 func (c *HTTPClientImpl) getSprintFieldID() (string, error) {
-	url := fmt.Sprintf("%s/rest/api/2/field", c.baseURL)
+	url := fmt.Sprintf("%s/rest/api/3/field", c.baseURL)
 	req, err := http.NewRequest("GET", url, nil)
 	if err != nil {
 		return "", fmt.Errorf("error creating request: %v", err)
@@ -773,7 +773,7 @@ func (c *HTTPClientImpl) GetTasks(project string, sprint string) ([]api.JiraIssu
 		jql = fmt.Sprintf("%s AND sprint in ('%s')", jql, sprint)
 	}
 
-	url := fmt.Sprintf("%s/rest/api/3/search?jql=%s&fields=*all", c.baseURL, url.QueryEscape(jql))
+	url := fmt.Sprintf("%s/rest/api/3/search/jql?jql=%s&fields=*all", c.baseURL, url.QueryEscape(jql))
 	req, err := http.NewRequest("GET", url, nil)
 	if err != nil {
 		return nil, fmt.Errorf("error creating request: %v", err)

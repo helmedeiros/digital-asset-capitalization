@@ -70,7 +70,7 @@ func TestClient_FetchTasks(t *testing.T) {
 		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			// Verify request
 			assert.Equal(t, http.MethodGet, r.Method, "Method should be GET")
-			assert.Equal(t, "/rest/api/3/search", r.URL.Path, "Path should match")
+			assert.Equal(t, "/rest/api/3/search/jql", r.URL.Path, "Path should match")
 			// With dual strategy, we expect either the specific query or the broader query
 			jql := r.URL.Query().Get("jql")
 			expectedSpecific := "project = TEST AND sprint in (\"Sprint 1\") ORDER BY key ASC"
@@ -737,7 +737,7 @@ func TestGetSprintFieldID(t *testing.T) {
 			auth:    "Basic dGVzdEBleGFtcGxlLmNvbTp0ZXN0LXRva2Vu",
 			mock: &mockTransport{
 				responses: map[string]*http.Response{
-					"https://test.atlassian.net/rest/api/2/field": {
+					"https://test.atlassian.net/rest/api/3/field": {
 						StatusCode: http.StatusOK,
 						Body: io.NopCloser(strings.NewReader(`[
 							{
@@ -760,7 +760,7 @@ func TestGetSprintFieldID(t *testing.T) {
 			auth:    "Basic dGVzdEBleGFtcGxlLmNvbTp0ZXN0LXRva2Vu",
 			mock: &mockTransport{
 				errors: map[string]error{
-					"invalid-url/rest/api/2/field": fmt.Errorf("invalid URL"),
+					"invalid-url/rest/api/3/field": fmt.Errorf("invalid URL"),
 				},
 			},
 			wantErr: true,
@@ -802,7 +802,7 @@ func TestGetTasks(t *testing.T) {
 			auth:    "Basic dGVzdEBleGFtcGxlLmNvbTp0ZXN0LXRva2Vu",
 			mock: &mockTransport{
 				responses: map[string]*http.Response{
-					"https://test.atlassian.net/rest/api/3/search?jql=project+%3D+TEST+AND+sprint+in+%28%27Sprint+1%27%29&fields=*all": {
+					"https://test.atlassian.net/rest/api/3/search/jql?jql=project+%3D+TEST+AND+sprint+in+%28%27Sprint+1%27%29&fields=*all": {
 						StatusCode: http.StatusOK,
 						Body: io.NopCloser(strings.NewReader(`{
 							"issues": [
@@ -836,7 +836,7 @@ func TestGetTasks(t *testing.T) {
 			auth:    "Basic dGVzdEBleGFtcGxlLmNvbTp0ZXN0LXRva2Vu",
 			mock: &mockTransport{
 				errors: map[string]error{
-					"invalid-url/rest/api/3/search?jql=project+%3D+TEST+AND+sprint+in+%28%27Sprint+1%27%29&fields=*all": fmt.Errorf("invalid URL"),
+					"invalid-url/rest/api/3/search/jql?jql=project+%3D+TEST+AND+sprint+in+%28%27Sprint+1%27%29&fields=*all": fmt.Errorf("invalid URL"),
 				},
 			},
 			wantErr: true,
@@ -913,7 +913,7 @@ func TestClient_FetchTaskByKey(t *testing.T) {
 			mockSetup: func(mockClient *MockHTTPClient) {
 				mockClient.DoFunc = func(req *http.Request) (*http.Response, error) {
 					// Verify request URL and headers
-					assert.Contains(t, req.URL.String(), "/rest/api/2/issue/TEST-123")
+					assert.Contains(t, req.URL.String(), "/rest/api/3/issue/TEST-123")
 					assert.Equal(t, "application/json", req.Header.Get("Accept"))
 					assert.Contains(t, req.Header.Get("Authorization"), "Basic")
 

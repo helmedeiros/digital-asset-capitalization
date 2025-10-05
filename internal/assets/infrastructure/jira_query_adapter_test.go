@@ -416,7 +416,7 @@ func TestJiraQueryAdapter_SearchTasksWithFilters(t *testing.T) {
 		}`
 
 		mockHTTPClient.On("Do", mock.MatchedBy(func(req *http.Request) bool {
-			return strings.Contains(req.URL.String(), "/rest/api/3/search") &&
+			return strings.Contains(req.URL.String(), "/rest/api/3/search/jql") &&
 				strings.Contains(req.URL.String(), "project+%3D+%22TEST%22")
 		})).Return(createMockResponse(200, responseBody), nil)
 
@@ -462,7 +462,7 @@ func TestJiraQueryAdapter_SearchTasksWithFilters(t *testing.T) {
 		}`
 
 		mockHTTPClient.On("Do", mock.MatchedBy(func(req *http.Request) bool {
-			return strings.Contains(req.URL.String(), "/rest/api/3/search") &&
+			return strings.Contains(req.URL.String(), "/rest/api/3/search/jql") &&
 				strings.Contains(req.URL.String(), "sprint+%3D+%22Sprint+1%22")
 		})).Return(createMockResponse(200, responseBody), nil)
 

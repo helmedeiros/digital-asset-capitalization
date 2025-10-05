@@ -149,7 +149,7 @@ func (a *JiraTeamSyncAdapter) getAssignableUsers(projectKey string) ([]domain.Te
 	// Use search API to get recent issues with assignees to identify active team members
 	jql := fmt.Sprintf("project=%s AND assignee is not EMPTY", projectKey)
 	encodedJQL := url.QueryEscape(jql)
-	searchURL := fmt.Sprintf("%s/rest/api/3/search?jql=%s&maxResults=100&fields=assignee",
+	searchURL := fmt.Sprintf("%s/rest/api/3/search/jql?jql=%s&maxResults=100&fields=assignee",
 		jiraConfig.BaseURL(), encodedJQL)
 
 	req, err := http.NewRequest("GET", searchURL, nil)
