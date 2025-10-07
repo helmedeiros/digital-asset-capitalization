@@ -63,6 +63,8 @@ type App struct {
 	configService     ConfigService
 	investmentService *investmentservice.InvestmentService
 	teamResolver      *configapp.TeamResolverService
+	taskRepo          taskports.TaskRepository
+	taskClassifier    taskports.TaskClassifier
 }
 
 // ConfigService interface for configuration operations
@@ -159,6 +161,12 @@ COMMANDS:
      calculate       Calculate investment for an asset across sprints
      sprint          Calculate investment for a specific sprint
      list            List all saved investment calculations
+   deployments        Manage deployment tracking
+     record          Record a new deployment
+     list            List deployments
+     history         Show deployment history for an asset
+     timeline        Show deployment timeline for a time range
+     mock            Generate mock deployment data for testing
 
 For more information about a command:
    assetcap [command] --help`,
@@ -2128,6 +2136,7 @@ For more information about a command:
 					},
 				},
 			},
+			a.createDeploymentCommands(),
 			a.createConsoleCommand(),
 		},
 	}
@@ -2246,6 +2255,8 @@ func initializeApp() (*App, error) {
 	app.configService = configService
 	app.investmentService = investmentService
 	app.teamResolver = teamResolver
+	app.taskRepo = jiraRepo
+	app.taskClassifier = taskClassifier
 	return app, nil
 }
 
@@ -2295,6 +2306,8 @@ func showHelp() {
 	fmt.Println("   assets      Manage digital assets")
 	fmt.Println("   tasks       Manage tasks and classification")
 	fmt.Println("   sprint      Manage sprint-related operations")
+	fmt.Println("   investment  Calculate investment costs")
+	fmt.Println("   deployments Manage deployment tracking")
 	fmt.Println("   console     Start AI-powered interactive console")
 	fmt.Println("   help        Show this help message")
 	fmt.Println()
