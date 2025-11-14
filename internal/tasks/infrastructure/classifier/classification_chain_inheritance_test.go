@@ -270,6 +270,198 @@ func TestSubtaskInheritance_ClassifyTasks(t *testing.T) {
 				})).Return(taskdomain.WorkTypeDevelopment, nil)
 			},
 		},
+		{
+			name: "discovery task inherits from epic context",
+			tasks: []*taskdomain.Task{
+				{
+					Key:     "FN-100",
+					Summary: "Service Fee Configuration",
+					Type:    taskdomain.TaskTypeStory,
+					Epic:    "",
+					Labels:  []string{"cap-asset-service-fee", "cap-development"},
+				},
+				{
+					Key:     "FN-101",
+					Summary: "Spike: Research pricing options",
+					Type:    taskdomain.TaskTypeTask,
+					Epic:    "FN-100",
+					Labels:  []string{"cap-discovery"},
+				},
+			},
+			expectedResults: map[string]expectedClassification{
+				"FN-100": {
+					hasAsset:      true,
+					workType:      taskdomain.WorkTypeDevelopment,
+					inheritedFrom: "",
+					assetName:     "Service Fee",
+				},
+				"FN-101": {
+					hasAsset:      true,
+					workType:      taskdomain.WorkTypeDiscovery,
+					inheritedFrom: "FN-100", // Should inherit from epic
+					assetName:     "Service Fee",
+				},
+			},
+			setupMocks: func(assetClassifier *MockAssetClassifierForInheritance, workTypeClassifier *MockWorkTypeClassifierForInheritance) {
+				// Epic task classification
+				assetClassifier.On("ClassifyTaskAsset", mock.MatchedBy(func(task *taskdomain.Task) bool {
+					return task.Key == "FN-100"
+				})).Return(&ports.AssetClassificationResult{
+					Asset: &assetdomain.Asset{
+						Name:     "Service Fee",
+						Keywords: []string{"service", "fee", "pricing"},
+					},
+					Confidence: 0.9,
+					Reason:     "explicit asset label match",
+				}, nil)
+
+				workTypeClassifier.On("ClassifyTask", mock.MatchedBy(func(task *taskdomain.Task) bool {
+					return task.Key == "FN-100"
+				})).Return(taskdomain.WorkTypeDevelopment, nil)
+
+				// Discovery task classification (weak - should trigger inheritance)
+				assetClassifier.On("ClassifyTaskAsset", mock.MatchedBy(func(task *taskdomain.Task) bool {
+					return task.Key == "FN-101"
+				})).Return(&ports.AssetClassificationResult{
+					Asset:      nil,
+					Confidence: 0.2,
+					Reason:     "no clear asset match in spike task",
+				}, nil)
+
+				workTypeClassifier.On("ClassifyTask", mock.MatchedBy(func(task *taskdomain.Task) bool {
+					return task.Key == "FN-101"
+				})).Return(taskdomain.WorkTypeDiscovery, nil)
+			},
+		},
+		{
+			name: "research task with weak classification inherits from epic",
+			tasks: []*taskdomain.Task{
+				{
+					Key:     "ESIM-500",
+					Summary: "eSIM Integration for Travelers",
+					Type:    taskdomain.TaskTypeStory,
+					Epic:    "",
+					Labels:  []string{"cap-asset-esim", "cap-development"},
+				},
+				{
+					Key:     "ESIM-501",
+					Summary: "Investigation: eSIM provider APIs",
+					Type:    taskdomain.TaskTypeTask,
+					Epic:    "ESIM-500",
+					Labels:  []string{"cap-discovery"},
+				},
+			},
+			expectedResults: map[string]expectedClassification{
+				"ESIM-500": {
+					hasAsset:      true,
+					workType:      taskdomain.WorkTypeDevelopment,
+					inheritedFrom: "",
+					assetName:     "eSIM",
+				},
+				"ESIM-501": {
+					hasAsset:      true,
+					workType:      taskdomain.WorkTypeDiscovery,
+					inheritedFrom: "ESIM-500", // Should inherit from epic
+					assetName:     "eSIM",
+				},
+			},
+			setupMocks: func(assetClassifier *MockAssetClassifierForInheritance, workTypeClassifier *MockWorkTypeClassifierForInheritance) {
+				// Epic task classification
+				assetClassifier.On("ClassifyTaskAsset", mock.MatchedBy(func(task *taskdomain.Task) bool {
+					return task.Key == "ESIM-500"
+				})).Return(&ports.AssetClassificationResult{
+					Asset: &assetdomain.Asset{
+						Name:     "eSIM",
+						Keywords: []string{"esim", "sim", "traveler"},
+					},
+					Confidence: 0.9,
+					Reason:     "explicit asset label match",
+				}, nil)
+
+				workTypeClassifier.On("ClassifyTask", mock.MatchedBy(func(task *taskdomain.Task) bool {
+					return task.Key == "ESIM-500"
+				})).Return(taskdomain.WorkTypeDevelopment, nil)
+
+				// Research task classification (weak - should trigger inheritance)
+				assetClassifier.On("ClassifyTaskAsset", mock.MatchedBy(func(task *taskdomain.Task) bool {
+					return task.Key == "ESIM-501"
+				})).Return(&ports.AssetClassificationResult{
+					Asset:      nil,
+					Confidence: 0.3,
+					Reason:     "unclear context in research task",
+				}, nil)
+
+				workTypeClassifier.On("ClassifyTask", mock.MatchedBy(func(task *taskdomain.Task) bool {
+					return task.Key == "ESIM-501"
+				})).Return(taskdomain.WorkTypeDiscovery, nil)
+			},
+		},
+		{
+			name: "discovery task with strong classification doesn't inherit",
+			tasks: []*taskdomain.Task{
+				{
+					Key:     "API-200",
+					Summary: "Payment API Refactoring",
+					Type:    taskdomain.TaskTypeStory,
+					Epic:    "",
+					Labels:  []string{"cap-asset-payment-api", "cap-development"},
+				},
+				{
+					Key:     "API-201",
+					Summary: "Spike: Analyze user authentication patterns",
+					Type:    taskdomain.TaskTypeTask,
+					Epic:    "API-200",
+					Labels:  []string{"cap-asset-authentication", "cap-discovery"},
+				},
+			},
+			expectedResults: map[string]expectedClassification{
+				"API-200": {
+					hasAsset:      true,
+					workType:      taskdomain.WorkTypeDevelopment,
+					inheritedFrom: "",
+					assetName:     "Payment API",
+				},
+				"API-201": {
+					hasAsset:      true,
+					workType:      taskdomain.WorkTypeDiscovery,
+					inheritedFrom: "", // Should NOT inherit - has strong classification
+					assetName:     "Authentication",
+				},
+			},
+			setupMocks: func(assetClassifier *MockAssetClassifierForInheritance, workTypeClassifier *MockWorkTypeClassifierForInheritance) {
+				// Epic task classification
+				assetClassifier.On("ClassifyTaskAsset", mock.MatchedBy(func(task *taskdomain.Task) bool {
+					return task.Key == "API-200"
+				})).Return(&ports.AssetClassificationResult{
+					Asset: &assetdomain.Asset{
+						Name:     "Payment API",
+						Keywords: []string{"payment", "api"},
+					},
+					Confidence: 0.9,
+					Reason:     "explicit asset label match",
+				}, nil)
+
+				workTypeClassifier.On("ClassifyTask", mock.MatchedBy(func(task *taskdomain.Task) bool {
+					return task.Key == "API-200"
+				})).Return(taskdomain.WorkTypeDevelopment, nil)
+
+				// Discovery task classification (strong - should NOT inherit)
+				assetClassifier.On("ClassifyTaskAsset", mock.MatchedBy(func(task *taskdomain.Task) bool {
+					return task.Key == "API-201"
+				})).Return(&ports.AssetClassificationResult{
+					Asset: &assetdomain.Asset{
+						Name:     "Authentication",
+						Keywords: []string{"authentication", "auth", "user"},
+					},
+					Confidence: 0.85,
+					Reason:     "explicit asset label match",
+				}, nil)
+
+				workTypeClassifier.On("ClassifyTask", mock.MatchedBy(func(task *taskdomain.Task) bool {
+					return task.Key == "API-201"
+				})).Return(taskdomain.WorkTypeDiscovery, nil)
+			},
+		},
 	}
 
 	for _, tt := range tests {
@@ -331,23 +523,189 @@ type expectedClassification struct {
 	assetName     string // Expected asset name (if relevant)
 }
 
+func TestSubtaskInheritance_inheritFromParent_NoEpic(t *testing.T) {
+	chain := &ComprehensiveClassificationChainWithInheritance{}
+
+	task := &taskdomain.Task{
+		Key:     "TEST-1",
+		Type:    taskdomain.TaskTypeSubtask,
+		Summary: "Test subtask",
+		Epic:    "", // No epic
+	}
+
+	inheritedAsset, inheritedWorkType, inheritedReason := chain.inheritFromParent(task)
+
+	assert.Nil(t, inheritedAsset)
+	assert.Equal(t, taskdomain.WorkType(""), inheritedWorkType)
+	assert.Equal(t, "", inheritedReason)
+}
+
+func TestComprehensiveClassificationChainWithInheritance_ErrorHandling(t *testing.T) {
+	tests := []struct {
+		name               string
+		task               *taskdomain.Task
+		assetClassifyError error
+		workTypeError      error
+		expectError        bool
+		errorContains      string
+	}{
+		{
+			name:          "nil task",
+			task:          nil,
+			expectError:   true,
+			errorContains: "task cannot be nil",
+		},
+		{
+			name: "asset classification error",
+			task: &taskdomain.Task{
+				Key:     "TEST-1",
+				Summary: "Test task",
+			},
+			assetClassifyError: assert.AnError,
+			expectError:        true,
+			errorContains:      "asset classification failed",
+		},
+		{
+			name: "work type classification error",
+			task: &taskdomain.Task{
+				Key:     "TEST-2",
+				Summary: "Test task",
+			},
+			workTypeError: assert.AnError,
+			expectError:   true,
+			errorContains: "work type classification failed",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assetClassifier := new(MockAssetClassifierForInheritance)
+			workTypeClassifier := new(MockWorkTypeClassifierForInheritance)
+
+			if tt.task != nil && tt.assetClassifyError == nil {
+				assetClassifier.On("ClassifyTaskAsset", tt.task).Return(&ports.AssetClassificationResult{
+					Asset:      nil,
+					Confidence: 0.1,
+				}, tt.assetClassifyError)
+			} else if tt.task != nil {
+				assetClassifier.On("ClassifyTaskAsset", tt.task).Return((*ports.AssetClassificationResult)(nil), tt.assetClassifyError)
+			}
+
+			if tt.task != nil && tt.workTypeError == nil && tt.assetClassifyError == nil {
+				workTypeClassifier.On("ClassifyTask", tt.task).Return(taskdomain.WorkTypeDevelopment, tt.workTypeError)
+			} else if tt.task != nil && tt.assetClassifyError == nil {
+				workTypeClassifier.On("ClassifyTask", tt.task).Return(taskdomain.WorkType(""), tt.workTypeError)
+			}
+
+			chain := NewComprehensiveClassificationChainWithInheritance(assetClassifier, workTypeClassifier)
+
+			result, err := chain.ClassifyTask(tt.task)
+
+			if tt.expectError {
+				assert.Error(t, err)
+				assert.Nil(t, result)
+				assert.Contains(t, err.Error(), tt.errorContains)
+			} else {
+				assert.NoError(t, err)
+				assert.NotNil(t, result)
+			}
+
+			if tt.task != nil {
+				assetClassifier.AssertExpectations(t)
+				if tt.assetClassifyError == nil {
+					workTypeClassifier.AssertExpectations(t)
+				}
+			}
+		})
+	}
+}
+
+func TestSubtaskInheritance_hasExplicitWorkTypeLabel(t *testing.T) {
+	chain := &ComprehensiveClassificationChainWithInheritance{}
+
+	tests := []struct {
+		name     string
+		task     *taskdomain.Task
+		expected bool
+	}{
+		{
+			name: "task with cap-development label",
+			task: &taskdomain.Task{
+				Key:    "TEST-1",
+				Labels: []string{"cap-development", "other-label"},
+			},
+			expected: true,
+		},
+		{
+			name: "task with cap-discovery label",
+			task: &taskdomain.Task{
+				Key:    "TEST-2",
+				Labels: []string{"cap-discovery"},
+			},
+			expected: true,
+		},
+		{
+			name: "task with cap-maintenance label",
+			task: &taskdomain.Task{
+				Key:    "TEST-3",
+				Labels: []string{"some-label", "cap-maintenance"},
+			},
+			expected: true,
+		},
+		{
+			name: "task without work type label",
+			task: &taskdomain.Task{
+				Key:    "TEST-4",
+				Labels: []string{"cap-asset-test", "other-label"},
+			},
+			expected: false,
+		},
+		{
+			name: "task with no labels",
+			task: &taskdomain.Task{
+				Key:    "TEST-5",
+				Labels: []string{},
+			},
+			expected: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := chain.hasExplicitWorkTypeLabel(tt.task)
+			assert.Equal(t, tt.expected, result)
+		})
+	}
+}
+
 func TestSubtaskInheritance_needsInheritance(t *testing.T) {
 	chain := &ComprehensiveClassificationChainWithInheritance{}
 
 	tests := []struct {
 		name        string
+		task        *taskdomain.Task
 		assetResult *ports.AssetClassificationResult
 		workType    taskdomain.WorkType
 		expected    bool
 	}{
 		{
-			name:        "no asset found - needs inheritance",
+			name: "no asset found - needs inheritance",
+			task: &taskdomain.Task{
+				Key:     "TEST-1",
+				Type:    taskdomain.TaskTypeSubtask,
+				Summary: "Test subtask",
+			},
 			assetResult: nil,
 			workType:    taskdomain.WorkTypeDevelopment,
 			expected:    true,
 		},
 		{
 			name: "low confidence asset - needs inheritance",
+			task: &taskdomain.Task{
+				Key:     "TEST-2",
+				Type:    taskdomain.TaskTypeSubtask,
+				Summary: "Test subtask",
+			},
 			assetResult: &ports.AssetClassificationResult{
 				Asset:      &assetdomain.Asset{Name: "Test"},
 				Confidence: 0.3,
@@ -357,6 +715,11 @@ func TestSubtaskInheritance_needsInheritance(t *testing.T) {
 		},
 		{
 			name: "high confidence asset - no inheritance needed",
+			task: &taskdomain.Task{
+				Key:     "TEST-3",
+				Type:    taskdomain.TaskTypeSubtask,
+				Summary: "Test subtask",
+			},
 			assetResult: &ports.AssetClassificationResult{
 				Asset:      &assetdomain.Asset{Name: "Test"},
 				Confidence: 0.8,
@@ -365,16 +728,50 @@ func TestSubtaskInheritance_needsInheritance(t *testing.T) {
 			expected: false,
 		},
 		{
-			name:        "no asset but specific work type - needs inheritance",
+			name: "no asset but specific work type - needs inheritance",
+			task: &taskdomain.Task{
+				Key:     "TEST-4",
+				Type:    taskdomain.TaskTypeSubtask,
+				Summary: "Test subtask",
+			},
 			assetResult: nil,
 			workType:    taskdomain.WorkTypeDiscovery,
 			expected:    true,
+		},
+		{
+			name: "discovery task with low confidence - needs inheritance",
+			task: &taskdomain.Task{
+				Key:     "TEST-5",
+				Type:    taskdomain.TaskTypeTask,
+				Summary: "Spike: investigate something",
+			},
+			assetResult: &ports.AssetClassificationResult{
+				Asset:      nil,
+				Confidence: 0.2,
+			},
+			workType: taskdomain.WorkTypeDiscovery,
+			expected: true,
+		},
+		{
+			name: "primary subject detected - no inheritance",
+			task: &taskdomain.Task{
+				Key:     "TEST-6",
+				Type:    taskdomain.TaskTypeSubtask,
+				Summary: "Test subtask",
+			},
+			assetResult: &ports.AssetClassificationResult{
+				Asset:      &assetdomain.Asset{Name: "Test"},
+				Confidence: 0.95,
+				Reason:     "detected as primary subject based on title emphasis",
+			},
+			workType: taskdomain.WorkTypeDevelopment,
+			expected: false,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result := chain.needsInheritance(tt.assetResult, tt.workType)
+			result := chain.needsInheritance(tt.task, tt.assetResult, tt.workType)
 			assert.Equal(t, tt.expected, result)
 		})
 	}

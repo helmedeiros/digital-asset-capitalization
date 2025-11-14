@@ -121,6 +121,17 @@ func (c *ContentBasedAssetClassifier) ClassifyTasksAssets(tasks []*taskdomain.Ta
 
 // findBestAssetMatch finds the asset that best matches the task
 func (c *ContentBasedAssetClassifier) findBestAssetMatch(task *taskdomain.Task, assets []*assetdomain.Asset) *ports.AssetClassificationResult {
+	// NEW: First check if there's a clear primary subject in the title
+	primarySubject := c.detectPrimarySubject(task, assets)
+	if primarySubject != nil {
+		return &ports.AssetClassificationResult{
+			Task:       task,
+			Asset:      primarySubject,
+			Confidence: 0.95,
+			Reason:     "detected as primary subject based on title emphasis",
+		}
+	}
+
 	var bestAsset *assetdomain.Asset
 	var bestScore float64
 	var bestReason string
@@ -157,9 +168,21 @@ func (c *ContentBasedAssetClassifier) calculateAssetMatchScore(task *taskdomain.
 	matchTypes := 0
 
 	// Prepare content for analysis (case-insensitive)
-	taskContent := strings.ToLower(task.Summary + " " + task.Description)
+	// Separate title and description for weighted analysis
+	taskSummary := strings.ToLower(task.Summary)
+	taskDescription := strings.ToLower(task.Description)
+	taskContent := taskSummary + " " + taskDescription
 	epicContent := strings.ToLower(task.Epic)
 	assetNameLower := strings.ToLower(asset.Name)
+
+	// NEW: Check title first with highest priority (0.95 confidence)
+	titleMatch := MatchesAssetNameEnhanced(taskSummary, assetNameLower)
+	if titleMatch && bestScore < 0.95 {
+		// Title match is very strong signal - the task is ABOUT this asset
+		bestScore = 0.95
+		primaryReason = "asset name appears in task title (primary indicator)"
+		matchTypes++
+	}
 
 	// SPECIAL LOGIC: Detect primary focus for multi-asset tasks
 	// If task title follows pattern "X-Based Y Experiment" or "X using Y",
@@ -225,26 +248,38 @@ func (c *ContentBasedAssetClassifier) calculateAssetMatchScore(task *taskdomain.
 		matchTypes++
 	}
 
-	// 4. Check for keyword matches (medium priority) - ENHANCED
+	// 4. Check for keyword matches (medium priority) - ENHANCED with title priority
 	keywordMatches := 0
 	strongKeywordMatches := 0
+	titleKeywordMatches := 0
 	for _, keyword := range asset.Keywords {
-		if MatchesKeywordEnhanced(taskContent, keyword) || MatchesKeywordEnhanced(epicContent, keyword) {
+		inTitle := MatchesKeywordEnhanced(taskSummary, keyword)
+		inDescription := MatchesKeywordEnhanced(taskDescription, keyword)
+		inEpic := MatchesKeywordEnhanced(epicContent, keyword)
+
+		if inTitle {
+			titleKeywordMatches++ // Count title matches separately
 			keywordMatches++
-			// Check if this is a strong contextual keyword match
-			if c.isStrongContextualMatch(taskContent, keyword, asset.Name) {
-				strongKeywordMatches++
-			}
+		} else if inDescription || inEpic {
+			keywordMatches++
+		}
+
+		// Check if this is a strong contextual keyword match
+		if c.isStrongContextualMatch(taskContent, keyword, asset.Name) {
+			strongKeywordMatches++
 		}
 	}
 
-	if keywordMatches > 0 {
+	if keywordMatches > 0 && bestScore < 0.95 {
+		// Don't override strong title matches
 		// Score based on number of keyword matches
 		currentScore := 0.4 + float64(keywordMatches)*0.1
 
-		// Boost for strong contextual matches
-		if strongKeywordMatches >= 2 {
-			currentScore += 0.3
+		// Boost for title keyword matches (higher priority)
+		if titleKeywordMatches >= 2 {
+			currentScore += 0.3 // Strong boost for multiple title keywords
+		} else if strongKeywordMatches >= 2 {
+			currentScore += 0.3 // Boost for strong contextual matches
 		}
 
 		if keywordMatches >= 3 {
@@ -252,7 +287,11 @@ func (c *ContentBasedAssetClassifier) calculateAssetMatchScore(task *taskdomain.
 		}
 		if currentScore > bestScore {
 			bestScore = currentScore
-			primaryReason = "keyword match in task content"
+			if titleKeywordMatches > 0 {
+				primaryReason = fmt.Sprintf("keyword match in task title (%d matches)", titleKeywordMatches)
+			} else {
+				primaryReason = "keyword match in task content"
+			}
 		}
 		matchTypes++
 	}
@@ -397,4 +436,45 @@ func (c *ContentBasedAssetClassifier) isStrongContextualMatch(content, keyword, 
 	}
 
 	return false
+}
+
+// detectPrimarySubject identifies the main asset being discussed in the task
+// Returns the asset with highest confidence if it's clearly the primary focus
+func (c *ContentBasedAssetClassifier) detectPrimarySubject(task *taskdomain.Task, assets []*assetdomain.Asset) *assetdomain.Asset {
+	taskSummary := strings.ToLower(task.Summary)
+
+	// Count mentions of each asset in the title
+	titleMentions := make(map[string]int)
+	for _, asset := range assets {
+		assetNameLower := strings.ToLower(asset.Name)
+
+		// Check direct asset name mention
+		if strings.Contains(taskSummary, assetNameLower) {
+			titleMentions[asset.Name]++
+		}
+
+		// Check keyword mentions in title
+		for _, keyword := range asset.Keywords {
+			if len(keyword) > 3 && strings.Contains(taskSummary, strings.ToLower(keyword)) {
+				titleMentions[asset.Name]++
+			}
+		}
+	}
+
+	// If one asset clearly dominates the title, it's the primary subject
+	var primaryAsset *assetdomain.Asset
+	maxMentions := 0
+	for _, asset := range assets {
+		if mentions := titleMentions[asset.Name]; mentions > maxMentions {
+			maxMentions = mentions
+			primaryAsset = asset
+		}
+	}
+
+	// Only return if we have clear evidence (at least 2 mentions)
+	if maxMentions >= 2 {
+		return primaryAsset
+	}
+
+	return nil
 }

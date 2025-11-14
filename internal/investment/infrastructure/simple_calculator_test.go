@@ -18,6 +18,7 @@ func TestNewSimpleInvestmentCalculator(t *testing.T) {
 
 	if calculator == nil {
 		t.Fatal("Expected non-nil calculator")
+		return
 	}
 	if calculator.costModelRepo != costModelRepo {
 		t.Error("Expected cost model repo to be set correctly")

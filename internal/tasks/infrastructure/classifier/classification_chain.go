@@ -89,15 +89,26 @@ func (c *ComprehensiveClassificationChainWithInheritance) ClassifyTask(task *tas
 		return nil, fmt.Errorf("work type classification failed: %w", err)
 	}
 
-	// Step 3: Check if we need inheritance for subtasks
-	if task.Type == taskdomain.TaskTypeSubtask && c.needsInheritance(assetResult, workType) {
+	// Step 3: Check if we need inheritance for subtasks or discovery tasks
+	isDiscoveryTask := workType == taskdomain.WorkTypeDiscovery || c.containsResearchKeywords(task)
+	if (task.Type == taskdomain.TaskTypeSubtask || isDiscoveryTask) && c.needsInheritance(task, assetResult, workType) {
 		inheritedAsset, inheritedWorkType, inheritedReason := c.inheritFromParent(task)
 		if inheritedAsset != nil {
 			assetResult = inheritedAsset
 		}
-		if inheritedWorkType != "" {
+
+		// Discovery tasks should inherit asset but keep their own work type (cap-discovery)
+		// Subtasks should inherit both asset AND work type from parent
+		shouldInheritWorkType := true
+		if isDiscoveryTask && c.hasExplicitWorkTypeLabel(task) {
+			// Discovery tasks with explicit cap-discovery label keep their work type
+			shouldInheritWorkType = false
+		}
+
+		if inheritedWorkType != "" && shouldInheritWorkType {
 			workType = inheritedWorkType
 		}
+
 		workTypeReason := inheritedReason
 		if workTypeReason == "" {
 			workTypeReason = c.generateWorkTypeReason(task, assetResult, workType)
@@ -125,8 +136,20 @@ func (c *ComprehensiveClassificationChainWithInheritance) ClassifyTask(task *tas
 	return result, nil
 }
 
-// needsInheritance determines if a subtask needs to inherit classification from its parent
-func (c *ComprehensiveClassificationChainWithInheritance) needsInheritance(assetResult *ports.AssetClassificationResult, workType taskdomain.WorkType) bool {
+// hasExplicitWorkTypeLabel checks if the task has an explicit work type label
+func (c *ComprehensiveClassificationChainWithInheritance) hasExplicitWorkTypeLabel(task *taskdomain.Task) bool {
+	for _, label := range task.Labels {
+		switch label {
+		case "cap-development", "cap-discovery", "cap-maintenance":
+			return true
+		}
+	}
+	return false
+}
+
+// needsInheritance determines if a task needs to inherit classification from its parent
+// This applies to subtasks and discovery tasks (spikes, research) that may lack explicit asset mentions
+func (c *ComprehensiveClassificationChainWithInheritance) needsInheritance(task *taskdomain.Task, assetResult *ports.AssetClassificationResult, workType taskdomain.WorkType) bool {
 	// FIRST: Never inherit if we have a strong natural classification that overrides existing labels
 	if assetResult != nil && assetResult.Confidence >= 0.9 && strings.Contains(assetResult.Reason, "overrides existing label") {
 		return false
@@ -137,15 +160,21 @@ func (c *ComprehensiveClassificationChainWithInheritance) needsInheritance(asset
 		return false
 	}
 
+	// THIRD: Never inherit if we detected a strong primary subject
+	if assetResult != nil && assetResult.Reason == "detected as primary subject based on title emphasis" {
+		return false
+	}
+
 	// If no asset was found or confidence is low, we need inheritance
 	hasWeakAssetClassification := assetResult == nil || assetResult.Asset == nil || assetResult.Confidence < 0.5
 
-	// If work type is default (development) or other specific types, we might need inheritance
-	hasDefaultOrSpecificWorkType := workType == taskdomain.WorkTypeDevelopment ||
-		workType == taskdomain.WorkTypeDiscovery ||
-		workType == taskdomain.WorkTypeMaintenance
+	// Discovery/spike tasks often lack explicit asset mentions but should inherit from epic
+	isDiscoveryTask := workType == taskdomain.WorkTypeDiscovery || c.containsResearchKeywords(task)
 
-	return hasWeakAssetClassification && hasDefaultOrSpecificWorkType
+	// Subtasks OR discovery tasks can inherit
+	isInheritableType := task.Type == taskdomain.TaskTypeSubtask || isDiscoveryTask
+
+	return isInheritableType && hasWeakAssetClassification
 }
 
 // inheritFromParent attempts to inherit classification from parent task or epic

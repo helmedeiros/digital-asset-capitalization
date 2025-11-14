@@ -74,7 +74,7 @@ func TestContentBasedAssetClassifier_ClassifyTaskAsset(t *testing.T) {
 			expectedAssetName: "Payment Gateway",
 			expectedMinConf:   0.9,
 			expectedMaxConf:   1.0,
-			expectedReason:    "keyword match in task content",
+			expectedReason:    "detected as primary subject based on title emphasis",
 		},
 		{
 			name: "keyword match in description",
@@ -94,7 +94,7 @@ func TestContentBasedAssetClassifier_ClassifyTaskAsset(t *testing.T) {
 			expectedAssetName: "Payment Gateway",
 			expectedMinConf:   0.6,
 			expectedMaxConf:   0.9,
-			expectedReason:    "keyword match in task content",
+			expectedReason:    "keyword match in task title",
 		},
 		{
 			name: "epic name match",
@@ -155,7 +155,7 @@ func TestContentBasedAssetClassifier_ClassifyTaskAsset(t *testing.T) {
 			expectedAssetName: "Payment Gateway",
 			expectedMinConf:   0.9,
 			expectedMaxConf:   1.0,
-			expectedReason:    "multiple strong matches",
+			expectedReason:    "detected as primary subject based on title emphasis",
 		},
 		{
 			name: "no asset match",
@@ -195,7 +195,7 @@ func TestContentBasedAssetClassifier_ClassifyTaskAsset(t *testing.T) {
 			expectedAssetName: "Payment Gateway",
 			expectedMinConf:   0.9,
 			expectedMaxConf:   1.0,
-			expectedReason:    "multiple strong matches", // Asset name + multiple keywords match
+			expectedReason:    "detected as primary subject based on title emphasis", // Asset name + multiple keywords match
 		},
 	}
 
@@ -386,6 +386,273 @@ func TestContentBasedAssetClassifier_EdgeCases(t *testing.T) {
 			if tt.task != nil {
 				mockRepo.AssertExpectations(t)
 			}
+		})
+	}
+}
+
+func TestContentBasedAssetClassifier_DetectPrimarySubject(t *testing.T) {
+	mockRepo := new(MockAssetRepositoryForAssetClassifier)
+	classifier := NewContentBasedAssetClassifier(mockRepo).(*ContentBasedAssetClassifier)
+
+	tests := []struct {
+		name              string
+		task              *taskdomain.Task
+		assets            []*assetdomain.Asset
+		expectedAssetName string
+	}{
+		{
+			name: "primary subject detected with multiple mentions",
+			task: &taskdomain.Task{
+				Summary: "Fix payment gateway issues",
+			},
+			assets: []*assetdomain.Asset{
+				{
+					Name:     "Payment Gateway",
+					Keywords: []string{"payment", "gateway"},
+				},
+				{
+					Name:     "User Management",
+					Keywords: []string{"user"},
+				},
+			},
+			expectedAssetName: "Payment Gateway",
+		},
+		{
+			name: "no primary subject - single mention",
+			task: &taskdomain.Task{
+				Summary: "Update payment logic",
+			},
+			assets: []*assetdomain.Asset{
+				{
+					Name:     "Payment Gateway",
+					Keywords: []string{"payment", "gateway"},
+				},
+			},
+			expectedAssetName: "",
+		},
+		{
+			name: "primary subject with short keywords filtered out",
+			task: &taskdomain.Task{
+				Summary: "Fix API auth issue",
+			},
+			assets: []*assetdomain.Asset{
+				{
+					Name:     "API Gateway",
+					Keywords: []string{"api", "auth", "gateway"},
+				},
+			},
+			expectedAssetName: "",
+		},
+		{
+			name: "no primary subject with empty task",
+			task: &taskdomain.Task{
+				Summary: "",
+			},
+			assets: []*assetdomain.Asset{
+				{
+					Name:     "Payment Gateway",
+					Keywords: []string{"payment", "gateway"},
+				},
+			},
+			expectedAssetName: "",
+		},
+		{
+			name: "title match with asset name",
+			task: &taskdomain.Task{
+				Summary: "eSIM eSIM enhancement",
+			},
+			assets: []*assetdomain.Asset{
+				{
+					Name:     "eSIM",
+					Keywords: []string{"esim"},
+				},
+			},
+			expectedAssetName: "eSIM",
+		},
+		{
+			name: "multiple assets compete",
+			task: &taskdomain.Task{
+				Summary: "payment gateway payment",
+			},
+			assets: []*assetdomain.Asset{
+				{
+					Name:     "Payment Gateway",
+					Keywords: []string{"payment", "gateway"},
+				},
+				{
+					Name:     "Payment System",
+					Keywords: []string{"payment", "system"},
+				},
+			},
+			expectedAssetName: "Payment Gateway",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := classifier.detectPrimarySubject(tt.task, tt.assets)
+
+			if tt.expectedAssetName == "" {
+				assert.Nil(t, result)
+			} else {
+				assert.NotNil(t, result)
+				assert.Equal(t, tt.expectedAssetName, result.Name)
+			}
+		})
+	}
+}
+
+func TestContentBasedAssetClassifier_ShouldPrioritizeSecondaryAsset(t *testing.T) {
+	mockRepo := new(MockAssetRepositoryForAssetClassifier)
+	classifier := NewContentBasedAssetClassifier(mockRepo).(*ContentBasedAssetClassifier)
+
+	tests := []struct {
+		name        string
+		taskSummary string
+		assetName   string
+		expected    bool
+	}{
+		{
+			name:        "X-based Y experiment pattern - should prioritize",
+			taskSummary: "dynamic markup-based rounding experiment",
+			assetName:   "Dynamic Rounding",
+			expected:    true,
+		},
+		{
+			name:        "X using Y pattern - should prioritize",
+			taskSummary: "implement pricing using service fee",
+			assetName:   "Service Fee",
+			expected:    true,
+		},
+		{
+			name:        "rounding experiment pattern - should prioritize",
+			taskSummary: "rounding experiment for fare calculation",
+			assetName:   "Dynamic Rounding",
+			expected:    true,
+		},
+		{
+			name:        "X test pattern - should prioritize",
+			taskSummary: "service test for new market",
+			assetName:   "Payment Service",
+			expected:    true,
+		},
+		{
+			name:        "special case rounding experiment - should prioritize",
+			taskSummary: "configure rounding experiment parameters",
+			assetName:   "Rounding Rules",
+			expected:    true,
+		},
+		{
+			name:        "no special pattern - should not prioritize",
+			taskSummary: "update fare calculation logic",
+			assetName:   "Service Fee",
+			expected:    false,
+		},
+		{
+			name:        "experiment without using/based - should not prioritize",
+			taskSummary: "new experiment for pricing",
+			assetName:   "Service Fee",
+			expected:    false,
+		},
+		{
+			name:        "using without matching asset - should not prioritize",
+			taskSummary: "implement pricing using markup algorithm",
+			assetName:   "Service Fee",
+			expected:    false,
+		},
+		{
+			name:        "short asset words filtered - should not prioritize",
+			taskSummary: "test api for new endpoint",
+			assetName:   "API",
+			expected:    false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := classifier.shouldPrioritizeSecondaryAsset(tt.taskSummary, tt.assetName)
+			assert.Equal(t, tt.expected, result, "Expected shouldPrioritizeSecondaryAsset('%s', '%s') to be %t",
+				tt.taskSummary, tt.assetName, tt.expected)
+		})
+	}
+}
+
+func TestContentBasedAssetClassifier_TitleWeighting(t *testing.T) {
+	tests := []struct {
+		name              string
+		task              *taskdomain.Task
+		assets            []*assetdomain.Asset
+		expectedAssetName string
+		minConfidence     float64
+	}{
+		{
+			name: "title match overrides description noise",
+			task: &taskdomain.Task{
+				Key:         "TEST-1",
+				Summary:     "Show eSim on booking funnel",
+				Description: "Update price breakdown to show eSIM as free item. The price breakdown service fee calculation needs adjustment.",
+			},
+			assets: []*assetdomain.Asset{
+				{
+					Name:     "eSIM",
+					Keywords: []string{"esim"},
+				},
+				{
+					Name:     "Service Fee",
+					Keywords: []string{"service", "fee", "price", "breakdown"},
+				},
+			},
+			expectedAssetName: "eSIM",
+			minConfidence:     0.9,
+		},
+		{
+			name: "title keyword match with high priority",
+			task: &taskdomain.Task{
+				Key:         "TEST-2",
+				Summary:     "Fix transaction processing",
+				Description: "The payment gateway sometimes fails",
+			},
+			assets: []*assetdomain.Asset{
+				{
+					Name:     "Payment Gateway",
+					Keywords: []string{"payment", "gateway", "transaction"},
+				},
+			},
+			expectedAssetName: "Payment Gateway",
+			minConfidence:     0.6,
+		},
+		{
+			name: "multiple title keywords boost confidence",
+			task: &taskdomain.Task{
+				Key:         "TEST-3",
+				Summary:     "Payment gateway transaction timeout",
+				Description: "Issue with processing",
+			},
+			assets: []*assetdomain.Asset{
+				{
+					Name:     "Payment Gateway",
+					Keywords: []string{"payment", "gateway", "transaction"},
+				},
+			},
+			expectedAssetName: "Payment Gateway",
+			minConfidence:     0.9,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			mockRepo := new(MockAssetRepositoryForAssetClassifier)
+			mockRepo.On("FindAll").Return(tt.assets, nil)
+
+			classifier := NewContentBasedAssetClassifier(mockRepo)
+			result, err := classifier.ClassifyTaskAsset(tt.task)
+
+			assert.NoError(t, err)
+			assert.NotNil(t, result)
+			assert.NotNil(t, result.Asset)
+			assert.Equal(t, tt.expectedAssetName, result.Asset.Name)
+			assert.GreaterOrEqual(t, result.Confidence, tt.minConfidence)
+			mockRepo.AssertExpectations(t)
 		})
 	}
 }

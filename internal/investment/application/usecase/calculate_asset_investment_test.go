@@ -613,6 +613,7 @@ func TestCalculateAssetInvestmentUseCase_Execute_MultipleEngineersAndTasks(t *te
 
 	if johnInvestment == nil || janeInvestment == nil {
 		t.Fatal("Expected to find both John Doe and Jane Smith in engineers")
+		return
 	}
 
 	if johnInvestment.HourlyRate != 80.0 {
