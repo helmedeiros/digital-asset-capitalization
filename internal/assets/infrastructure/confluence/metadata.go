@@ -62,7 +62,7 @@ func (a *Adapter) extractMetadata(content string) (*PageMetadata, error) {
 	metadata.How = cleanHTML(extractTableValue(content, "How it works?"))
 	metadata.Metrics = cleanHTML(extractTableValue(content, "How do we judge success?"))
 	metadata.Platform = cleanHTML(extractTableValue(content, "Pod"))
-	metadata.Status = cleanHTML(extractTableValue(content, "Status"))
+	metadata.Status = extractStatusTitle(extractTableValue(content, "Status"))
 
 	// Extract launch date
 	launchDate := extractTableValue(content, "Launch date")
@@ -383,6 +383,39 @@ func extractAssetIdentifier(content string) string {
 	}
 
 	return ""
+}
+
+// extractStatusTitle extracts the status title from a Confluence status macro
+// The macro format is: <ac:structured-macro ac:name="status"><ac:parameter ac:name="title">STATUS</ac:parameter><ac:parameter ac:name="colour">Color</ac:parameter></ac:structured-macro>
+func extractStatusTitle(content string) string {
+	// Handle Unicode-encoded content
+	content = strings.ReplaceAll(content, `\u003c`, "<")
+	content = strings.ReplaceAll(content, `\u003e`, ">")
+	content = strings.ReplaceAll(content, `\u0022`, `"`)
+	// Handle escaped quotes from JSON
+	content = strings.ReplaceAll(content, `\"`, `"`)
+
+	// Look for status macro with title parameter
+	// Pattern: ac:name="title">VALUE</ac:parameter>
+	titlePattern := regexp.MustCompile(`ac:name="title"[^>]*>([^<]+)</ac:parameter>`)
+	matches := titlePattern.FindStringSubmatch(content)
+	if len(matches) > 1 {
+		return strings.TrimSpace(matches[1])
+	}
+
+	// Fallback: try to extract from plain text but strip known color suffixes
+	cleaned := cleanHTML(content)
+	cleanedLower := strings.ToLower(cleaned)
+	colors := []string{"grey", "green", "blue", "yellow", "red", "purple", "teal"}
+	for _, color := range colors {
+		if strings.HasSuffix(cleanedLower, color) {
+			// Strip the color suffix preserving original length
+			cleaned = cleaned[:len(cleaned)-len(color)]
+			break
+		}
+	}
+
+	return strings.TrimSpace(cleaned)
 }
 
 func parseDate(dateStr string) (time.Time, error) {

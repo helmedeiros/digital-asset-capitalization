@@ -548,6 +548,80 @@ func TestCleanHTML(t *testing.T) {
 	}
 }
 
+func TestExtractStatusTitle(t *testing.T) {
+	tests := []struct {
+		name     string
+		content  string
+		expected string
+	}{
+		{
+			name:     "extract status from macro with title parameter",
+			content:  `<ac:structured-macro ac:name="status"><ac:parameter ac:name="title">IN PROGRESS</ac:parameter><ac:parameter ac:name="colour">Blue</ac:parameter></ac:structured-macro>`,
+			expected: "IN PROGRESS",
+		},
+		{
+			name: "extract status from macro with escaped quotes (JSON)",
+			//nolint:misspell // "continious" is the actual misspelling in production Confluence data
+			content:  `<ac:structured-macro ac:name=\"status\"><ac:parameter ac:name=\"title\">in continious development</ac:parameter><ac:parameter ac:name=\"colour\">Yellow</ac:parameter></ac:structured-macro>`,
+			expected: "in continious development", //nolint:misspell
+		},
+		{
+			name:     "extract status from macro - planning",
+			content:  `<ac:structured-macro ac:name="status"><ac:parameter ac:name="title">PLANNING</ac:parameter><ac:parameter ac:name="colour">Grey</ac:parameter></ac:structured-macro>`,
+			expected: "PLANNING",
+		},
+		{
+			name:     "extract status from macro - launched",
+			content:  `<ac:structured-macro ac:name="status"><ac:parameter ac:name="title">LAUNCHED</ac:parameter><ac:parameter ac:name="colour">Green</ac:parameter></ac:structured-macro>`,
+			expected: "LAUNCHED",
+		},
+		{
+			name:     "fallback strips color suffix - Blue",
+			content:  `IN PROGRESSBlue`,
+			expected: "IN PROGRESS",
+		},
+		{
+			name:     "fallback strips color suffix - Green",
+			content:  `LAUNCHEDGreen`,
+			expected: "LAUNCHED",
+		},
+		{
+			name:     "fallback strips color suffix - Yellow",
+			content:  `in developmentYellow`,
+			expected: "in development",
+		},
+		{
+			name:     "fallback strips color suffix - case insensitive Green",
+			content:  `LAUnchedGreen`,
+			expected: "LAUnched",
+		},
+		{
+			name:     "fallback strips color suffix - lowercase green",
+			content:  `Launchedgreen`,
+			expected: "Launched",
+		},
+		{
+			name:     "plain text status without color",
+			content:  `active`,
+			expected: "active",
+		},
+		{
+			name:     "empty content",
+			content:  ``,
+			expected: "",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := extractStatusTitle(tt.content)
+			if result != tt.expected {
+				t.Errorf("extractStatusTitle() = %q, want %q", result, tt.expected)
+			}
+		})
+	}
+}
+
 func TestExtractLabels(t *testing.T) {
 	tests := []struct {
 		name     string

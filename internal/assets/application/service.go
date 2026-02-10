@@ -382,9 +382,7 @@ func validateRequiredFields(asset *domain.Asset) []string {
 	if asset.ID == "" {
 		missingFields = append(missingFields, "ID")
 	}
-	if asset.LaunchDate.IsZero() {
-		missingFields = append(missingFields, "LaunchDate")
-	}
+	// LaunchDate is optional - assets in Planning/Development stages don't have one yet
 	if asset.Status == "" {
 		missingFields = append(missingFields, "Status")
 	}
