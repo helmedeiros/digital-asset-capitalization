@@ -686,3 +686,140 @@ func TestTeamConfig_GetAllNicknameMappings(t *testing.T) {
 
 	assert.Equal(t, expected, mappings)
 }
+
+func TestNewTeamConfigWithTribes(t *testing.T) {
+	teams := map[string][]string{
+		"FN":  {"alice", "bob"},
+		"COP": {"charlie"},
+	}
+	nicknames := map[string][]string{
+		"FN": {"pricing"},
+	}
+	tribes := map[string]string{
+		"FN":  "Engineering",
+		"COP": "Platform",
+	}
+
+	config, err := NewTeamConfigWithTribes(teams, nicknames, tribes)
+	require.NoError(t, err)
+	assert.NotNil(t, config)
+
+	// Verify teams
+	fnTeam, exists := config.GetTeam("FN")
+	assert.True(t, exists)
+	assert.Equal(t, []string{"alice", "bob"}, fnTeam)
+
+	// Verify nicknames
+	assert.Equal(t, []string{"pricing"}, config.GetNicknames("FN"))
+
+	// Verify tribes
+	assert.Equal(t, "Engineering", config.GetTribe("FN"))
+	assert.Equal(t, "Platform", config.GetTribe("COP"))
+}
+
+func TestNewTeamConfigWithTribes_IgnoresInvalidProjects(t *testing.T) {
+	teams := map[string][]string{
+		"FN": {"alice"},
+	}
+	nicknames := map[string][]string{}
+	tribes := map[string]string{
+		"FN":      "Engineering",
+		"INVALID": "SomeTribe", // This project doesn't exist
+	}
+
+	config, err := NewTeamConfigWithTribes(teams, nicknames, tribes)
+	require.NoError(t, err)
+
+	// Valid project should have tribe
+	assert.Equal(t, "Engineering", config.GetTribe("FN"))
+	// Invalid project should not have tribe
+	assert.Equal(t, "", config.GetTribe("INVALID"))
+}
+
+func TestGetTribe(t *testing.T) {
+	teams := map[string][]string{
+		"FN":  {"alice"},
+		"COP": {"bob"},
+	}
+	tribes := map[string]string{
+		"FN": "Engineering",
+	}
+
+	config, err := NewTeamConfigWithTribes(teams, nil, tribes)
+	require.NoError(t, err)
+
+	// Project with tribe
+	assert.Equal(t, "Engineering", config.GetTribe("FN"))
+	// Project without tribe
+	assert.Equal(t, "", config.GetTribe("COP"))
+	// Non-existent project
+	assert.Equal(t, "", config.GetTribe("NONEXISTENT"))
+}
+
+func TestSetTribe(t *testing.T) {
+	teams := map[string][]string{
+		"FN": {"alice"},
+	}
+
+	config, err := NewTeamConfig(teams)
+	require.NoError(t, err)
+
+	// Set tribe for existing project
+	err = config.SetTribe("FN", "Engineering")
+	require.NoError(t, err)
+	assert.Equal(t, "Engineering", config.GetTribe("FN"))
+
+	// Update tribe
+	err = config.SetTribe("FN", "NewTribe")
+	require.NoError(t, err)
+	assert.Equal(t, "NewTribe", config.GetTribe("FN"))
+}
+
+func TestSetTribe_Errors(t *testing.T) {
+	teams := map[string][]string{
+		"FN": {"alice"},
+	}
+
+	config, err := NewTeamConfig(teams)
+	require.NoError(t, err)
+
+	// Empty project key
+	err = config.SetTribe("", "Engineering")
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "project key cannot be empty")
+
+	// Non-existent project
+	err = config.SetTribe("INVALID", "Engineering")
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "does not exist")
+}
+
+func TestToFullMap(t *testing.T) {
+	teams := map[string][]string{
+		"FN":  {"alice", "bob"},
+		"COP": {"charlie"},
+	}
+	nicknames := map[string][]string{
+		"FN": {"pricing", "fintech"},
+	}
+	tribes := map[string]string{
+		"FN":  "Engineering",
+		"COP": "Platform",
+	}
+
+	config, err := NewTeamConfigWithTribes(teams, nicknames, tribes)
+	require.NoError(t, err)
+
+	resultTeams, resultNicknames, resultTribes := config.ToFullMap()
+
+	// Verify teams
+	assert.Equal(t, []string{"alice", "bob"}, resultTeams["FN"])
+	assert.Equal(t, []string{"charlie"}, resultTeams["COP"])
+
+	// Verify nicknames
+	assert.Equal(t, []string{"pricing", "fintech"}, resultNicknames["FN"])
+
+	// Verify tribes
+	assert.Equal(t, "Engineering", resultTribes["FN"])
+	assert.Equal(t, "Platform", resultTribes["COP"])
+}

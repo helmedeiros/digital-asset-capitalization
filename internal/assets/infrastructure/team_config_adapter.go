@@ -50,6 +50,17 @@ func (a *TeamConfigAdapter) GetAllTeams() (map[string][]string, error) {
 	return teamConfig.ToMap(), nil
 }
 
+// GetTribeForTeam returns the tribe for a given team
+func (a *TeamConfigAdapter) GetTribeForTeam(teamName string) (string, error) {
+	teamConfig, err := a.configRepo.LoadTeamConfig()
+	if err != nil {
+		return "", fmt.Errorf("failed to load team config: %w", err)
+	}
+
+	tribe := teamConfig.GetTribe(teamName)
+	return tribe, nil
+}
+
 // matchesUser checks if a user identifier matches a team member
 // Supports matching by email address, display name, or partial matching
 func (a *TeamConfigAdapter) matchesUser(userIdentifier, teamMember string) bool {

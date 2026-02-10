@@ -90,6 +90,39 @@ func (s *ConfigService) ConfigExists() (bool, error) {
 	return s.repo.ConfigExists()
 }
 
+// SaveTeamConfig saves the team configuration
+func (s *ConfigService) SaveTeamConfig(config *domain.TeamConfig) error {
+	return s.repo.SaveTeamConfig(config)
+}
+
+// SetTribeForProject sets the tribe for a specific project and saves the configuration
+func (s *ConfigService) SetTribeForProject(project, tribe string) error {
+	config, err := s.GetTeamConfig()
+	if err != nil {
+		return fmt.Errorf("failed to load team configuration: %w", err)
+	}
+
+	if err := config.SetTribe(project, tribe); err != nil {
+		return fmt.Errorf("failed to set tribe: %w", err)
+	}
+
+	if err := s.SaveTeamConfig(config); err != nil {
+		return fmt.Errorf("failed to save team configuration: %w", err)
+	}
+
+	return nil
+}
+
+// GetTribeForProject returns the tribe for a specific project
+func (s *ConfigService) GetTribeForProject(project string) (string, error) {
+	config, err := s.GetTeamConfig()
+	if err != nil {
+		return "", fmt.Errorf("failed to load team configuration: %w", err)
+	}
+
+	return config.GetTribe(project), nil
+}
+
 // InitializeConfigDirectory initializes the configuration directory
 func (s *ConfigService) InitializeConfigDirectory() error {
 	return s.repo.InitializeConfigDirectory()

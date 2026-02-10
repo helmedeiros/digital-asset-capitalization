@@ -372,3 +372,43 @@ func TestPageContentStructure(t *testing.T) {
 		assert.Equal(t, 5, taskCount, "Should have exactly 5 checklist items")
 	})
 }
+
+func TestGeneratePageContentWithTribe(t *testing.T) {
+	asset := &domain.Asset{
+		ID:         "cap-asset-tribe-test",
+		Name:       "Tribe Test Asset",
+		OwningTeam: "COP",
+		Platform:   "Test Platform",
+		Status:     "live",
+		LaunchDate: time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC),
+	}
+
+	t.Run("includes tribe when provided", func(t *testing.T) {
+		content := GeneratePageContentWithTribe(asset, "Platform Tribe")
+
+		assert.Contains(t, content, "Platform Tribe")
+		assert.Contains(t, content, `<strong>Tribe</strong>`)
+		// Should not contain dash for tribe
+		assert.NotContains(t, content, `<strong>Tribe</strong></p></th><td><p>-</p></td>`)
+	})
+
+	t.Run("shows dash when tribe is empty", func(t *testing.T) {
+		content := GeneratePageContentWithTribe(asset, "")
+
+		assert.Contains(t, content, `<strong>Tribe</strong></p></th><td><p>-</p></td>`)
+	})
+
+	t.Run("GeneratePageContent uses empty tribe by default", func(t *testing.T) {
+		content := GeneratePageContent(asset)
+
+		// Should show dash for tribe since no tribe is passed
+		assert.Contains(t, content, `<strong>Tribe</strong></p></th><td><p>-</p></td>`)
+	})
+
+	t.Run("escapes HTML in tribe name", func(t *testing.T) {
+		content := GeneratePageContentWithTribe(asset, "Tribe <script>alert('xss')</script>")
+
+		assert.Contains(t, content, "&lt;script&gt;")
+		assert.NotContains(t, content, "<script>alert")
+	})
+}
