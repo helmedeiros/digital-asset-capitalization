@@ -56,6 +56,11 @@ func capitalizeFirst(s string) string {
 
 // GeneratePageContent creates Confluence storage format HTML from an asset
 func GeneratePageContent(asset *domain.Asset) string {
+	return GeneratePageContentWithTribe(asset, "")
+}
+
+// GeneratePageContentWithTribe creates Confluence storage format HTML from an asset with tribe info
+func GeneratePageContentWithTribe(asset *domain.Asset, tribe string) string {
 	var sb strings.Builder
 
 	// Main title
@@ -63,7 +68,7 @@ func GeneratePageContent(asset *domain.Asset) string {
 
 	// Overview section
 	sb.WriteString(`<h2>Overview</h2>`)
-	sb.WriteString(generateOverviewSection(asset))
+	sb.WriteString(generateOverviewSection(asset, tribe))
 
 	// Value section
 	sb.WriteString(`<h2>Value</h2>`)
@@ -77,7 +82,7 @@ func GeneratePageContent(asset *domain.Asset) string {
 }
 
 // generateOverviewSection creates the overview table with asset metadata
-func generateOverviewSection(asset *domain.Asset) string {
+func generateOverviewSection(asset *domain.Asset, tribe string) string {
 	var sb strings.Builder
 
 	// Overview table with grey header column
@@ -95,8 +100,12 @@ func generateOverviewSection(asset *domain.Asset) string {
 	}
 	sb.WriteString(generateOverviewTableRow("Asset owned by", escapeHTML(ownerValue)))
 
-	// Tribe row (derived from team or empty)
-	sb.WriteString(generateOverviewTableRow("Tribe", "-"))
+	// Tribe row
+	tribeValue := tribe
+	if tribeValue == "" {
+		tribeValue = "-"
+	}
+	sb.WriteString(generateOverviewTableRow("Tribe", escapeHTML(tribeValue)))
 
 	// Pod row
 	podValue := asset.Platform

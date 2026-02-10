@@ -308,3 +308,111 @@ func TestFileRepository_EdgeCases(t *testing.T) {
 		}
 	})
 }
+
+func TestFileRepository_TeamConfigWithTribes(t *testing.T) {
+	t.Run("should load team config with tribes", func(t *testing.T) {
+		tempDir := t.TempDir()
+		repo := NewFileRepository(tempDir)
+
+		// Create file with tribe field
+		teamsJSON := `{
+			"FN": {
+				"team": ["Alice", "Bob"],
+				"nicknames": ["pricing"],
+				"tribe": "Engineering"
+			},
+			"COP": {
+				"team": ["Charlie"],
+				"tribe": "Platform"
+			}
+		}`
+
+		teamsPath := filepath.Join(tempDir, "teams.json")
+		err := os.WriteFile(teamsPath, []byte(teamsJSON), 0644)
+		require.NoError(t, err)
+
+		// Load config
+		config, err := repo.LoadTeamConfig()
+		require.NoError(t, err)
+
+		// Verify tribes loaded
+		assert.Equal(t, "Engineering", config.GetTribe("FN"))
+		assert.Equal(t, "Platform", config.GetTribe("COP"))
+
+		// Verify teams and nicknames still work
+		fnTeam, exists := config.GetTeam("FN")
+		require.True(t, exists)
+		assert.Equal(t, []string{"Alice", "Bob"}, fnTeam)
+		assert.Equal(t, []string{"pricing"}, config.GetNicknames("FN"))
+	})
+
+	t.Run("should save and load team config with tribes", func(t *testing.T) {
+		tempDir := t.TempDir()
+		repo := NewFileRepository(tempDir)
+
+		// Create config with tribes
+		teams := map[string][]string{
+			"FN":  {"Alice", "Bob"},
+			"COP": {"Charlie"},
+		}
+		nicknames := map[string][]string{
+			"FN": {"pricing"},
+		}
+		tribes := map[string]string{
+			"FN":  "Engineering",
+			"COP": "Platform",
+		}
+
+		config, err := domain.NewTeamConfigWithTribes(teams, nicknames, tribes)
+		require.NoError(t, err)
+
+		// Save config
+		err = repo.SaveTeamConfig(config)
+		require.NoError(t, err)
+
+		// Load config back
+		loadedConfig, err := repo.LoadTeamConfig()
+		require.NoError(t, err)
+
+		// Verify tribes
+		assert.Equal(t, "Engineering", loadedConfig.GetTribe("FN"))
+		assert.Equal(t, "Platform", loadedConfig.GetTribe("COP"))
+
+		// Verify teams
+		fnTeam, exists := loadedConfig.GetTeam("FN")
+		require.True(t, exists)
+		assert.Equal(t, []string{"Alice", "Bob"}, fnTeam)
+
+		// Verify nicknames
+		assert.Equal(t, []string{"pricing"}, loadedConfig.GetNicknames("FN"))
+	})
+
+	t.Run("should handle empty tribe field", func(t *testing.T) {
+		tempDir := t.TempDir()
+		repo := NewFileRepository(tempDir)
+
+		// Create file without tribe field
+		teamsJSON := `{
+			"FN": {
+				"team": ["Alice"],
+				"nicknames": ["pricing"]
+			}
+		}`
+
+		teamsPath := filepath.Join(tempDir, "teams.json")
+		err := os.WriteFile(teamsPath, []byte(teamsJSON), 0644)
+		require.NoError(t, err)
+
+		// Load config
+		config, err := repo.LoadTeamConfig()
+		require.NoError(t, err)
+
+		// Tribe should be empty
+		assert.Equal(t, "", config.GetTribe("FN"))
+
+		// Team should still work
+		fnTeam, exists := config.GetTeam("FN")
+		require.True(t, exists)
+		assert.Equal(t, []string{"Alice"}, fnTeam)
+	})
+}

@@ -191,3 +191,56 @@ func TestTeamConfigAdapter_MatchesUser(t *testing.T) {
 		})
 	}
 }
+
+func TestTeamConfigAdapter_GetTribeForTeam(t *testing.T) {
+	mockRepo := new(MockConfigRepository)
+	adapter := NewTeamConfigAdapter(mockRepo)
+
+	teams := map[string][]string{
+		"FN":  {"Alice", "Bob"},
+		"COP": {"Charlie"},
+	}
+	nicknames := map[string][]string{}
+	tribes := map[string]string{
+		"FN":  "Engineering",
+		"COP": "Platform",
+	}
+
+	teamConfig, err := domain.NewTeamConfigWithTribes(teams, nicknames, tribes)
+	assert.NoError(t, err)
+
+	mockRepo.On("LoadTeamConfig").Return(teamConfig, nil)
+
+	t.Run("returns tribe for existing team", func(t *testing.T) {
+		tribe, err := adapter.GetTribeForTeam("FN")
+		assert.NoError(t, err)
+		assert.Equal(t, "Engineering", tribe)
+	})
+
+	t.Run("returns tribe for another team", func(t *testing.T) {
+		tribe, err := adapter.GetTribeForTeam("COP")
+		assert.NoError(t, err)
+		assert.Equal(t, "Platform", tribe)
+	})
+
+	t.Run("returns empty for team without tribe", func(t *testing.T) {
+		tribe, err := adapter.GetTribeForTeam("NONEXISTENT")
+		assert.NoError(t, err)
+		assert.Equal(t, "", tribe)
+	})
+
+	mockRepo.AssertExpectations(t)
+}
+
+func TestTeamConfigAdapter_GetTribeForTeam_Error(t *testing.T) {
+	mockRepo := new(MockConfigRepository)
+	adapter := NewTeamConfigAdapter(mockRepo)
+
+	mockRepo.On("LoadTeamConfig").Return(nil, assert.AnError)
+
+	tribe, err := adapter.GetTribeForTeam("FN")
+
+	assert.Error(t, err)
+	assert.Equal(t, "", tribe)
+	mockRepo.AssertExpectations(t)
+}

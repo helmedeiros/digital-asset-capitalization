@@ -1852,6 +1852,137 @@ For more information about a command:
 							},
 						},
 					},
+					{
+						Name:  "team-tribe",
+						Usage: "Manage team tribes (organizational groupings)",
+						Subcommands: []*cli.Command{
+							{
+								Name:  "set",
+								Usage: "Set the tribe for a project/team",
+								Action: func(ctx *cli.Context) error {
+									project := ctx.String("project")
+									tribe := ctx.String("tribe")
+
+									if project == "" {
+										return fmt.Errorf("project is required")
+									}
+									if tribe == "" {
+										return fmt.Errorf("tribe is required")
+									}
+
+									// Create config service to save tribe
+									configRepo := configinfra.NewFileRepository(configDir)
+									configSvc := service.NewConfigService(configRepo)
+
+									if err := configSvc.SetTribeForProject(project, tribe); err != nil {
+										return fmt.Errorf("failed to set tribe: %v", err)
+									}
+
+									fmt.Printf("✅ Set tribe '%s' for project '%s'\n", tribe, project)
+									return nil
+								},
+								Flags: []cli.Flag{
+									&cli.StringFlag{
+										Name:     "project",
+										Aliases:  []string{"p"},
+										Usage:    "Project key (e.g., FN, COP)",
+										Required: true,
+									},
+									&cli.StringFlag{
+										Name:     "tribe",
+										Aliases:  []string{"t"},
+										Usage:    "Tribe name (e.g., 'Engineering', 'Platform')",
+										Required: true,
+									},
+								},
+							},
+							{
+								Name:  "list",
+								Usage: "List all team tribes",
+								Action: func(_ *cli.Context) error {
+									configRepo := configinfra.NewFileRepository(configDir)
+									configSvc := service.NewConfigService(configRepo)
+
+									teamConfig, err := configSvc.GetTeamConfig()
+									if err != nil {
+										return fmt.Errorf("failed to load team config: %v", err)
+									}
+
+									projects := teamConfig.GetProjects()
+									if len(projects) == 0 {
+										fmt.Println("No teams configured")
+										return nil
+									}
+
+									fmt.Println("Team Tribes:")
+									fmt.Println("=============")
+
+									// Group by tribe
+									tribeProjects := make(map[string][]string)
+									noTribe := []string{}
+
+									for _, project := range projects {
+										tribe := teamConfig.GetTribe(project)
+										if tribe != "" {
+											tribeProjects[tribe] = append(tribeProjects[tribe], project)
+										} else {
+											noTribe = append(noTribe, project)
+										}
+									}
+
+									for tribe, projs := range tribeProjects {
+										fmt.Printf("\n%s:\n", tribe)
+										for _, p := range projs {
+											fmt.Printf("  - %s\n", p)
+										}
+									}
+
+									if len(noTribe) > 0 {
+										fmt.Printf("\n(No tribe assigned):\n")
+										for _, p := range noTribe {
+											fmt.Printf("  - %s\n", p)
+										}
+									}
+
+									return nil
+								},
+							},
+							{
+								Name:  "show",
+								Usage: "Show the tribe for a specific project",
+								Action: func(ctx *cli.Context) error {
+									project := ctx.String("project")
+									if project == "" {
+										return fmt.Errorf("project is required")
+									}
+
+									configRepo := configinfra.NewFileRepository(configDir)
+									configSvc := service.NewConfigService(configRepo)
+
+									tribe, err := configSvc.GetTribeForProject(project)
+									if err != nil {
+										return fmt.Errorf("failed to get tribe: %v", err)
+									}
+
+									if tribe == "" {
+										fmt.Printf("Project '%s' has no tribe assigned\n", project)
+									} else {
+										fmt.Printf("Project '%s' belongs to tribe: %s\n", project, tribe)
+									}
+
+									return nil
+								},
+								Flags: []cli.Flag{
+									&cli.StringFlag{
+										Name:     "project",
+										Aliases:  []string{"p"},
+										Usage:    "Project key (e.g., FN)",
+										Required: true,
+									},
+								},
+							},
+						},
+					},
 				},
 			},
 			{
