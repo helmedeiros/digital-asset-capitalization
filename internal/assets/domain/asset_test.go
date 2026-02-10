@@ -185,6 +185,14 @@ func TestGenerateID(t *testing.T) {
 	// Test that same names generate same IDs (deterministic)
 	id3 := generateID("test-asset")
 	assert.Equal(t, id1, id3, "Same names should generate same IDs")
+
+	// Test that names with existing cap-asset- prefix don't get double prefix
+	id4 := generateID("cap-asset-full-booking-platform")
+	assert.Equal(t, "cap-asset-full-booking-platform", id4, "Should not duplicate cap-asset- prefix")
+
+	// Test that uppercase cap-asset- prefix is also handled
+	id5 := generateID("CAP-ASSET-Partner-Widget")
+	assert.Equal(t, "cap-asset-partner-widget", id5, "Should handle uppercase prefix")
 }
 
 func TestDateStarted(t *testing.T) {

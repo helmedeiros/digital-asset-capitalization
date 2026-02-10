@@ -207,6 +207,9 @@ func generateID(name string) string {
 	id = strings.ReplaceAll(id, "/", "-")
 	id = strings.ReplaceAll(id, ".", "-")
 
+	// Strip existing cap-asset- prefix to prevent duplication
+	id = strings.TrimPrefix(id, "cap-asset-")
+
 	return fmt.Sprintf("cap-asset-%s", id)
 }
 
