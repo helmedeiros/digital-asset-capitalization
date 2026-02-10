@@ -52,8 +52,10 @@ func (a *Adapter) extractMetadata(content string) (*PageMetadata, error) {
 		return nil, fmt.Errorf("invalid content: no table found")
 	}
 
-	// Extract labels and identifier
-	metadata.Keywords = extractLabels(content)
+	// Extract keywords: table row takes priority, then merge with labels
+	tableKeywords := extractKeywordsFromTable(content)
+	labelKeywords := extractLabels(content)
+	metadata.Keywords = mergeKeywords(tableKeywords, labelKeywords)
 	metadata.Identifier = extractAssetIdentifier(content)
 
 	// Extract table values
@@ -302,6 +304,65 @@ func cleanHTML(input string) string {
 	// Return empty string if the result is just whitespace
 	if result == "" {
 		return ""
+	}
+
+	return result
+}
+
+// extractKeywordsFromTable extracts keywords from the "Keywords" table row
+// The expected format is comma-separated values in a paragraph tag
+func extractKeywordsFromTable(content string) []string {
+	keywordsRaw := extractTableValue(content, "Keywords")
+	if keywordsRaw == "" {
+		return nil
+	}
+
+	// Clean the HTML to get plain text
+	keywordsText := cleanHTML(keywordsRaw)
+	if keywordsText == "" || keywordsText == "-" {
+		return nil
+	}
+
+	// Split by comma and clean up each keyword
+	parts := strings.Split(keywordsText, ",")
+	var keywords []string
+	for _, part := range parts {
+		keyword := strings.TrimSpace(part)
+		if keyword != "" {
+			keywords = append(keywords, keyword)
+		}
+	}
+
+	return keywords
+}
+
+// mergeKeywords merges keywords from table row and labels, with table taking priority
+// Deduplicates keywords (case-insensitive comparison for dedup, preserves original case)
+func mergeKeywords(tableKeywords, labelKeywords []string) []string {
+	if len(tableKeywords) == 0 && len(labelKeywords) == 0 {
+		return nil
+	}
+
+	// Use a map for deduplication (case-insensitive)
+	seen := make(map[string]bool)
+	var result []string
+
+	// Add table keywords first (they take priority)
+	for _, keyword := range tableKeywords {
+		lowerKeyword := strings.ToLower(keyword)
+		if !seen[lowerKeyword] {
+			seen[lowerKeyword] = true
+			result = append(result, keyword)
+		}
+	}
+
+	// Add label keywords that aren't duplicates
+	for _, keyword := range labelKeywords {
+		lowerKeyword := strings.ToLower(keyword)
+		if !seen[lowerKeyword] {
+			seen[lowerKeyword] = true
+			result = append(result, keyword)
+		}
 	}
 
 	return result

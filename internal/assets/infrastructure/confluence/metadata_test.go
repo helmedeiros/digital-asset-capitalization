@@ -622,6 +622,194 @@ func TestExtractStatusTitle(t *testing.T) {
 	}
 }
 
+func TestExtractKeywordsFromTable(t *testing.T) {
+	tests := []struct {
+		name     string
+		content  string
+		expected []string
+	}{
+		{
+			name: "extract comma-separated keywords",
+			content: `<table>
+				<tr><th>Keywords</th><td><p>payment, checkout, mobile</p></td></tr>
+			</table>`,
+			expected: []string{"payment", "checkout", "mobile"},
+		},
+		{
+			name: "extract single keyword",
+			content: `<table>
+				<tr><th>Keywords</th><td><p>payment</p></td></tr>
+			</table>`,
+			expected: []string{"payment"},
+		},
+		{
+			name: "handle extra whitespace",
+			content: `<table>
+				<tr><th>Keywords</th><td><p>payment  ,  checkout  ,  mobile</p></td></tr>
+			</table>`,
+			expected: []string{"payment", "checkout", "mobile"},
+		},
+		{
+			name: "handle empty keywords row",
+			content: `<table>
+				<tr><th>Keywords</th><td><p>-</p></td></tr>
+			</table>`,
+			expected: nil,
+		},
+		{
+			name: "handle missing keywords row",
+			content: `<table>
+				<tr><th>Status</th><td><p>live</p></td></tr>
+			</table>`,
+			expected: nil,
+		},
+		{
+			name: "handle empty paragraph",
+			content: `<table>
+				<tr><th>Keywords</th><td><p /></td></tr>
+			</table>`,
+			expected: nil,
+		},
+		{
+			name: "handle keywords with green header style",
+			content: `<table>
+				<tr><th style="background-color: #e3fcef;"><p><em>Keywords</em></p></th><td><p>api, integration, sync</p></td></tr>
+			</table>`,
+			expected: []string{"api", "integration", "sync"},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := extractKeywordsFromTable(tt.content)
+			if !reflect.DeepEqual(result, tt.expected) {
+				t.Errorf("extractKeywordsFromTable() = %v, want %v", result, tt.expected)
+			}
+		})
+	}
+}
+
+func TestMergeKeywords(t *testing.T) {
+	tests := []struct {
+		name          string
+		tableKeywords []string
+		labelKeywords []string
+		expected      []string
+	}{
+		{
+			name:          "both empty",
+			tableKeywords: nil,
+			labelKeywords: nil,
+			expected:      nil,
+		},
+		{
+			name:          "only table keywords",
+			tableKeywords: []string{"payment", "checkout"},
+			labelKeywords: nil,
+			expected:      []string{"payment", "checkout"},
+		},
+		{
+			name:          "only label keywords",
+			tableKeywords: nil,
+			labelKeywords: []string{"payment", "checkout"},
+			expected:      []string{"payment", "checkout"},
+		},
+		{
+			name:          "merge without duplicates",
+			tableKeywords: []string{"payment", "checkout"},
+			labelKeywords: []string{"mobile", "api"},
+			expected:      []string{"payment", "checkout", "mobile", "api"},
+		},
+		{
+			name:          "deduplicate same case",
+			tableKeywords: []string{"payment", "checkout"},
+			labelKeywords: []string{"payment", "mobile"},
+			expected:      []string{"payment", "checkout", "mobile"},
+		},
+		{
+			name:          "deduplicate case insensitive",
+			tableKeywords: []string{"Payment", "Checkout"},
+			labelKeywords: []string{"payment", "mobile"},
+			expected:      []string{"Payment", "Checkout", "mobile"},
+		},
+		{
+			name:          "table keywords take priority",
+			tableKeywords: []string{"Payment"},
+			labelKeywords: []string{"payment"},
+			expected:      []string{"Payment"},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := mergeKeywords(tt.tableKeywords, tt.labelKeywords)
+			if !reflect.DeepEqual(result, tt.expected) {
+				t.Errorf("mergeKeywords() = %v, want %v", result, tt.expected)
+			}
+		})
+	}
+}
+
+func TestExtractMetadata_KeywordsFromTable(t *testing.T) {
+	adapter := &Adapter{}
+
+	t.Run("extracts keywords from table row", func(t *testing.T) {
+		content := `<table>
+			<tr><th>Keywords</th><td><p>payment, checkout, mobile</p></td></tr>
+			<tr><th>Status</th><td><p>live</p></td></tr>
+		</table>`
+
+		metadata, err := adapter.extractMetadata(content)
+		if err != nil {
+			t.Fatalf("extractMetadata() error = %v", err)
+		}
+
+		expected := []string{"payment", "checkout", "mobile"}
+		if !reflect.DeepEqual(metadata.Keywords, expected) {
+			t.Errorf("Keywords = %v, want %v", metadata.Keywords, expected)
+		}
+	})
+
+	t.Run("merges table and label keywords", func(t *testing.T) {
+		content := `<table>
+			<tr><th>Keywords</th><td><p>payment, checkout</p></td></tr>
+			<tr><th>Status</th><td><p>live</p></td></tr>
+		</table>
+		{"metadata":{"labels":{"results":[{"name":"mobile"},{"name":"cap-asset-test"}]}}}`
+
+		metadata, err := adapter.extractMetadata(content)
+		if err != nil {
+			t.Fatalf("extractMetadata() error = %v", err)
+		}
+
+		// Should have table keywords first, then unique label keywords
+		if len(metadata.Keywords) != 3 {
+			t.Errorf("Expected 3 keywords, got %d: %v", len(metadata.Keywords), metadata.Keywords)
+		}
+		// Verify payment is first (from table)
+		if metadata.Keywords[0] != "payment" {
+			t.Errorf("First keyword should be 'payment', got %s", metadata.Keywords[0])
+		}
+	})
+
+	t.Run("falls back to labels when table row is empty", func(t *testing.T) {
+		content := `<table>
+			<tr><th>Keywords</th><td><p>-</p></td></tr>
+			<tr><th>Status</th><td><p>live</p></td></tr>
+		</table>
+		{"metadata":{"labels":{"results":[{"name":"mobile"},{"name":"api"}]}}}`
+
+		metadata, err := adapter.extractMetadata(content)
+		if err != nil {
+			t.Fatalf("extractMetadata() error = %v", err)
+		}
+
+		if len(metadata.Keywords) != 2 {
+			t.Errorf("Expected 2 keywords from labels, got %d: %v", len(metadata.Keywords), metadata.Keywords)
+		}
+	})
+}
+
 func TestExtractLabels(t *testing.T) {
 	tests := []struct {
 		name     string

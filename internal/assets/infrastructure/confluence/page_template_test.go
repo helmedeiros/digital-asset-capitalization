@@ -413,6 +413,84 @@ func TestGeneratePageContentWithTribe(t *testing.T) {
 	})
 }
 
+func TestFormatKeywords(t *testing.T) {
+	tests := []struct {
+		name     string
+		keywords []string
+		expected string
+	}{
+		{
+			name:     "empty keywords",
+			keywords: []string{},
+			expected: "<p>-</p>",
+		},
+		{
+			name:     "nil keywords",
+			keywords: nil,
+			expected: "<p>-</p>",
+		},
+		{
+			name:     "single keyword",
+			keywords: []string{"payment"},
+			expected: "<p>payment</p>",
+		},
+		{
+			name:     "multiple keywords",
+			keywords: []string{"payment", "checkout", "mobile"},
+			expected: "<p>payment, checkout, mobile</p>",
+		},
+		{
+			name:     "keywords with special characters",
+			keywords: []string{"test & keyword", "another <keyword>"},
+			expected: "<p>test &amp; keyword, another &lt;keyword&gt;</p>",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := formatKeywords(tt.keywords)
+			assert.Equal(t, tt.expected, result)
+		})
+	}
+}
+
+func TestGeneratePageContent_ContainsKeywords(t *testing.T) {
+	asset := &domain.Asset{
+		ID:       "cap-asset-keywords-test",
+		Name:     "Keywords Test Asset",
+		Keywords: []string{"payment", "checkout", "mobile"},
+	}
+
+	content := GeneratePageContent(asset)
+
+	t.Run("Contains keywords row in value section", func(t *testing.T) {
+		assert.Contains(t, content, `<em>Keywords</em>`)
+	})
+
+	t.Run("Contains keywords as comma-separated values", func(t *testing.T) {
+		assert.Contains(t, content, "payment, checkout, mobile")
+	})
+
+	t.Run("Keywords row has green background header", func(t *testing.T) {
+		// Verify keywords row is in the value table (green headers)
+		assert.Contains(t, content, `background-color: #e3fcef`)
+	})
+}
+
+func TestGeneratePageContent_EmptyKeywords(t *testing.T) {
+	asset := &domain.Asset{
+		ID:       "cap-asset-no-keywords",
+		Name:     "No Keywords Asset",
+		Keywords: nil,
+	}
+
+	content := GeneratePageContent(asset)
+
+	t.Run("Shows dash for empty keywords", func(t *testing.T) {
+		assert.Contains(t, content, `<em>Keywords</em></p></th><td><p>-</p></td>`)
+	})
+}
+
 func TestGeneratePageContentFull(t *testing.T) {
 	asset := &domain.Asset{
 		ID:         "cap-asset-full-test",
