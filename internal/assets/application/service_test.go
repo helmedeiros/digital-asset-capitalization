@@ -17,6 +17,7 @@ import (
 	"github.com/helmedeiros/digital-asset-capitalization/internal/assets/infrastructure/confluence"
 	"github.com/helmedeiros/digital-asset-capitalization/internal/assets/infrastructure/id"
 	"github.com/helmedeiros/digital-asset-capitalization/internal/assets/infrastructure/llama"
+	"github.com/helmedeiros/digital-asset-capitalization/internal/config/application/service"
 	configdomain "github.com/helmedeiros/digital-asset-capitalization/internal/config/domain"
 )
 
@@ -2333,4 +2334,312 @@ func TestAssetServiceImpl_UpdateConfluencePage_DryRun(t *testing.T) {
 	assert.NotEmpty(t, result.Preview)
 	assert.Contains(t, result.Preview, "<h1>Asset Capitalisation</h1>")
 	mockRepo.AssertExpectations(t)
+}
+
+// MockConfigRepository is a mock for testing ConfigService integration
+type MockConfigRepository struct {
+	mock.Mock
+}
+
+func (m *MockConfigRepository) InitializeConfigDirectory() error {
+	args := m.Called()
+	return args.Error(0)
+}
+
+func (m *MockConfigRepository) ConfigExists() (bool, error) {
+	args := m.Called()
+	return args.Bool(0), args.Error(1)
+}
+
+func (m *MockConfigRepository) LoadJiraConfig() (*configdomain.JiraConfig, error) {
+	args := m.Called()
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*configdomain.JiraConfig), args.Error(1)
+}
+
+func (m *MockConfigRepository) SaveJiraConfig(config *configdomain.JiraConfig) error {
+	args := m.Called(config)
+	return args.Error(0)
+}
+
+func (m *MockConfigRepository) LoadTeamConfig() (*configdomain.TeamConfig, error) {
+	args := m.Called()
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*configdomain.TeamConfig), args.Error(1)
+}
+
+func (m *MockConfigRepository) SaveTeamConfig(config *configdomain.TeamConfig) error {
+	args := m.Called(config)
+	return args.Error(0)
+}
+
+func TestAssetServiceImpl_GetTribeForTeam(t *testing.T) {
+	t.Run("returns empty when team name is empty", func(t *testing.T) {
+		mockRepo := new(MockAssetRepository)
+		mockConfigRepo := new(MockConfigRepository)
+		configService := service.NewConfigService(mockConfigRepo)
+
+		svc := &AssetServiceImpl{
+			repo:          mockRepo,
+			idGenerator:   id.NewHashIDGenerator(),
+			configService: configService,
+		}
+
+		result := svc.getTribeForTeam("")
+
+		assert.Equal(t, "", result)
+	})
+
+	t.Run("returns empty when configService is nil", func(t *testing.T) {
+		mockRepo := new(MockAssetRepository)
+
+		svc := &AssetServiceImpl{
+			repo:          mockRepo,
+			idGenerator:   id.NewHashIDGenerator(),
+			configService: nil,
+		}
+
+		result := svc.getTribeForTeam("FN")
+
+		assert.Equal(t, "", result)
+	})
+
+	t.Run("returns empty when GetTeamConfig fails", func(t *testing.T) {
+		mockRepo := new(MockAssetRepository)
+		mockConfigRepo := new(MockConfigRepository)
+		mockConfigRepo.On("LoadTeamConfig").Return(nil, errors.New("config error"))
+		configService := service.NewConfigService(mockConfigRepo)
+
+		svc := &AssetServiceImpl{
+			repo:          mockRepo,
+			idGenerator:   id.NewHashIDGenerator(),
+			configService: configService,
+		}
+
+		result := svc.getTribeForTeam("FN")
+
+		assert.Equal(t, "", result)
+		mockConfigRepo.AssertExpectations(t)
+	})
+
+	t.Run("returns tribe when team has tribe configured", func(t *testing.T) {
+		mockRepo := new(MockAssetRepository)
+		mockConfigRepo := new(MockConfigRepository)
+
+		teams := map[string][]string{"FN": {"user1"}}
+		nicknames := map[string][]string{}
+		tribes := map[string]string{"FN": "Engineering"}
+		teamConfig, _ := configdomain.NewTeamConfigWithTribes(teams, nicknames, tribes)
+		mockConfigRepo.On("LoadTeamConfig").Return(teamConfig, nil)
+		configService := service.NewConfigService(mockConfigRepo)
+
+		svc := &AssetServiceImpl{
+			repo:          mockRepo,
+			idGenerator:   id.NewHashIDGenerator(),
+			configService: configService,
+		}
+
+		result := svc.getTribeForTeam("FN")
+
+		assert.Equal(t, "Engineering", result)
+		mockConfigRepo.AssertExpectations(t)
+	})
+
+	t.Run("returns empty when team has no tribe", func(t *testing.T) {
+		mockRepo := new(MockAssetRepository)
+		mockConfigRepo := new(MockConfigRepository)
+
+		teams := map[string][]string{"FN": {"user1"}}
+		nicknames := map[string][]string{}
+		tribes := map[string]string{} // No tribes configured
+		teamConfig, _ := configdomain.NewTeamConfigWithTribes(teams, nicknames, tribes)
+		mockConfigRepo.On("LoadTeamConfig").Return(teamConfig, nil)
+		configService := service.NewConfigService(mockConfigRepo)
+
+		svc := &AssetServiceImpl{
+			repo:          mockRepo,
+			idGenerator:   id.NewHashIDGenerator(),
+			configService: configService,
+		}
+
+		result := svc.getTribeForTeam("FN")
+
+		assert.Equal(t, "", result)
+		mockConfigRepo.AssertExpectations(t)
+	})
+}
+
+func TestAssetServiceImpl_GetCompanyForTeam(t *testing.T) {
+	t.Run("returns empty when team name is empty", func(t *testing.T) {
+		mockRepo := new(MockAssetRepository)
+		mockConfigRepo := new(MockConfigRepository)
+		configService := service.NewConfigService(mockConfigRepo)
+
+		svc := &AssetServiceImpl{
+			repo:          mockRepo,
+			idGenerator:   id.NewHashIDGenerator(),
+			configService: configService,
+		}
+
+		result := svc.getCompanyForTeam("")
+
+		assert.Equal(t, "", result)
+	})
+
+	t.Run("returns empty when configService is nil", func(t *testing.T) {
+		mockRepo := new(MockAssetRepository)
+
+		svc := &AssetServiceImpl{
+			repo:          mockRepo,
+			idGenerator:   id.NewHashIDGenerator(),
+			configService: nil,
+		}
+
+		result := svc.getCompanyForTeam("FN")
+
+		assert.Equal(t, "", result)
+	})
+
+	t.Run("returns empty when GetTeamConfig fails", func(t *testing.T) {
+		mockRepo := new(MockAssetRepository)
+		mockConfigRepo := new(MockConfigRepository)
+		mockConfigRepo.On("LoadTeamConfig").Return(nil, errors.New("config error"))
+		configService := service.NewConfigService(mockConfigRepo)
+
+		svc := &AssetServiceImpl{
+			repo:          mockRepo,
+			idGenerator:   id.NewHashIDGenerator(),
+			configService: configService,
+		}
+
+		result := svc.getCompanyForTeam("FN")
+
+		assert.Equal(t, "", result)
+		mockConfigRepo.AssertExpectations(t)
+	})
+
+	t.Run("returns company when team has company configured", func(t *testing.T) {
+		mockRepo := new(MockAssetRepository)
+		mockConfigRepo := new(MockConfigRepository)
+
+		teams := map[string][]string{"FN": {"user1"}}
+		nicknames := map[string][]string{}
+		tribes := map[string]string{}
+		companies := map[string]string{"FN": "ACME Corp"}
+		teamConfig, _ := configdomain.NewTeamConfigFull(teams, nicknames, tribes, companies)
+		mockConfigRepo.On("LoadTeamConfig").Return(teamConfig, nil)
+		configService := service.NewConfigService(mockConfigRepo)
+
+		svc := &AssetServiceImpl{
+			repo:          mockRepo,
+			idGenerator:   id.NewHashIDGenerator(),
+			configService: configService,
+		}
+
+		result := svc.getCompanyForTeam("FN")
+
+		assert.Equal(t, "ACME Corp", result)
+		mockConfigRepo.AssertExpectations(t)
+	})
+
+	t.Run("returns empty when team has no company", func(t *testing.T) {
+		mockRepo := new(MockAssetRepository)
+		mockConfigRepo := new(MockConfigRepository)
+
+		teams := map[string][]string{"FN": {"user1"}}
+		nicknames := map[string][]string{}
+		tribes := map[string]string{}
+		companies := map[string]string{} // No companies configured
+		teamConfig, _ := configdomain.NewTeamConfigFull(teams, nicknames, tribes, companies)
+		mockConfigRepo.On("LoadTeamConfig").Return(teamConfig, nil)
+		configService := service.NewConfigService(mockConfigRepo)
+
+		svc := &AssetServiceImpl{
+			repo:          mockRepo,
+			idGenerator:   id.NewHashIDGenerator(),
+			configService: configService,
+		}
+
+		result := svc.getCompanyForTeam("FN")
+
+		assert.Equal(t, "", result)
+		mockConfigRepo.AssertExpectations(t)
+	})
+}
+
+func TestAssetServiceImpl_UpdateConfluencePage_WithTribeAndCompany(t *testing.T) {
+	// Set environment variables for the test
+	originalBaseURL := os.Getenv("JIRA_BASE_URL")
+	originalEmail := os.Getenv("JIRA_EMAIL")
+	originalToken := os.Getenv("JIRA_TOKEN")
+	os.Setenv("JIRA_BASE_URL", "https://example.atlassian.net")
+	os.Setenv("JIRA_EMAIL", "test@example.com")
+	os.Setenv("JIRA_TOKEN", "test-token")
+	defer func() {
+		if originalBaseURL != "" {
+			os.Setenv("JIRA_BASE_URL", originalBaseURL)
+		} else {
+			os.Unsetenv("JIRA_BASE_URL")
+		}
+		if originalEmail != "" {
+			os.Setenv("JIRA_EMAIL", originalEmail)
+		} else {
+			os.Unsetenv("JIRA_EMAIL")
+		}
+		if originalToken != "" {
+			os.Setenv("JIRA_TOKEN", originalToken)
+		} else {
+			os.Unsetenv("JIRA_TOKEN")
+		}
+	}()
+
+	t.Run("dry run includes tribe and company in preview", func(t *testing.T) {
+		mockAssetRepo := new(MockAssetRepository)
+		mockConfigRepo := new(MockConfigRepository)
+
+		asset := &domain.Asset{
+			ID:      "cap-asset-test-asset",
+			Name:    "Test Asset",
+			DocLink: "https://example.atlassian.net/wiki/spaces/TEST/pages/12345/Test+Asset",
+			Why:     "Test why",
+		}
+		asset.SetOwningTeam("FN")
+		mockAssetRepo.On("FindByName", "Test Asset").Return(asset, nil)
+
+		// Mock Jira config for the confluence adapter
+		jiraConfig, _ := configdomain.NewJiraConfig(
+			"https://example.atlassian.net",
+			"test@example.com",
+			"test-token",
+		)
+		mockConfigRepo.On("LoadJiraConfig").Return(jiraConfig, nil)
+
+		teams := map[string][]string{"FN": {"user1"}}
+		nicknames := map[string][]string{}
+		tribes := map[string]string{"FN": "Engineering"}
+		companies := map[string]string{"FN": "ACME Corp"}
+		teamConfig, _ := configdomain.NewTeamConfigFull(teams, nicknames, tribes, companies)
+		mockConfigRepo.On("LoadTeamConfig").Return(teamConfig, nil)
+		configService := service.NewConfigService(mockConfigRepo)
+
+		svc := &AssetServiceImpl{
+			repo:          mockAssetRepo,
+			idGenerator:   id.NewHashIDGenerator(),
+			configService: configService,
+		}
+
+		result, err := svc.UpdateConfluencePage(context.Background(), "Test Asset", true, false)
+
+		assert.NoError(t, err)
+		assert.NotNil(t, result)
+		assert.Contains(t, result.Preview, "ACME Corp")   // Company should be in preview
+		assert.Contains(t, result.Preview, "FN")          // Team name should be in preview
+		assert.Contains(t, result.Preview, "Engineering") // Tribe should be in preview
+		mockAssetRepo.AssertExpectations(t)
+		mockConfigRepo.AssertExpectations(t)
+	})
 }

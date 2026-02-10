@@ -412,3 +412,67 @@ func TestGeneratePageContentWithTribe(t *testing.T) {
 		assert.NotContains(t, content, "<script>alert")
 	})
 }
+
+func TestGeneratePageContentFull(t *testing.T) {
+	asset := &domain.Asset{
+		ID:         "cap-asset-full-test",
+		Name:       "Full Test Asset",
+		OwningTeam: "COP",
+		Platform:   "Legacy Platform",
+		Status:     "live",
+		LaunchDate: time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC),
+	}
+
+	t.Run("shows company as Asset owned by", func(t *testing.T) {
+		content := GeneratePageContentFull(asset, "Engineering", "TechCorp", "COP Team")
+
+		// Company should appear as "Asset owned by"
+		assert.Contains(t, content, `<strong>Asset owned by</strong></p></th><td><p>TechCorp</p></td>`)
+	})
+
+	t.Run("shows team name as Pod", func(t *testing.T) {
+		content := GeneratePageContentFull(asset, "Engineering", "TechCorp", "COP Team")
+
+		// Team name should appear as "Pod"
+		assert.Contains(t, content, `<strong>Pod</strong></p></th><td><p>COP Team</p></td>`)
+	})
+
+	t.Run("shows tribe correctly", func(t *testing.T) {
+		content := GeneratePageContentFull(asset, "Engineering", "TechCorp", "COP Team")
+
+		assert.Contains(t, content, `<strong>Tribe</strong></p></th><td><p>Engineering</p></td>`)
+	})
+
+	t.Run("falls back to owning team when company is empty", func(t *testing.T) {
+		content := GeneratePageContentFull(asset, "Engineering", "", "COP Team")
+
+		// Should show owning team (COP) as "Asset owned by"
+		assert.Contains(t, content, `<strong>Asset owned by</strong></p></th><td><p>COP</p></td>`)
+	})
+
+	t.Run("falls back to platform when team name is empty", func(t *testing.T) {
+		content := GeneratePageContentFull(asset, "Engineering", "TechCorp", "")
+
+		// Should show platform as "Pod"
+		assert.Contains(t, content, `<strong>Pod</strong></p></th><td><p>Legacy Platform</p></td>`)
+	})
+
+	t.Run("shows dash when all fallbacks are empty", func(t *testing.T) {
+		emptyAsset := &domain.Asset{
+			ID:   "cap-asset-empty",
+			Name: "Empty Asset",
+		}
+		content := GeneratePageContentFull(emptyAsset, "", "", "")
+
+		// Should show dash for both
+		assert.Contains(t, content, `<strong>Asset owned by</strong></p></th><td><p>-</p></td>`)
+		assert.Contains(t, content, `<strong>Pod</strong></p></th><td><p>-</p></td>`)
+	})
+
+	t.Run("escapes HTML in company and team name", func(t *testing.T) {
+		content := GeneratePageContentFull(asset, "Tribe", "Company <script>", "Team <script>")
+
+		assert.Contains(t, content, "&lt;script&gt;")
+		assert.NotContains(t, content, "<script>")
+	})
+}

@@ -56,11 +56,22 @@ func capitalizeFirst(s string) string {
 
 // GeneratePageContent creates Confluence storage format HTML from an asset
 func GeneratePageContent(asset *domain.Asset) string {
-	return GeneratePageContentWithTribe(asset, "")
+	return GeneratePageContentFull(asset, "", "", "")
 }
 
 // GeneratePageContentWithTribe creates Confluence storage format HTML from an asset with tribe info
+// Deprecated: Use GeneratePageContentFull instead
 func GeneratePageContentWithTribe(asset *domain.Asset, tribe string) string {
+	return GeneratePageContentFull(asset, tribe, "", "")
+}
+
+// GeneratePageContentFull creates Confluence storage format HTML from an asset with full org info
+// Parameters:
+//   - asset: the asset to generate content for
+//   - tribe: the organizational tribe name
+//   - company: the company name (shown as "Asset owned by")
+//   - teamName: the team/pod name (shown as "Pod")
+func GeneratePageContentFull(asset *domain.Asset, tribe, company, teamName string) string {
 	var sb strings.Builder
 
 	// Main title
@@ -68,7 +79,7 @@ func GeneratePageContentWithTribe(asset *domain.Asset, tribe string) string {
 
 	// Overview section
 	sb.WriteString(`<h2>Overview</h2>`)
-	sb.WriteString(generateOverviewSection(asset, tribe))
+	sb.WriteString(generateOverviewSection(asset, tribe, company, teamName))
 
 	// Value section
 	sb.WriteString(`<h2>Value</h2>`)
@@ -82,7 +93,7 @@ func GeneratePageContentWithTribe(asset *domain.Asset, tribe string) string {
 }
 
 // generateOverviewSection creates the overview table with asset metadata
-func generateOverviewSection(asset *domain.Asset, tribe string) string {
+func generateOverviewSection(asset *domain.Asset, tribe, company, teamName string) string {
 	var sb strings.Builder
 
 	// Overview table with grey header column
@@ -93,8 +104,11 @@ func generateOverviewSection(asset *domain.Asset, tribe string) string {
 	// Asset name row
 	sb.WriteString(generateOverviewTableRow("Asset", escapeHTML(asset.Name)))
 
-	// Owner row
-	ownerValue := asset.GetOwningTeam()
+	// Asset owned by row - shows company (falls back to owning team if no company)
+	ownerValue := company
+	if ownerValue == "" {
+		ownerValue = asset.GetOwningTeam()
+	}
 	if ownerValue == "" {
 		ownerValue = "-"
 	}
@@ -107,8 +121,11 @@ func generateOverviewSection(asset *domain.Asset, tribe string) string {
 	}
 	sb.WriteString(generateOverviewTableRow("Tribe", escapeHTML(tribeValue)))
 
-	// Pod row
-	podValue := asset.Platform
+	// Pod row - shows team name (falls back to platform if no team name)
+	podValue := teamName
+	if podValue == "" {
+		podValue = asset.Platform
+	}
 	if podValue == "" {
 		podValue = "-"
 	}

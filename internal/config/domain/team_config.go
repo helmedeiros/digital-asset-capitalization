@@ -11,6 +11,7 @@ type TeamConfig struct {
 	teams     map[string][]string
 	nicknames map[string][]string // project -> nicknames mapping
 	tribes    map[string]string   // project -> tribe mapping
+	companies map[string]string   // project -> company mapping
 }
 
 // NewTeamConfig creates a new TeamConfig with validation
@@ -19,6 +20,7 @@ func NewTeamConfig(teams map[string][]string) (*TeamConfig, error) {
 		teams:     make(map[string][]string),
 		nicknames: make(map[string][]string),
 		tribes:    make(map[string]string),
+		companies: make(map[string]string),
 	}
 
 	for project, members := range teams {
@@ -96,6 +98,11 @@ func NewTeamConfigWithNicknames(teams map[string][]string, nicknames map[string]
 
 // NewTeamConfigWithTribes creates a new TeamConfig with teams, nicknames, and tribes
 func NewTeamConfigWithTribes(teams map[string][]string, nicknames map[string][]string, tribes map[string]string) (*TeamConfig, error) {
+	return NewTeamConfigFull(teams, nicknames, tribes, nil)
+}
+
+// NewTeamConfigFull creates a new TeamConfig with teams, nicknames, tribes, and companies
+func NewTeamConfigFull(teams map[string][]string, nicknames map[string][]string, tribes map[string]string, companies map[string]string) (*TeamConfig, error) {
 	// First create config with teams and nicknames
 	config, err := NewTeamConfigWithNicknames(teams, nicknames)
 	if err != nil {
@@ -114,6 +121,21 @@ func NewTeamConfigWithTribes(teams map[string][]string, nicknames map[string][]s
 		// Only set tribe if the project exists
 		if _, exists := config.teams[trimmedProject]; exists && trimmedTribe != "" {
 			config.tribes[trimmedProject] = trimmedTribe
+		}
+	}
+
+	// Then add companies
+	for project, company := range companies {
+		trimmedProject := strings.TrimSpace(project)
+		trimmedCompany := strings.TrimSpace(company)
+
+		if trimmedProject == "" {
+			continue
+		}
+
+		// Only set company if the project exists
+		if _, exists := config.teams[trimmedProject]; exists && trimmedCompany != "" {
+			config.companies[trimmedProject] = trimmedCompany
 		}
 	}
 
@@ -138,6 +160,27 @@ func (tc *TeamConfig) SetTribe(project, tribe string) error {
 	}
 
 	tc.tribes[trimmedProject] = strings.TrimSpace(tribe)
+	return nil
+}
+
+// GetCompany returns the company for a given project
+func (tc *TeamConfig) GetCompany(project string) string {
+	return tc.companies[project]
+}
+
+// SetCompany sets the company for a project
+func (tc *TeamConfig) SetCompany(project, company string) error {
+	trimmedProject := strings.TrimSpace(project)
+	if trimmedProject == "" {
+		return fmt.Errorf("project key cannot be empty")
+	}
+
+	// Ensure project exists in teams
+	if _, exists := tc.teams[trimmedProject]; !exists {
+		return fmt.Errorf("project '%s' does not exist", trimmedProject)
+	}
+
+	tc.companies[trimmedProject] = strings.TrimSpace(company)
 	return nil
 }
 
@@ -364,8 +407,8 @@ func (tc *TeamConfig) ToMapWithNicknames() (map[string][]string, map[string][]st
 	return teams, nicknames
 }
 
-// ToFullMap returns teams, nicknames, and tribes maps
-func (tc *TeamConfig) ToFullMap() (teams map[string][]string, nicknames map[string][]string, tribes map[string]string) {
+// ToFullMap returns teams, nicknames, tribes, and companies maps
+func (tc *TeamConfig) ToFullMap() (teams map[string][]string, nicknames map[string][]string, tribes map[string]string, companies map[string]string) {
 	teams, nicknames = tc.ToMapWithNicknames()
 
 	tribes = make(map[string]string, len(tc.tribes))
@@ -373,5 +416,10 @@ func (tc *TeamConfig) ToFullMap() (teams map[string][]string, nicknames map[stri
 		tribes[project] = tribe
 	}
 
-	return teams, nicknames, tribes
+	companies = make(map[string]string, len(tc.companies))
+	for project, company := range tc.companies {
+		companies[project] = company
+	}
+
+	return teams, nicknames, tribes, companies
 }

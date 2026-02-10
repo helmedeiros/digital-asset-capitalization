@@ -416,3 +416,126 @@ func TestFileRepository_TeamConfigWithTribes(t *testing.T) {
 		assert.Equal(t, []string{"Alice"}, fnTeam)
 	})
 }
+
+func TestFileRepository_TeamConfigWithCompanies(t *testing.T) {
+	t.Run("should load team config with companies", func(t *testing.T) {
+		tempDir := t.TempDir()
+		repo := NewFileRepository(tempDir)
+
+		// Create file with company field
+		teamsJSON := `{
+			"FN": {
+				"team": ["Alice", "Bob"],
+				"nicknames": ["pricing"],
+				"tribe": "Engineering",
+				"company": "TechCorp"
+			},
+			"COP": {
+				"team": ["Charlie"],
+				"tribe": "Platform",
+				"company": "PartnerInc"
+			}
+		}`
+
+		teamsPath := filepath.Join(tempDir, "teams.json")
+		err := os.WriteFile(teamsPath, []byte(teamsJSON), 0644)
+		require.NoError(t, err)
+
+		// Load config
+		config, err := repo.LoadTeamConfig()
+		require.NoError(t, err)
+
+		// Verify companies loaded
+		assert.Equal(t, "TechCorp", config.GetCompany("FN"))
+		assert.Equal(t, "PartnerInc", config.GetCompany("COP"))
+
+		// Verify tribes still work
+		assert.Equal(t, "Engineering", config.GetTribe("FN"))
+		assert.Equal(t, "Platform", config.GetTribe("COP"))
+
+		// Verify teams and nicknames still work
+		fnTeam, exists := config.GetTeam("FN")
+		require.True(t, exists)
+		assert.Equal(t, []string{"Alice", "Bob"}, fnTeam)
+		assert.Equal(t, []string{"pricing"}, config.GetNicknames("FN"))
+	})
+
+	t.Run("should save and load team config with companies", func(t *testing.T) {
+		tempDir := t.TempDir()
+		repo := NewFileRepository(tempDir)
+
+		// Create config with companies
+		teams := map[string][]string{
+			"FN":  {"Alice", "Bob"},
+			"COP": {"Charlie"},
+		}
+		nicknames := map[string][]string{
+			"FN": {"pricing"},
+		}
+		tribes := map[string]string{
+			"FN":  "Engineering",
+			"COP": "Platform",
+		}
+		companies := map[string]string{
+			"FN":  "TechCorp",
+			"COP": "PartnerInc",
+		}
+
+		config, err := domain.NewTeamConfigFull(teams, nicknames, tribes, companies)
+		require.NoError(t, err)
+
+		// Save config
+		err = repo.SaveTeamConfig(config)
+		require.NoError(t, err)
+
+		// Load config back
+		loadedConfig, err := repo.LoadTeamConfig()
+		require.NoError(t, err)
+
+		// Verify companies
+		assert.Equal(t, "TechCorp", loadedConfig.GetCompany("FN"))
+		assert.Equal(t, "PartnerInc", loadedConfig.GetCompany("COP"))
+
+		// Verify tribes
+		assert.Equal(t, "Engineering", loadedConfig.GetTribe("FN"))
+		assert.Equal(t, "Platform", loadedConfig.GetTribe("COP"))
+
+		// Verify teams
+		fnTeam, exists := loadedConfig.GetTeam("FN")
+		require.True(t, exists)
+		assert.Equal(t, []string{"Alice", "Bob"}, fnTeam)
+
+		// Verify nicknames
+		assert.Equal(t, []string{"pricing"}, loadedConfig.GetNicknames("FN"))
+	})
+
+	t.Run("should handle empty company field", func(t *testing.T) {
+		tempDir := t.TempDir()
+		repo := NewFileRepository(tempDir)
+
+		// Create file without company field
+		teamsJSON := `{
+			"FN": {
+				"team": ["Alice"],
+				"nicknames": ["pricing"],
+				"tribe": "Engineering"
+			}
+		}`
+
+		teamsPath := filepath.Join(tempDir, "teams.json")
+		err := os.WriteFile(teamsPath, []byte(teamsJSON), 0644)
+		require.NoError(t, err)
+
+		// Load config
+		config, err := repo.LoadTeamConfig()
+		require.NoError(t, err)
+
+		// Company should be empty
+		assert.Equal(t, "", config.GetCompany("FN"))
+
+		// Team should still work
+		fnTeam, exists := config.GetTeam("FN")
+		require.True(t, exists)
+		assert.Equal(t, []string{"Alice"}, fnTeam)
+	})
+}

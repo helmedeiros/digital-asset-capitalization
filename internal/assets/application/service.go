@@ -638,11 +638,13 @@ func (s *AssetServiceImpl) PublishToConfluence(ctx context.Context, assetName, s
 		return nil, fmt.Errorf("a page with title '%s' already exists in space '%s' (page ID: %s)", asset.Name, spaceKey, existingPageID)
 	}
 
-	// Look up tribe for the owning team
-	tribe := s.getTribeForTeam(asset.GetOwningTeam())
+	// Look up tribe and company for the owning team
+	owningTeam := asset.GetOwningTeam()
+	tribe := s.getTribeForTeam(owningTeam)
+	company := s.getCompanyForTeam(owningTeam)
 
-	// Generate page content with tribe
-	pageContent := confluence.GeneratePageContentWithTribe(asset, tribe)
+	// Generate page content with full org info (company as owner, team as pod)
+	pageContent := confluence.GeneratePageContentFull(asset, tribe, company, owningTeam)
 
 	// Prepare labels
 	assetLabel := s.getAssetLabel(asset)
@@ -768,11 +770,13 @@ func (s *AssetServiceImpl) UpdateConfluencePage(ctx context.Context, assetName s
 	// Create Confluence adapter
 	adapter := confluence.NewAdapter(config, s.idGenerator)
 
-	// Look up tribe for the owning team
-	tribe := s.getTribeForTeam(asset.GetOwningTeam())
+	// Look up tribe and company for the owning team
+	owningTeam := asset.GetOwningTeam()
+	tribe := s.getTribeForTeam(owningTeam)
+	company := s.getCompanyForTeam(owningTeam)
 
-	// Generate page content with tribe
-	pageContent := confluence.GeneratePageContentWithTribe(asset, tribe)
+	// Generate page content with full org info (company as owner, team as pod)
+	pageContent := confluence.GeneratePageContentFull(asset, tribe, company, owningTeam)
 
 	// Prepare labels
 	assetLabel := s.getAssetLabel(asset)
@@ -871,4 +875,18 @@ func (s *AssetServiceImpl) getTribeForTeam(teamName string) string {
 	}
 
 	return teamConfig.GetTribe(teamName)
+}
+
+// getCompanyForTeam looks up the company for a given team name
+func (s *AssetServiceImpl) getCompanyForTeam(teamName string) string {
+	if teamName == "" || s.configService == nil {
+		return ""
+	}
+
+	teamConfig, err := s.configService.GetTeamConfig()
+	if err != nil {
+		return ""
+	}
+
+	return teamConfig.GetCompany(teamName)
 }

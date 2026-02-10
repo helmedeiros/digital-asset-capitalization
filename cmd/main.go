@@ -1983,6 +1983,137 @@ For more information about a command:
 							},
 						},
 					},
+					{
+						Name:  "team-company",
+						Usage: "Manage team companies (organization ownership)",
+						Subcommands: []*cli.Command{
+							{
+								Name:  "set",
+								Usage: "Set the company for a project/team",
+								Action: func(ctx *cli.Context) error {
+									project := ctx.String("project")
+									company := ctx.String("company")
+
+									if project == "" {
+										return fmt.Errorf("project is required")
+									}
+									if company == "" {
+										return fmt.Errorf("company is required")
+									}
+
+									// Create config service to save company
+									configRepo := configinfra.NewFileRepository(configDir)
+									configSvc := service.NewConfigService(configRepo)
+
+									if err := configSvc.SetCompanyForProject(project, company); err != nil {
+										return fmt.Errorf("failed to set company: %v", err)
+									}
+
+									fmt.Printf("✅ Set company '%s' for project '%s'\n", company, project)
+									return nil
+								},
+								Flags: []cli.Flag{
+									&cli.StringFlag{
+										Name:     "project",
+										Aliases:  []string{"p"},
+										Usage:    "Project key (e.g., FN, COP)",
+										Required: true,
+									},
+									&cli.StringFlag{
+										Name:     "company",
+										Aliases:  []string{"c"},
+										Usage:    "Company name (e.g., 'ACME Corp', 'Partner Co')",
+										Required: true,
+									},
+								},
+							},
+							{
+								Name:  "list",
+								Usage: "List all team companies",
+								Action: func(_ *cli.Context) error {
+									configRepo := configinfra.NewFileRepository(configDir)
+									configSvc := service.NewConfigService(configRepo)
+
+									teamConfig, err := configSvc.GetTeamConfig()
+									if err != nil {
+										return fmt.Errorf("failed to load team config: %v", err)
+									}
+
+									projects := teamConfig.GetProjects()
+									if len(projects) == 0 {
+										fmt.Println("No teams configured")
+										return nil
+									}
+
+									fmt.Println("Team Companies:")
+									fmt.Println("===============")
+
+									// Group by company
+									companyProjects := make(map[string][]string)
+									noCompany := []string{}
+
+									for _, project := range projects {
+										company := teamConfig.GetCompany(project)
+										if company != "" {
+											companyProjects[company] = append(companyProjects[company], project)
+										} else {
+											noCompany = append(noCompany, project)
+										}
+									}
+
+									for company, projs := range companyProjects {
+										fmt.Printf("\n%s:\n", company)
+										for _, p := range projs {
+											fmt.Printf("  - %s\n", p)
+										}
+									}
+
+									if len(noCompany) > 0 {
+										fmt.Printf("\n(No company assigned):\n")
+										for _, p := range noCompany {
+											fmt.Printf("  - %s\n", p)
+										}
+									}
+
+									return nil
+								},
+							},
+							{
+								Name:  "show",
+								Usage: "Show the company for a specific project",
+								Action: func(ctx *cli.Context) error {
+									project := ctx.String("project")
+									if project == "" {
+										return fmt.Errorf("project is required")
+									}
+
+									configRepo := configinfra.NewFileRepository(configDir)
+									configSvc := service.NewConfigService(configRepo)
+
+									company, err := configSvc.GetCompanyForProject(project)
+									if err != nil {
+										return fmt.Errorf("failed to get company: %v", err)
+									}
+
+									if company == "" {
+										fmt.Printf("Project '%s' has no company assigned\n", project)
+									} else {
+										fmt.Printf("Project '%s' belongs to company: %s\n", project, company)
+									}
+
+									return nil
+								},
+								Flags: []cli.Flag{
+									&cli.StringFlag{
+										Name:     "project",
+										Aliases:  []string{"p"},
+										Usage:    "Project key (e.g., FN)",
+										Required: true,
+									},
+								},
+							},
+						},
+					},
 				},
 			},
 			{

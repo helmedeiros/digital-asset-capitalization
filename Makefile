@@ -13,7 +13,7 @@ build-run: build
 # Run all checks (lint + test)
 check: lint test
 
-# Run coverage check with 75% threshold enforcement
+# Run coverage check with 70% threshold enforcement
 test-cover-gate:
 	@./scripts/coverage-gate.sh
 
