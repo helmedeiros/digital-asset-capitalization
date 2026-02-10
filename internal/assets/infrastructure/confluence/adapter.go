@@ -372,3 +372,271 @@ func (a *Adapter) FetchPage(ctx context.Context, pageID string) (*Page, error) {
 
 	return &page, nil
 }
+
+// CreatePage creates a new page in Confluence
+func (a *Adapter) CreatePage(ctx context.Context, title, spaceKey, content string) (*PagePublishResult, error) {
+	baseURL := strings.TrimRight(a.config.BaseURL, "/")
+	apiURL := fmt.Sprintf("%s/wiki/rest/api/content", baseURL)
+
+	// Create request body
+	reqBody := CreatePageRequest{
+		Type:  "page",
+		Title: title,
+		Space: CreatePageSpace{Key: spaceKey},
+		Body: CreatePageBody{
+			Storage: CreatePageStorage{
+				Value:          content,
+				Representation: "storage",
+			},
+		},
+	}
+
+	jsonBody, err := json.Marshal(reqBody)
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal request body: %v", err)
+	}
+
+	if a.config.Debug {
+		fmt.Printf("Creating page in space %s with title: %s\n", spaceKey, title)
+		fmt.Printf("Request URL: %s\n", apiURL)
+	}
+
+	req, err := http.NewRequestWithContext(ctx, "POST", apiURL, bytes.NewReader(jsonBody))
+	if err != nil {
+		return nil, fmt.Errorf("failed to create request: %v", err)
+	}
+
+	req.SetBasicAuth(a.config.Username, a.config.Token)
+	req.Header.Set("Accept", "application/json")
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := a.httpClient.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("failed to make request: %v", err)
+	}
+	defer resp.Body.Close()
+
+	body, _ := io.ReadAll(resp.Body)
+	if a.config.Debug {
+		fmt.Printf("Create page response status: %d\nResponse body: %s\n", resp.StatusCode, string(body))
+	}
+
+	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusCreated {
+		return nil, fmt.Errorf("failed to create page: status %d, body: %s", resp.StatusCode, string(body))
+	}
+
+	var page Page
+	if err := json.NewDecoder(bytes.NewReader(body)).Decode(&page); err != nil {
+		return nil, fmt.Errorf("failed to decode response: %v", err)
+	}
+
+	// Build full URL
+	pageURL := page.Links.WebUI
+	if !strings.HasPrefix(pageURL, "http") {
+		pageURL = baseURL + "/wiki" + pageURL
+	}
+
+	return &PagePublishResult{
+		PageID:   page.ID,
+		PageURL:  pageURL,
+		SpaceKey: spaceKey,
+		Title:    page.Title,
+		Created:  true,
+	}, nil
+}
+
+// AddLabels adds labels to a Confluence page
+func (a *Adapter) AddLabels(ctx context.Context, pageID string, labels []string) error {
+	if len(labels) == 0 {
+		return nil
+	}
+
+	baseURL := strings.TrimRight(a.config.BaseURL, "/")
+	apiURL := fmt.Sprintf("%s/wiki/rest/api/content/%s/label", baseURL, pageID)
+
+	// Create request body as array of label objects
+	labelRequests := make([]LabelRequest, 0, len(labels))
+	for _, label := range labels {
+		labelRequests = append(labelRequests, LabelRequest{
+			Prefix: "global",
+			Name:   label,
+		})
+	}
+
+	jsonBody, err := json.Marshal(labelRequests)
+	if err != nil {
+		return fmt.Errorf("failed to marshal label request: %v", err)
+	}
+
+	if a.config.Debug {
+		fmt.Printf("Adding labels to page %s: %v\n", pageID, labels)
+		fmt.Printf("Request URL: %s\n", apiURL)
+	}
+
+	req, err := http.NewRequestWithContext(ctx, "POST", apiURL, bytes.NewReader(jsonBody))
+	if err != nil {
+		return fmt.Errorf("failed to create request: %v", err)
+	}
+
+	req.SetBasicAuth(a.config.Username, a.config.Token)
+	req.Header.Set("Accept", "application/json")
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := a.httpClient.Do(req)
+	if err != nil {
+		return fmt.Errorf("failed to make request: %v", err)
+	}
+	defer resp.Body.Close()
+
+	body, _ := io.ReadAll(resp.Body)
+	if a.config.Debug {
+		fmt.Printf("Add labels response status: %d\nResponse body: %s\n", resp.StatusCode, string(body))
+	}
+
+	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusCreated {
+		return fmt.Errorf("failed to add labels: status %d, body: %s", resp.StatusCode, string(body))
+	}
+
+	return nil
+}
+
+// UpdatePage updates an existing page in Confluence
+func (a *Adapter) UpdatePage(ctx context.Context, pageID, title, spaceKey, content string) (*PagePublishResult, error) {
+	// First, get the current page to retrieve its version and actual space key
+	page, err := a.FetchPage(ctx, pageID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to fetch page for update: %v", err)
+	}
+
+	// Use the actual space key from the page (in case it was moved)
+	actualSpaceKey := page.Space.Key
+	if actualSpaceKey == "" {
+		actualSpaceKey = spaceKey // Fallback to provided space key
+	}
+
+	baseURL := strings.TrimRight(a.config.BaseURL, "/")
+	apiURL := fmt.Sprintf("%s/wiki/rest/api/content/%s", baseURL, pageID)
+
+	// Create update request body with incremented version
+	reqBody := map[string]interface{}{
+		"type":  "page",
+		"title": title,
+		"space": map[string]string{"key": actualSpaceKey},
+		"body": map[string]interface{}{
+			"storage": map[string]string{
+				"value":          content,
+				"representation": "storage",
+			},
+		},
+		"version": map[string]int{
+			"number": page.Version.Number + 1,
+		},
+	}
+
+	jsonBody, err := json.Marshal(reqBody)
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal request body: %v", err)
+	}
+
+	if a.config.Debug {
+		fmt.Printf("Updating page %s in space %s with title: %s\n", pageID, actualSpaceKey, title)
+		if actualSpaceKey != spaceKey {
+			fmt.Printf("Note: Page was moved from space '%s' to '%s'\n", spaceKey, actualSpaceKey)
+		}
+		fmt.Printf("Request URL: %s\n", apiURL)
+		fmt.Printf("Current version: %d, New version: %d\n", page.Version.Number, page.Version.Number+1)
+	}
+
+	req, err := http.NewRequestWithContext(ctx, "PUT", apiURL, bytes.NewReader(jsonBody))
+	if err != nil {
+		return nil, fmt.Errorf("failed to create request: %v", err)
+	}
+
+	req.SetBasicAuth(a.config.Username, a.config.Token)
+	req.Header.Set("Accept", "application/json")
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := a.httpClient.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("failed to make request: %v", err)
+	}
+	defer resp.Body.Close()
+
+	body, _ := io.ReadAll(resp.Body)
+	if a.config.Debug {
+		fmt.Printf("Update page response status: %d\nResponse body: %s\n", resp.StatusCode, string(body))
+	}
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("failed to update page: status %d, body: %s", resp.StatusCode, string(body))
+	}
+
+	var updatedPage Page
+	if err := json.NewDecoder(bytes.NewReader(body)).Decode(&updatedPage); err != nil {
+		return nil, fmt.Errorf("failed to decode response: %v", err)
+	}
+
+	// Build full URL
+	pageURL := updatedPage.Links.WebUI
+	if !strings.HasPrefix(pageURL, "http") {
+		pageURL = baseURL + "/wiki" + pageURL
+	}
+
+	return &PagePublishResult{
+		PageID:   updatedPage.ID,
+		PageURL:  pageURL,
+		SpaceKey: actualSpaceKey,
+		Title:    updatedPage.Title,
+		Created:  false, // This is an update, not a create
+	}, nil
+}
+
+// PageExistsByTitle checks if a page with the given title exists in the space
+// Returns (exists, pageID, error)
+func (a *Adapter) PageExistsByTitle(ctx context.Context, spaceKey, title string) (bool, string, error) {
+	baseURL := strings.TrimRight(a.config.BaseURL, "/")
+
+	// Build CQL query to search for page by title in space
+	cql := fmt.Sprintf(`type=page AND space="%s" AND title="%s"`, spaceKey, title)
+	encodedCQL := url.QueryEscape(cql)
+	apiURL := fmt.Sprintf("%s/wiki/rest/api/content/search?cql=%s&limit=1", baseURL, encodedCQL)
+
+	if a.config.Debug {
+		fmt.Printf("Checking if page exists: space=%s, title=%s\n", spaceKey, title)
+		fmt.Printf("Request URL: %s\n", apiURL)
+	}
+
+	req, err := http.NewRequestWithContext(ctx, "GET", apiURL, nil)
+	if err != nil {
+		return false, "", fmt.Errorf("failed to create request: %v", err)
+	}
+
+	req.SetBasicAuth(a.config.Username, a.config.Token)
+	req.Header.Set("Accept", "application/json")
+
+	resp, err := a.httpClient.Do(req)
+	if err != nil {
+		return false, "", fmt.Errorf("failed to make request: %v", err)
+	}
+	defer resp.Body.Close()
+
+	body, _ := io.ReadAll(resp.Body)
+	if a.config.Debug {
+		fmt.Printf("Page exists check response status: %d\nResponse body: %s\n", resp.StatusCode, string(body))
+	}
+
+	if resp.StatusCode != http.StatusOK {
+		return false, "", fmt.Errorf("failed to search for page: status %d, body: %s", resp.StatusCode, string(body))
+	}
+
+	var result Response
+	if err := json.NewDecoder(bytes.NewReader(body)).Decode(&result); err != nil {
+		return false, "", fmt.Errorf("failed to decode response: %v", err)
+	}
+
+	if len(result.Results) > 0 {
+		return true, result.Results[0].ID, nil
+	}
+
+	return false, "", nil
+}

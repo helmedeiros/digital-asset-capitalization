@@ -1902,3 +1902,435 @@ func TestAssetServiceImpl_RemoveContributingTeam(t *testing.T) {
 		})
 	}
 }
+
+func TestAssetServiceImpl_PublishToConfluence_ValidationErrors(t *testing.T) {
+	ctx := context.Background()
+
+	t.Run("empty asset name returns error", func(t *testing.T) {
+		mockRepo := new(MockAssetRepository)
+		service := NewAssetServiceLegacy(mockRepo, id.NewHashIDGenerator())
+
+		result, err := service.PublishToConfluence(ctx, "", "SPACE", false, false)
+
+		assert.Error(t, err)
+		assert.Nil(t, result)
+		assert.Contains(t, err.Error(), "asset name is required")
+	})
+
+	t.Run("empty space key returns error", func(t *testing.T) {
+		mockRepo := new(MockAssetRepository)
+		service := NewAssetServiceLegacy(mockRepo, id.NewHashIDGenerator())
+
+		result, err := service.PublishToConfluence(ctx, "Test Asset", "", false, false)
+
+		assert.Error(t, err)
+		assert.Nil(t, result)
+		assert.Contains(t, err.Error(), "space key is required")
+	})
+
+	t.Run("asset not found returns error", func(t *testing.T) {
+		mockRepo := new(MockAssetRepository)
+		mockRepo.On("FindByName", "Unknown Asset").Return(nil, errors.New("not found"))
+		service := NewAssetServiceLegacy(mockRepo, id.NewHashIDGenerator())
+
+		result, err := service.PublishToConfluence(ctx, "Unknown Asset", "SPACE", false, false)
+
+		assert.Error(t, err)
+		assert.Nil(t, result)
+		assert.Contains(t, err.Error(), "failed to find asset")
+		mockRepo.AssertExpectations(t)
+	})
+}
+
+func TestAssetServiceImpl_PublishToConfluence_ConfigErrors(t *testing.T) {
+	ctx := context.Background()
+
+	t.Run("missing base URL returns error", func(t *testing.T) {
+		os.Unsetenv("JIRA_BASE_URL")
+		os.Unsetenv("JIRA_TOKEN")
+		defer func() {
+			os.Unsetenv("JIRA_BASE_URL")
+			os.Unsetenv("JIRA_TOKEN")
+		}()
+
+		mockRepo := new(MockAssetRepository)
+		asset := &domain.Asset{
+			ID:   "cap-asset-test",
+			Name: "Test Asset",
+		}
+		mockRepo.On("FindByName", "Test Asset").Return(asset, nil)
+		service := NewAssetServiceLegacy(mockRepo, id.NewHashIDGenerator())
+
+		result, err := service.PublishToConfluence(ctx, "Test Asset", "SPACE", false, false)
+
+		assert.Error(t, err)
+		assert.Nil(t, result)
+		assert.Contains(t, err.Error(), "Jira base URL is not configured")
+		mockRepo.AssertExpectations(t)
+	})
+
+	t.Run("missing token returns error", func(t *testing.T) {
+		os.Setenv("JIRA_BASE_URL", "https://test.atlassian.net")
+		os.Unsetenv("JIRA_TOKEN")
+		defer func() {
+			os.Unsetenv("JIRA_BASE_URL")
+			os.Unsetenv("JIRA_TOKEN")
+		}()
+
+		mockRepo := new(MockAssetRepository)
+		asset := &domain.Asset{
+			ID:   "cap-asset-test",
+			Name: "Test Asset",
+		}
+		mockRepo.On("FindByName", "Test Asset").Return(asset, nil)
+		service := NewAssetServiceLegacy(mockRepo, id.NewHashIDGenerator())
+
+		result, err := service.PublishToConfluence(ctx, "Test Asset", "SPACE", false, false)
+
+		assert.Error(t, err)
+		assert.Nil(t, result)
+		assert.Contains(t, err.Error(), "Jira token is not configured")
+		mockRepo.AssertExpectations(t)
+	})
+}
+
+func TestAssetServiceImpl_GetAssetLabel(t *testing.T) {
+	tests := []struct {
+		name          string
+		asset         *domain.Asset
+		expectedLabel string
+	}{
+		{
+			name: "uses existing cap-asset ID",
+			asset: &domain.Asset{
+				ID:   "cap-asset-existing-id",
+				Name: "Test Asset",
+			},
+			expectedLabel: "cap-asset-existing-id",
+		},
+		{
+			name: "generates new ID for non-cap-asset format",
+			asset: &domain.Asset{
+				ID:   "old-format-123",
+				Name: "My New Asset",
+			},
+			expectedLabel: "cap-asset-my-new-asset",
+		},
+		{
+			name: "handles empty ID",
+			asset: &domain.Asset{
+				ID:   "",
+				Name: "Another Asset",
+			},
+			expectedLabel: "cap-asset-another-asset",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			mockRepo := new(MockAssetRepository)
+			service := &AssetServiceImpl{
+				repo:        mockRepo,
+				idGenerator: id.NewHashIDGenerator(),
+			}
+
+			result := service.getAssetLabel(tt.asset)
+
+			assert.Equal(t, tt.expectedLabel, result)
+		})
+	}
+}
+
+func TestAssetServiceImpl_ExtractPageInfoFromDocLink(t *testing.T) {
+	tests := []struct {
+		name          string
+		docLink       string
+		expectedPage  string
+		expectedSpace string
+		expectError   bool
+	}{
+		{
+			name:          "valid Confluence URL",
+			docLink:       "https://example.atlassian.net/wiki/spaces/MYSPACE/pages/123456789/My+Page+Title",
+			expectedPage:  "123456789",
+			expectedSpace: "MYSPACE",
+			expectError:   false,
+		},
+		{
+			name:          "URL with different space",
+			docLink:       "https://example.atlassian.net/wiki/spaces/ENGINEERING/pages/12345/My+Page",
+			expectedPage:  "12345",
+			expectedSpace: "ENGINEERING",
+			expectError:   false,
+		},
+		{
+			name:          "URL without page title",
+			docLink:       "https://example.atlassian.net/wiki/spaces/TEST/pages/99999",
+			expectedPage:  "99999",
+			expectedSpace: "TEST",
+			expectError:   false,
+		},
+		{
+			name:        "missing spaces in URL",
+			docLink:     "https://example.atlassian.net/wiki/pages/12345/My+Page",
+			expectError: true,
+		},
+		{
+			name:        "missing pages in URL",
+			docLink:     "https://example.atlassian.net/wiki/spaces/TEST/overview",
+			expectError: true,
+		},
+		{
+			name:        "invalid URL",
+			docLink:     "not-a-valid-url",
+			expectError: true,
+		},
+		{
+			name:        "empty URL",
+			docLink:     "",
+			expectError: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			mockRepo := new(MockAssetRepository)
+			service := &AssetServiceImpl{
+				repo:        mockRepo,
+				idGenerator: id.NewHashIDGenerator(),
+			}
+
+			pageID, spaceKey, err := service.extractPageInfoFromDocLink(tt.docLink)
+
+			if tt.expectError {
+				assert.Error(t, err)
+				return
+			}
+
+			assert.NoError(t, err)
+			assert.Equal(t, tt.expectedPage, pageID)
+			assert.Equal(t, tt.expectedSpace, spaceKey)
+		})
+	}
+}
+
+func TestAssetServiceImpl_UpdateConfluencePage_ValidationErrors(t *testing.T) {
+	t.Run("empty asset name", func(t *testing.T) {
+		mockRepo := new(MockAssetRepository)
+		service := &AssetServiceImpl{
+			repo:        mockRepo,
+			idGenerator: id.NewHashIDGenerator(),
+		}
+
+		result, err := service.UpdateConfluencePage(context.Background(), "", false, false)
+
+		assert.Error(t, err)
+		assert.Nil(t, result)
+		assert.Contains(t, err.Error(), "asset name is required")
+	})
+
+	t.Run("asset not found", func(t *testing.T) {
+		mockRepo := new(MockAssetRepository)
+		mockRepo.On("FindByName", "Unknown Asset").Return(nil, nil)
+
+		service := &AssetServiceImpl{
+			repo:        mockRepo,
+			idGenerator: id.NewHashIDGenerator(),
+		}
+
+		result, err := service.UpdateConfluencePage(context.Background(), "Unknown Asset", false, false)
+
+		assert.Error(t, err)
+		assert.Nil(t, result)
+		assert.Contains(t, err.Error(), "not found")
+		mockRepo.AssertExpectations(t)
+	})
+
+	t.Run("asset has no DocLink", func(t *testing.T) {
+		mockRepo := new(MockAssetRepository)
+		asset := &domain.Asset{
+			ID:      "cap-asset-test",
+			Name:    "Test Asset",
+			DocLink: "", // No DocLink
+		}
+		mockRepo.On("FindByName", "Test Asset").Return(asset, nil)
+
+		service := &AssetServiceImpl{
+			repo:        mockRepo,
+			idGenerator: id.NewHashIDGenerator(),
+		}
+
+		result, err := service.UpdateConfluencePage(context.Background(), "Test Asset", false, false)
+
+		assert.Error(t, err)
+		assert.Nil(t, result)
+		assert.Contains(t, err.Error(), "does not have a Confluence page link")
+		mockRepo.AssertExpectations(t)
+	})
+
+	t.Run("invalid DocLink format", func(t *testing.T) {
+		mockRepo := new(MockAssetRepository)
+		asset := &domain.Asset{
+			ID:      "cap-asset-test",
+			Name:    "Test Asset",
+			DocLink: "https://invalid-url-without-pages",
+		}
+		mockRepo.On("FindByName", "Test Asset").Return(asset, nil)
+
+		service := &AssetServiceImpl{
+			repo:        mockRepo,
+			idGenerator: id.NewHashIDGenerator(),
+		}
+
+		result, err := service.UpdateConfluencePage(context.Background(), "Test Asset", false, false)
+
+		assert.Error(t, err)
+		assert.Nil(t, result)
+		assert.Contains(t, err.Error(), "failed to extract page info")
+		mockRepo.AssertExpectations(t)
+	})
+}
+
+func TestAssetServiceImpl_UpdateConfluencePage_ConfigErrors(t *testing.T) {
+	t.Run("missing base URL", func(t *testing.T) {
+		// Clear environment variables
+		originalBaseURL := os.Getenv("JIRA_BASE_URL")
+		originalEmail := os.Getenv("JIRA_EMAIL")
+		originalToken := os.Getenv("JIRA_TOKEN")
+		os.Unsetenv("JIRA_BASE_URL")
+		os.Unsetenv("JIRA_EMAIL")
+		os.Unsetenv("JIRA_TOKEN")
+		defer func() {
+			if originalBaseURL != "" {
+				os.Setenv("JIRA_BASE_URL", originalBaseURL)
+			}
+			if originalEmail != "" {
+				os.Setenv("JIRA_EMAIL", originalEmail)
+			}
+			if originalToken != "" {
+				os.Setenv("JIRA_TOKEN", originalToken)
+			}
+		}()
+
+		mockRepo := new(MockAssetRepository)
+		asset := &domain.Asset{
+			ID:      "cap-asset-test",
+			Name:    "Test Asset",
+			DocLink: "https://example.atlassian.net/wiki/spaces/TEST/pages/12345/Test",
+		}
+		mockRepo.On("FindByName", "Test Asset").Return(asset, nil)
+
+		service := &AssetServiceImpl{
+			repo:          mockRepo,
+			idGenerator:   id.NewHashIDGenerator(),
+			configService: nil, // No config service
+		}
+
+		result, err := service.UpdateConfluencePage(context.Background(), "Test Asset", false, false)
+
+		assert.Error(t, err)
+		assert.Nil(t, result)
+		assert.Contains(t, err.Error(), "Jira base URL is not configured")
+		mockRepo.AssertExpectations(t)
+	})
+
+	t.Run("missing token", func(t *testing.T) {
+		// Set base URL but not token
+		originalBaseURL := os.Getenv("JIRA_BASE_URL")
+		originalEmail := os.Getenv("JIRA_EMAIL")
+		originalToken := os.Getenv("JIRA_TOKEN")
+		os.Setenv("JIRA_BASE_URL", "https://example.atlassian.net")
+		os.Setenv("JIRA_EMAIL", "test@example.com")
+		os.Unsetenv("JIRA_TOKEN")
+		defer func() {
+			if originalBaseURL != "" {
+				os.Setenv("JIRA_BASE_URL", originalBaseURL)
+			} else {
+				os.Unsetenv("JIRA_BASE_URL")
+			}
+			if originalEmail != "" {
+				os.Setenv("JIRA_EMAIL", originalEmail)
+			} else {
+				os.Unsetenv("JIRA_EMAIL")
+			}
+			if originalToken != "" {
+				os.Setenv("JIRA_TOKEN", originalToken)
+			}
+		}()
+
+		mockRepo := new(MockAssetRepository)
+		asset := &domain.Asset{
+			ID:      "cap-asset-test",
+			Name:    "Test Asset",
+			DocLink: "https://example.atlassian.net/wiki/spaces/TEST/pages/12345/Test",
+		}
+		mockRepo.On("FindByName", "Test Asset").Return(asset, nil)
+
+		service := &AssetServiceImpl{
+			repo:          mockRepo,
+			idGenerator:   id.NewHashIDGenerator(),
+			configService: nil,
+		}
+
+		result, err := service.UpdateConfluencePage(context.Background(), "Test Asset", false, false)
+
+		assert.Error(t, err)
+		assert.Nil(t, result)
+		assert.Contains(t, err.Error(), "Jira token is not configured")
+		mockRepo.AssertExpectations(t)
+	})
+}
+
+func TestAssetServiceImpl_UpdateConfluencePage_DryRun(t *testing.T) {
+	// Set environment variables for the test
+	originalBaseURL := os.Getenv("JIRA_BASE_URL")
+	originalEmail := os.Getenv("JIRA_EMAIL")
+	originalToken := os.Getenv("JIRA_TOKEN")
+	os.Setenv("JIRA_BASE_URL", "https://example.atlassian.net")
+	os.Setenv("JIRA_EMAIL", "test@example.com")
+	os.Setenv("JIRA_TOKEN", "test-token")
+	defer func() {
+		if originalBaseURL != "" {
+			os.Setenv("JIRA_BASE_URL", originalBaseURL)
+		} else {
+			os.Unsetenv("JIRA_BASE_URL")
+		}
+		if originalEmail != "" {
+			os.Setenv("JIRA_EMAIL", originalEmail)
+		} else {
+			os.Unsetenv("JIRA_EMAIL")
+		}
+		if originalToken != "" {
+			os.Setenv("JIRA_TOKEN", originalToken)
+		} else {
+			os.Unsetenv("JIRA_TOKEN")
+		}
+	}()
+
+	mockRepo := new(MockAssetRepository)
+	asset := &domain.Asset{
+		ID:      "cap-asset-test-asset",
+		Name:    "Test Asset",
+		DocLink: "https://example.atlassian.net/wiki/spaces/TEST/pages/12345/Test+Asset",
+		Why:     "Test why",
+	}
+	mockRepo.On("FindByName", "Test Asset").Return(asset, nil)
+
+	service := &AssetServiceImpl{
+		repo:          mockRepo,
+		idGenerator:   id.NewHashIDGenerator(),
+		configService: nil,
+	}
+
+	result, err := service.UpdateConfluencePage(context.Background(), "Test Asset", true, false)
+
+	assert.NoError(t, err)
+	assert.NotNil(t, result)
+	assert.Equal(t, "Test Asset", result.AssetName)
+	assert.Equal(t, "12345", result.PageID)
+	assert.Equal(t, "TEST", result.SpaceKey)
+	assert.False(t, result.Created)
+	assert.NotEmpty(t, result.Preview)
+	assert.Contains(t, result.Preview, "<h1>Asset Capitalisation</h1>")
+	mockRepo.AssertExpectations(t)
+}

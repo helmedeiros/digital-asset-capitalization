@@ -575,3 +575,280 @@ func (s *AssetServiceImpl) normalizeSpaceKey(spaceKey string) string {
 	// Return single space or comma-separated list
 	return strings.Join(validSpaces, ",")
 }
+
+// PublishToConfluence publishes an asset as a new page in Confluence
+func (s *AssetServiceImpl) PublishToConfluence(ctx context.Context, assetName, spaceKey string, dryRun, debug bool) (*PublishToConfluenceResult, error) {
+	// Validate input
+	if assetName == "" {
+		return nil, fmt.Errorf("asset name is required")
+	}
+	if spaceKey == "" {
+		return nil, fmt.Errorf("space key is required")
+	}
+
+	// Find the asset
+	asset, err := s.repo.FindByName(assetName)
+	if err != nil {
+		return nil, fmt.Errorf("failed to find asset '%s': %w", assetName, err)
+	}
+	if asset == nil {
+		return nil, fmt.Errorf("asset '%s' not found", assetName)
+	}
+
+	// Create Confluence adapter with shared configuration
+	config := confluence.DefaultConfig()
+
+	if s.configService != nil {
+		jiraConfig, err := s.configService.GetJiraConfig()
+		if err == nil {
+			config.BaseURL = jiraConfig.BaseURL()
+			config.Username = jiraConfig.Email()
+			config.Token = jiraConfig.Token()
+		} else {
+			// Fallback to environment variables
+			config.BaseURL = os.Getenv("JIRA_BASE_URL")
+			config.Username = os.Getenv("JIRA_EMAIL")
+			config.Token = os.Getenv("JIRA_TOKEN")
+		}
+	} else {
+		// Fallback to environment variables
+		config.BaseURL = os.Getenv("JIRA_BASE_URL")
+		config.Username = os.Getenv("JIRA_EMAIL")
+		config.Token = os.Getenv("JIRA_TOKEN")
+	}
+
+	config.Debug = debug
+
+	if config.BaseURL == "" {
+		return nil, fmt.Errorf("Jira base URL is not configured. Please run 'assetcap config init' or set JIRA_BASE_URL environment variable")
+	}
+	if config.Token == "" {
+		return nil, fmt.Errorf("Jira token is not configured. Please run 'assetcap config init' or set JIRA_TOKEN environment variable")
+	}
+
+	// Create Confluence adapter
+	adapter := confluence.NewAdapter(config, s.idGenerator)
+
+	// Check if page already exists
+	exists, existingPageID, err := adapter.PageExistsByTitle(ctx, spaceKey, asset.Name)
+	if err != nil {
+		return nil, fmt.Errorf("failed to check if page exists: %w", err)
+	}
+	if exists {
+		return nil, fmt.Errorf("a page with title '%s' already exists in space '%s' (page ID: %s)", asset.Name, spaceKey, existingPageID)
+	}
+
+	// Generate page content
+	pageContent := confluence.GeneratePageContent(asset)
+
+	// Prepare labels
+	assetLabel := s.getAssetLabel(asset)
+	labels := []string{"cap-asset", assetLabel}
+
+	// If dry-run, return preview
+	if dryRun {
+		return &PublishToConfluenceResult{
+			AssetName:    asset.Name,
+			SpaceKey:     spaceKey,
+			Labels:       labels,
+			Created:      false,
+			Preview:      pageContent,
+			DocLinkSaved: false,
+		}, nil
+	}
+
+	// Create the page
+	publishResult, err := adapter.CreatePage(ctx, asset.Name, spaceKey, pageContent)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create page: %w", err)
+	}
+
+	// Add labels to the page
+	labelsErr := adapter.AddLabels(ctx, publishResult.PageID, labels)
+	if labelsErr != nil {
+		// Log warning but don't fail - page was created
+		fmt.Printf("Warning: failed to add labels to page %s: %v\n", publishResult.PageID, labelsErr)
+	}
+
+	// Update asset with DocLink
+	docLinkSaved := false
+	asset.DocLink = publishResult.PageURL
+	asset.UpdatedAt = time.Now()
+	asset.Version++
+	if err := s.repo.Save(asset); err != nil {
+		fmt.Printf("Warning: failed to update asset DocLink: %v\n", err)
+	} else {
+		docLinkSaved = true
+	}
+
+	return &PublishToConfluenceResult{
+		AssetName:    asset.Name,
+		PageID:       publishResult.PageID,
+		PageURL:      publishResult.PageURL,
+		SpaceKey:     publishResult.SpaceKey,
+		Labels:       labels,
+		Created:      true,
+		PublishedAt:  time.Now(),
+		DocLinkSaved: docLinkSaved,
+	}, nil
+}
+
+// getAssetLabel returns the cap-asset-* label for the asset
+func (s *AssetServiceImpl) getAssetLabel(asset *domain.Asset) string {
+	// If the asset already has an ID in cap-asset-* format, use it
+	if domain.IsValidAssetID(asset.ID) {
+		return asset.ID
+	}
+
+	// Otherwise, generate one from the name
+	return s.idGenerator.GenerateID(asset.Name)
+}
+
+// UpdateConfluencePage updates an existing Confluence page with the asset's current content
+func (s *AssetServiceImpl) UpdateConfluencePage(ctx context.Context, assetName string, dryRun, debug bool) (*PublishToConfluenceResult, error) {
+	// Validate input
+	if assetName == "" {
+		return nil, fmt.Errorf("asset name is required")
+	}
+
+	// Find the asset
+	asset, err := s.repo.FindByName(assetName)
+	if err != nil {
+		return nil, fmt.Errorf("failed to find asset '%s': %w", assetName, err)
+	}
+	if asset == nil {
+		return nil, fmt.Errorf("asset '%s' not found", assetName)
+	}
+
+	// Check that the asset has a DocLink (Confluence page URL)
+	if asset.DocLink == "" {
+		return nil, fmt.Errorf("asset '%s' does not have a Confluence page link. Use 'publish' to create a new page first", assetName)
+	}
+
+	// Extract page ID and space key from DocLink
+	pageID, spaceKey, err := s.extractPageInfoFromDocLink(asset.DocLink)
+	if err != nil {
+		return nil, fmt.Errorf("failed to extract page info from DocLink: %w", err)
+	}
+
+	// Create Confluence adapter with shared configuration
+	config := confluence.DefaultConfig()
+
+	if s.configService != nil {
+		jiraConfig, err := s.configService.GetJiraConfig()
+		if err == nil {
+			config.BaseURL = jiraConfig.BaseURL()
+			config.Username = jiraConfig.Email()
+			config.Token = jiraConfig.Token()
+		} else {
+			// Fallback to environment variables
+			config.BaseURL = os.Getenv("JIRA_BASE_URL")
+			config.Username = os.Getenv("JIRA_EMAIL")
+			config.Token = os.Getenv("JIRA_TOKEN")
+		}
+	} else {
+		// Fallback to environment variables
+		config.BaseURL = os.Getenv("JIRA_BASE_URL")
+		config.Username = os.Getenv("JIRA_EMAIL")
+		config.Token = os.Getenv("JIRA_TOKEN")
+	}
+
+	config.Debug = debug
+
+	if config.BaseURL == "" {
+		return nil, fmt.Errorf("Jira base URL is not configured. Please run 'assetcap config init' or set JIRA_BASE_URL environment variable")
+	}
+	if config.Token == "" {
+		return nil, fmt.Errorf("Jira token is not configured. Please run 'assetcap config init' or set JIRA_TOKEN environment variable")
+	}
+
+	// Create Confluence adapter
+	adapter := confluence.NewAdapter(config, s.idGenerator)
+
+	// Generate page content
+	pageContent := confluence.GeneratePageContent(asset)
+
+	// Prepare labels
+	assetLabel := s.getAssetLabel(asset)
+	labels := []string{"cap-asset", assetLabel}
+
+	// If dry-run, return preview
+	if dryRun {
+		return &PublishToConfluenceResult{
+			AssetName:    asset.Name,
+			PageID:       pageID,
+			SpaceKey:     spaceKey,
+			Labels:       labels,
+			Created:      false,
+			Preview:      pageContent,
+			DocLinkSaved: false,
+		}, nil
+	}
+
+	// Update the page
+	updateResult, err := adapter.UpdatePage(ctx, pageID, asset.Name, spaceKey, pageContent)
+	if err != nil {
+		return nil, fmt.Errorf("failed to update page: %w", err)
+	}
+
+	// Update asset timestamp and DocLink if it changed (e.g., page was moved)
+	asset.UpdatedAt = time.Now()
+	asset.Version++
+	if updateResult.PageURL != "" && updateResult.PageURL != asset.DocLink {
+		if debug {
+			fmt.Printf("Updating DocLink from '%s' to '%s'\n", asset.DocLink, updateResult.PageURL)
+		}
+		asset.DocLink = updateResult.PageURL
+	}
+	docLinkSaved := false
+	if err := s.repo.Save(asset); err != nil {
+		fmt.Printf("Warning: failed to update asset: %v\n", err)
+	} else {
+		docLinkSaved = true
+	}
+
+	return &PublishToConfluenceResult{
+		AssetName:    asset.Name,
+		PageID:       updateResult.PageID,
+		PageURL:      updateResult.PageURL,
+		SpaceKey:     updateResult.SpaceKey,
+		Labels:       labels,
+		Created:      false, // This is an update
+		PublishedAt:  time.Now(),
+		DocLinkSaved: docLinkSaved,
+	}, nil
+}
+
+// extractPageInfoFromDocLink extracts the page ID and space key from a Confluence page URL
+func (s *AssetServiceImpl) extractPageInfoFromDocLink(docLink string) (pageID, spaceKey string, err error) {
+	// Parse the URL to extract page ID and space key
+	// Example: https://example.atlassian.net/wiki/spaces/SPACE/pages/123456/Page+Title
+	parsedURL, err := url.Parse(docLink)
+	if err != nil {
+		return "", "", fmt.Errorf("invalid DocLink URL: %w", err)
+	}
+
+	pathParts := strings.Split(parsedURL.Path, "/")
+	// Find the "spaces" and "pages" indices
+	var spacesIdx, pagesIdx int = -1, -1
+	for i, part := range pathParts {
+		if part == "spaces" && i+1 < len(pathParts) {
+			spacesIdx = i
+		}
+		if part == "pages" && i+1 < len(pathParts) {
+			pagesIdx = i
+		}
+	}
+
+	if spacesIdx == -1 || spacesIdx+1 >= len(pathParts) {
+		return "", "", fmt.Errorf("could not find space key in DocLink: %s", docLink)
+	}
+	if pagesIdx == -1 || pagesIdx+1 >= len(pathParts) {
+		return "", "", fmt.Errorf("could not find page ID in DocLink: %s", docLink)
+	}
+
+	spaceKey = pathParts[spacesIdx+1]
+	pageID = pathParts[pagesIdx+1]
+
+	return pageID, spaceKey, nil
+}

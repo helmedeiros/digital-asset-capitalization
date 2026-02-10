@@ -1,6 +1,8 @@
 package testutil
 
 import (
+	"context"
+
 	"github.com/helmedeiros/digital-asset-capitalization/internal/assets/application"
 	"github.com/helmedeiros/digital-asset-capitalization/internal/assets/domain"
 )
@@ -21,8 +23,10 @@ type MockAssetService struct {
 	assignTeamFunc             func(assetName, owningTeam string, contributingTeams []string) error
 	getAssetTeamsFunc          func() ([]application.AssetTeamInfo, error)
 	getAssetTeamInfoFunc       func(assetName string) (*application.AssetTeamInfo, error)
-	addContributingTeamFunc    func(assetName, teamName string) error
-	removeContributingTeamFunc func(assetName, teamName string) error
+	addContributingTeamFunc       func(assetName, teamName string) error
+	removeContributingTeamFunc    func(assetName, teamName string) error
+	publishToConfluenceFunc       func(ctx context.Context, assetName, spaceKey string, dryRun, debug bool) (*application.PublishToConfluenceResult, error)
+	updateConfluencePageFunc      func(ctx context.Context, assetName string, dryRun, debug bool) (*application.PublishToConfluenceResult, error)
 }
 
 // NewMockAssetService creates a new mock asset service
@@ -189,6 +193,23 @@ func (m *MockAssetService) Reset() {
 	m.getAssetTeamInfoFunc = nil
 	m.addContributingTeamFunc = nil
 	m.removeContributingTeamFunc = nil
+	m.publishToConfluenceFunc = nil
+}
+
+// PublishToConfluence publishes an asset to Confluence
+func (m *MockAssetService) PublishToConfluence(ctx context.Context, assetName, spaceKey string, dryRun, debug bool) (*application.PublishToConfluenceResult, error) {
+	if m.publishToConfluenceFunc != nil {
+		return m.publishToConfluenceFunc(ctx, assetName, spaceKey, dryRun, debug)
+	}
+	return nil, nil
+}
+
+// UpdateConfluencePage updates an existing Confluence page with the asset's current content
+func (m *MockAssetService) UpdateConfluencePage(ctx context.Context, assetName string, dryRun, debug bool) (*application.PublishToConfluenceResult, error) {
+	if m.updateConfluencePageFunc != nil {
+		return m.updateConfluencePageFunc(ctx, assetName, dryRun, debug)
+	}
+	return nil, nil
 }
 
 // Compile time check to ensure MockAssetService implements AssetService

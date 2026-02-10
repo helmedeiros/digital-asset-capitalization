@@ -440,6 +440,111 @@ For more information about a command:
 						},
 					},
 					{
+						Name:  "publish",
+						Usage: "Publish an asset to Confluence as a new page",
+						Action: func(ctx *cli.Context) error {
+							name := ctx.String("name")
+							space := ctx.String("space")
+							dryRun := ctx.Bool("dry-run")
+							debug := ctx.Bool("debug")
+
+							result, err := a.assetService.PublishToConfluence(context.Background(), name, space, dryRun, debug)
+							if err != nil {
+								return err
+							}
+
+							if dryRun {
+								fmt.Printf("DRY RUN: Would create page for asset '%s' in space '%s'\n", result.AssetName, result.SpaceKey)
+								fmt.Printf("Labels to add: %v\n", result.Labels)
+								fmt.Printf("\nPreview of page content:\n")
+								fmt.Println("────────────────────────────────────────")
+								fmt.Println(result.Preview)
+								fmt.Println("────────────────────────────────────────")
+								return nil
+							}
+
+							fmt.Printf("Successfully published asset '%s' to Confluence\n", result.AssetName)
+							fmt.Printf("  Page ID: %s\n", result.PageID)
+							fmt.Printf("  Space: %s\n", result.SpaceKey)
+							fmt.Printf("  URL: %s\n", result.PageURL)
+							fmt.Printf("  Labels: %v\n", result.Labels)
+							if result.DocLinkSaved {
+								fmt.Printf("  DocLink updated in asset\n")
+							}
+							return nil
+						},
+						Flags: []cli.Flag{
+							&cli.StringFlag{
+								Name:     "name",
+								Usage:    "Asset name to publish",
+								Required: true,
+							},
+							&cli.StringFlag{
+								Name:     "space",
+								Usage:    "Confluence space key (e.g., Conversion)",
+								Required: true,
+							},
+							&cli.BoolFlag{
+								Name:  "dry-run",
+								Usage: "Preview without creating the page",
+								Value: false,
+							},
+							&cli.BoolFlag{
+								Name:  "debug",
+								Usage: "Enable debug output",
+								Value: false,
+							},
+						},
+					},
+					{
+						Name:  "update-confluence",
+						Usage: "Update an existing Confluence page with the asset's current content",
+						Action: func(ctx *cli.Context) error {
+							name := ctx.String("name")
+							dryRun := ctx.Bool("dry-run")
+							debug := ctx.Bool("debug")
+
+							result, err := a.assetService.UpdateConfluencePage(context.Background(), name, dryRun, debug)
+							if err != nil {
+								return err
+							}
+
+							if dryRun {
+								fmt.Printf("DRY RUN: Would update page for asset '%s'\n", result.AssetName)
+								fmt.Printf("  Page ID: %s\n", result.PageID)
+								fmt.Printf("  Space: %s\n", result.SpaceKey)
+								fmt.Printf("\nPreview of page content:\n")
+								fmt.Println("────────────────────────────────────────")
+								fmt.Println(result.Preview)
+								fmt.Println("────────────────────────────────────────")
+								return nil
+							}
+
+							fmt.Printf("Successfully updated Confluence page for asset '%s'\n", result.AssetName)
+							fmt.Printf("  Page ID: %s\n", result.PageID)
+							fmt.Printf("  Space: %s\n", result.SpaceKey)
+							fmt.Printf("  URL: %s\n", result.PageURL)
+							return nil
+						},
+						Flags: []cli.Flag{
+							&cli.StringFlag{
+								Name:     "name",
+								Usage:    "Asset name to update",
+								Required: true,
+							},
+							&cli.BoolFlag{
+								Name:  "dry-run",
+								Usage: "Preview without updating the page",
+								Value: false,
+							},
+							&cli.BoolFlag{
+								Name:  "debug",
+								Usage: "Enable debug output",
+								Value: false,
+							},
+						},
+					},
+					{
 						Name:  "update",
 						Usage: "Update an asset's description",
 						Action: func(ctx *cli.Context) error {

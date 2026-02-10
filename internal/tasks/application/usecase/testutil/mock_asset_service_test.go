@@ -183,3 +183,67 @@ func TestMockAssetService_Reset(t *testing.T) {
 		t.Error("Expected sync result after reset, got nil")
 	}
 }
+
+func TestMockAssetService_PublishToConfluence(t *testing.T) {
+	mock := NewMockAssetService()
+
+	// Test default behavior (returns nil, nil)
+	result, err := mock.PublishToConfluence(nil, "test-asset", "TEST", false, false)
+	if err != nil {
+		t.Errorf("Expected no error, got %v", err)
+	}
+	if result != nil {
+		t.Errorf("Expected nil result, got %v", result)
+	}
+}
+
+func TestMockAssetService_UpdateConfluencePage(t *testing.T) {
+	mock := NewMockAssetService()
+
+	// Test default behavior (returns nil, nil)
+	result, err := mock.UpdateConfluencePage(nil, "test-asset", false, false)
+	if err != nil {
+		t.Errorf("Expected no error, got %v", err)
+	}
+	if result != nil {
+		t.Errorf("Expected nil result, got %v", result)
+	}
+}
+
+func TestMockAssetService_TeamOperations(t *testing.T) {
+	mock := NewMockAssetService()
+
+	// Test default behavior for team operations
+	err := mock.AssignTeam("asset", "owner", []string{"contributor1"})
+	if err != nil {
+		t.Errorf("Expected no error, got %v", err)
+	}
+
+	teams, err := mock.GetAssetTeams()
+	if err != nil {
+		t.Errorf("Expected no error, got %v", err)
+	}
+	// Default returns empty slice, not nil
+	if len(teams) != 0 {
+		t.Errorf("Expected empty teams slice, got %d teams", len(teams))
+	}
+
+	teamInfo, err := mock.GetAssetTeamInfo("asset")
+	if err != nil {
+		t.Errorf("Expected no error, got %v", err)
+	}
+	// Default returns a struct with the asset name
+	if teamInfo == nil {
+		t.Error("Expected team info, got nil")
+	}
+
+	err = mock.AddContributingTeam("asset", "team")
+	if err != nil {
+		t.Errorf("Expected no error, got %v", err)
+	}
+
+	err = mock.RemoveContributingTeam("asset", "team")
+	if err != nil {
+		t.Errorf("Expected no error, got %v", err)
+	}
+}
