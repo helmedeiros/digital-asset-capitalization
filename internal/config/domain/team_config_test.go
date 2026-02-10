@@ -806,11 +806,15 @@ func TestToFullMap(t *testing.T) {
 		"FN":  "Engineering",
 		"COP": "Platform",
 	}
+	companies := map[string]string{
+		"FN":  "TechCorp",
+		"COP": "PartnerInc",
+	}
 
-	config, err := NewTeamConfigWithTribes(teams, nicknames, tribes)
+	config, err := NewTeamConfigFull(teams, nicknames, tribes, companies)
 	require.NoError(t, err)
 
-	resultTeams, resultNicknames, resultTribes := config.ToFullMap()
+	resultTeams, resultNicknames, resultTribes, resultCompanies := config.ToFullMap()
 
 	// Verify teams
 	assert.Equal(t, []string{"alice", "bob"}, resultTeams["FN"])
@@ -822,4 +826,142 @@ func TestToFullMap(t *testing.T) {
 	// Verify tribes
 	assert.Equal(t, "Engineering", resultTribes["FN"])
 	assert.Equal(t, "Platform", resultTribes["COP"])
+
+	// Verify companies
+	assert.Equal(t, "TechCorp", resultCompanies["FN"])
+	assert.Equal(t, "PartnerInc", resultCompanies["COP"])
+}
+
+func TestGetCompany(t *testing.T) {
+	teams := map[string][]string{
+		"FN":  {"alice", "bob"},
+		"COP": {"charlie"},
+	}
+	nicknames := map[string][]string{}
+	tribes := map[string]string{}
+	companies := map[string]string{
+		"FN": "TechCorp",
+	}
+
+	config, err := NewTeamConfigFull(teams, nicknames, tribes, companies)
+	require.NoError(t, err)
+
+	t.Run("returns company for project with company", func(t *testing.T) {
+		company := config.GetCompany("FN")
+		assert.Equal(t, "TechCorp", company)
+	})
+
+	t.Run("returns empty for project without company", func(t *testing.T) {
+		company := config.GetCompany("COP")
+		assert.Equal(t, "", company)
+	})
+
+	t.Run("returns empty for non-existent project", func(t *testing.T) {
+		company := config.GetCompany("NONEXISTENT")
+		assert.Equal(t, "", company)
+	})
+}
+
+func TestSetCompany(t *testing.T) {
+	t.Run("sets company for existing project", func(t *testing.T) {
+		teams := map[string][]string{
+			"FN": {"alice", "bob"},
+		}
+		config, err := NewTeamConfig(teams)
+		require.NoError(t, err)
+
+		err = config.SetCompany("FN", "TechCorp")
+		require.NoError(t, err)
+
+		assert.Equal(t, "TechCorp", config.GetCompany("FN"))
+	})
+
+	t.Run("returns error for non-existent project", func(t *testing.T) {
+		teams := map[string][]string{
+			"FN": {"alice", "bob"},
+		}
+		config, err := NewTeamConfig(teams)
+		require.NoError(t, err)
+
+		err = config.SetCompany("NONEXISTENT", "TechCorp")
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "does not exist")
+	})
+
+	t.Run("returns error for empty project", func(t *testing.T) {
+		teams := map[string][]string{
+			"FN": {"alice", "bob"},
+		}
+		config, err := NewTeamConfig(teams)
+		require.NoError(t, err)
+
+		err = config.SetCompany("", "TechCorp")
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "cannot be empty")
+	})
+
+	t.Run("trims whitespace from company name", func(t *testing.T) {
+		teams := map[string][]string{
+			"FN": {"alice", "bob"},
+		}
+		config, err := NewTeamConfig(teams)
+		require.NoError(t, err)
+
+		err = config.SetCompany("FN", "  TechCorp  ")
+		require.NoError(t, err)
+
+		assert.Equal(t, "TechCorp", config.GetCompany("FN"))
+	})
+}
+
+func TestNewTeamConfigFull(t *testing.T) {
+	t.Run("creates config with all fields", func(t *testing.T) {
+		teams := map[string][]string{
+			"FN":  {"alice", "bob"},
+			"COP": {"charlie"},
+		}
+		nicknames := map[string][]string{
+			"FN": {"pricing"},
+		}
+		tribes := map[string]string{
+			"FN": "Engineering",
+		}
+		companies := map[string]string{
+			"FN":  "TechCorp",
+			"COP": "PartnerInc",
+		}
+
+		config, err := NewTeamConfigFull(teams, nicknames, tribes, companies)
+		require.NoError(t, err)
+
+		// Verify teams
+		fnTeam, exists := config.GetTeam("FN")
+		require.True(t, exists)
+		assert.Equal(t, []string{"alice", "bob"}, fnTeam)
+
+		// Verify nicknames
+		assert.Equal(t, []string{"pricing"}, config.GetNicknames("FN"))
+
+		// Verify tribes
+		assert.Equal(t, "Engineering", config.GetTribe("FN"))
+
+		// Verify companies
+		assert.Equal(t, "TechCorp", config.GetCompany("FN"))
+		assert.Equal(t, "PartnerInc", config.GetCompany("COP"))
+	})
+
+	t.Run("ignores company for non-existent project", func(t *testing.T) {
+		teams := map[string][]string{
+			"FN": {"alice"},
+		}
+		companies := map[string]string{
+			"NONEXISTENT": "SomeCorp",
+		}
+
+		config, err := NewTeamConfigFull(teams, nil, nil, companies)
+		require.NoError(t, err)
+
+		// Company for non-existent project should not be set
+		assert.Equal(t, "", config.GetCompany("NONEXISTENT"))
+	})
 }

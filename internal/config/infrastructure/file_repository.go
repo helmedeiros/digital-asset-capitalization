@@ -96,11 +96,12 @@ func (r *FileRepository) LoadTeamConfig() (*domain.TeamConfig, error) {
 		return nil, fmt.Errorf("failed to read team config: %w", err)
 	}
 
-	// Parse existing file format: {"FN": {"team": ["member1", "member2"], "nicknames": ["pricing", "fintech"], "tribe": "Engineering"}}
+	// Parse existing file format: {"FN": {"team": ["member1", "member2"], "nicknames": ["pricing", "fintech"], "tribe": "Engineering", "company": "Omio"}}
 	var fileFormat map[string]struct {
 		Team      []string `json:"team"`
 		Nicknames []string `json:"nicknames,omitempty"`
 		Tribe     string   `json:"tribe,omitempty"`
+		Company   string   `json:"company,omitempty"`
 	}
 
 	if err := json.Unmarshal(data, &fileFormat); err != nil {
@@ -111,6 +112,7 @@ func (r *FileRepository) LoadTeamConfig() (*domain.TeamConfig, error) {
 	teams := make(map[string][]string)
 	nicknames := make(map[string][]string)
 	tribes := make(map[string]string)
+	companies := make(map[string]string)
 
 	for project, teamInfo := range fileFormat {
 		teams[project] = teamInfo.Team
@@ -120,9 +122,12 @@ func (r *FileRepository) LoadTeamConfig() (*domain.TeamConfig, error) {
 		if teamInfo.Tribe != "" {
 			tribes[project] = teamInfo.Tribe
 		}
+		if teamInfo.Company != "" {
+			companies[project] = teamInfo.Company
+		}
 	}
 
-	return domain.NewTeamConfigWithTribes(teams, nicknames, tribes)
+	return domain.NewTeamConfigFull(teams, nicknames, tribes, companies)
 }
 
 // SaveTeamConfig saves team configuration to file with format transformation
@@ -130,11 +135,12 @@ func (r *FileRepository) SaveTeamConfig(config *domain.TeamConfig) error {
 	path := filepath.Join(r.configDir, "teams.json")
 
 	// Transform from domain format to file format
-	teams, nicknames, tribes := config.ToFullMap()
+	teams, nicknames, tribes, companies := config.ToFullMap()
 	fileFormat := make(map[string]struct {
 		Team      []string `json:"team"`
 		Nicknames []string `json:"nicknames,omitempty"`
 		Tribe     string   `json:"tribe,omitempty"`
+		Company   string   `json:"company,omitempty"`
 	})
 
 	for project, members := range teams {
@@ -142,6 +148,7 @@ func (r *FileRepository) SaveTeamConfig(config *domain.TeamConfig) error {
 			Team      []string `json:"team"`
 			Nicknames []string `json:"nicknames,omitempty"`
 			Tribe     string   `json:"tribe,omitempty"`
+			Company   string   `json:"company,omitempty"`
 		}{
 			Team: members,
 		}
@@ -154,6 +161,11 @@ func (r *FileRepository) SaveTeamConfig(config *domain.TeamConfig) error {
 		// Add tribe if it exists for this project
 		if tribe, exists := tribes[project]; exists && tribe != "" {
 			entry.Tribe = tribe
+		}
+
+		// Add company if it exists for this project
+		if company, exists := companies[project]; exists && company != "" {
+			entry.Company = company
 		}
 
 		fileFormat[project] = entry

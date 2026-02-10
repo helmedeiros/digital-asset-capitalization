@@ -487,3 +487,135 @@ func TestConfigService_GetTribeForProject(t *testing.T) {
 		repo.AssertExpectations(t)
 	})
 }
+
+func TestConfigService_SetCompanyForProject(t *testing.T) {
+	t.Run("should set company for existing project successfully", func(t *testing.T) {
+		repo := &MockConfigurationRepository{}
+		service := NewConfigService(repo)
+
+		teams := map[string][]string{
+			"FN": {"alice", "bob"},
+		}
+		teamConfig, err := domain.NewTeamConfig(teams)
+		require.NoError(t, err)
+
+		repo.On("LoadTeamConfig").Return(teamConfig, nil)
+		repo.On("SaveTeamConfig", mock.AnythingOfType("*domain.TeamConfig")).Return(nil)
+
+		err = service.SetCompanyForProject("FN", "TechCorp")
+
+		require.NoError(t, err)
+		repo.AssertExpectations(t)
+	})
+
+	t.Run("should return error when project does not exist", func(t *testing.T) {
+		repo := &MockConfigurationRepository{}
+		service := NewConfigService(repo)
+
+		teams := map[string][]string{
+			"FN": {"alice", "bob"},
+		}
+		teamConfig, err := domain.NewTeamConfig(teams)
+		require.NoError(t, err)
+
+		repo.On("LoadTeamConfig").Return(teamConfig, nil)
+
+		err = service.SetCompanyForProject("NONEXISTENT", "TechCorp")
+
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "failed to set company")
+		repo.AssertExpectations(t)
+	})
+
+	t.Run("should return error when load fails", func(t *testing.T) {
+		repo := &MockConfigurationRepository{}
+		service := NewConfigService(repo)
+
+		repo.On("LoadTeamConfig").Return(nil, errors.New("repository error"))
+
+		err := service.SetCompanyForProject("FN", "TechCorp")
+
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "failed to load team configuration")
+		repo.AssertExpectations(t)
+	})
+
+	t.Run("should return error when save fails", func(t *testing.T) {
+		repo := &MockConfigurationRepository{}
+		service := NewConfigService(repo)
+
+		teams := map[string][]string{
+			"FN": {"alice", "bob"},
+		}
+		teamConfig, err := domain.NewTeamConfig(teams)
+		require.NoError(t, err)
+
+		repo.On("LoadTeamConfig").Return(teamConfig, nil)
+		repo.On("SaveTeamConfig", mock.AnythingOfType("*domain.TeamConfig")).Return(errors.New("save error"))
+
+		err = service.SetCompanyForProject("FN", "TechCorp")
+
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "failed to save team configuration")
+		repo.AssertExpectations(t)
+	})
+}
+
+func TestConfigService_GetCompanyForProject(t *testing.T) {
+	t.Run("should return company for project with company set", func(t *testing.T) {
+		repo := &MockConfigurationRepository{}
+		service := NewConfigService(repo)
+
+		teams := map[string][]string{
+			"FN": {"alice", "bob"},
+		}
+		nicknames := map[string][]string{}
+		tribes := map[string]string{}
+		companies := map[string]string{
+			"FN": "TechCorp",
+		}
+		teamConfig, err := domain.NewTeamConfigFull(teams, nicknames, tribes, companies)
+		require.NoError(t, err)
+
+		repo.On("LoadTeamConfig").Return(teamConfig, nil)
+
+		company, err := service.GetCompanyForProject("FN")
+
+		require.NoError(t, err)
+		assert.Equal(t, "TechCorp", company)
+		repo.AssertExpectations(t)
+	})
+
+	t.Run("should return empty string for project without company", func(t *testing.T) {
+		repo := &MockConfigurationRepository{}
+		service := NewConfigService(repo)
+
+		teams := map[string][]string{
+			"FN": {"alice", "bob"},
+		}
+		teamConfig, err := domain.NewTeamConfig(teams)
+		require.NoError(t, err)
+
+		repo.On("LoadTeamConfig").Return(teamConfig, nil)
+
+		company, err := service.GetCompanyForProject("FN")
+
+		require.NoError(t, err)
+		assert.Equal(t, "", company)
+		repo.AssertExpectations(t)
+	})
+
+	t.Run("should return error when load fails", func(t *testing.T) {
+		repo := &MockConfigurationRepository{}
+		service := NewConfigService(repo)
+
+		repo.On("LoadTeamConfig").Return(nil, errors.New("repository error"))
+
+		company, err := service.GetCompanyForProject("FN")
+
+		require.Error(t, err)
+		assert.Equal(t, "", company)
+		assert.Contains(t, err.Error(), "failed to load team configuration")
+		repo.AssertExpectations(t)
+	})
+}
