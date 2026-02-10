@@ -1,6 +1,7 @@
 package application
 
 import (
+	"context"
 	"errors"
 	"testing"
 
@@ -114,6 +115,92 @@ func (m *MockAssetService) GenerateKeywords(name string) error {
 	// Mock implementation for testing
 	m.assets[name].Keywords = []string{"test", "mock", "keyword"}
 	return nil
+}
+
+func (m *MockAssetService) AssignTeam(assetName, owningTeam string, contributingTeams []string) error {
+	if asset, exists := m.assets[assetName]; exists {
+		asset.OwningTeam = owningTeam
+		asset.ContributingTeams = contributingTeams
+		return nil
+	}
+	return errors.New("asset not found")
+}
+
+func (m *MockAssetService) GetAssetTeams() ([]AssetTeamInfo, error) {
+	teams := make([]AssetTeamInfo, 0, len(m.assets))
+	for _, asset := range m.assets {
+		teams = append(teams, AssetTeamInfo{
+			AssetName:         asset.Name,
+			OwningTeam:        asset.OwningTeam,
+			ContributingTeams: asset.ContributingTeams,
+		})
+	}
+	return teams, nil
+}
+
+func (m *MockAssetService) GetAssetTeamInfo(assetName string) (*AssetTeamInfo, error) {
+	if asset, exists := m.assets[assetName]; exists {
+		return &AssetTeamInfo{
+			AssetName:         asset.Name,
+			OwningTeam:        asset.OwningTeam,
+			ContributingTeams: asset.ContributingTeams,
+		}, nil
+	}
+	return nil, errors.New("asset not found")
+}
+
+func (m *MockAssetService) AddContributingTeam(assetName, teamName string) error {
+	if asset, exists := m.assets[assetName]; exists {
+		asset.ContributingTeams = append(asset.ContributingTeams, teamName)
+		return nil
+	}
+	return errors.New("asset not found")
+}
+
+func (m *MockAssetService) RemoveContributingTeam(assetName, teamName string) error {
+	if asset, exists := m.assets[assetName]; exists {
+		var newTeams []string
+		for _, t := range asset.ContributingTeams {
+			if t != teamName {
+				newTeams = append(newTeams, t)
+			}
+		}
+		asset.ContributingTeams = newTeams
+		return nil
+	}
+	return errors.New("asset not found")
+}
+
+func (m *MockAssetService) PublishToConfluence(_ context.Context, assetName, spaceKey string, _, _ bool) (*PublishToConfluenceResult, error) {
+	if _, exists := m.assets[assetName]; !exists {
+		return nil, errors.New("asset not found")
+	}
+	return &PublishToConfluenceResult{
+		AssetName: assetName,
+		PageID:    "mock-page-id",
+		PageURL:   "https://mock.confluence.com/wiki/spaces/" + spaceKey + "/pages/12345",
+		SpaceKey:  spaceKey,
+		Labels:    []string{"cap-asset", "cap-asset-" + assetName},
+		Created:   true,
+	}, nil
+}
+
+func (m *MockAssetService) UpdateConfluencePage(_ context.Context, assetName string, _, _ bool) (*PublishToConfluenceResult, error) {
+	asset, exists := m.assets[assetName]
+	if !exists {
+		return nil, errors.New("asset not found")
+	}
+	if asset.DocLink == "" {
+		return nil, errors.New("asset does not have a Confluence page link")
+	}
+	return &PublishToConfluenceResult{
+		AssetName: assetName,
+		PageID:    "mock-page-id",
+		PageURL:   asset.DocLink,
+		SpaceKey:  "MockSpace",
+		Labels:    []string{"cap-asset", "cap-asset-" + assetName},
+		Created:   false,
+	}, nil
 }
 
 func TestAssetService(t *testing.T) {

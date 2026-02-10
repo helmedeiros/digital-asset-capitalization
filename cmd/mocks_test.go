@@ -113,6 +113,22 @@ func (m *MockAssetService) RemoveContributingTeam(assetName, teamName string) er
 	return args.Error(0)
 }
 
+func (m *MockAssetService) PublishToConfluence(ctx context.Context, assetName, spaceKey string, dryRun, debug bool) (*assetsapp.PublishToConfluenceResult, error) {
+	args := m.Called(ctx, assetName, spaceKey, dryRun, debug)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*assetsapp.PublishToConfluenceResult), args.Error(1)
+}
+
+func (m *MockAssetService) UpdateConfluencePage(ctx context.Context, assetName string, dryRun, debug bool) (*assetsapp.PublishToConfluenceResult, error) {
+	args := m.Called(ctx, assetName, dryRun, debug)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*assetsapp.PublishToConfluenceResult), args.Error(1)
+}
+
 // MockTaskService is a mock implementation of TaskService
 type MockTaskService struct {
 	mock.Mock

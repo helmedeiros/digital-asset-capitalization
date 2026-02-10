@@ -2,6 +2,7 @@ package application
 
 import (
 	"context"
+	"time"
 
 	"github.com/helmedeiros/digital-asset-capitalization/internal/assets/domain"
 	"github.com/helmedeiros/digital-asset-capitalization/internal/assets/infrastructure/confluence"
@@ -12,6 +13,19 @@ type AssetTeamInfo struct {
 	AssetName         string   `json:"asset_name"`
 	OwningTeam        string   `json:"owning_team"`
 	ContributingTeams []string `json:"contributing_teams"`
+}
+
+// PublishToConfluenceResult represents the result of the publish operation
+type PublishToConfluenceResult struct {
+	AssetName    string    // Name of the published asset
+	PageID       string    // ID of the created page
+	PageURL      string    // URL of the created page
+	SpaceKey     string    // Space where page was created
+	Labels       []string  // Labels added to the page
+	Created      bool      // Whether the page was created (false for dry-run)
+	Preview      string    // Preview of the content (for dry-run)
+	PublishedAt  time.Time // When the page was published
+	DocLinkSaved bool      // Whether the DocLink was saved to the asset
 }
 
 // LlamaClient defines the interface for LLaMA operations
@@ -62,4 +76,8 @@ type AssetService interface {
 	AddContributingTeam(assetName, teamName string) error
 	// RemoveContributingTeam removes a contributing team from an asset
 	RemoveContributingTeam(assetName, teamName string) error
+	// PublishToConfluence publishes an asset as a new page in Confluence
+	PublishToConfluence(ctx context.Context, assetName, spaceKey string, dryRun, debug bool) (*PublishToConfluenceResult, error)
+	// UpdateConfluencePage updates an existing Confluence page with the asset's current content
+	UpdateConfluencePage(ctx context.Context, assetName string, dryRun, debug bool) (*PublishToConfluenceResult, error)
 }

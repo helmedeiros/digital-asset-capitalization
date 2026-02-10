@@ -606,3 +606,578 @@ func TestBuildCQLQuery(t *testing.T) {
 		})
 	}
 }
+
+func TestCreatePage(t *testing.T) {
+	tests := []struct {
+		name           string
+		serverResponse string
+		statusCode     int
+		expectedPageID string
+		expectError    bool
+	}{
+		{
+			name: "successful page creation",
+			serverResponse: `{
+				"id": "12345",
+				"title": "Test Asset",
+				"space": {"key": "TEST"},
+				"_links": {"webui": "/spaces/TEST/pages/12345/Test+Asset"}
+			}`,
+			statusCode:     http.StatusOK,
+			expectedPageID: "12345",
+			expectError:    false,
+		},
+		{
+			name: "page creation with 201 status",
+			serverResponse: `{
+				"id": "67890",
+				"title": "New Asset",
+				"space": {"key": "TEST"},
+				"_links": {"webui": "/spaces/TEST/pages/67890/New+Asset"}
+			}`,
+			statusCode:     http.StatusCreated,
+			expectedPageID: "67890",
+			expectError:    false,
+		},
+		{
+			name:           "page already exists",
+			serverResponse: `{"statusCode": 400, "message": "A page with this title already exists"}`,
+			statusCode:     http.StatusBadRequest,
+			expectError:    true,
+		},
+		{
+			name:           "unauthorized",
+			serverResponse: `{"statusCode": 401, "message": "Unauthorized"}`,
+			statusCode:     http.StatusUnauthorized,
+			expectError:    true,
+		},
+		{
+			name:           "space not found",
+			serverResponse: `{"statusCode": 404, "message": "Space not found"}`,
+			statusCode:     http.StatusNotFound,
+			expectError:    true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				// Verify request method and path
+				if r.Method != http.MethodPost {
+					t.Errorf("Expected POST request, got %s", r.Method)
+				}
+				if !strings.Contains(r.URL.Path, "/wiki/rest/api/content") {
+					t.Errorf("Unexpected path: %s", r.URL.Path)
+				}
+				// Verify content type
+				if r.Header.Get("Content-Type") != "application/json" {
+					t.Errorf("Expected Content-Type application/json, got %s", r.Header.Get("Content-Type"))
+				}
+
+				w.WriteHeader(tt.statusCode)
+				w.Write([]byte(tt.serverResponse))
+			}))
+			defer server.Close()
+
+			config := &Config{
+				BaseURL:  server.URL,
+				Username: "test@example.com",
+				Token:    "test-token",
+			}
+			adapter := NewAdapter(config, id.NewHashIDGenerator())
+
+			result, err := adapter.CreatePage(context.Background(), "Test Asset", "TEST", "<p>Content</p>")
+
+			if tt.expectError {
+				if err == nil {
+					t.Error("expected error but got none")
+				}
+				return
+			}
+
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+
+			if result.PageID != tt.expectedPageID {
+				t.Errorf("PageID = %v, want %v", result.PageID, tt.expectedPageID)
+			}
+			if result.SpaceKey != "TEST" {
+				t.Errorf("SpaceKey = %v, want TEST", result.SpaceKey)
+			}
+			if !result.Created {
+				t.Error("Expected Created to be true")
+			}
+		})
+	}
+}
+
+func TestAddLabels(t *testing.T) {
+	tests := []struct {
+		name           string
+		labels         []string
+		serverResponse string
+		statusCode     int
+		expectError    bool
+	}{
+		{
+			name:           "successful label addition",
+			labels:         []string{"cap-asset", "cap-asset-test"},
+			serverResponse: `{"results": [{"name": "cap-asset"}, {"name": "cap-asset-test"}]}`,
+			statusCode:     http.StatusOK,
+			expectError:    false,
+		},
+		{
+			name:           "single label",
+			labels:         []string{"cap-asset-test"},
+			serverResponse: `{"results": [{"name": "cap-asset-test"}]}`,
+			statusCode:     http.StatusOK,
+			expectError:    false,
+		},
+		{
+			name:        "empty labels",
+			labels:      []string{},
+			expectError: false,
+		},
+		{
+			name:           "page not found",
+			labels:         []string{"cap-asset"},
+			serverResponse: `{"statusCode": 404, "message": "Page not found"}`,
+			statusCode:     http.StatusNotFound,
+			expectError:    true,
+		},
+		{
+			name:           "unauthorized",
+			labels:         []string{"cap-asset"},
+			serverResponse: `{"statusCode": 401, "message": "Unauthorized"}`,
+			statusCode:     http.StatusUnauthorized,
+			expectError:    true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if len(tt.labels) == 0 {
+				// For empty labels, no server is needed
+				config := &Config{
+					BaseURL:  "https://test.atlassian.net",
+					Username: "test@example.com",
+					Token:    "test-token",
+				}
+				adapter := NewAdapter(config, id.NewHashIDGenerator())
+
+				err := adapter.AddLabels(context.Background(), "12345", tt.labels)
+				if err != nil {
+					t.Fatalf("unexpected error for empty labels: %v", err)
+				}
+				return
+			}
+
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				// Verify request method and path
+				if r.Method != http.MethodPost {
+					t.Errorf("Expected POST request, got %s", r.Method)
+				}
+				if !strings.Contains(r.URL.Path, "/label") {
+					t.Errorf("Expected path to contain /label, got %s", r.URL.Path)
+				}
+
+				w.WriteHeader(tt.statusCode)
+				w.Write([]byte(tt.serverResponse))
+			}))
+			defer server.Close()
+
+			config := &Config{
+				BaseURL:  server.URL,
+				Username: "test@example.com",
+				Token:    "test-token",
+			}
+			adapter := NewAdapter(config, id.NewHashIDGenerator())
+
+			err := adapter.AddLabels(context.Background(), "12345", tt.labels)
+
+			if tt.expectError {
+				if err == nil {
+					t.Error("expected error but got none")
+				}
+				return
+			}
+
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+		})
+	}
+}
+
+func TestPageExistsByTitle(t *testing.T) {
+	tests := []struct {
+		name           string
+		serverResponse string
+		statusCode     int
+		expectedExists bool
+		expectedPageID string
+		expectError    bool
+	}{
+		{
+			name: "page exists",
+			serverResponse: `{
+				"results": [
+					{
+						"id": "12345",
+						"title": "Test Asset"
+					}
+				]
+			}`,
+			statusCode:     http.StatusOK,
+			expectedExists: true,
+			expectedPageID: "12345",
+			expectError:    false,
+		},
+		{
+			name:           "page does not exist",
+			serverResponse: `{"results": []}`,
+			statusCode:     http.StatusOK,
+			expectedExists: false,
+			expectedPageID: "",
+			expectError:    false,
+		},
+		{
+			name:           "unauthorized",
+			serverResponse: `{"statusCode": 401, "message": "Unauthorized"}`,
+			statusCode:     http.StatusUnauthorized,
+			expectError:    true,
+		},
+		{
+			name:           "server error",
+			serverResponse: `{"statusCode": 500, "message": "Internal Server Error"}`,
+			statusCode:     http.StatusInternalServerError,
+			expectError:    true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				// Verify request method
+				if r.Method != http.MethodGet {
+					t.Errorf("Expected GET request, got %s", r.Method)
+				}
+				// Verify CQL query is in URL
+				if !strings.Contains(r.URL.RawQuery, "cql=") {
+					t.Errorf("Expected CQL query in URL, got %s", r.URL.RawQuery)
+				}
+
+				w.WriteHeader(tt.statusCode)
+				w.Write([]byte(tt.serverResponse))
+			}))
+			defer server.Close()
+
+			config := &Config{
+				BaseURL:  server.URL,
+				Username: "test@example.com",
+				Token:    "test-token",
+			}
+			adapter := NewAdapter(config, id.NewHashIDGenerator())
+
+			exists, pageID, err := adapter.PageExistsByTitle(context.Background(), "TEST", "Test Asset")
+
+			if tt.expectError {
+				if err == nil {
+					t.Error("expected error but got none")
+				}
+				return
+			}
+
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+
+			if exists != tt.expectedExists {
+				t.Errorf("exists = %v, want %v", exists, tt.expectedExists)
+			}
+			if pageID != tt.expectedPageID {
+				t.Errorf("pageID = %v, want %v", pageID, tt.expectedPageID)
+			}
+		})
+	}
+}
+
+func TestUpdatePage(t *testing.T) {
+	tests := []struct {
+		name             string
+		fetchResponse    string
+		fetchStatusCode  int
+		updateResponse   string
+		updateStatusCode int
+		expectedPageID   string
+		expectedSpace    string
+		expectError      bool
+	}{
+		{
+			name: "successful page update",
+			fetchResponse: `{
+				"id": "12345",
+				"title": "Test Asset",
+				"space": {"key": "TEST"},
+				"version": {"number": 1},
+				"body": {"storage": {"value": "<p>Old content</p>"}},
+				"_links": {"webui": "/spaces/TEST/pages/12345/Test+Asset"}
+			}`,
+			fetchStatusCode: http.StatusOK,
+			updateResponse: `{
+				"id": "12345",
+				"title": "Test Asset",
+				"space": {"key": "TEST"},
+				"version": {"number": 2},
+				"_links": {"webui": "/spaces/TEST/pages/12345/Test+Asset"}
+			}`,
+			updateStatusCode: http.StatusOK,
+			expectedPageID:   "12345",
+			expectedSpace:    "TEST",
+			expectError:      false,
+		},
+		{
+			name: "page moved to different space",
+			fetchResponse: `{
+				"id": "12345",
+				"title": "Test Asset",
+				"space": {"key": "NEWSPACE"},
+				"version": {"number": 3},
+				"body": {"storage": {"value": "<p>Content</p>"}},
+				"_links": {"webui": "/spaces/NEWSPACE/pages/12345/Test+Asset"}
+			}`,
+			fetchStatusCode: http.StatusOK,
+			updateResponse: `{
+				"id": "12345",
+				"title": "Test Asset",
+				"space": {"key": "NEWSPACE"},
+				"version": {"number": 4},
+				"_links": {"webui": "/spaces/NEWSPACE/pages/12345/Test+Asset"}
+			}`,
+			updateStatusCode: http.StatusOK,
+			expectedPageID:   "12345",
+			expectedSpace:    "NEWSPACE",
+			expectError:      false,
+		},
+		{
+			name: "page not found during fetch",
+			fetchResponse: `{
+				"statusCode": 404,
+				"message": "Page not found"
+			}`,
+			fetchStatusCode: http.StatusNotFound,
+			expectError:     true,
+		},
+		{
+			name: "update fails with conflict",
+			fetchResponse: `{
+				"id": "12345",
+				"title": "Test Asset",
+				"space": {"key": "TEST"},
+				"version": {"number": 1},
+				"body": {"storage": {"value": "<p>Content</p>"}},
+				"_links": {"webui": "/spaces/TEST/pages/12345/Test+Asset"}
+			}`,
+			fetchStatusCode:  http.StatusOK,
+			updateResponse:   `{"statusCode": 409, "message": "Version conflict"}`,
+			updateStatusCode: http.StatusConflict,
+			expectError:      true,
+		},
+		{
+			name: "unauthorized",
+			fetchResponse: `{
+				"statusCode": 401,
+				"message": "Unauthorized"
+			}`,
+			fetchStatusCode: http.StatusUnauthorized,
+			expectError:     true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			requestCount := 0
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				requestCount++
+
+				// First request is GET to fetch page, second is PUT to update
+				if r.Method == http.MethodGet {
+					w.WriteHeader(tt.fetchStatusCode)
+					w.Write([]byte(tt.fetchResponse))
+					return
+				}
+
+				if r.Method == http.MethodPut {
+					// Verify content type
+					if r.Header.Get("Content-Type") != "application/json" {
+						t.Errorf("Expected Content-Type application/json, got %s", r.Header.Get("Content-Type"))
+					}
+
+					w.WriteHeader(tt.updateStatusCode)
+					w.Write([]byte(tt.updateResponse))
+					return
+				}
+
+				t.Errorf("Unexpected request method: %s", r.Method)
+			}))
+			defer server.Close()
+
+			config := &Config{
+				BaseURL:  server.URL,
+				Username: "test@example.com",
+				Token:    "test-token",
+			}
+			adapter := NewAdapter(config, id.NewHashIDGenerator())
+
+			result, err := adapter.UpdatePage(context.Background(), "12345", "Test Asset", "TEST", "<p>New content</p>")
+
+			if tt.expectError {
+				if err == nil {
+					t.Error("expected error but got none")
+				}
+				return
+			}
+
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+
+			if result.PageID != tt.expectedPageID {
+				t.Errorf("PageID = %v, want %v", result.PageID, tt.expectedPageID)
+			}
+			if result.SpaceKey != tt.expectedSpace {
+				t.Errorf("SpaceKey = %v, want %v", result.SpaceKey, tt.expectedSpace)
+			}
+			if result.Created {
+				t.Error("Expected Created to be false for update")
+			}
+		})
+	}
+}
+
+func TestUpdatePage_DebugMode(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == http.MethodGet {
+			w.WriteHeader(http.StatusOK)
+			w.Write([]byte(`{
+				"id": "12345",
+				"title": "Test Asset",
+				"space": {"key": "NEWSPACE"},
+				"version": {"number": 1},
+				"body": {"storage": {"value": "<p>Content</p>"}},
+				"_links": {"webui": "/spaces/NEWSPACE/pages/12345/Test+Asset"}
+			}`))
+			return
+		}
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte(`{
+			"id": "12345",
+			"title": "Test Asset",
+			"space": {"key": "NEWSPACE"},
+			"version": {"number": 2},
+			"_links": {"webui": "/spaces/NEWSPACE/pages/12345/Test+Asset"}
+		}`))
+	}))
+	defer server.Close()
+
+	config := &Config{
+		BaseURL:  server.URL,
+		Username: "test@example.com",
+		Token:    "test-token",
+		Debug:    true, // Enable debug mode
+	}
+	adapter := NewAdapter(config, id.NewHashIDGenerator())
+
+	// This should work and log debug info (page was "moved" from TEST to NEWSPACE)
+	result, err := adapter.UpdatePage(context.Background(), "12345", "Test Asset", "TEST", "<p>New content</p>")
+
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	// The actual space key should be NEWSPACE (from the page), not TEST (from the parameter)
+	if result.SpaceKey != "NEWSPACE" {
+		t.Errorf("SpaceKey = %v, want NEWSPACE", result.SpaceKey)
+	}
+}
+
+func TestUpdatePage_EmptySpaceKeyFallback(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == http.MethodGet {
+			// Return page with empty space key
+			w.WriteHeader(http.StatusOK)
+			w.Write([]byte(`{
+				"id": "12345",
+				"title": "Test Asset",
+				"space": {"key": ""},
+				"version": {"number": 1},
+				"body": {"storage": {"value": "<p>Content</p>"}},
+				"_links": {"webui": "/spaces/FALLBACK/pages/12345/Test+Asset"}
+			}`))
+			return
+		}
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte(`{
+			"id": "12345",
+			"title": "Test Asset",
+			"space": {"key": "FALLBACK"},
+			"version": {"number": 2},
+			"_links": {"webui": "/spaces/FALLBACK/pages/12345/Test+Asset"}
+		}`))
+	}))
+	defer server.Close()
+
+	config := &Config{
+		BaseURL:  server.URL,
+		Username: "test@example.com",
+		Token:    "test-token",
+	}
+	adapter := NewAdapter(config, id.NewHashIDGenerator())
+
+	// Should fallback to provided space key when page has empty space
+	result, err := adapter.UpdatePage(context.Background(), "12345", "Test Asset", "FALLBACK", "<p>New content</p>")
+
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	// Should use the fallback space key
+	if result.SpaceKey != "FALLBACK" {
+		t.Errorf("SpaceKey = %v, want FALLBACK", result.SpaceKey)
+	}
+}
+
+func TestUpdatePage_InvalidResponseJSON(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == http.MethodGet {
+			w.WriteHeader(http.StatusOK)
+			w.Write([]byte(`{
+				"id": "12345",
+				"title": "Test Asset",
+				"space": {"key": "TEST"},
+				"version": {"number": 1},
+				"body": {"storage": {"value": "<p>Content</p>"}},
+				"_links": {"webui": "/spaces/TEST/pages/12345/Test+Asset"}
+			}`))
+			return
+		}
+		// Return invalid JSON for the update response
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte(`{invalid json`))
+	}))
+	defer server.Close()
+
+	config := &Config{
+		BaseURL:  server.URL,
+		Username: "test@example.com",
+		Token:    "test-token",
+	}
+	adapter := NewAdapter(config, id.NewHashIDGenerator())
+
+	_, err := adapter.UpdatePage(context.Background(), "12345", "Test Asset", "TEST", "<p>New content</p>")
+
+	if err == nil {
+		t.Error("Expected error for invalid JSON response")
+	}
+}
