@@ -637,7 +637,7 @@ func TestValidateRequiredFields(t *testing.T) {
 			expected: nil,
 		},
 		{
-			name: "missing launch date",
+			name: "launch date is optional",
 			asset: &domain.Asset{
 				ID:          "test-id",
 				Name:        "test-asset",
@@ -649,7 +649,7 @@ func TestValidateRequiredFields(t *testing.T) {
 				Status:      "active",
 				DocLink:     "https://example.com",
 			},
-			expected: []string{"LaunchDate"},
+			expected: nil,
 		},
 		{
 			name: "missing multiple fields",
@@ -661,7 +661,7 @@ func TestValidateRequiredFields(t *testing.T) {
 				How:         "Test how",
 				Metrics:     "Test metrics",
 			},
-			expected: []string{"ID", "LaunchDate", "Status", "DocLink"},
+			expected: []string{"ID", "Status", "DocLink"},
 		},
 	}
 

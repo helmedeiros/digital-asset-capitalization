@@ -279,6 +279,26 @@ func (s *AssetServiceImpl) SyncFromConfluence(spaceKey, label string, debug bool
 			continue
 		}
 
+		// Preserve locally-generated data (keywords, team assignments) from existing asset
+		existingAsset, err := s.repo.FindByID(asset.ID)
+		if err == nil && existingAsset != nil {
+			// Preserve keywords if the new asset has none (Confluence doesn't store AI-generated keywords)
+			if len(asset.Keywords) == 0 && len(existingAsset.Keywords) > 0 {
+				asset.Keywords = existingAsset.Keywords
+			}
+			// Preserve team assignments
+			if asset.OwningTeam == "" && existingAsset.OwningTeam != "" {
+				asset.OwningTeam = existingAsset.OwningTeam
+			}
+			if len(asset.ContributingTeams) == 0 && len(existingAsset.ContributingTeams) > 0 {
+				asset.ContributingTeams = existingAsset.ContributingTeams
+			}
+			// Preserve task count
+			if existingAsset.AssociatedTaskCount > 0 {
+				asset.AssociatedTaskCount = existingAsset.AssociatedTaskCount
+			}
+		}
+
 		if err := s.repo.Save(asset); err != nil {
 			return nil, fmt.Errorf("failed to save asset %s: %v", asset.Name, err)
 		}
@@ -382,9 +402,7 @@ func validateRequiredFields(asset *domain.Asset) []string {
 	if asset.ID == "" {
 		missingFields = append(missingFields, "ID")
 	}
-	if asset.LaunchDate.IsZero() {
-		missingFields = append(missingFields, "LaunchDate")
-	}
+	// LaunchDate is optional - assets in Planning/Development stages don't have one yet
 	if asset.Status == "" {
 		missingFields = append(missingFields, "Status")
 	}

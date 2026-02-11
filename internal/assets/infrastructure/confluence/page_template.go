@@ -189,6 +189,9 @@ func generateValueSection(asset *domain.Asset) string {
 	}
 	sb.WriteString(generateValueTableRow("How it works?", formatAsContent(howValue)))
 
+	// Keywords row - comma-separated list
+	sb.WriteString(generateValueTableRow("Keywords", formatKeywords(asset.Keywords)))
+
 	sb.WriteString(`</tbody>`)
 	sb.WriteString(`</table>`)
 
@@ -303,6 +306,14 @@ func generateChecklistSection() string {
 	}
 	sb.WriteString(`</ac:task-list>`)
 	return sb.String()
+}
+
+// formatKeywords formats keywords as a comma-separated list in a paragraph tag
+func formatKeywords(keywords []string) string {
+	if len(keywords) == 0 {
+		return emptyPlaceholder
+	}
+	return fmt.Sprintf("<p>%s</p>", escapeHTML(strings.Join(keywords, ", ")))
 }
 
 // formatMultilineContent wraps content in paragraph tags and handles line breaks

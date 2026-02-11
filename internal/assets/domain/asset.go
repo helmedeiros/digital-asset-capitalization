@@ -95,6 +95,7 @@ func NewAsset(name, description string) (*Asset, error) {
 		ID:                  generateID(name),
 		Name:                name,
 		Description:         description,
+		Status:              "Planning",
 		CreatedAt:           now,
 		UpdatedAt:           now,
 		LastDocUpdateAt:     now,
@@ -103,7 +104,7 @@ func NewAsset(name, description string) (*Asset, error) {
 	}, nil
 }
 
-// NewAsset creates a new Asset instance
+// NewAssetWithDetails creates a new Asset instance with additional details
 func NewAssetWithDetails(name, description, why, benefits, how, metrics string) (*Asset, error) {
 	if name == "" {
 		return nil, ErrEmptyName
@@ -121,6 +122,7 @@ func NewAssetWithDetails(name, description, why, benefits, how, metrics string) 
 		Benefits:            benefits,
 		How:                 how,
 		Metrics:             metrics,
+		Status:              "Planning",
 		CreatedAt:           now,
 		UpdatedAt:           now,
 		LastDocUpdateAt:     now,
@@ -204,6 +206,9 @@ func generateID(name string) string {
 	id = strings.ReplaceAll(id, "&", "and")
 	id = strings.ReplaceAll(id, "/", "-")
 	id = strings.ReplaceAll(id, ".", "-")
+
+	// Strip existing cap-asset- prefix to prevent duplication
+	id = strings.TrimPrefix(id, "cap-asset-")
 
 	return fmt.Sprintf("cap-asset-%s", id)
 }

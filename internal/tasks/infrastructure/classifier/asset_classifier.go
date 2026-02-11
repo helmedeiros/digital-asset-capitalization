@@ -139,6 +139,18 @@ func (c *ContentBasedAssetClassifier) findBestAssetMatch(task *taskdomain.Task, 
 	// Check each asset for matches
 	for _, asset := range assets {
 		score, reason := c.calculateAssetMatchScore(task, asset)
+
+		// Boost score for team-owned assets: if asset's owning team matches task's project
+		if asset.OwningTeam != "" && asset.OwningTeam == task.Project {
+			score *= 1.2 // 20% boost for team-owned assets
+			if score > 1.0 {
+				score = 1.0
+			}
+			if score > bestScore {
+				reason = reason + " (team-owned asset priority)"
+			}
+		}
+
 		if score > bestScore {
 			bestScore = score
 			bestAsset = asset

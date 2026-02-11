@@ -73,8 +73,26 @@ func TestNewAsset(t *testing.T) {
 			assert.Equal(t, tt.metrics, asset.Metrics)
 			assert.NotEmpty(t, asset.ID, "Expected non-empty ID")
 			assert.Equal(t, 1, asset.Version)
+			assert.Equal(t, "Planning", asset.Status, "New assets should have Planning status by default")
+			assert.True(t, asset.LaunchDate.IsZero(), "New assets should have empty LaunchDate")
 		})
 	}
+}
+
+func TestNewAssetDefaultStatus(t *testing.T) {
+	t.Run("NewAsset sets Planning status", func(t *testing.T) {
+		asset, err := NewAsset("test-asset", "Test description")
+		require.NoError(t, err)
+		assert.Equal(t, "Planning", asset.Status)
+		assert.True(t, asset.LaunchDate.IsZero())
+	})
+
+	t.Run("NewAssetWithDetails sets Planning status", func(t *testing.T) {
+		asset, err := NewAssetWithDetails("test-asset", "desc", "why", "benefits", "how", "metrics")
+		require.NoError(t, err)
+		assert.Equal(t, "Planning", asset.Status)
+		assert.True(t, asset.LaunchDate.IsZero())
+	})
 }
 
 func TestUpdateDescription(t *testing.T) {
@@ -167,6 +185,14 @@ func TestGenerateID(t *testing.T) {
 	// Test that same names generate same IDs (deterministic)
 	id3 := generateID("test-asset")
 	assert.Equal(t, id1, id3, "Same names should generate same IDs")
+
+	// Test that names with existing cap-asset- prefix don't get double prefix
+	id4 := generateID("cap-asset-full-booking-platform")
+	assert.Equal(t, "cap-asset-full-booking-platform", id4, "Should not duplicate cap-asset- prefix")
+
+	// Test that uppercase cap-asset- prefix is also handled
+	id5 := generateID("CAP-ASSET-Partner-Widget")
+	assert.Equal(t, "cap-asset-partner-widget", id5, "Should handle uppercase prefix")
 }
 
 func TestDateStarted(t *testing.T) {

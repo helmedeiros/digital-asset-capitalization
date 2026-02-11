@@ -625,7 +625,13 @@ func (p *SprintTimeAllocationUseCase) structArrayToCSVOrdered(data []map[string]
 		record := make([]string, len(headers))
 		for i, header := range headers {
 			if val, ok := row[header]; ok {
-				record[i] = fmt.Sprintf("%v", val)
+				strVal := fmt.Sprintf("%v", val)
+				// Prefix issueKey with = and quotes to prevent Excel formula interpretation
+				// Excel interprets "COP-38" as a formula (COP minus 38)
+				if header == "issueKey" && strVal != "" {
+					strVal = "=\"" + strVal + "\""
+				}
+				record[i] = strVal
 			}
 		}
 		if err := writer.Write(record); err != nil {

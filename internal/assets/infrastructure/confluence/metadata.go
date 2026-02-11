@@ -52,8 +52,10 @@ func (a *Adapter) extractMetadata(content string) (*PageMetadata, error) {
 		return nil, fmt.Errorf("invalid content: no table found")
 	}
 
-	// Extract labels and identifier
-	metadata.Keywords = extractLabels(content)
+	// Extract keywords: table row takes priority, then merge with labels
+	tableKeywords := extractKeywordsFromTable(content)
+	labelKeywords := extractLabels(content)
+	metadata.Keywords = mergeKeywords(tableKeywords, labelKeywords)
 	metadata.Identifier = extractAssetIdentifier(content)
 
 	// Extract table values
@@ -62,7 +64,7 @@ func (a *Adapter) extractMetadata(content string) (*PageMetadata, error) {
 	metadata.How = cleanHTML(extractTableValue(content, "How it works?"))
 	metadata.Metrics = cleanHTML(extractTableValue(content, "How do we judge success?"))
 	metadata.Platform = cleanHTML(extractTableValue(content, "Pod"))
-	metadata.Status = cleanHTML(extractTableValue(content, "Status"))
+	metadata.Status = extractStatusTitle(extractTableValue(content, "Status"))
 
 	// Extract launch date
 	launchDate := extractTableValue(content, "Launch date")
@@ -307,6 +309,65 @@ func cleanHTML(input string) string {
 	return result
 }
 
+// extractKeywordsFromTable extracts keywords from the "Keywords" table row
+// The expected format is comma-separated values in a paragraph tag
+func extractKeywordsFromTable(content string) []string {
+	keywordsRaw := extractTableValue(content, "Keywords")
+	if keywordsRaw == "" {
+		return nil
+	}
+
+	// Clean the HTML to get plain text
+	keywordsText := cleanHTML(keywordsRaw)
+	if keywordsText == "" || keywordsText == "-" {
+		return nil
+	}
+
+	// Split by comma and clean up each keyword
+	parts := strings.Split(keywordsText, ",")
+	var keywords []string
+	for _, part := range parts {
+		keyword := strings.TrimSpace(part)
+		if keyword != "" {
+			keywords = append(keywords, keyword)
+		}
+	}
+
+	return keywords
+}
+
+// mergeKeywords merges keywords from table row and labels, with table taking priority
+// Deduplicates keywords (case-insensitive comparison for dedup, preserves original case)
+func mergeKeywords(tableKeywords, labelKeywords []string) []string {
+	if len(tableKeywords) == 0 && len(labelKeywords) == 0 {
+		return nil
+	}
+
+	// Use a map for deduplication (case-insensitive)
+	seen := make(map[string]bool)
+	var result []string
+
+	// Add table keywords first (they take priority)
+	for _, keyword := range tableKeywords {
+		lowerKeyword := strings.ToLower(keyword)
+		if !seen[lowerKeyword] {
+			seen[lowerKeyword] = true
+			result = append(result, keyword)
+		}
+	}
+
+	// Add label keywords that aren't duplicates
+	for _, keyword := range labelKeywords {
+		lowerKeyword := strings.ToLower(keyword)
+		if !seen[lowerKeyword] {
+			seen[lowerKeyword] = true
+			result = append(result, keyword)
+		}
+	}
+
+	return result
+}
+
 // extractLabels extracts labels from the metadata section
 func extractLabels(content string) []string {
 	// First try to find labels in the metadata.labels.results format
@@ -383,6 +444,39 @@ func extractAssetIdentifier(content string) string {
 	}
 
 	return ""
+}
+
+// extractStatusTitle extracts the status title from a Confluence status macro
+// The macro format is: <ac:structured-macro ac:name="status"><ac:parameter ac:name="title">STATUS</ac:parameter><ac:parameter ac:name="colour">Color</ac:parameter></ac:structured-macro>
+func extractStatusTitle(content string) string {
+	// Handle Unicode-encoded content
+	content = strings.ReplaceAll(content, `\u003c`, "<")
+	content = strings.ReplaceAll(content, `\u003e`, ">")
+	content = strings.ReplaceAll(content, `\u0022`, `"`)
+	// Handle escaped quotes from JSON
+	content = strings.ReplaceAll(content, `\"`, `"`)
+
+	// Look for status macro with title parameter
+	// Pattern: ac:name="title">VALUE</ac:parameter>
+	titlePattern := regexp.MustCompile(`ac:name="title"[^>]*>([^<]+)</ac:parameter>`)
+	matches := titlePattern.FindStringSubmatch(content)
+	if len(matches) > 1 {
+		return strings.TrimSpace(matches[1])
+	}
+
+	// Fallback: try to extract from plain text but strip known color suffixes
+	cleaned := cleanHTML(content)
+	cleanedLower := strings.ToLower(cleaned)
+	colors := []string{"grey", "green", "blue", "yellow", "red", "purple", "teal"}
+	for _, color := range colors {
+		if strings.HasSuffix(cleanedLower, color) {
+			// Strip the color suffix preserving original length
+			cleaned = cleaned[:len(cleaned)-len(color)]
+			break
+		}
+	}
+
+	return strings.TrimSpace(cleaned)
 }
 
 func parseDate(dateStr string) (time.Time, error) {
