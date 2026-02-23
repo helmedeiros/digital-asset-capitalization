@@ -319,7 +319,7 @@ func (a *AssetServiceAdapter) DeleteAsset(_ context.Context, name string) error 
 		return fmt.Errorf("asset '%s' not found", name)
 	}
 
-	err = a.service.DeleteAsset(name)
+	err = a.service.DeleteAsset(name, false)
 	if err != nil {
 		return fmt.Errorf("failed to delete asset: %w", err)
 	}

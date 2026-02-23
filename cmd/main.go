@@ -355,10 +355,14 @@ For more information about a command:
 						Usage: "Delete an existing asset",
 						Action: func(ctx *cli.Context) error {
 							name := ctx.String("name")
-							if err := a.assetService.DeleteAsset(name); err != nil {
+							deletePage := ctx.Bool("delete-page")
+							if err := a.assetService.DeleteAsset(name, deletePage); err != nil {
 								return err
 							}
 							fmt.Printf("Deleted asset: %s\n", name)
+							if deletePage {
+								fmt.Printf("Confluence page also deleted.\n")
+							}
 							return nil
 						},
 						Flags: []cli.Flag{
@@ -366,6 +370,10 @@ For more information about a command:
 								Name:     "name",
 								Usage:    "Asset name",
 								Required: true,
+							},
+							&cli.BoolFlag{
+								Name:  "delete-page",
+								Usage: "Also delete the associated Confluence page",
 							},
 						},
 					},

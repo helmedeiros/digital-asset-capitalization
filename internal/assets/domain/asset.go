@@ -50,6 +50,8 @@ type Asset struct {
 	Keywords []string `json:"keywords"`
 	// DocLink is the link to full Confluence documentation
 	DocLink string `json:"doc_link"`
+	// ConfluencePageID is the Confluence page ID for deletion support
+	ConfluencePageID string `json:"confluence_page_id,omitempty"`
 	// Why explains the purpose and motivation for this asset
 	Why string `json:"why"`
 	// Benefits describes the economic benefits of this asset

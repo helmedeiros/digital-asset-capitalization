@@ -88,6 +88,11 @@ func (m *MockConfluenceAdapter) FetchPage(ctx context.Context, pageID string) (*
 	return args.Get(0).(*confluence.Page), args.Error(1)
 }
 
+func (m *MockConfluenceAdapter) DeletePage(ctx context.Context, pageID string) error {
+	args := m.Called(ctx, pageID)
+	return args.Error(0)
+}
+
 var _ ConfluenceAdapter = (*MockConfluenceAdapter)(nil)
 
 // ConfigServiceInterface defines the minimal interface needed for asset service
@@ -1047,7 +1052,7 @@ func TestDeleteAsset(t *testing.T) {
 			tt.setupMock(mockRepo)
 			service := NewAssetServiceLegacy(mockRepo, id.NewHashIDGenerator())
 
-			err := service.DeleteAsset(tt.assetName)
+			err := service.DeleteAsset(tt.assetName, false)
 
 			if tt.expectedError != nil {
 				require.Error(t, err)
@@ -1059,6 +1064,131 @@ func TestDeleteAsset(t *testing.T) {
 			mockRepo.AssertExpectations(t)
 		})
 	}
+}
+
+func TestDeleteAssetWithConfluencePage(t *testing.T) {
+	tests := []struct {
+		name          string
+		assetName     string
+		deletePage    bool
+		setupMock     func(*MockAssetRepository, *MockConfluenceAdapter)
+		expectedError string
+	}{
+		{
+			name:       "delete with confluence page using ConfluencePageID",
+			assetName:  "test-asset",
+			deletePage: true,
+			setupMock: func(repo *MockAssetRepository, conf *MockConfluenceAdapter) {
+				asset := &domain.Asset{
+					Name:             "test-asset",
+					ConfluencePageID: "12345",
+				}
+				repo.On("FindByName", "test-asset").Return(asset, nil)
+				conf.On("DeletePage", mock.Anything, "12345").Return(nil)
+				repo.On("Delete", "test-asset").Return(nil)
+			},
+		},
+		{
+			name:       "delete with confluence page using DocLink fallback",
+			assetName:  "test-asset",
+			deletePage: true,
+			setupMock: func(repo *MockAssetRepository, conf *MockConfluenceAdapter) {
+				asset := &domain.Asset{
+					Name:    "test-asset",
+					DocLink: "https://example.atlassian.net/wiki/spaces/TEST/pages/67890/Test+Asset",
+				}
+				repo.On("FindByName", "test-asset").Return(asset, nil)
+				conf.On("DeletePage", mock.Anything, "67890").Return(nil)
+				repo.On("Delete", "test-asset").Return(nil)
+			},
+		},
+		{
+			name:       "delete with confluence page - no page ID found",
+			assetName:  "test-asset",
+			deletePage: true,
+			setupMock: func(repo *MockAssetRepository, _ *MockConfluenceAdapter) {
+				asset := &domain.Asset{
+					Name: "test-asset",
+				}
+				repo.On("FindByName", "test-asset").Return(asset, nil)
+			},
+			expectedError: "no Confluence page ID found for asset 'test-asset'",
+		},
+		{
+			name:       "delete with confluence page - asset not found",
+			assetName:  "test-asset",
+			deletePage: true,
+			setupMock: func(repo *MockAssetRepository, _ *MockConfluenceAdapter) {
+				repo.On("FindByName", "test-asset").Return(nil, fmt.Errorf("not found"))
+			},
+			expectedError: "asset not found: test-asset",
+		},
+		{
+			name:       "delete with confluence page - confluence error",
+			assetName:  "test-asset",
+			deletePage: true,
+			setupMock: func(repo *MockAssetRepository, conf *MockConfluenceAdapter) {
+				asset := &domain.Asset{
+					Name:             "test-asset",
+					ConfluencePageID: "12345",
+				}
+				repo.On("FindByName", "test-asset").Return(asset, nil)
+				conf.On("DeletePage", mock.Anything, "12345").Return(fmt.Errorf("confluence error"))
+			},
+			expectedError: "failed to delete Confluence page: confluence error",
+		},
+		{
+			name:       "delete without confluence page flag",
+			assetName:  "test-asset",
+			deletePage: false,
+			setupMock: func(repo *MockAssetRepository, _ *MockConfluenceAdapter) {
+				repo.On("Delete", "test-asset").Return(nil)
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			mockRepo := new(MockAssetRepository)
+			mockConfluence := new(MockConfluenceAdapter)
+			tt.setupMock(mockRepo, mockConfluence)
+
+			service := &AssetServiceImpl{
+				repo:       mockRepo,
+				confluence: mockConfluence,
+			}
+
+			err := service.DeleteAsset(tt.assetName, tt.deletePage)
+
+			if tt.expectedError != "" {
+				require.Error(t, err)
+				assert.Equal(t, tt.expectedError, err.Error())
+			} else {
+				require.NoError(t, err)
+			}
+
+			mockRepo.AssertExpectations(t)
+			mockConfluence.AssertExpectations(t)
+		})
+	}
+}
+
+func TestDeleteAssetWithNilConfluenceAdapter(t *testing.T) {
+	mockRepo := new(MockAssetRepository)
+	asset := &domain.Asset{
+		Name:             "test-asset",
+		ConfluencePageID: "12345",
+	}
+	mockRepo.On("FindByName", "test-asset").Return(asset, nil)
+
+	service := &AssetServiceImpl{
+		repo:       mockRepo,
+		confluence: nil,
+	}
+
+	err := service.DeleteAsset("test-asset", true)
+	require.Error(t, err)
+	assert.Equal(t, "confluence adapter not configured", err.Error())
 }
 
 func TestSyncFromConfluenceEnvironmentFallback(t *testing.T) {

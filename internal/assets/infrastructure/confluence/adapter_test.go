@@ -1181,3 +1181,71 @@ func TestUpdatePage_InvalidResponseJSON(t *testing.T) {
 		t.Error("Expected error for invalid JSON response")
 	}
 }
+
+func TestDeletePage(t *testing.T) {
+	tests := []struct {
+		name        string
+		pageID      string
+		statusCode  int
+		expectError bool
+		errContains string
+	}{
+		{
+			name:        "successful deletion",
+			pageID:      "12345",
+			statusCode:  http.StatusNoContent,
+			expectError: false,
+		},
+		{
+			name:        "page not found",
+			pageID:      "99999",
+			statusCode:  http.StatusNotFound,
+			expectError: true,
+			errContains: "confluence page not found",
+		},
+		{
+			name:        "server error",
+			pageID:      "12345",
+			statusCode:  http.StatusInternalServerError,
+			expectError: true,
+			errContains: "failed to delete page",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				if r.Method != "DELETE" {
+					t.Errorf("Expected DELETE method, got %s", r.Method)
+				}
+				expectedPath := "/wiki/rest/api/content/" + tt.pageID
+				if r.URL.Path != expectedPath {
+					t.Errorf("Expected path %s, got %s", expectedPath, r.URL.Path)
+				}
+				w.WriteHeader(tt.statusCode)
+			}))
+			defer server.Close()
+
+			config := &Config{
+				BaseURL:  server.URL,
+				Username: "test@example.com",
+				Token:    "test-token",
+			}
+			adapter := NewAdapter(config, id.NewHashIDGenerator())
+
+			err := adapter.DeletePage(context.Background(), tt.pageID)
+
+			if tt.expectError {
+				if err == nil {
+					t.Error("Expected error but got nil")
+				} else if !strings.Contains(err.Error(), tt.errContains) {
+					t.Errorf("Expected error containing %q, got %q", tt.errContains, err.Error())
+				}
+			} else {
+				if err != nil {
+					t.Errorf("Expected no error, got %v", err)
+				}
+			}
+		})
+	}
+}

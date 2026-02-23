@@ -317,23 +317,24 @@ func (a *Adapter) convertPageToAsset(page Page) (*domain.Asset, error) {
 
 	now := time.Now()
 	asset := &domain.Asset{
-		ID:              metadata.Identifier,
-		Name:            page.Title,
-		Description:     metadata.Description,
-		Why:             metadata.Why,
-		Benefits:        metadata.Benefits,
-		How:             metadata.How,
-		Metrics:         metadata.Metrics,
-		CreatedAt:       now,
-		UpdatedAt:       now,
-		LastDocUpdateAt: now,
-		Version:         1,
-		Platform:        metadata.Platform,
-		Status:          metadata.Status,
-		LaunchDate:      metadata.LaunchDate,
-		IsRolledOut100:  metadata.IsRolledOut100,
-		Keywords:        metadata.Keywords,
-		DocLink:         docLink,
+		ID:               metadata.Identifier,
+		Name:             page.Title,
+		Description:      metadata.Description,
+		Why:              metadata.Why,
+		Benefits:         metadata.Benefits,
+		How:              metadata.How,
+		Metrics:          metadata.Metrics,
+		CreatedAt:        now,
+		UpdatedAt:        now,
+		LastDocUpdateAt:  now,
+		Version:          1,
+		Platform:         metadata.Platform,
+		Status:           metadata.Status,
+		LaunchDate:       metadata.LaunchDate,
+		IsRolledOut100:   metadata.IsRolledOut100,
+		Keywords:         metadata.Keywords,
+		DocLink:          docLink,
+		ConfluencePageID: page.ID,
 	}
 
 	return asset, nil
@@ -589,6 +590,41 @@ func (a *Adapter) UpdatePage(ctx context.Context, pageID, title, spaceKey, conte
 		Title:    updatedPage.Title,
 		Created:  false, // This is an update, not a create
 	}, nil
+}
+
+// DeletePage deletes a page from Confluence by its ID
+func (a *Adapter) DeletePage(ctx context.Context, pageID string) error {
+	baseURL := strings.TrimRight(a.config.BaseURL, "/")
+	apiURL := fmt.Sprintf("%s/wiki/rest/api/content/%s", baseURL, pageID)
+
+	if a.config.Debug {
+		fmt.Printf("Deleting Confluence page: %s\n", pageID)
+		fmt.Printf("Request URL: %s\n", apiURL)
+	}
+
+	req, err := http.NewRequestWithContext(ctx, "DELETE", apiURL, nil)
+	if err != nil {
+		return fmt.Errorf("failed to create request: %v", err)
+	}
+
+	req.SetBasicAuth(a.config.Username, a.config.Token)
+
+	resp, err := a.httpClient.Do(req)
+	if err != nil {
+		return fmt.Errorf("failed to make request: %v", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode == http.StatusNotFound {
+		return fmt.Errorf("confluence page not found: %s", pageID)
+	}
+
+	if resp.StatusCode != http.StatusNoContent {
+		body, _ := io.ReadAll(resp.Body)
+		return fmt.Errorf("failed to delete page: status %d, body: %s", resp.StatusCode, string(body))
+	}
+
+	return nil
 }
 
 // PageExistsByTitle checks if a page with the given title exists in the space

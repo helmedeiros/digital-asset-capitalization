@@ -40,6 +40,8 @@ type LlamaClient interface {
 type ConfluenceAdapter interface {
 	// FetchPage fetches a page from Confluence
 	FetchPage(ctx context.Context, pageID string) (*confluence.Page, error)
+	// DeletePage deletes a page from Confluence by its ID
+	DeletePage(ctx context.Context, pageID string) error
 }
 
 // AssetService defines the interface for asset management operations
@@ -50,8 +52,8 @@ type AssetService interface {
 	ListAssets() ([]*domain.Asset, error)
 	// GetAsset returns an asset by name
 	GetAsset(identifier string) (*domain.Asset, error)
-	// DeleteAsset deletes an asset by name
-	DeleteAsset(name string) error
+	// DeleteAsset deletes an asset by name, optionally deleting its Confluence page
+	DeleteAsset(name string, deleteConfluencePage bool) error
 	// UpdateAsset updates an asset's name and description
 	UpdateAsset(name, description, why, benefits, how, metrics string) error
 	// UpdateDocumentation marks the documentation for an asset as updated

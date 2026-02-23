@@ -57,7 +57,7 @@ func TestRunCommandsSuccess(t *testing.T) {
 			name: "delete asset",
 			args: []string{"assets", "delete", "--name", "Test Asset"},
 			setup: func(mas *MockAssetService, _ *MockTaskService, _ *MockSprintService) {
-				mas.On("DeleteAsset", "Test Asset").Return(nil)
+				mas.On("DeleteAsset", "Test Asset", false).Return(nil)
 			},
 			wantErr: false,
 		},
@@ -65,9 +65,17 @@ func TestRunCommandsSuccess(t *testing.T) {
 			name: "delete asset not found",
 			args: []string{"assets", "delete", "--name", "Nonexistent"},
 			setup: func(mas *MockAssetService, _ *MockTaskService, _ *MockSprintService) {
-				mas.On("DeleteAsset", "Nonexistent").Return(errors.New("asset not found: Nonexistent"))
+				mas.On("DeleteAsset", "Nonexistent", false).Return(errors.New("asset not found: Nonexistent"))
 			},
 			wantErr: true,
+		},
+		{
+			name: "delete asset with delete-page flag",
+			args: []string{"assets", "delete", "--name", "Test Asset", "--delete-page"},
+			setup: func(mas *MockAssetService, _ *MockTaskService, _ *MockSprintService) {
+				mas.On("DeleteAsset", "Test Asset", true).Return(nil)
+			},
+			wantErr: false,
 		},
 		{
 			name: "list empty assets",
