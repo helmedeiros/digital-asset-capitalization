@@ -1,39 +1,59 @@
+version: "2"
+
 linters:
   enable:
-    - gofmt
     - revive
     - govet
     - errcheck
     - staticcheck
-    - gosimple
     - ineffassign
     - unconvert
     - goconst
-    - goimports
     - misspell
     - unparam
     - prealloc
+  settings:
+    revive:
+      confidence: 0.8
+      rules:
+        - name: exported
+          disabled: true
+        - name: package-comments
+          disabled: true
+    errcheck:
+      exclude-functions:
+        - (io.Closer).Close
+        - (*os.File).Close
+        - (net/http.Response.Body).Close
+        - fmt.Fprintf
+        - fmt.Fprintln
+        - os.Remove
+        - os.Setenv
+    staticcheck:
+      checks:
+        - "all"
+        - "-ST*"
+        - "-QF*"
+  exclusions:
+    paths:
+      - testutil
+    rules:
+      - path: _test\.go
+        linters:
+          - errcheck
+          - gosec
+          - prealloc
 
-linters-settings:
-  gofmt:
-    simplify: true
-  goimports:
-    local-prefixes: github.com/helmedeiros/digital-asset-capitalization
-  revive:
-    min-confidence: 0.8
+formatters:
+  enable:
+    - gofmt
+    - goimports
+  settings:
+    gofmt:
+      simplify: true
+    goimports:
+      local-prefixes:
+        - github.com/helmedeiros/digital-asset-capitalization
 
 run:
-  deadline: 5m
   tests: true
-
-issues:
-  exclude-dirs:
-    - testutil
-  exclude-rules:
-    - path: _test\.go
-      linters:
-        - errcheck
-        - gosec
-
-  max-issues-per-linter: 0
-  max-same-issues: 0
