@@ -358,10 +358,16 @@ type PagePublishResult struct {
 
 // CreatePageRequest represents the request body for creating a Confluence page
 type CreatePageRequest struct {
-	Type  string          `json:"type"`
-	Title string          `json:"title"`
-	Space CreatePageSpace `json:"space"`
-	Body  CreatePageBody  `json:"body"`
+	Type      string               `json:"type"`
+	Title     string               `json:"title"`
+	Space     CreatePageSpace      `json:"space"`
+	Body      CreatePageBody       `json:"body"`
+	Ancestors []CreatePageAncestor `json:"ancestors,omitempty"`
+}
+
+// CreatePageAncestor represents a parent page ancestor
+type CreatePageAncestor struct {
+	ID string `json:"id"`
 }
 
 // CreatePageSpace represents the space key in a create page request

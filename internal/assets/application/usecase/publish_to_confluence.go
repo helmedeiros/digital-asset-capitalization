@@ -12,10 +12,11 @@ import (
 
 // PublishToConfluenceInput represents the input for publishing an asset to Confluence
 type PublishToConfluenceInput struct {
-	AssetName string // Name of the asset to publish
-	SpaceKey  string // Confluence space key to publish to
-	DryRun    bool   // If true, only preview what would be created
-	Debug     bool   // Enable debug output
+	AssetName    string // Name of the asset to publish
+	SpaceKey     string // Confluence space key to publish to
+	ParentPageID string // Optional parent page ID for page hierarchy
+	DryRun       bool   // If true, only preview what would be created
+	Debug        bool   // Enable debug output
 }
 
 // PublishToConfluenceResult represents the result of the publish operation
@@ -33,7 +34,7 @@ type PublishToConfluenceResult struct {
 
 // ConfluencePublisher defines the interface for publishing to Confluence
 type ConfluencePublisher interface {
-	CreatePage(ctx context.Context, title, spaceKey, content string) (*confluence.PagePublishResult, error)
+	CreatePage(ctx context.Context, title, spaceKey, content, parentPageID string) (*confluence.PagePublishResult, error)
 	AddLabels(ctx context.Context, pageID string, labels []string) error
 	PageExistsByTitle(ctx context.Context, spaceKey, title string) (bool, string, error)
 }
@@ -106,7 +107,7 @@ func (uc *PublishToConfluenceUseCase) Execute(ctx context.Context, input Publish
 	}
 
 	// Create the page
-	publishResult, err := uc.publisher.CreatePage(ctx, asset.Name, input.SpaceKey, pageContent)
+	publishResult, err := uc.publisher.CreatePage(ctx, asset.Name, input.SpaceKey, pageContent, input.ParentPageID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create page: %w", err)
 	}

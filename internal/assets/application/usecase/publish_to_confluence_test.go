@@ -54,8 +54,8 @@ type MockConfluencePublisher struct {
 	mock.Mock
 }
 
-func (m *MockConfluencePublisher) CreatePage(ctx context.Context, title, spaceKey, content string) (*confluence.PagePublishResult, error) {
-	args := m.Called(ctx, title, spaceKey, content)
+func (m *MockConfluencePublisher) CreatePage(ctx context.Context, title, spaceKey, content, parentPageID string) (*confluence.PagePublishResult, error) {
+	args := m.Called(ctx, title, spaceKey, content, parentPageID)
 	if args.Get(0) == nil {
 		return nil, args.Error(1)
 	}
@@ -112,7 +112,7 @@ func TestPublishToConfluenceUseCase_Execute(t *testing.T) {
 
 		mockRepo.On("FindByName", "Test Asset").Return(asset, nil)
 		mockPublisher.On("PageExistsByTitle", ctx, "SPACE", "Test Asset").Return(false, "", nil)
-		mockPublisher.On("CreatePage", ctx, "Test Asset", "SPACE", mock.Anything).Return(&confluence.PagePublishResult{
+		mockPublisher.On("CreatePage", ctx, "Test Asset", "SPACE", mock.Anything, mock.Anything).Return(&confluence.PagePublishResult{
 			PageID:   "12345",
 			PageURL:  "https://confluence.example.com/wiki/spaces/SPACE/pages/12345/Test+Asset",
 			SpaceKey: "SPACE",
@@ -268,7 +268,7 @@ func TestPublishToConfluenceUseCase_Execute(t *testing.T) {
 
 		mockRepo.On("FindByName", "Fail Asset").Return(asset, nil)
 		mockPublisher.On("PageExistsByTitle", ctx, "SPACE", "Fail Asset").Return(false, "", nil)
-		mockPublisher.On("CreatePage", ctx, "Fail Asset", "SPACE", mock.Anything).Return(nil, errors.New("confluence API error"))
+		mockPublisher.On("CreatePage", ctx, "Fail Asset", "SPACE", mock.Anything, mock.Anything).Return(nil, errors.New("confluence API error"))
 
 		useCase := NewPublishToConfluenceUseCase(mockRepo, mockPublisher, mockIDGen)
 
@@ -294,7 +294,7 @@ func TestPublishToConfluenceUseCase_Execute(t *testing.T) {
 
 		mockRepo.On("FindByName", "Label Fail Asset").Return(asset, nil)
 		mockPublisher.On("PageExistsByTitle", ctx, "SPACE", "Label Fail Asset").Return(false, "", nil)
-		mockPublisher.On("CreatePage", ctx, "Label Fail Asset", "SPACE", mock.Anything).Return(&confluence.PagePublishResult{
+		mockPublisher.On("CreatePage", ctx, "Label Fail Asset", "SPACE", mock.Anything, mock.Anything).Return(&confluence.PagePublishResult{
 			PageID:   "12345",
 			PageURL:  "https://confluence.example.com/wiki/spaces/SPACE/pages/12345",
 			SpaceKey: "SPACE",
@@ -330,7 +330,7 @@ func TestPublishToConfluenceUseCase_Execute(t *testing.T) {
 
 		mockRepo.On("FindByName", "New Format Asset").Return(asset, nil)
 		mockPublisher.On("PageExistsByTitle", ctx, "SPACE", "New Format Asset").Return(false, "", nil)
-		mockPublisher.On("CreatePage", ctx, "New Format Asset", "SPACE", mock.Anything).Return(&confluence.PagePublishResult{
+		mockPublisher.On("CreatePage", ctx, "New Format Asset", "SPACE", mock.Anything, mock.Anything).Return(&confluence.PagePublishResult{
 			PageID:   "12345",
 			PageURL:  "https://confluence.example.com/wiki/spaces/SPACE/pages/12345",
 			SpaceKey: "SPACE",

@@ -467,16 +467,21 @@ func (s *AssetServiceImpl) AssignTeam(assetName, owningTeam string, contributing
 		return fmt.Errorf("failed to find asset: %w", err)
 	}
 
-	// Update owning team if provided
+	// Resolve and update owning team if provided
 	if owningTeam != "" {
+		owningTeam = s.resolveTeamIdentifier(owningTeam)
 		if err := asset.SetOwningTeam(owningTeam); err != nil {
 			return fmt.Errorf("failed to set owning team: %w", err)
 		}
 	}
 
-	// Update contributing teams if provided
+	// Resolve and update contributing teams if provided
 	if len(contributingTeams) > 0 {
-		if err := asset.SetContributingTeams(contributingTeams); err != nil {
+		resolved := make([]string, len(contributingTeams))
+		for i, ct := range contributingTeams {
+			resolved[i] = s.resolveTeamIdentifier(ct)
+		}
+		if err := asset.SetContributingTeams(resolved); err != nil {
 			return fmt.Errorf("failed to set contributing teams: %w", err)
 		}
 	}
@@ -547,7 +552,8 @@ func (s *AssetServiceImpl) AddContributingTeam(assetName, teamName string) error
 		return fmt.Errorf("failed to find asset: %w", err)
 	}
 
-	// Add the contributing team
+	// Resolve and add the contributing team
+	teamName = s.resolveTeamIdentifier(teamName)
 	if err := asset.AddContributingTeam(teamName); err != nil {
 		return fmt.Errorf("failed to add contributing team: %w", err)
 	}
@@ -623,7 +629,7 @@ func (s *AssetServiceImpl) normalizeSpaceKey(spaceKey string) string {
 }
 
 // PublishToConfluence publishes an asset as a new page in Confluence
-func (s *AssetServiceImpl) PublishToConfluence(ctx context.Context, assetName, spaceKey string, dryRun, debug bool) (*PublishToConfluenceResult, error) {
+func (s *AssetServiceImpl) PublishToConfluence(ctx context.Context, assetName, spaceKey, parentPageID string, dryRun, debug bool) (*PublishToConfluenceResult, error) {
 	// Validate input
 	if assetName == "" {
 		return nil, fmt.Errorf("asset name is required")
@@ -708,8 +714,13 @@ func (s *AssetServiceImpl) PublishToConfluence(ctx context.Context, assetName, s
 		}, nil
 	}
 
+	// Resolve parent page ID: CLI flag overrides team config lookup
+	if parentPageID == "" {
+		parentPageID = s.getConfluenceParentPageForTeam(owningTeam)
+	}
+
 	// Create the page
-	publishResult, err := adapter.CreatePage(ctx, asset.Name, spaceKey, pageContent)
+	publishResult, err := adapter.CreatePage(ctx, asset.Name, spaceKey, pageContent, parentPageID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create page: %w", err)
 	}
@@ -937,4 +948,37 @@ func (s *AssetServiceImpl) getCompanyForTeam(teamName string) string {
 	}
 
 	return teamConfig.GetCompany(teamName)
+}
+
+// getConfluenceParentPageForTeam looks up the Confluence parent page ID for a given team name
+func (s *AssetServiceImpl) getConfluenceParentPageForTeam(teamName string) string {
+	if teamName == "" || s.configService == nil {
+		return ""
+	}
+
+	teamConfig, err := s.configService.GetTeamConfig()
+	if err != nil {
+		return ""
+	}
+
+	return teamConfig.GetConfluenceParentPage(teamName)
+}
+
+// resolveTeamIdentifier resolves a team identifier (nickname or project code) to the canonical project code
+func (s *AssetServiceImpl) resolveTeamIdentifier(identifier string) string {
+	if s.configService == nil {
+		return identifier
+	}
+
+	teamConfig, err := s.configService.GetTeamConfig()
+	if err != nil {
+		return identifier
+	}
+
+	resolved, err := teamConfig.ResolveTeamIdentifier(identifier)
+	if err != nil {
+		return identifier
+	}
+
+	return resolved
 }

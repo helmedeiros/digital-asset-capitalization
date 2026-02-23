@@ -13,7 +13,7 @@ func TestDefaultConfig(t *testing.T) {
 	config := DefaultConfig()
 
 	assert.Equal(t, "http://localhost:11434", config.BaseURL)
-	assert.Equal(t, "llama3", config.Model)
+	assert.Equal(t, "llama4", config.Model)
 }
 
 func TestNewInterpreter(t *testing.T) {
@@ -33,11 +33,11 @@ func TestNewInterpreter(t *testing.T) {
 func TestConfig_Values(t *testing.T) {
 	config := Config{
 		BaseURL: "http://localhost:11434",
-		Model:   "llama3",
+		Model:   "llama4",
 	}
 
 	assert.Equal(t, "http://localhost:11434", config.BaseURL)
-	assert.Equal(t, "llama3", config.Model)
+	assert.Equal(t, "llama4", config.Model)
 }
 
 func TestInterpreter_buildContextInfo(t *testing.T) {
@@ -165,7 +165,7 @@ func TestInterpreter_GetClarification_Fallback(t *testing.T) {
 	// This test verifies the fallback behavior when LLaMA is not available
 	interpreter := NewInterpreter(Config{
 		BaseURL: "http://invalid-url:11434", // This will cause an error
-		Model:   "llama3",
+		Model:   "llama4",
 	})
 	ctx := context.Background()
 

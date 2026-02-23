@@ -25,7 +25,7 @@ type MockAssetService struct {
 	getAssetTeamInfoFunc       func(assetName string) (*application.AssetTeamInfo, error)
 	addContributingTeamFunc       func(assetName, teamName string) error
 	removeContributingTeamFunc    func(assetName, teamName string) error
-	publishToConfluenceFunc       func(ctx context.Context, assetName, spaceKey string, dryRun, debug bool) (*application.PublishToConfluenceResult, error)
+	publishToConfluenceFunc       func(ctx context.Context, assetName, spaceKey, parentPageID string, dryRun, debug bool) (*application.PublishToConfluenceResult, error)
 	updateConfluencePageFunc      func(ctx context.Context, assetName string, dryRun, debug bool) (*application.PublishToConfluenceResult, error)
 }
 
@@ -197,9 +197,9 @@ func (m *MockAssetService) Reset() {
 }
 
 // PublishToConfluence publishes an asset to Confluence
-func (m *MockAssetService) PublishToConfluence(ctx context.Context, assetName, spaceKey string, dryRun, debug bool) (*application.PublishToConfluenceResult, error) {
+func (m *MockAssetService) PublishToConfluence(ctx context.Context, assetName, spaceKey, parentPageID string, dryRun, debug bool) (*application.PublishToConfluenceResult, error) {
 	if m.publishToConfluenceFunc != nil {
-		return m.publishToConfluenceFunc(ctx, assetName, spaceKey, dryRun, debug)
+		return m.publishToConfluenceFunc(ctx, assetName, spaceKey, parentPageID, dryRun, debug)
 	}
 	return nil, nil
 }
