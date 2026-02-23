@@ -530,12 +530,13 @@ func (p *SprintTimeAllocationUseCase) getSubTaskTimeRange(subTasks []domain.Jira
 }
 
 func (p *SprintTimeAllocationUseCase) generateCSV(team domain.Team, results []map[string]interface{}) (string, error) {
-	headers := []string{"sprint", "issueKey", "issueType", "issueTitle", "workType", "assetName", "status", "dateStarted", "dateCompleted"}
-
 	// Sort engineer names alphabetically before adding to headers
 	sortedTeamMembers := make([]string, len(team.Team))
 	copy(sortedTeamMembers, team.Team)
 	sort.Strings(sortedTeamMembers)
+
+	headers := make([]string, 0, 9+len(sortedTeamMembers))
+	headers = append(headers, "sprint", "issueKey", "issueType", "issueTitle", "workType", "assetName", "status", "dateStarted", "dateCompleted")
 
 	headers = append(headers, sortedTeamMembers...)
 
