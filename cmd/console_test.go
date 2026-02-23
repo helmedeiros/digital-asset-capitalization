@@ -441,7 +441,7 @@ func TestAssetServiceAdapter_DeleteAsset(t *testing.T) {
 			setupMock: func() {
 				asset := &domain.Asset{Name: "Test Asset"}
 				mockService.On("GetAsset", "Test Asset").Return(asset, nil)
-				mockService.On("DeleteAsset", "Test Asset").Return(nil)
+				mockService.On("DeleteAsset", "Test Asset", false).Return(nil)
 			},
 			expectError: false,
 		},
@@ -459,7 +459,7 @@ func TestAssetServiceAdapter_DeleteAsset(t *testing.T) {
 			setupMock: func() {
 				asset := &domain.Asset{Name: "Test Asset"}
 				mockService.On("GetAsset", "Test Asset").Return(asset, nil)
-				mockService.On("DeleteAsset", "Test Asset").Return(errors.New("delete failed"))
+				mockService.On("DeleteAsset", "Test Asset", false).Return(errors.New("delete failed"))
 			},
 			expectError: true,
 		},

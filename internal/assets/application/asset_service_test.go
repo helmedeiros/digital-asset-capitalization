@@ -47,7 +47,7 @@ func (m *MockAssetService) GetAsset(name string) (*domain.Asset, error) {
 	return nil, errors.New("asset not found")
 }
 
-func (m *MockAssetService) DeleteAsset(name string) error {
+func (m *MockAssetService) DeleteAsset(name string, _ bool) error {
 	if _, exists := m.assets[name]; !exists {
 		return errors.New("asset not found")
 	}
@@ -252,7 +252,7 @@ func TestAssetService(t *testing.T) {
 	})
 
 	t.Run("DeleteAsset", func(t *testing.T) {
-		err := service.DeleteAsset("test-asset")
+		err := service.DeleteAsset("test-asset", false)
 		assert.NoError(t, err)
 
 		// Verify asset is deleted
@@ -260,7 +260,7 @@ func TestAssetService(t *testing.T) {
 		assert.Error(t, err)
 
 		// Test deleting non-existent asset
-		err = service.DeleteAsset("non-existent")
+		err = service.DeleteAsset("non-existent", false)
 		assert.Error(t, err)
 		assert.Equal(t, "asset not found", err.Error())
 	})

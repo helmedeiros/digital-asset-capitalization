@@ -147,8 +147,36 @@ func (s *AssetServiceImpl) GetAsset(identifier string) (*domain.Asset, error) {
 	return asset, nil
 }
 
-// DeleteAsset deletes an asset by name
-func (s *AssetServiceImpl) DeleteAsset(name string) error {
+// DeleteAsset deletes an asset by name, optionally deleting its Confluence page
+func (s *AssetServiceImpl) DeleteAsset(name string, deleteConfluencePage bool) error {
+	if deleteConfluencePage {
+		asset, err := s.repo.FindByName(name)
+		if err != nil {
+			return fmt.Errorf("asset not found: %s", name)
+		}
+
+		pageID := asset.ConfluencePageID
+		if pageID == "" && asset.DocLink != "" {
+			extractedID, _, extractErr := s.extractPageInfoFromDocLink(asset.DocLink)
+			if extractErr == nil {
+				pageID = extractedID
+			}
+		}
+
+		if pageID == "" {
+			return fmt.Errorf("no Confluence page ID found for asset '%s'", name)
+		}
+
+		if s.confluence == nil {
+			return fmt.Errorf("confluence adapter not configured")
+		}
+
+		ctx := context.Background()
+		if err := s.confluence.DeletePage(ctx, pageID); err != nil {
+			return fmt.Errorf("failed to delete Confluence page: %w", err)
+		}
+	}
+
 	return s.repo.Delete(name)
 }
 
@@ -693,9 +721,10 @@ func (s *AssetServiceImpl) PublishToConfluence(ctx context.Context, assetName, s
 		fmt.Printf("Warning: failed to add labels to page %s: %v\n", publishResult.PageID, labelsErr)
 	}
 
-	// Update asset with DocLink
+	// Update asset with DocLink and ConfluencePageID
 	docLinkSaved := false
 	asset.DocLink = publishResult.PageURL
+	asset.ConfluencePageID = publishResult.PageID
 	asset.UpdatedAt = time.Now()
 	asset.Version++
 	if err := s.repo.Save(asset); err != nil {
@@ -819,9 +848,10 @@ func (s *AssetServiceImpl) UpdateConfluencePage(ctx context.Context, assetName s
 		return nil, fmt.Errorf("failed to update page: %w", err)
 	}
 
-	// Update asset timestamp and DocLink if it changed (e.g., page was moved)
+	// Update asset timestamp, ConfluencePageID and DocLink if it changed (e.g., page was moved)
 	asset.UpdatedAt = time.Now()
 	asset.Version++
+	asset.ConfluencePageID = updateResult.PageID
 	if updateResult.PageURL != "" && updateResult.PageURL != asset.DocLink {
 		if debug {
 			fmt.Printf("Updating DocLink from '%s' to '%s'\n", asset.DocLink, updateResult.PageURL)

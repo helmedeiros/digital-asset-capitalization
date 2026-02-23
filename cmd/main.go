@@ -351,6 +351,33 @@ For more information about a command:
 						},
 					},
 					{
+						Name:  "delete",
+						Usage: "Delete an existing asset",
+						Action: func(ctx *cli.Context) error {
+							name := ctx.String("name")
+							deletePage := ctx.Bool("delete-page")
+							if err := a.assetService.DeleteAsset(name, deletePage); err != nil {
+								return err
+							}
+							fmt.Printf("Deleted asset: %s\n", name)
+							if deletePage {
+								fmt.Printf("Confluence page also deleted.\n")
+							}
+							return nil
+						},
+						Flags: []cli.Flag{
+							&cli.StringFlag{
+								Name:     "name",
+								Usage:    "Asset name",
+								Required: true,
+							},
+							&cli.BoolFlag{
+								Name:  "delete-page",
+								Usage: "Also delete the associated Confluence page",
+							},
+						},
+					},
+					{
 						Name:  "list",
 						Usage: "List all assets",
 						Action: func(_ *cli.Context) error {

@@ -12,7 +12,7 @@ type MockAssetService struct {
 	createAssetFunc            func(name, description string) error
 	listAssetsFunc             func() ([]*domain.Asset, error)
 	getAssetFunc               func(identifier string) (*domain.Asset, error)
-	deleteAssetFunc            func(name string) error
+	deleteAssetFunc            func(name string, deleteConfluencePage bool) error
 	updateAssetFunc            func(name, description, why, benefits, how, metrics string) error
 	updateDocumentationFunc    func(assetName string) error
 	incrementTaskCountFunc     func(name string) error
@@ -59,9 +59,9 @@ func (m *MockAssetService) GetAsset(identifier string) (*domain.Asset, error) {
 }
 
 // DeleteAsset deletes an asset by name
-func (m *MockAssetService) DeleteAsset(name string) error {
+func (m *MockAssetService) DeleteAsset(name string, deleteConfluencePage bool) error {
 	if m.deleteAssetFunc != nil {
-		return m.deleteAssetFunc(name)
+		return m.deleteAssetFunc(name, deleteConfluencePage)
 	}
 	return nil
 }

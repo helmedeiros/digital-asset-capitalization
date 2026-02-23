@@ -69,8 +69,8 @@ func (m *MockAssetService) EnrichAsset(name, field string) error {
 	return args.Error(0)
 }
 
-func (m *MockAssetService) DeleteAsset(name string) error {
-	args := m.Called(name)
+func (m *MockAssetService) DeleteAsset(name string, deleteConfluencePage bool) error {
+	args := m.Called(name, deleteConfluencePage)
 	return args.Error(0)
 }
 

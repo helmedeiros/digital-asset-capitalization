@@ -32,7 +32,7 @@ func TestMockAssetService_DefaultBehavior(t *testing.T) {
 		t.Errorf("Expected asset name to be 'test', got %s", asset.Name)
 	}
 
-	err = mock.DeleteAsset("test")
+	err = mock.DeleteAsset("test", false)
 	if err != nil {
 		t.Errorf("Expected no error, got %v", err)
 	}

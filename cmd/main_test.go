@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	"os"
 	"path/filepath"
 	"testing"
@@ -49,6 +50,30 @@ func TestRunCommandsSuccess(t *testing.T) {
 			args: []string{"assets", "create", "--name", "Test Asset", "--description", "Test Description"},
 			setup: func(mas *MockAssetService, _ *MockTaskService, _ *MockSprintService) {
 				mas.On("CreateAsset", "Test Asset", "Test Description").Return(nil)
+			},
+			wantErr: false,
+		},
+		{
+			name: "delete asset",
+			args: []string{"assets", "delete", "--name", "Test Asset"},
+			setup: func(mas *MockAssetService, _ *MockTaskService, _ *MockSprintService) {
+				mas.On("DeleteAsset", "Test Asset", false).Return(nil)
+			},
+			wantErr: false,
+		},
+		{
+			name: "delete asset not found",
+			args: []string{"assets", "delete", "--name", "Nonexistent"},
+			setup: func(mas *MockAssetService, _ *MockTaskService, _ *MockSprintService) {
+				mas.On("DeleteAsset", "Nonexistent", false).Return(errors.New("asset not found: Nonexistent"))
+			},
+			wantErr: true,
+		},
+		{
+			name: "delete asset with delete-page flag",
+			args: []string{"assets", "delete", "--name", "Test Asset", "--delete-page"},
+			setup: func(mas *MockAssetService, _ *MockTaskService, _ *MockSprintService) {
+				mas.On("DeleteAsset", "Test Asset", true).Return(nil)
 			},
 			wantErr: false,
 		},
