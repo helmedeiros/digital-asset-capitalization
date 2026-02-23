@@ -351,6 +351,25 @@ For more information about a command:
 						},
 					},
 					{
+						Name:  "delete",
+						Usage: "Delete an existing asset",
+						Action: func(ctx *cli.Context) error {
+							name := ctx.String("name")
+							if err := a.assetService.DeleteAsset(name); err != nil {
+								return err
+							}
+							fmt.Printf("Deleted asset: %s\n", name)
+							return nil
+						},
+						Flags: []cli.Flag{
+							&cli.StringFlag{
+								Name:     "name",
+								Usage:    "Asset name",
+								Required: true,
+							},
+						},
+					},
+					{
 						Name:  "list",
 						Usage: "List all assets",
 						Action: func(_ *cli.Context) error {
