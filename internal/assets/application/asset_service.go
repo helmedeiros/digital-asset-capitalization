@@ -79,7 +79,7 @@ type AssetService interface {
 	// RemoveContributingTeam removes a contributing team from an asset
 	RemoveContributingTeam(assetName, teamName string) error
 	// PublishToConfluence publishes an asset as a new page in Confluence
-	PublishToConfluence(ctx context.Context, assetName, spaceKey string, dryRun, debug bool) (*PublishToConfluenceResult, error)
+	PublishToConfluence(ctx context.Context, assetName, spaceKey, parentPageID string, dryRun, debug bool) (*PublishToConfluenceResult, error)
 	// UpdateConfluencePage updates an existing Confluence page with the asset's current content
 	UpdateConfluencePage(ctx context.Context, assetName string, dryRun, debug bool) (*PublishToConfluenceResult, error)
 }

@@ -686,7 +686,7 @@ func TestCreatePage(t *testing.T) {
 			}
 			adapter := NewAdapter(config, id.NewHashIDGenerator())
 
-			result, err := adapter.CreatePage(context.Background(), "Test Asset", "TEST", "<p>Content</p>")
+			result, err := adapter.CreatePage(context.Background(), "Test Asset", "TEST", "<p>Content</p>", "")
 
 			if tt.expectError {
 				if err == nil {

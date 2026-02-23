@@ -740,7 +740,7 @@ func TestApp_runConsole_OllamaUnavailable(t *testing.T) {
 	// Create a CLI context that will fail the Ollama check
 	flagSet := flag.NewFlagSet("test", flag.ContinueOnError)
 	flagSet.String("ollama-url", "http://invalid-host:99999", "")
-	flagSet.String("model", "llama3", "")
+	flagSet.String("model", "llama4", "")
 	flagSet.Int("max-sessions", 10, "")
 	flagSet.Bool("debug", false, "")
 

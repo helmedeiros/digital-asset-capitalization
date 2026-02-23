@@ -96,12 +96,14 @@ func (r *FileRepository) LoadTeamConfig() (*domain.TeamConfig, error) {
 		return nil, fmt.Errorf("failed to read team config: %w", err)
 	}
 
-	// Parse existing file format: {"FN": {"team": ["member1", "member2"], "nicknames": ["pricing", "fintech"], "tribe": "Engineering", "company": "Omio"}}
+	// Parse existing file format
 	var fileFormat map[string]struct {
-		Team      []string `json:"team"`
-		Nicknames []string `json:"nicknames,omitempty"`
-		Tribe     string   `json:"tribe,omitempty"`
-		Company   string   `json:"company,omitempty"`
+		Team                 []string `json:"team"`
+		Nicknames            []string `json:"nicknames,omitempty"`
+		Tribe                string   `json:"tribe,omitempty"`
+		Company              string   `json:"company,omitempty"`
+		ConfluenceSpace      string   `json:"confluence_space,omitempty"`
+		ConfluenceParentPage string   `json:"confluence_parent_page,omitempty"`
 	}
 
 	if err := json.Unmarshal(data, &fileFormat); err != nil {
@@ -113,6 +115,8 @@ func (r *FileRepository) LoadTeamConfig() (*domain.TeamConfig, error) {
 	nicknames := make(map[string][]string)
 	tribes := make(map[string]string)
 	companies := make(map[string]string)
+	confluenceSpaces := make(map[string]string)
+	confluenceParentPages := make(map[string]string)
 
 	for project, teamInfo := range fileFormat {
 		teams[project] = teamInfo.Team
@@ -125,9 +129,15 @@ func (r *FileRepository) LoadTeamConfig() (*domain.TeamConfig, error) {
 		if teamInfo.Company != "" {
 			companies[project] = teamInfo.Company
 		}
+		if teamInfo.ConfluenceSpace != "" {
+			confluenceSpaces[project] = teamInfo.ConfluenceSpace
+		}
+		if teamInfo.ConfluenceParentPage != "" {
+			confluenceParentPages[project] = teamInfo.ConfluenceParentPage
+		}
 	}
 
-	return domain.NewTeamConfigFull(teams, nicknames, tribes, companies)
+	return domain.NewTeamConfigComplete(teams, nicknames, tribes, companies, confluenceSpaces, confluenceParentPages)
 }
 
 // SaveTeamConfig saves team configuration to file with format transformation
@@ -135,20 +145,24 @@ func (r *FileRepository) SaveTeamConfig(config *domain.TeamConfig) error {
 	path := filepath.Join(r.configDir, "teams.json")
 
 	// Transform from domain format to file format
-	teams, nicknames, tribes, companies := config.ToFullMap()
+	teams, nicknames, tribes, companies, confluenceSpaces, confluenceParentPages := config.ToCompleteMap()
 	fileFormat := make(map[string]struct {
-		Team      []string `json:"team"`
-		Nicknames []string `json:"nicknames,omitempty"`
-		Tribe     string   `json:"tribe,omitempty"`
-		Company   string   `json:"company,omitempty"`
+		Team                 []string `json:"team"`
+		Nicknames            []string `json:"nicknames,omitempty"`
+		Tribe                string   `json:"tribe,omitempty"`
+		Company              string   `json:"company,omitempty"`
+		ConfluenceSpace      string   `json:"confluence_space,omitempty"`
+		ConfluenceParentPage string   `json:"confluence_parent_page,omitempty"`
 	})
 
 	for project, members := range teams {
 		entry := struct {
-			Team      []string `json:"team"`
-			Nicknames []string `json:"nicknames,omitempty"`
-			Tribe     string   `json:"tribe,omitempty"`
-			Company   string   `json:"company,omitempty"`
+			Team                 []string `json:"team"`
+			Nicknames            []string `json:"nicknames,omitempty"`
+			Tribe                string   `json:"tribe,omitempty"`
+			Company              string   `json:"company,omitempty"`
+			ConfluenceSpace      string   `json:"confluence_space,omitempty"`
+			ConfluenceParentPage string   `json:"confluence_parent_page,omitempty"`
 		}{
 			Team: members,
 		}
@@ -166,6 +180,16 @@ func (r *FileRepository) SaveTeamConfig(config *domain.TeamConfig) error {
 		// Add company if it exists for this project
 		if company, exists := companies[project]; exists && company != "" {
 			entry.Company = company
+		}
+
+		// Add confluence space if it exists for this project
+		if space, exists := confluenceSpaces[project]; exists && space != "" {
+			entry.ConfluenceSpace = space
+		}
+
+		// Add confluence parent page if it exists for this project
+		if pageID, exists := confluenceParentPages[project]; exists && pageID != "" {
+			entry.ConfluenceParentPage = pageID
 		}
 
 		fileFormat[project] = entry

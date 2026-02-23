@@ -188,7 +188,7 @@ func TestMockAssetService_PublishToConfluence(t *testing.T) {
 	mock := NewMockAssetService()
 
 	// Test default behavior (returns nil, nil)
-	result, err := mock.PublishToConfluence(nil, "test-asset", "TEST", false, false)
+	result, err := mock.PublishToConfluence(nil, "test-asset", "TEST", "", false, false)
 	if err != nil {
 		t.Errorf("Expected no error, got %v", err)
 	}

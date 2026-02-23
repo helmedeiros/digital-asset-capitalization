@@ -374,8 +374,8 @@ func (a *Adapter) FetchPage(ctx context.Context, pageID string) (*Page, error) {
 	return &page, nil
 }
 
-// CreatePage creates a new page in Confluence
-func (a *Adapter) CreatePage(ctx context.Context, title, spaceKey, content string) (*PagePublishResult, error) {
+// CreatePage creates a new page in Confluence, optionally under a parent page
+func (a *Adapter) CreatePage(ctx context.Context, title, spaceKey, content, parentPageID string) (*PagePublishResult, error) {
 	baseURL := strings.TrimRight(a.config.BaseURL, "/")
 	apiURL := fmt.Sprintf("%s/wiki/rest/api/content", baseURL)
 
@@ -390,6 +390,10 @@ func (a *Adapter) CreatePage(ctx context.Context, title, spaceKey, content strin
 				Representation: "storage",
 			},
 		},
+	}
+
+	if parentPageID != "" {
+		reqBody.Ancestors = []CreatePageAncestor{{ID: parentPageID}}
 	}
 
 	jsonBody, err := json.Marshal(reqBody)

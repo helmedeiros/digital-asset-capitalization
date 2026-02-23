@@ -33,7 +33,7 @@ func TestInterpreter_Interpret_InvalidConfig(t *testing.T) {
 func TestInterpreter_Interpret_ValidCommand(t *testing.T) {
 	config := Config{
 		BaseURL: "http://localhost:11434", // Standard URL but may not be running
-		Model:   "llama3",
+		Model:   "llama4",
 	}
 
 	interpreter := NewInterpreter(config)

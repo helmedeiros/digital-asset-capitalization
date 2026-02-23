@@ -2041,7 +2041,7 @@ func TestAssetServiceImpl_PublishToConfluence_ValidationErrors(t *testing.T) {
 		mockRepo := new(MockAssetRepository)
 		service := NewAssetServiceLegacy(mockRepo, id.NewHashIDGenerator())
 
-		result, err := service.PublishToConfluence(ctx, "", "SPACE", false, false)
+		result, err := service.PublishToConfluence(ctx, "", "SPACE", "", false, false)
 
 		assert.Error(t, err)
 		assert.Nil(t, result)
@@ -2052,7 +2052,7 @@ func TestAssetServiceImpl_PublishToConfluence_ValidationErrors(t *testing.T) {
 		mockRepo := new(MockAssetRepository)
 		service := NewAssetServiceLegacy(mockRepo, id.NewHashIDGenerator())
 
-		result, err := service.PublishToConfluence(ctx, "Test Asset", "", false, false)
+		result, err := service.PublishToConfluence(ctx, "Test Asset", "", "", false, false)
 
 		assert.Error(t, err)
 		assert.Nil(t, result)
@@ -2064,7 +2064,7 @@ func TestAssetServiceImpl_PublishToConfluence_ValidationErrors(t *testing.T) {
 		mockRepo.On("FindByName", "Unknown Asset").Return(nil, errors.New("not found"))
 		service := NewAssetServiceLegacy(mockRepo, id.NewHashIDGenerator())
 
-		result, err := service.PublishToConfluence(ctx, "Unknown Asset", "SPACE", false, false)
+		result, err := service.PublishToConfluence(ctx, "Unknown Asset", "SPACE", "", false, false)
 
 		assert.Error(t, err)
 		assert.Nil(t, result)
@@ -2092,7 +2092,7 @@ func TestAssetServiceImpl_PublishToConfluence_ConfigErrors(t *testing.T) {
 		mockRepo.On("FindByName", "Test Asset").Return(asset, nil)
 		service := NewAssetServiceLegacy(mockRepo, id.NewHashIDGenerator())
 
-		result, err := service.PublishToConfluence(ctx, "Test Asset", "SPACE", false, false)
+		result, err := service.PublishToConfluence(ctx, "Test Asset", "SPACE", "", false, false)
 
 		assert.Error(t, err)
 		assert.Nil(t, result)
@@ -2116,7 +2116,7 @@ func TestAssetServiceImpl_PublishToConfluence_ConfigErrors(t *testing.T) {
 		mockRepo.On("FindByName", "Test Asset").Return(asset, nil)
 		service := NewAssetServiceLegacy(mockRepo, id.NewHashIDGenerator())
 
-		result, err := service.PublishToConfluence(ctx, "Test Asset", "SPACE", false, false)
+		result, err := service.PublishToConfluence(ctx, "Test Asset", "SPACE", "", false, false)
 
 		assert.Error(t, err)
 		assert.Nil(t, result)

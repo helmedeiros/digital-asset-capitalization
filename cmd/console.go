@@ -54,7 +54,7 @@ Once in the console, you can use natural language:
 			&cli.StringFlag{
 				Name:  "model",
 				Usage: "LLaMA model to use",
-				Value: "llama3",
+				Value: "llama4",
 			},
 			&cli.IntFlag{
 				Name:  "max-sessions",

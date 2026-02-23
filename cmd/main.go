@@ -472,10 +472,11 @@ For more information about a command:
 						Action: func(ctx *cli.Context) error {
 							name := ctx.String("name")
 							space := ctx.String("space")
+							parentPage := ctx.String("parent-page")
 							dryRun := ctx.Bool("dry-run")
 							debug := ctx.Bool("debug")
 
-							result, err := a.assetService.PublishToConfluence(context.Background(), name, space, dryRun, debug)
+							result, err := a.assetService.PublishToConfluence(context.Background(), name, space, parentPage, dryRun, debug)
 							if err != nil {
 								return err
 							}
@@ -510,6 +511,10 @@ For more information about a command:
 								Name:     "space",
 								Usage:    "Confluence space key (e.g., Conversion)",
 								Required: true,
+							},
+							&cli.StringFlag{
+								Name:  "parent-page",
+								Usage: "Parent page ID to create under (overrides team config)",
 							},
 							&cli.BoolFlag{
 								Name:  "dry-run",

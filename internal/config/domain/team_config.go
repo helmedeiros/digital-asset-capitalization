@@ -8,19 +8,23 @@ import (
 
 // TeamConfig represents the team configuration domain entity
 type TeamConfig struct {
-	teams     map[string][]string
-	nicknames map[string][]string // project -> nicknames mapping
-	tribes    map[string]string   // project -> tribe mapping
-	companies map[string]string   // project -> company mapping
+	teams                 map[string][]string
+	nicknames             map[string][]string // project -> nicknames mapping
+	tribes                map[string]string   // project -> tribe mapping
+	companies             map[string]string   // project -> company mapping
+	confluenceSpaces      map[string]string   // project -> confluence space mapping
+	confluenceParentPages map[string]string   // project -> confluence parent page ID mapping
 }
 
 // NewTeamConfig creates a new TeamConfig with validation
 func NewTeamConfig(teams map[string][]string) (*TeamConfig, error) {
 	config := &TeamConfig{
-		teams:     make(map[string][]string),
-		nicknames: make(map[string][]string),
-		tribes:    make(map[string]string),
-		companies: make(map[string]string),
+		teams:                 make(map[string][]string),
+		nicknames:             make(map[string][]string),
+		tribes:                make(map[string]string),
+		companies:             make(map[string]string),
+		confluenceSpaces:      make(map[string]string),
+		confluenceParentPages: make(map[string]string),
 	}
 
 	for project, members := range teams {
@@ -422,4 +426,89 @@ func (tc *TeamConfig) ToFullMap() (teams map[string][]string, nicknames map[stri
 	}
 
 	return teams, nicknames, tribes, companies
+}
+
+// NewTeamConfigComplete creates a new TeamConfig with all fields including confluence settings
+func NewTeamConfigComplete(teams map[string][]string, nicknames map[string][]string, tribes map[string]string, companies map[string]string, confluenceSpaces map[string]string, confluenceParentPages map[string]string) (*TeamConfig, error) {
+	config, err := NewTeamConfigFull(teams, nicknames, tribes, companies)
+	if err != nil {
+		return nil, err
+	}
+
+	for project, space := range confluenceSpaces {
+		trimmedProject := strings.TrimSpace(project)
+		trimmedSpace := strings.TrimSpace(space)
+		if trimmedProject == "" {
+			continue
+		}
+		if _, exists := config.teams[trimmedProject]; exists && trimmedSpace != "" {
+			config.confluenceSpaces[trimmedProject] = trimmedSpace
+		}
+	}
+
+	for project, pageID := range confluenceParentPages {
+		trimmedProject := strings.TrimSpace(project)
+		trimmedPageID := strings.TrimSpace(pageID)
+		if trimmedProject == "" {
+			continue
+		}
+		if _, exists := config.teams[trimmedProject]; exists && trimmedPageID != "" {
+			config.confluenceParentPages[trimmedProject] = trimmedPageID
+		}
+	}
+
+	return config, nil
+}
+
+// GetConfluenceSpace returns the Confluence space for a given project
+func (tc *TeamConfig) GetConfluenceSpace(project string) string {
+	return tc.confluenceSpaces[project]
+}
+
+// SetConfluenceSpace sets the Confluence space for a project
+func (tc *TeamConfig) SetConfluenceSpace(project, space string) error {
+	trimmedProject := strings.TrimSpace(project)
+	if trimmedProject == "" {
+		return fmt.Errorf("project key cannot be empty")
+	}
+	if _, exists := tc.teams[trimmedProject]; !exists {
+		return fmt.Errorf("project '%s' does not exist", trimmedProject)
+	}
+	tc.confluenceSpaces[trimmedProject] = strings.TrimSpace(space)
+	return nil
+}
+
+// GetConfluenceParentPage returns the Confluence parent page ID for a given project
+func (tc *TeamConfig) GetConfluenceParentPage(project string) string {
+	return tc.confluenceParentPages[project]
+}
+
+// SetConfluenceParentPage sets the Confluence parent page ID for a project
+func (tc *TeamConfig) SetConfluenceParentPage(project, pageID string) error {
+	trimmedProject := strings.TrimSpace(project)
+	if trimmedProject == "" {
+		return fmt.Errorf("project key cannot be empty")
+	}
+	if _, exists := tc.teams[trimmedProject]; !exists {
+		return fmt.Errorf("project '%s' does not exist", trimmedProject)
+	}
+	tc.confluenceParentPages[trimmedProject] = strings.TrimSpace(pageID)
+	return nil
+}
+
+// ToCompleteMap returns all six maps including confluence settings
+func (tc *TeamConfig) ToCompleteMap() (teams map[string][]string, nicknames map[string][]string, tribes map[string]string, companies map[string]string, confluenceSpaces map[string]string, confluenceParentPages map[string]string) {
+	teams, nicknames, tribes, companies = tc.ToFullMap()
+
+	confluenceSpaces = make(map[string]string, len(tc.confluenceSpaces))
+	for project, space := range tc.confluenceSpaces {
+		confluenceSpaces[project] = space
+	}
+
+	confluenceParentPages = make(map[string]string, len(tc.confluenceParentPages))
+	for project, pageID := range tc.confluenceParentPages {
+		confluenceParentPages[project] = pageID
+	}
+
+	return
 }

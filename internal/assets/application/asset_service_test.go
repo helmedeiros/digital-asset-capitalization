@@ -171,7 +171,7 @@ func (m *MockAssetService) RemoveContributingTeam(assetName, teamName string) er
 	return errors.New("asset not found")
 }
 
-func (m *MockAssetService) PublishToConfluence(_ context.Context, assetName, spaceKey string, _, _ bool) (*PublishToConfluenceResult, error) {
+func (m *MockAssetService) PublishToConfluence(_ context.Context, assetName, spaceKey, _ string, _, _ bool) (*PublishToConfluenceResult, error) {
 	if _, exists := m.assets[assetName]; !exists {
 		return nil, errors.New("asset not found")
 	}

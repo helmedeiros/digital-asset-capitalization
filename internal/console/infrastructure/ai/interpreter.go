@@ -30,7 +30,7 @@ type Config struct {
 func DefaultConfig() Config {
 	return Config{
 		BaseURL: "http://localhost:11434",
-		Model:   "llama3",
+		Model:   "llama4",
 	}
 }
 
