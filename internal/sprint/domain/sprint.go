@@ -56,13 +56,24 @@ func (s *Sprint) GetRemainingTime() time.Duration {
 
 // Team represents a group of team members
 type Team struct {
-	Team []string `json:"team"`
+	Team               []string `json:"team"`
+	ExcludedIssueTypes []string `json:"excluded_issue_types,omitempty"`
 }
 
 // IsTeamMember checks if a person is a member of the team
 func (t *Team) IsTeamMember(person string) bool {
 	for _, member := range t.Team {
 		if member == person {
+			return true
+		}
+	}
+	return false
+}
+
+// IsExcludedIssueType checks if the given issue type is excluded for this team
+func (t *Team) IsExcludedIssueType(issueType string) bool {
+	for _, excluded := range t.ExcludedIssueTypes {
+		if excluded == issueType {
 			return true
 		}
 	}

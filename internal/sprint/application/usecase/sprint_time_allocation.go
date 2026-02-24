@@ -234,6 +234,12 @@ func (p *SprintTimeAllocationUseCase) calculateTotalHours(team domain.Team, issu
 			continue
 		}
 
+		// Skip excluded issue types (e.g., Experiment cards)
+		if team.IsExcludedIssueType(issue.Fields.IssueType.Name) {
+			processedStories[issue.Key] = true
+			continue
+		}
+
 		// If this is a sub-task, skip it here - it will be processed with its parent
 		if issue.IsSubTask() {
 			continue
@@ -410,6 +416,12 @@ func (p *SprintTimeAllocationUseCase) calculatePercentageLoad(team domain.Team, 
 
 		assignee := issue.Fields.Assignee.DisplayName
 		if !team.IsTeamMember(assignee) {
+			continue
+		}
+
+		// Skip excluded issue types (e.g., Experiment cards)
+		if team.IsExcludedIssueType(issue.Fields.IssueType.Name) {
+			processedStories[issue.Key] = true
 			continue
 		}
 

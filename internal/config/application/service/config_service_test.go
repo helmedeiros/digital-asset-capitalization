@@ -199,6 +199,32 @@ func TestConfigService_GetTeamMapForSprint(t *testing.T) {
 		assert.Empty(t, teamMap)
 		repo.AssertExpectations(t)
 	})
+
+	t.Run("should propagate excluded issue types to sprint format", func(t *testing.T) {
+		repo := &MockConfigurationRepository{}
+		service := NewConfigService(repo)
+
+		teams := map[string][]string{
+			"COP": {"alice", "bob"},
+		}
+		excludedTypes := map[string][]string{
+			"COP": {"Experiment"},
+		}
+		teamConfig, err := domain.NewTeamConfigWithExcludedTypes(teams, nil, nil, nil, nil, nil, excludedTypes)
+		require.NoError(t, err)
+
+		repo.On("LoadTeamConfig").Return(teamConfig, nil)
+
+		teamMap, err := service.GetTeamMapForSprint()
+
+		require.NoError(t, err)
+		copTeam, exists := teamMap.GetTeam("COP")
+		require.True(t, exists)
+		assert.Equal(t, []string{"Experiment"}, copTeam.ExcludedIssueTypes)
+		assert.True(t, copTeam.IsExcludedIssueType("Experiment"))
+		assert.False(t, copTeam.IsExcludedIssueType("Story"))
+		repo.AssertExpectations(t)
+	})
 }
 
 func TestConfigService_GetTeamForProject(t *testing.T) {
@@ -615,6 +641,124 @@ func TestConfigService_GetCompanyForProject(t *testing.T) {
 
 		require.Error(t, err)
 		assert.Equal(t, "", company)
+		assert.Contains(t, err.Error(), "failed to load team configuration")
+		repo.AssertExpectations(t)
+	})
+}
+
+func TestConfigService_SetExcludedIssueTypesForProject(t *testing.T) {
+	t.Run("should set excluded issue types successfully", func(t *testing.T) {
+		repo := &MockConfigurationRepository{}
+		svc := NewConfigService(repo)
+
+		teams := map[string][]string{"COP": {"alice"}}
+		teamConfig, err := domain.NewTeamConfig(teams)
+		require.NoError(t, err)
+
+		repo.On("LoadTeamConfig").Return(teamConfig, nil)
+		repo.On("SaveTeamConfig", mock.AnythingOfType("*domain.TeamConfig")).Return(nil)
+
+		err = svc.SetExcludedIssueTypesForProject("COP", []string{"Experiment"})
+
+		require.NoError(t, err)
+		repo.AssertExpectations(t)
+	})
+
+	t.Run("should return error when project does not exist", func(t *testing.T) {
+		repo := &MockConfigurationRepository{}
+		svc := NewConfigService(repo)
+
+		teams := map[string][]string{"COP": {"alice"}}
+		teamConfig, err := domain.NewTeamConfig(teams)
+		require.NoError(t, err)
+
+		repo.On("LoadTeamConfig").Return(teamConfig, nil)
+
+		err = svc.SetExcludedIssueTypesForProject("NONEXISTENT", []string{"Experiment"})
+
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "failed to set excluded issue types")
+		repo.AssertExpectations(t)
+	})
+
+	t.Run("should return error when load fails", func(t *testing.T) {
+		repo := &MockConfigurationRepository{}
+		svc := NewConfigService(repo)
+
+		repo.On("LoadTeamConfig").Return(nil, errors.New("repository error"))
+
+		err := svc.SetExcludedIssueTypesForProject("COP", []string{"Experiment"})
+
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "failed to load team configuration")
+		repo.AssertExpectations(t)
+	})
+
+	t.Run("should return error when save fails", func(t *testing.T) {
+		repo := &MockConfigurationRepository{}
+		svc := NewConfigService(repo)
+
+		teams := map[string][]string{"COP": {"alice"}}
+		teamConfig, err := domain.NewTeamConfig(teams)
+		require.NoError(t, err)
+
+		repo.On("LoadTeamConfig").Return(teamConfig, nil)
+		repo.On("SaveTeamConfig", mock.AnythingOfType("*domain.TeamConfig")).Return(errors.New("save error"))
+
+		err = svc.SetExcludedIssueTypesForProject("COP", []string{"Experiment"})
+
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "failed to save team configuration")
+		repo.AssertExpectations(t)
+	})
+}
+
+func TestConfigService_GetExcludedIssueTypesForProject(t *testing.T) {
+	t.Run("should return excluded types for project", func(t *testing.T) {
+		repo := &MockConfigurationRepository{}
+		svc := NewConfigService(repo)
+
+		teams := map[string][]string{"COP": {"alice"}}
+		excludedTypes := map[string][]string{"COP": {"Experiment"}}
+		teamConfig, err := domain.NewTeamConfigWithExcludedTypes(teams, nil, nil, nil, nil, nil, excludedTypes)
+		require.NoError(t, err)
+
+		repo.On("LoadTeamConfig").Return(teamConfig, nil)
+
+		types, err := svc.GetExcludedIssueTypesForProject("COP")
+
+		require.NoError(t, err)
+		assert.Equal(t, []string{"Experiment"}, types)
+		repo.AssertExpectations(t)
+	})
+
+	t.Run("should return nil for project without excluded types", func(t *testing.T) {
+		repo := &MockConfigurationRepository{}
+		svc := NewConfigService(repo)
+
+		teams := map[string][]string{"COP": {"alice"}}
+		teamConfig, err := domain.NewTeamConfig(teams)
+		require.NoError(t, err)
+
+		repo.On("LoadTeamConfig").Return(teamConfig, nil)
+
+		types, err := svc.GetExcludedIssueTypesForProject("COP")
+
+		require.NoError(t, err)
+		assert.Nil(t, types)
+		repo.AssertExpectations(t)
+	})
+
+	t.Run("should return error when load fails", func(t *testing.T) {
+		repo := &MockConfigurationRepository{}
+		svc := NewConfigService(repo)
+
+		repo.On("LoadTeamConfig").Return(nil, errors.New("repository error"))
+
+		types, err := svc.GetExcludedIssueTypesForProject("COP")
+
+		require.Error(t, err)
+		assert.Nil(t, types)
 		assert.Contains(t, err.Error(), "failed to load team configuration")
 		repo.AssertExpectations(t)
 	})

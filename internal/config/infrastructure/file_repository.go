@@ -104,6 +104,7 @@ func (r *FileRepository) LoadTeamConfig() (*domain.TeamConfig, error) {
 		Company              string   `json:"company,omitempty"`
 		ConfluenceSpace      string   `json:"confluence_space,omitempty"`
 		ConfluenceParentPage string   `json:"confluence_parent_page,omitempty"`
+		ExcludedIssueTypes   []string `json:"excluded_issue_types,omitempty"`
 	}
 
 	if err := json.Unmarshal(data, &fileFormat); err != nil {
@@ -117,6 +118,7 @@ func (r *FileRepository) LoadTeamConfig() (*domain.TeamConfig, error) {
 	companies := make(map[string]string)
 	confluenceSpaces := make(map[string]string)
 	confluenceParentPages := make(map[string]string)
+	excludedIssueTypes := make(map[string][]string)
 
 	for project, teamInfo := range fileFormat {
 		teams[project] = teamInfo.Team
@@ -135,9 +137,12 @@ func (r *FileRepository) LoadTeamConfig() (*domain.TeamConfig, error) {
 		if teamInfo.ConfluenceParentPage != "" {
 			confluenceParentPages[project] = teamInfo.ConfluenceParentPage
 		}
+		if len(teamInfo.ExcludedIssueTypes) > 0 {
+			excludedIssueTypes[project] = teamInfo.ExcludedIssueTypes
+		}
 	}
 
-	return domain.NewTeamConfigComplete(teams, nicknames, tribes, companies, confluenceSpaces, confluenceParentPages)
+	return domain.NewTeamConfigWithExcludedTypes(teams, nicknames, tribes, companies, confluenceSpaces, confluenceParentPages, excludedIssueTypes)
 }
 
 // SaveTeamConfig saves team configuration to file with format transformation
@@ -145,7 +150,7 @@ func (r *FileRepository) SaveTeamConfig(config *domain.TeamConfig) error {
 	path := filepath.Join(r.configDir, "teams.json")
 
 	// Transform from domain format to file format
-	teams, nicknames, tribes, companies, confluenceSpaces, confluenceParentPages := config.ToCompleteMap()
+	teams, nicknames, tribes, companies, confluenceSpaces, confluenceParentPages, excludedIssueTypes := config.ToCompleteMapWithExcludedTypes()
 	fileFormat := make(map[string]struct {
 		Team                 []string `json:"team"`
 		Nicknames            []string `json:"nicknames,omitempty"`
@@ -153,6 +158,7 @@ func (r *FileRepository) SaveTeamConfig(config *domain.TeamConfig) error {
 		Company              string   `json:"company,omitempty"`
 		ConfluenceSpace      string   `json:"confluence_space,omitempty"`
 		ConfluenceParentPage string   `json:"confluence_parent_page,omitempty"`
+		ExcludedIssueTypes   []string `json:"excluded_issue_types,omitempty"`
 	})
 
 	for project, members := range teams {
@@ -163,6 +169,7 @@ func (r *FileRepository) SaveTeamConfig(config *domain.TeamConfig) error {
 			Company              string   `json:"company,omitempty"`
 			ConfluenceSpace      string   `json:"confluence_space,omitempty"`
 			ConfluenceParentPage string   `json:"confluence_parent_page,omitempty"`
+			ExcludedIssueTypes   []string `json:"excluded_issue_types,omitempty"`
 		}{
 			Team: members,
 		}
@@ -190,6 +197,11 @@ func (r *FileRepository) SaveTeamConfig(config *domain.TeamConfig) error {
 		// Add confluence parent page if it exists for this project
 		if pageID, exists := confluenceParentPages[project]; exists && pageID != "" {
 			entry.ConfluenceParentPage = pageID
+		}
+
+		// Add excluded issue types if they exist for this project
+		if types, exists := excludedIssueTypes[project]; exists && len(types) > 0 {
+			entry.ExcludedIssueTypes = types
 		}
 
 		fileFormat[project] = entry

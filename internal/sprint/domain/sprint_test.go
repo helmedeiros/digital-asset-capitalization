@@ -204,3 +204,57 @@ func TestSprint_GetRemainingTime(t *testing.T) {
 		})
 	}
 }
+
+func TestTeam_IsExcludedIssueType(t *testing.T) {
+	tests := []struct {
+		name      string
+		team      Team
+		issueType string
+		expected  bool
+	}{
+		{
+			name: "excluded issue type matches",
+			team: Team{
+				Team:               []string{"Alice"},
+				ExcludedIssueTypes: []string{"Experiment", "Spike"},
+			},
+			issueType: "Experiment",
+			expected:  true,
+		},
+		{
+			name: "issue type not excluded",
+			team: Team{
+				Team:               []string{"Alice"},
+				ExcludedIssueTypes: []string{"Experiment"},
+			},
+			issueType: "Story",
+			expected:  false,
+		},
+		{
+			name: "no excluded issue types configured",
+			team: Team{
+				Team: []string{"Alice"},
+			},
+			issueType: "Experiment",
+			expected:  false,
+		},
+		{
+			name: "empty excluded list",
+			team: Team{
+				Team:               []string{"Alice"},
+				ExcludedIssueTypes: []string{},
+			},
+			issueType: "Experiment",
+			expected:  false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := tt.team.IsExcludedIssueType(tt.issueType)
+			if result != tt.expected {
+				t.Errorf("IsExcludedIssueType(%q) = %v, want %v", tt.issueType, result, tt.expected)
+			}
+		})
+	}
+}

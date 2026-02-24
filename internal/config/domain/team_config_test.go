@@ -965,3 +965,104 @@ func TestNewTeamConfigFull(t *testing.T) {
 		assert.Equal(t, "", config.GetCompany("NONEXISTENT"))
 	})
 }
+
+func TestGetExcludedIssueTypes(t *testing.T) {
+	teams := map[string][]string{
+		"COP": {"alice"},
+		"FN":  {"bob"},
+	}
+	excludedTypes := map[string][]string{
+		"COP": {"Experiment", "Spike"},
+	}
+
+	config, err := NewTeamConfigWithExcludedTypes(teams, nil, nil, nil, nil, nil, excludedTypes)
+	require.NoError(t, err)
+
+	t.Run("returns excluded types for project with config", func(t *testing.T) {
+		types := config.GetExcludedIssueTypes("COP")
+		assert.Equal(t, []string{"Experiment", "Spike"}, types)
+	})
+
+	t.Run("returns nil for project without excluded types", func(t *testing.T) {
+		types := config.GetExcludedIssueTypes("FN")
+		assert.Nil(t, types)
+	})
+
+	t.Run("returns nil for non-existent project", func(t *testing.T) {
+		types := config.GetExcludedIssueTypes("NONEXISTENT")
+		assert.Nil(t, types)
+	})
+}
+
+func TestSetExcludedIssueTypes(t *testing.T) {
+	t.Run("sets excluded types for existing project", func(t *testing.T) {
+		teams := map[string][]string{"COP": {"alice"}}
+		config, err := NewTeamConfig(teams)
+		require.NoError(t, err)
+
+		err = config.SetExcludedIssueTypes("COP", []string{"Experiment"})
+		require.NoError(t, err)
+		assert.Equal(t, []string{"Experiment"}, config.GetExcludedIssueTypes("COP"))
+	})
+
+	t.Run("returns error for non-existent project", func(t *testing.T) {
+		teams := map[string][]string{"COP": {"alice"}}
+		config, err := NewTeamConfig(teams)
+		require.NoError(t, err)
+
+		err = config.SetExcludedIssueTypes("NONEXISTENT", []string{"Experiment"})
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "does not exist")
+	})
+
+	t.Run("returns error for empty project", func(t *testing.T) {
+		teams := map[string][]string{"COP": {"alice"}}
+		config, err := NewTeamConfig(teams)
+		require.NoError(t, err)
+
+		err = config.SetExcludedIssueTypes("", []string{"Experiment"})
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "cannot be empty")
+	})
+}
+
+func TestNewTeamConfigWithExcludedTypes(t *testing.T) {
+	t.Run("creates config with excluded issue types", func(t *testing.T) {
+		teams := map[string][]string{
+			"COP": {"alice"},
+			"FN":  {"bob"},
+		}
+		excludedTypes := map[string][]string{
+			"COP": {"Experiment"},
+		}
+
+		config, err := NewTeamConfigWithExcludedTypes(teams, nil, nil, nil, nil, nil, excludedTypes)
+		require.NoError(t, err)
+
+		assert.Equal(t, []string{"Experiment"}, config.GetExcludedIssueTypes("COP"))
+		assert.Nil(t, config.GetExcludedIssueTypes("FN"))
+	})
+
+	t.Run("ignores excluded types for non-existent project", func(t *testing.T) {
+		teams := map[string][]string{"COP": {"alice"}}
+		excludedTypes := map[string][]string{
+			"NONEXISTENT": {"Experiment"},
+		}
+
+		config, err := NewTeamConfigWithExcludedTypes(teams, nil, nil, nil, nil, nil, excludedTypes)
+		require.NoError(t, err)
+
+		assert.Nil(t, config.GetExcludedIssueTypes("NONEXISTENT"))
+	})
+
+	t.Run("round-trips through ToCompleteMapWithExcludedTypes", func(t *testing.T) {
+		teams := map[string][]string{"COP": {"alice"}}
+		excludedTypes := map[string][]string{"COP": {"Experiment", "Spike"}}
+
+		config, err := NewTeamConfigWithExcludedTypes(teams, nil, nil, nil, nil, nil, excludedTypes)
+		require.NoError(t, err)
+
+		_, _, _, _, _, _, resultExcluded := config.ToCompleteMapWithExcludedTypes()
+		assert.Equal(t, []string{"Experiment", "Spike"}, resultExcluded["COP"])
+	})
+}
