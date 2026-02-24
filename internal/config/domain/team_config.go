@@ -14,6 +14,7 @@ type TeamConfig struct {
 	companies             map[string]string   // project -> company mapping
 	confluenceSpaces      map[string]string   // project -> confluence space mapping
 	confluenceParentPages map[string]string   // project -> confluence parent page ID mapping
+	excludedIssueTypes    map[string][]string // project -> excluded issue types for sprint allocation
 }
 
 // NewTeamConfig creates a new TeamConfig with validation
@@ -25,6 +26,7 @@ func NewTeamConfig(teams map[string][]string) (*TeamConfig, error) {
 		companies:             make(map[string]string),
 		confluenceSpaces:      make(map[string]string),
 		confluenceParentPages: make(map[string]string),
+		excludedIssueTypes:    make(map[string][]string),
 	}
 
 	for project, members := range teams {
@@ -430,6 +432,11 @@ func (tc *TeamConfig) ToFullMap() (teams map[string][]string, nicknames map[stri
 
 // NewTeamConfigComplete creates a new TeamConfig with all fields including confluence settings
 func NewTeamConfigComplete(teams map[string][]string, nicknames map[string][]string, tribes map[string]string, companies map[string]string, confluenceSpaces map[string]string, confluenceParentPages map[string]string) (*TeamConfig, error) {
+	return NewTeamConfigWithExcludedTypes(teams, nicknames, tribes, companies, confluenceSpaces, confluenceParentPages, nil)
+}
+
+// NewTeamConfigWithExcludedTypes creates a new TeamConfig with all fields including excluded issue types
+func NewTeamConfigWithExcludedTypes(teams map[string][]string, nicknames map[string][]string, tribes map[string]string, companies map[string]string, confluenceSpaces map[string]string, confluenceParentPages map[string]string, excludedIssueTypes map[string][]string) (*TeamConfig, error) {
 	config, err := NewTeamConfigFull(teams, nicknames, tribes, companies)
 	if err != nil {
 		return nil, err
@@ -454,6 +461,16 @@ func NewTeamConfigComplete(teams map[string][]string, nicknames map[string][]str
 		}
 		if _, exists := config.teams[trimmedProject]; exists && trimmedPageID != "" {
 			config.confluenceParentPages[trimmedProject] = trimmedPageID
+		}
+	}
+
+	for project, types := range excludedIssueTypes {
+		trimmedProject := strings.TrimSpace(project)
+		if trimmedProject == "" {
+			continue
+		}
+		if _, exists := config.teams[trimmedProject]; exists && len(types) > 0 {
+			config.excludedIssueTypes[trimmedProject] = types
 		}
 	}
 
@@ -511,4 +528,42 @@ func (tc *TeamConfig) ToCompleteMap() (teams map[string][]string, nicknames map[
 	}
 
 	return
+}
+
+// ToCompleteMapWithExcludedTypes returns all maps including excluded issue types
+func (tc *TeamConfig) ToCompleteMapWithExcludedTypes() (teams map[string][]string, nicknames map[string][]string, tribes map[string]string, companies map[string]string, confluenceSpaces map[string]string, confluenceParentPages map[string]string, excludedIssueTypes map[string][]string) {
+	teams, nicknames, tribes, companies, confluenceSpaces, confluenceParentPages = tc.ToCompleteMap()
+
+	excludedIssueTypes = make(map[string][]string, len(tc.excludedIssueTypes))
+	for project, types := range tc.excludedIssueTypes {
+		typesCopy := make([]string, len(types))
+		copy(typesCopy, types)
+		excludedIssueTypes[project] = typesCopy
+	}
+
+	return
+}
+
+// GetExcludedIssueTypes returns the excluded issue types for a given project
+func (tc *TeamConfig) GetExcludedIssueTypes(project string) []string {
+	types, exists := tc.excludedIssueTypes[project]
+	if !exists {
+		return nil
+	}
+	result := make([]string, len(types))
+	copy(result, types)
+	return result
+}
+
+// SetExcludedIssueTypes sets the excluded issue types for a project
+func (tc *TeamConfig) SetExcludedIssueTypes(project string, types []string) error {
+	trimmedProject := strings.TrimSpace(project)
+	if trimmedProject == "" {
+		return fmt.Errorf("project key cannot be empty")
+	}
+	if _, exists := tc.teams[trimmedProject]; !exists {
+		return fmt.Errorf("project '%s' does not exist", trimmedProject)
+	}
+	tc.excludedIssueTypes[trimmedProject] = types
+	return nil
 }

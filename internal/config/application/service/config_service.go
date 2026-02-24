@@ -52,7 +52,8 @@ func (s *ConfigService) GetTeamMapForSprint() (sprintDomain.TeamMap, error) {
 		members, exists := teamConfig.GetTeam(project)
 		if exists {
 			teamMap[project] = sprintDomain.Team{
-				Team: members,
+				Team:               members,
+				ExcludedIssueTypes: teamConfig.GetExcludedIssueTypes(project),
 			}
 		}
 	}
@@ -149,6 +150,34 @@ func (s *ConfigService) GetCompanyForProject(project string) (string, error) {
 	}
 
 	return config.GetCompany(project), nil
+}
+
+// SetExcludedIssueTypesForProject sets the excluded issue types for a project and saves
+func (s *ConfigService) SetExcludedIssueTypesForProject(project string, types []string) error {
+	config, err := s.GetTeamConfig()
+	if err != nil {
+		return fmt.Errorf("failed to load team configuration: %w", err)
+	}
+
+	if err := config.SetExcludedIssueTypes(project, types); err != nil {
+		return fmt.Errorf("failed to set excluded issue types: %w", err)
+	}
+
+	if err := s.SaveTeamConfig(config); err != nil {
+		return fmt.Errorf("failed to save team configuration: %w", err)
+	}
+
+	return nil
+}
+
+// GetExcludedIssueTypesForProject returns the excluded issue types for a project
+func (s *ConfigService) GetExcludedIssueTypesForProject(project string) ([]string, error) {
+	config, err := s.GetTeamConfig()
+	if err != nil {
+		return nil, fmt.Errorf("failed to load team configuration: %w", err)
+	}
+
+	return config.GetExcludedIssueTypes(project), nil
 }
 
 // InitializeConfigDirectory initializes the configuration directory

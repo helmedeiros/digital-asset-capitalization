@@ -539,3 +539,73 @@ func TestFileRepository_TeamConfigWithCompanies(t *testing.T) {
 		assert.Equal(t, []string{"Alice"}, fnTeam)
 	})
 }
+
+func TestFileRepository_TeamConfigWithExcludedIssueTypes(t *testing.T) {
+	t.Run("should load excluded_issue_types from teams.json", func(t *testing.T) {
+		tempDir := t.TempDir()
+		repo := NewFileRepository(tempDir)
+
+		teamsJSON := `{
+			"COP": {
+				"team": ["Alice", "Bob"],
+				"excluded_issue_types": ["Experiment", "Spike"]
+			},
+			"FN": {
+				"team": ["Charlie"]
+			}
+		}`
+
+		teamsPath := filepath.Join(tempDir, "teams.json")
+		err := os.WriteFile(teamsPath, []byte(teamsJSON), 0644)
+		require.NoError(t, err)
+
+		config, err := repo.LoadTeamConfig()
+		require.NoError(t, err)
+
+		assert.Equal(t, []string{"Experiment", "Spike"}, config.GetExcludedIssueTypes("COP"))
+		assert.Nil(t, config.GetExcludedIssueTypes("FN"))
+	})
+
+	t.Run("should save and load excluded_issue_types round-trip", func(t *testing.T) {
+		tempDir := t.TempDir()
+		repo := NewFileRepository(tempDir)
+
+		teams := map[string][]string{
+			"COP": {"Alice"},
+		}
+		excludedTypes := map[string][]string{
+			"COP": {"Experiment"},
+		}
+
+		config, err := domain.NewTeamConfigWithExcludedTypes(teams, nil, nil, nil, nil, nil, excludedTypes)
+		require.NoError(t, err)
+
+		err = repo.SaveTeamConfig(config)
+		require.NoError(t, err)
+
+		loadedConfig, err := repo.LoadTeamConfig()
+		require.NoError(t, err)
+
+		assert.Equal(t, []string{"Experiment"}, loadedConfig.GetExcludedIssueTypes("COP"))
+	})
+
+	t.Run("should handle missing excluded_issue_types field gracefully", func(t *testing.T) {
+		tempDir := t.TempDir()
+		repo := NewFileRepository(tempDir)
+
+		teamsJSON := `{
+			"COP": {
+				"team": ["Alice"]
+			}
+		}`
+
+		teamsPath := filepath.Join(tempDir, "teams.json")
+		err := os.WriteFile(teamsPath, []byte(teamsJSON), 0644)
+		require.NoError(t, err)
+
+		config, err := repo.LoadTeamConfig()
+		require.NoError(t, err)
+
+		assert.Nil(t, config.GetExcludedIssueTypes("COP"))
+	})
+}

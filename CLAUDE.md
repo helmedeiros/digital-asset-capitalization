@@ -77,6 +77,13 @@ make build-run ARGS="command"  # Build and run in one step
 ./assetcap config validate     # Validate configuration
 ./assetcap config sync-team --project "PROJECT"  # Sync team members from JIRA
 
+# Excluded issue types (controls which issue types are skipped in sprint allocation)
+./assetcap config excluded-issue-types set --project "COP" --types "Experiment"
+./assetcap config excluded-issue-types set --project "COP" --types "Experiment,Spike"
+./assetcap config excluded-issue-types show --project "COP"
+./assetcap config excluded-issue-types list
+./assetcap config excluded-issue-types clear --project "COP"
+
 # Asset management
 ./assetcap assets create --name "Asset Name" --description "Description"
 ./assetcap assets list
@@ -113,11 +120,27 @@ make build-run ARGS="assets show --name 'Asset Name'"
 
 The tool uses:
 - `.assetcap/` directory for data storage (assets.json, tasks.json)
-- `teams.json` for team configuration
+- `teams.json` for team configuration (members, nicknames, tribe, company, excluded issue types)
 - Environment variables for JIRA credentials:
   - `JIRA_BASE_URL`
-  - `JIRA_EMAIL` 
+  - `JIRA_EMAIL`
   - `JIRA_TOKEN`
+
+### Team Configuration (`teams.json`)
+
+Each project entry in `teams.json` supports the following fields:
+
+| Field | Type | Description |
+|---|---|---|
+| `team` | `[]string` | Team member display names (as in JIRA) |
+| `nicknames` | `[]string` | Alternative names for the project |
+| `tribe` | `string` | Organizational tribe grouping |
+| `company` | `string` | Company ownership |
+| `confluence_space` | `string` | Confluence space key for asset pages |
+| `confluence_parent_page` | `string` | Parent page ID for asset hierarchy |
+| `excluded_issue_types` | `[]string` | Issue types excluded from sprint allocation (e.g., `["Experiment"]`) |
+
+The `excluded_issue_types` field controls which JIRA issue types are skipped during sprint time allocation. This is useful for excluding non-development work like experiments or spikes from capitalization calculations. All fields are managed via CLI commands — avoid editing `teams.json` by hand.
 
 ## Dependencies
 
@@ -281,6 +304,7 @@ make test-all          # Run tests with race detector and coverage
 6. **Bulk Asset Enrichment**: Sync and enrich multiple assets with AI-powered content and keywords
 7. **Intelligent Filtering**: Only enrich missing content to preserve existing data
 8. **Concurrent Processing**: Configurable parallel AI operations for efficiency
+9. **Excluded Issue Types**: Per-project configuration to exclude specific JIRA issue types (e.g., Experiment) from sprint allocation
 
 ## Sync-and-Enrich Workflow (NEW)
 
