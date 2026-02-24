@@ -6,4 +6,5 @@ type ClassifyTasksInput struct {
 	Sprint  string
 	DryRun  bool
 	Apply   bool
+	Force   bool
 }

@@ -21,7 +21,7 @@ func TestTasksService_FetchTasks(t *testing.T) {
 	remoteRepo := testutil.NewMockTaskRepository()
 	localRepo := testutil.NewMockTaskRepository()
 	assetService := testutil.NewMockAssetService()
-	service := NewTasksService(remoteRepo, localRepo, nil, nil, assetService, nil)
+	service := NewTasksService(remoteRepo, localRepo, nil, nil, assetService, nil, nil)
 
 	tests := []struct {
 		name     string
@@ -132,7 +132,7 @@ func TestTasksService_ClassifyTasks(t *testing.T) {
 	classifier := testutil.NewMockTaskClassifier()
 	userInput := testutil.NewMockUserInput()
 	assetService := testutil.NewMockAssetService()
-	service := NewTasksService(remoteRepo, localRepo, classifier, userInput, assetService, nil)
+	service := NewTasksService(remoteRepo, localRepo, classifier, userInput, assetService, nil, nil)
 
 	tests := []struct {
 		name    string
@@ -365,7 +365,7 @@ func TestTaskService_GetTasksByAsset(t *testing.T) {
 
 	// Create service
 	assetService := testutil.NewMockAssetService()
-	service := NewTasksService(jiraRepo, localRepo, classifier, userInput, assetService, nil)
+	service := NewTasksService(jiraRepo, localRepo, classifier, userInput, assetService, nil, nil)
 
 	tests := []struct {
 		name      string
@@ -513,7 +513,7 @@ func TestTaskService_GetLocalRepository(t *testing.T) {
 		assetService := testutil.NewMockAssetService()
 
 		// Create service
-		service := NewTasksService(jiraRepo, localRepo, classifier, userInput, assetService, nil)
+		service := NewTasksService(jiraRepo, localRepo, classifier, userInput, assetService, nil, nil)
 
 		// Test
 		result := service.GetLocalRepository()
@@ -534,7 +534,7 @@ func TestTaskService_GetLocalRepository(t *testing.T) {
 		assetService := testutil.NewMockAssetService()
 
 		// Create service
-		service := NewTasksService(jiraRepo, localRepo, classifier, userInput, assetService, nil)
+		service := NewTasksService(jiraRepo, localRepo, classifier, userInput, assetService, nil, nil)
 
 		// Test multiple calls
 		result1 := service.GetLocalRepository()
@@ -675,7 +675,7 @@ func TestTaskServiceImpl_GetTasks(t *testing.T) {
 		assetService := testutil.NewMockAssetService()
 
 		// Create service using the concrete constructor
-		service := NewTasksService(jiraRepo, localRepo, classifier, userInput, assetService, nil)
+		service := NewTasksService(jiraRepo, localRepo, classifier, userInput, assetService, nil, nil)
 
 		// Set up test data
 		expectedTasks := []*domain.Task{
@@ -709,7 +709,7 @@ func TestTaskServiceImpl_GetTasks(t *testing.T) {
 		assetService := testutil.NewMockAssetService()
 
 		// Create service using the concrete constructor
-		service := NewTasksService(jiraRepo, localRepo, classifier, userInput, assetService, nil)
+		service := NewTasksService(jiraRepo, localRepo, classifier, userInput, assetService, nil, nil)
 
 		// Mock the local repository to return error
 		localRepo.SetFindByProjectAndSprintFunc(func(_ context.Context, _, _ string) ([]*domain.Task, error) {
@@ -736,7 +736,7 @@ func TestTaskService_GetTaskByKey(t *testing.T) {
 		assetService := testutil.NewMockAssetService()
 
 		// Create service
-		service := NewTasksService(jiraRepo, localRepo, classifier, userInput, assetService, nil)
+		service := NewTasksService(jiraRepo, localRepo, classifier, userInput, assetService, nil, nil)
 
 		// Set up test data
 		expectedTask := &domain.Task{
@@ -773,7 +773,7 @@ func TestTaskService_GetTaskByKey(t *testing.T) {
 		assetService := testutil.NewMockAssetService()
 
 		// Create service
-		service := NewTasksService(jiraRepo, localRepo, classifier, userInput, assetService, nil)
+		service := NewTasksService(jiraRepo, localRepo, classifier, userInput, assetService, nil, nil)
 
 		// Mock the local repository to return error
 		localRepo.SetFindByKeyFunc(func(_ context.Context, _ string) (*domain.Task, error) {
@@ -798,7 +798,7 @@ func TestTaskService_GetTaskByKey(t *testing.T) {
 		assetService := testutil.NewMockAssetService()
 
 		// Create service
-		service := NewTasksService(jiraRepo, localRepo, classifier, userInput, assetService, nil)
+		service := NewTasksService(jiraRepo, localRepo, classifier, userInput, assetService, nil, nil)
 
 		// Test
 		task, err := service.GetTaskByKey(context.Background(), "")
@@ -820,7 +820,7 @@ func TestTaskService_FetchTaskByKey(t *testing.T) {
 		assetService := testutil.NewMockAssetService()
 
 		// Create service
-		service := NewTasksService(jiraRepo, localRepo, classifier, userInput, assetService, nil)
+		service := NewTasksService(jiraRepo, localRepo, classifier, userInput, assetService, nil, nil)
 
 		// Mock successful execution
 		jiraRepo.SetFindByKeyFunc(func(_ context.Context, key string) (*domain.Task, error) {
@@ -846,7 +846,7 @@ func TestTaskService_FetchTaskByKey(t *testing.T) {
 		assetService := testutil.NewMockAssetService()
 
 		// Create service
-		service := NewTasksService(jiraRepo, localRepo, classifier, userInput, assetService, nil)
+		service := NewTasksService(jiraRepo, localRepo, classifier, userInput, assetService, nil, nil)
 
 		// Mock failure
 		jiraRepo.SetFindByKeyFunc(func(_ context.Context, _ string) (*domain.Task, error) {

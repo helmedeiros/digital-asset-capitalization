@@ -1378,6 +1378,7 @@ For more information about a command:
 							platform := ctx.String("platform")
 							dryRun := ctx.Bool("dry-run")
 							apply := ctx.Bool("apply")
+							force := ctx.Bool("force")
 
 							// Resolve team identifier to actual project code
 							if a.teamResolver != nil && project != "" {
@@ -1393,6 +1394,7 @@ For more information about a command:
 								Sprint:  sprint,
 								DryRun:  dryRun,
 								Apply:   apply,
+								Force:   force,
 							}
 							if err := a.taskService.ClassifyTasks(context.Background(), input); err != nil {
 								return err
@@ -1433,6 +1435,11 @@ For more information about a command:
 							&cli.BoolFlag{
 								Name:  "apply",
 								Usage: "Write classifications back to Jira",
+								Value: false,
+							},
+							&cli.BoolFlag{
+								Name:  "force",
+								Usage: "Override sprint classification lock (requires --apply)",
 								Value: false,
 							},
 						},
@@ -2627,8 +2634,11 @@ func initializeApp() (*App, error) {
 	// Create SprintResolver with interactive selection capability
 	sprintResolver := tasksusecase.NewSprintResolver(jiraAdapter, userInput)
 
+	// Initialize sprint lock storage
+	sprintLockStorage := storage.NewSprintLockStorage(tasksDir, "sprint_locks.json")
+
 	// Initialize task service with SprintResolver
-	taskService := tasksapp.NewTasksService(jiraRepo, localRepo, taskClassifier, userInput, assetService, sprintResolver)
+	taskService := tasksapp.NewTasksService(jiraRepo, localRepo, taskClassifier, userInput, assetService, sprintResolver, sprintLockStorage)
 
 	// Initialize config service for CLI
 	configService := &configServiceImpl{

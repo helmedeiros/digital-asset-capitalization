@@ -18,6 +18,7 @@ type ClassifyTasksUseCase struct {
 	classifier   ports.TaskClassifier
 	userInput    ports.UserInput
 	assetService assetsapp.AssetService
+	lockRepo     ports.SprintLockRepository
 }
 
 // NewClassifyTasksUseCase creates a new instance of ClassifyTasksUseCase
@@ -27,6 +28,7 @@ func NewClassifyTasksUseCase(
 	classifier ports.TaskClassifier,
 	userInput ports.UserInput,
 	assetService assetsapp.AssetService,
+	lockRepo ports.SprintLockRepository,
 ) *ClassifyTasksUseCase {
 	return &ClassifyTasksUseCase{
 		localRepo:    localRepo,
@@ -34,6 +36,7 @@ func NewClassifyTasksUseCase(
 		classifier:   classifier,
 		userInput:    userInput,
 		assetService: assetService,
+		lockRepo:     lockRepo,
 	}
 }
 
@@ -70,6 +73,34 @@ func (uc *ClassifyTasksUseCase) Execute(ctx context.Context, input domain.Classi
 			tasks = fetchedTasks
 		} else {
 			return fmt.Errorf("no tasks available for classification")
+		}
+	}
+
+	// Check sprint lock before applying to remote
+	if input.Apply && uc.lockRepo != nil {
+		lock, lockErr := uc.lockRepo.FindLock(ctx, input.Project, input.Sprint)
+		if lockErr != nil {
+			return fmt.Errorf("failed to check sprint lock: %w", lockErr)
+		}
+
+		if lock != nil {
+			if !input.Force {
+				return fmt.Errorf(
+					"sprint %q in project %q was already classified on %s (%d tasks). Use --force to override",
+					input.Sprint, input.Project, lock.LockedAt.Format("2006-01-02 15:04"), lock.TaskCount,
+				)
+			}
+
+			confirmed, confirmErr := uc.userInput.Confirm(
+				"Sprint %q in project %q was already classified on %s (%d tasks). Re-apply classifications?",
+				input.Sprint, input.Project, lock.LockedAt.Format("2006-01-02 15:04"), lock.TaskCount,
+			)
+			if confirmErr != nil {
+				return fmt.Errorf("failed to get user confirmation: %w", confirmErr)
+			}
+			if !confirmed {
+				return fmt.Errorf("classification aborted by user")
+			}
 		}
 	}
 
@@ -152,6 +183,14 @@ func (uc *ClassifyTasksUseCase) Execute(ctx context.Context, input domain.Classi
 	fmt.Printf("\n✅ Successfully processed %d tasks\n", successCount)
 	if input.Apply {
 		fmt.Printf("🎯 All work type and asset labels have been written to JIRA\n")
+
+		// Save sprint lock after successful apply
+		if uc.lockRepo != nil {
+			lock := domain.NewSprintLock(input.Project, input.Sprint, successCount)
+			if lockErr := uc.lockRepo.SaveLock(ctx, lock); lockErr != nil {
+				fmt.Printf("⚠️  Warning: failed to save sprint lock: %v\n", lockErr)
+			}
+		}
 	} else {
 		fmt.Printf("💾 Classifications saved locally (use --apply to write to JIRA)\n")
 	}

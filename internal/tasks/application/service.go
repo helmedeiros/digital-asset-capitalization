@@ -18,10 +18,10 @@ type TaskServiceImpl struct {
 }
 
 // NewTasksService creates a new TasksService
-func NewTasksService(remoteRepo, localRepo ports.TaskRepository, classifier ports.TaskClassifier, userInput ports.UserInput, assetService assetsapp.AssetService, sprintResolver *usecase.SprintResolver) TaskService {
+func NewTasksService(remoteRepo, localRepo ports.TaskRepository, classifier ports.TaskClassifier, userInput ports.UserInput, assetService assetsapp.AssetService, sprintResolver *usecase.SprintResolver, lockRepo ports.SprintLockRepository) TaskService {
 	return &TaskServiceImpl{
 		fetchTasksUseCase:    usecase.NewFetchTasksUseCase(remoteRepo, localRepo, sprintResolver),
-		classifyTasksUseCase: usecase.NewClassifyTasksUseCase(localRepo, remoteRepo, classifier, userInput, assetService),
+		classifyTasksUseCase: usecase.NewClassifyTasksUseCase(localRepo, remoteRepo, classifier, userInput, assetService, lockRepo),
 	}
 }
 
