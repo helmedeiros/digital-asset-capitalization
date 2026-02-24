@@ -282,7 +282,7 @@ func TestClassifyTasksUseCase_Execute(t *testing.T) {
 
 			// Create use case
 			assetService := testutil.NewMockAssetService()
-			uc := NewClassifyTasksUseCase(localRepo, remoteRepo, classifier, userInput, assetService)
+			uc := NewClassifyTasksUseCase(localRepo, remoteRepo, classifier, userInput, assetService, nil)
 
 			// Execute use case
 			err := uc.Execute(ctx, tt.input)
@@ -313,7 +313,7 @@ func TestGetTasks(t *testing.T) {
 
 		// Create use case
 		assetService := testutil.NewMockAssetService()
-		uc := NewClassifyTasksUseCase(mockLocalRepo, mockRemoteRepo, mockClassifier, mockUserInput, assetService)
+		uc := NewClassifyTasksUseCase(mockLocalRepo, mockRemoteRepo, mockClassifier, mockUserInput, assetService, nil)
 
 		// Arrange
 		project := testProject
@@ -349,7 +349,7 @@ func TestGetTasks(t *testing.T) {
 
 		// Create use case
 		assetService := testutil.NewMockAssetService()
-		uc := NewClassifyTasksUseCase(mockLocalRepo, mockRemoteRepo, mockClassifier, mockUserInput, assetService)
+		uc := NewClassifyTasksUseCase(mockLocalRepo, mockRemoteRepo, mockClassifier, mockUserInput, assetService, nil)
 
 		// Arrange
 		project := testProject
@@ -389,7 +389,7 @@ func TestGetTasks(t *testing.T) {
 
 		// Create use case
 		assetService := testutil.NewMockAssetService()
-		uc := NewClassifyTasksUseCase(mockLocalRepo, mockRemoteRepo, mockClassifier, mockUserInput, assetService)
+		uc := NewClassifyTasksUseCase(mockLocalRepo, mockRemoteRepo, mockClassifier, mockUserInput, assetService, nil)
 
 		// Arrange
 		project := testProject
@@ -418,7 +418,7 @@ func TestGetTasks(t *testing.T) {
 
 		// Create use case
 		assetService := testutil.NewMockAssetService()
-		uc := NewClassifyTasksUseCase(mockLocalRepo, mockRemoteRepo, mockClassifier, mockUserInput, assetService)
+		uc := NewClassifyTasksUseCase(mockLocalRepo, mockRemoteRepo, mockClassifier, mockUserInput, assetService, nil)
 
 		// Arrange
 		project := testProject
@@ -449,7 +449,7 @@ func TestGetTasks(t *testing.T) {
 
 		// Create use case
 		assetService := testutil.NewMockAssetService()
-		uc := NewClassifyTasksUseCase(mockLocalRepo, mockRemoteRepo, mockClassifier, mockUserInput, assetService)
+		uc := NewClassifyTasksUseCase(mockLocalRepo, mockRemoteRepo, mockClassifier, mockUserInput, assetService, nil)
 
 		// Arrange
 		project := testProject
@@ -494,7 +494,7 @@ func TestGetAllTasks(t *testing.T) {
 
 		// Create use case
 		assetService := testutil.NewMockAssetService()
-		uc := NewClassifyTasksUseCase(mockLocalRepo, mockRemoteRepo, mockClassifier, mockUserInput, assetService)
+		uc := NewClassifyTasksUseCase(mockLocalRepo, mockRemoteRepo, mockClassifier, mockUserInput, assetService, nil)
 
 		// Arrange
 		expectedTasks := []*domain.Task{
@@ -523,7 +523,7 @@ func TestGetAllTasks(t *testing.T) {
 
 		// Create use case
 		assetService := testutil.NewMockAssetService()
-		uc := NewClassifyTasksUseCase(mockLocalRepo, mockRemoteRepo, mockClassifier, mockUserInput, assetService)
+		uc := NewClassifyTasksUseCase(mockLocalRepo, mockRemoteRepo, mockClassifier, mockUserInput, assetService, nil)
 
 		// Arrange
 		mockLocalRepo.On("FindAll", ctx).Return(nil, fmt.Errorf("repository error"))
@@ -547,7 +547,7 @@ func TestGetAllTasks(t *testing.T) {
 
 		// Create use case
 		assetService := testutil.NewMockAssetService()
-		uc := NewClassifyTasksUseCase(mockLocalRepo, mockRemoteRepo, mockClassifier, mockUserInput, assetService)
+		uc := NewClassifyTasksUseCase(mockLocalRepo, mockRemoteRepo, mockClassifier, mockUserInput, assetService, nil)
 
 		// Arrange
 		mockLocalRepo.On("FindAll", ctx).Return([]*domain.Task{}, nil)
@@ -572,7 +572,7 @@ func TestGetLocalRepository(t *testing.T) {
 
 		// Create use case
 		assetService := testutil.NewMockAssetService()
-		uc := NewClassifyTasksUseCase(mockLocalRepo, mockRemoteRepo, mockClassifier, mockUserInput, assetService)
+		uc := NewClassifyTasksUseCase(mockLocalRepo, mockRemoteRepo, mockClassifier, mockUserInput, assetService, nil)
 
 		// Act
 		repo := uc.GetLocalRepository()
@@ -631,7 +631,7 @@ func TestBuildUpdatedLabels(t *testing.T) {
 	mockClassifier := new(MockTaskClassifier)
 	mockUserInput := new(MockUserInput)
 	assetService := testutil.NewMockAssetService()
-	uc := NewClassifyTasksUseCase(mockLocalRepo, mockRemoteRepo, mockClassifier, mockUserInput, assetService)
+	uc := NewClassifyTasksUseCase(mockLocalRepo, mockRemoteRepo, mockClassifier, mockUserInput, assetService, nil)
 
 	tests := []struct {
 		name           string
@@ -751,7 +751,7 @@ func TestGetAssetLabel(t *testing.T) {
 	mockClassifier := new(MockTaskClassifier)
 	mockUserInput := new(MockUserInput)
 	assetService := testutil.NewMockAssetService()
-	uc := NewClassifyTasksUseCase(mockLocalRepo, mockRemoteRepo, mockClassifier, mockUserInput, assetService)
+	uc := NewClassifyTasksUseCase(mockLocalRepo, mockRemoteRepo, mockClassifier, mockUserInput, assetService, nil)
 
 	tests := []struct {
 		name      string
@@ -815,7 +815,7 @@ func TestClassifyTasksComprehensive(t *testing.T) {
 
 		// Create use case
 		assetService := testutil.NewMockAssetService()
-		uc := NewClassifyTasksUseCase(localRepo, remoteRepo, comprehensiveClassifier, userInput, assetService)
+		uc := NewClassifyTasksUseCase(localRepo, remoteRepo, comprehensiveClassifier, userInput, assetService, nil)
 
 		// Arrange
 		input := domain.ClassifyTasksInput{
@@ -878,7 +878,7 @@ func TestClassifyTasksComprehensive(t *testing.T) {
 
 		// Create use case
 		assetService := testutil.NewMockAssetService()
-		uc := NewClassifyTasksUseCase(localRepo, remoteRepo, comprehensiveClassifier, userInput, assetService)
+		uc := NewClassifyTasksUseCase(localRepo, remoteRepo, comprehensiveClassifier, userInput, assetService, nil)
 
 		// Arrange
 		input := domain.ClassifyTasksInput{
@@ -912,7 +912,7 @@ func TestClassifyTasksComprehensive(t *testing.T) {
 
 		// Create use case
 		assetService := testutil.NewMockAssetService()
-		uc := NewClassifyTasksUseCase(localRepo, remoteRepo, simpleClassifier, userInput, assetService)
+		uc := NewClassifyTasksUseCase(localRepo, remoteRepo, simpleClassifier, userInput, assetService, nil)
 
 		// Arrange
 		input := domain.ClassifyTasksInput{
@@ -955,7 +955,7 @@ func TestClassifyTasksEdgeCases(t *testing.T) {
 
 		// Create use case
 		assetService := testutil.NewMockAssetService()
-		uc := NewClassifyTasksUseCase(localRepo, remoteRepo, classifier, userInput, assetService)
+		uc := NewClassifyTasksUseCase(localRepo, remoteRepo, classifier, userInput, assetService, nil)
 
 		// Arrange
 		input := domain.ClassifyTasksInput{
@@ -988,7 +988,7 @@ func TestClassifyTasksEdgeCases(t *testing.T) {
 
 		// Create use case
 		assetService := testutil.NewMockAssetService()
-		uc := NewClassifyTasksUseCase(localRepo, remoteRepo, classifier, userInput, assetService)
+		uc := NewClassifyTasksUseCase(localRepo, remoteRepo, classifier, userInput, assetService, nil)
 
 		// Arrange
 		input := domain.ClassifyTasksInput{
@@ -1021,7 +1021,7 @@ func TestClassifyTasksEdgeCases(t *testing.T) {
 
 		// Create use case
 		assetService := testutil.NewMockAssetService()
-		uc := NewClassifyTasksUseCase(localRepo, remoteRepo, classifier, userInput, assetService)
+		uc := NewClassifyTasksUseCase(localRepo, remoteRepo, classifier, userInput, assetService, nil)
 
 		// Arrange
 		input := domain.ClassifyTasksInput{
@@ -1054,7 +1054,7 @@ func TestClassifyTasksEdgeCases(t *testing.T) {
 
 		// Create use case
 		assetService := testutil.NewMockAssetService()
-		uc := NewClassifyTasksUseCase(localRepo, remoteRepo, classifier, userInput, assetService)
+		uc := NewClassifyTasksUseCase(localRepo, remoteRepo, classifier, userInput, assetService, nil)
 
 		// Arrange
 		input := domain.ClassifyTasksInput{
@@ -1095,7 +1095,7 @@ func TestClassifyTasksEdgeCases(t *testing.T) {
 
 		// Create use case
 		assetService := testutil.NewMockAssetService()
-		uc := NewClassifyTasksUseCase(localRepo, remoteRepo, classifier, userInput, assetService)
+		uc := NewClassifyTasksUseCase(localRepo, remoteRepo, classifier, userInput, assetService, nil)
 
 		// Arrange
 		input := domain.ClassifyTasksInput{
@@ -1128,7 +1128,7 @@ func TestClassifyTasksEdgeCases(t *testing.T) {
 
 		// Create use case
 		assetService := testutil.NewMockAssetService()
-		uc := NewClassifyTasksUseCase(localRepo, remoteRepo, classifier, userInput, assetService)
+		uc := NewClassifyTasksUseCase(localRepo, remoteRepo, classifier, userInput, assetService, nil)
 
 		// Arrange
 		input := domain.ClassifyTasksInput{
@@ -1170,7 +1170,7 @@ func TestClassifyTasksEdgeCases(t *testing.T) {
 
 		// Create use case
 		assetService := testutil.NewMockAssetService()
-		uc := NewClassifyTasksUseCase(localRepo, remoteRepo, classifier, userInput, assetService)
+		uc := NewClassifyTasksUseCase(localRepo, remoteRepo, classifier, userInput, assetService, nil)
 
 		// Arrange
 		input := domain.ClassifyTasksInput{
@@ -1214,7 +1214,7 @@ func TestPreviewClassificationsWithAssetSync(t *testing.T) {
 		assetService := testutil.NewMockAssetService()
 
 		// Create use case
-		uc := NewClassifyTasksUseCase(localRepo, remoteRepo, comprehensiveClassifier, userInput, assetService)
+		uc := NewClassifyTasksUseCase(localRepo, remoteRepo, comprehensiveClassifier, userInput, assetService, nil)
 
 		// Arrange - dry run input that triggers preview
 		input := domain.ClassifyTasksInput{
@@ -1308,7 +1308,7 @@ func TestPreviewClassificationsWithAssetSync(t *testing.T) {
 		assetService := testutil.NewMockAssetService()
 
 		// Create use case
-		uc := NewClassifyTasksUseCase(localRepo, remoteRepo, comprehensiveClassifier, userInput, assetService)
+		uc := NewClassifyTasksUseCase(localRepo, remoteRepo, comprehensiveClassifier, userInput, assetService, nil)
 
 		// Arrange
 		input := domain.ClassifyTasksInput{
@@ -1355,7 +1355,7 @@ func TestPreviewClassificationsWithAssetSync(t *testing.T) {
 		assetService := testutil.NewMockAssetService()
 
 		// Create use case
-		uc := NewClassifyTasksUseCase(localRepo, remoteRepo, comprehensiveClassifier, userInput, assetService)
+		uc := NewClassifyTasksUseCase(localRepo, remoteRepo, comprehensiveClassifier, userInput, assetService, nil)
 
 		// Arrange
 		input := domain.ClassifyTasksInput{
@@ -1399,7 +1399,7 @@ func TestPreviewClassificationsWithAssetSync(t *testing.T) {
 		assetService := testutil.NewMockAssetService()
 
 		// Create use case
-		uc := NewClassifyTasksUseCase(localRepo, remoteRepo, comprehensiveClassifier, userInput, assetService)
+		uc := NewClassifyTasksUseCase(localRepo, remoteRepo, comprehensiveClassifier, userInput, assetService, nil)
 
 		// Arrange
 		input := domain.ClassifyTasksInput{
@@ -1444,7 +1444,7 @@ func TestPreviewClassificationsWithAssetSync(t *testing.T) {
 		assetService := testutil.NewMockAssetService()
 
 		// Create use case
-		uc := NewClassifyTasksUseCase(localRepo, remoteRepo, comprehensiveClassifier, userInput, assetService)
+		uc := NewClassifyTasksUseCase(localRepo, remoteRepo, comprehensiveClassifier, userInput, assetService, nil)
 
 		// Arrange
 		input := domain.ClassifyTasksInput{
@@ -1492,7 +1492,7 @@ func TestPreviewClassificationsWithAssetSync(t *testing.T) {
 		assetService := testutil.NewMockAssetService()
 
 		// Create use case
-		uc := NewClassifyTasksUseCase(localRepo, remoteRepo, comprehensiveClassifier, userInput, assetService)
+		uc := NewClassifyTasksUseCase(localRepo, remoteRepo, comprehensiveClassifier, userInput, assetService, nil)
 
 		tasks := []*domain.Task{{Key: "TEST-1", Summary: "Task 1"}}
 		results := []*ports.ComprehensiveClassificationResult{
@@ -1528,7 +1528,7 @@ func TestAdditionalErrorHandlingAndEdgeCases(t *testing.T) {
 		assetService := testutil.NewMockAssetService()
 
 		// Create use case
-		uc := NewClassifyTasksUseCase(localRepo, remoteRepo, comprehensiveClassifier, userInput, assetService)
+		uc := NewClassifyTasksUseCase(localRepo, remoteRepo, comprehensiveClassifier, userInput, assetService, nil)
 
 		// Arrange
 		input := domain.ClassifyTasksInput{
@@ -1572,7 +1572,7 @@ func TestAdditionalErrorHandlingAndEdgeCases(t *testing.T) {
 		assetService := testutil.NewMockAssetService()
 
 		// Create use case
-		uc := NewClassifyTasksUseCase(localRepo, remoteRepo, simpleClassifier, userInput, assetService)
+		uc := NewClassifyTasksUseCase(localRepo, remoteRepo, simpleClassifier, userInput, assetService, nil)
 
 		// Arrange
 		input := domain.ClassifyTasksInput{
@@ -1606,7 +1606,7 @@ func TestAdditionalErrorHandlingAndEdgeCases(t *testing.T) {
 		assetService := testutil.NewMockAssetService()
 
 		// Create use case
-		uc := NewClassifyTasksUseCase(localRepo, remoteRepo, classifier, userInput, assetService)
+		uc := NewClassifyTasksUseCase(localRepo, remoteRepo, classifier, userInput, assetService, nil)
 
 		// Arrange
 		input := domain.ClassifyTasksInput{
@@ -1639,7 +1639,7 @@ func TestAdditionalErrorHandlingAndEdgeCases(t *testing.T) {
 		assetService := testutil.NewMockAssetService()
 
 		// Create use case
-		uc := NewClassifyTasksUseCase(localRepo, remoteRepo, classifier, userInput, assetService)
+		uc := NewClassifyTasksUseCase(localRepo, remoteRepo, classifier, userInput, assetService, nil)
 
 		// Arrange
 		project := testProject
@@ -1667,7 +1667,7 @@ func TestAdditionalErrorHandlingAndEdgeCases(t *testing.T) {
 		assetService := testutil.NewMockAssetService()
 
 		// Create use case
-		uc := NewClassifyTasksUseCase(localRepo, remoteRepo, comprehensiveClassifier, userInput, assetService)
+		uc := NewClassifyTasksUseCase(localRepo, remoteRepo, comprehensiveClassifier, userInput, assetService, nil)
 
 		// Arrange
 		input := domain.ClassifyTasksInput{
@@ -1725,7 +1725,7 @@ func TestAdditionalErrorHandlingAndEdgeCases(t *testing.T) {
 		assetService := testutil.NewMockAssetService()
 
 		// Create use case
-		uc := NewClassifyTasksUseCase(localRepo, remoteRepo, comprehensiveClassifier, userInput, assetService)
+		uc := NewClassifyTasksUseCase(localRepo, remoteRepo, comprehensiveClassifier, userInput, assetService, nil)
 
 		// Arrange
 		input := domain.ClassifyTasksInput{
@@ -1759,7 +1759,7 @@ func TestAdditionalErrorHandlingAndEdgeCases(t *testing.T) {
 		assetService := testutil.NewMockAssetService()
 
 		// Create use case
-		uc := NewClassifyTasksUseCase(localRepo, remoteRepo, classifier, userInput, assetService)
+		uc := NewClassifyTasksUseCase(localRepo, remoteRepo, classifier, userInput, assetService, nil)
 
 		// Arrange
 		localRepo.On("FindAll", ctx).Return([]*domain.Task(nil), nil)
@@ -1782,7 +1782,7 @@ func TestAdditionalErrorHandlingAndEdgeCases(t *testing.T) {
 		assetService := testutil.NewMockAssetService()
 
 		// Create use case
-		uc := NewClassifyTasksUseCase(localRepo, remoteRepo, comprehensiveClassifier, userInput, assetService)
+		uc := NewClassifyTasksUseCase(localRepo, remoteRepo, comprehensiveClassifier, userInput, assetService, nil)
 
 		// Arrange
 		input := domain.ClassifyTasksInput{
@@ -1841,7 +1841,7 @@ func TestSortingAndDisplayLogic(t *testing.T) {
 		assetService := testutil.NewMockAssetService()
 
 		// Create use case
-		uc := NewClassifyTasksUseCase(localRepo, remoteRepo, comprehensiveClassifier, userInput, assetService)
+		uc := NewClassifyTasksUseCase(localRepo, remoteRepo, comprehensiveClassifier, userInput, assetService, nil)
 
 		// Arrange
 		input := domain.ClassifyTasksInput{
@@ -1914,7 +1914,7 @@ func TestSortingAndDisplayLogic(t *testing.T) {
 		assetService := testutil.NewMockAssetService()
 
 		// Create use case
-		uc := NewClassifyTasksUseCase(localRepo, remoteRepo, comprehensiveClassifier, userInput, assetService)
+		uc := NewClassifyTasksUseCase(localRepo, remoteRepo, comprehensiveClassifier, userInput, assetService, nil)
 
 		// Tasks with no asset assignments in non-alphabetical order
 		tasks := []*domain.Task{
@@ -1965,7 +1965,7 @@ func TestSortingAndDisplayLogic(t *testing.T) {
 		assetService := testutil.NewMockAssetService()
 
 		// Create use case
-		uc := NewClassifyTasksUseCase(localRepo, remoteRepo, comprehensiveClassifier, userInput, assetService)
+		uc := NewClassifyTasksUseCase(localRepo, remoteRepo, comprehensiveClassifier, userInput, assetService, nil)
 
 		// Arrange
 		input := domain.ClassifyTasksInput{
@@ -2040,7 +2040,7 @@ func TestSortingAndDisplayLogic(t *testing.T) {
 		assetService := testutil.NewMockAssetService()
 
 		// Create use case
-		uc := NewClassifyTasksUseCase(localRepo, remoteRepo, simpleClassifier, userInput, assetService)
+		uc := NewClassifyTasksUseCase(localRepo, remoteRepo, simpleClassifier, userInput, assetService, nil)
 
 		// Arrange
 		input := domain.ClassifyTasksInput{
@@ -2084,7 +2084,7 @@ func TestSortingAndDisplayLogic(t *testing.T) {
 		assetService := testutil.NewMockAssetService()
 
 		// Create use case
-		uc := NewClassifyTasksUseCase(localRepo, remoteRepo, comprehensiveClassifier, userInput, assetService)
+		uc := NewClassifyTasksUseCase(localRepo, remoteRepo, comprehensiveClassifier, userInput, assetService, nil)
 
 		// Empty tasks list
 		tasks := []*domain.Task{}
@@ -2098,5 +2098,192 @@ func TestSortingAndDisplayLogic(t *testing.T) {
 		// Assert
 		assert.NoError(t, err)
 		comprehensiveClassifier.AssertExpectations(t)
+	})
+}
+
+// MockSprintLockRepository is a mock implementation of ports.SprintLockRepository
+type MockSprintLockRepository struct {
+	mock.Mock
+}
+
+func (m *MockSprintLockRepository) FindLock(ctx context.Context, project, sprint string) (*domain.SprintLock, error) {
+	args := m.Called(ctx, project, sprint)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*domain.SprintLock), args.Error(1)
+}
+
+func (m *MockSprintLockRepository) SaveLock(ctx context.Context, lock *domain.SprintLock) error {
+	args := m.Called(ctx, lock)
+	return args.Error(0)
+}
+
+func TestSprintLockBehavior(t *testing.T) {
+	tasks := []*domain.Task{
+		{Key: "TEST-1", Summary: "Task 1", Labels: []string{"cap-asset-test"}},
+	}
+
+	t.Run("apply blocked when sprint is locked", func(t *testing.T) {
+		localRepo := new(MockTaskRepository)
+		remoteRepo := new(MockTaskRepository)
+		classifier := new(MockTaskClassifier)
+		userInput := new(MockUserInput)
+		assetService := testutil.NewMockAssetService()
+		lockRepo := new(MockSprintLockRepository)
+
+		uc := NewClassifyTasksUseCase(localRepo, remoteRepo, classifier, userInput, assetService, lockRepo)
+
+		localRepo.On("FindByProjectAndSprint", mock.Anything, testProject, testSprint).Return(tasks, nil)
+		existingLock := domain.NewSprintLock(testProject, testSprint, 10)
+		lockRepo.On("FindLock", mock.Anything, testProject, testSprint).Return(existingLock, nil)
+
+		input := domain.ClassifyTasksInput{
+			Project: testProject,
+			Sprint:  testSprint,
+			Apply:   true,
+			Force:   false,
+		}
+
+		err := uc.Execute(context.Background(), input)
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "already classified")
+		assert.Contains(t, err.Error(), "--force")
+		lockRepo.AssertExpectations(t)
+	})
+
+	t.Run("apply allowed when sprint is not locked", func(t *testing.T) {
+		localRepo := new(MockTaskRepository)
+		remoteRepo := new(MockTaskRepository)
+		classifier := new(MockTaskClassifier)
+		userInput := new(MockUserInput)
+		assetService := testutil.NewMockAssetService()
+		lockRepo := new(MockSprintLockRepository)
+
+		uc := NewClassifyTasksUseCase(localRepo, remoteRepo, classifier, userInput, assetService, lockRepo)
+
+		localRepo.On("FindByProjectAndSprint", mock.Anything, testProject, testSprint).Return([]*domain.Task{}, nil)
+		userInput.On("Confirm", mock.Anything, mock.Anything, mock.Anything).Return(false, nil)
+
+		input := domain.ClassifyTasksInput{
+			Project: testProject,
+			Sprint:  testSprint,
+			Apply:   true,
+			Force:   false,
+		}
+
+		err := uc.Execute(context.Background(), input)
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "no tasks available")
+	})
+
+	t.Run("force apply prompts user when locked and proceeds on confirm", func(t *testing.T) {
+		localRepo := new(MockTaskRepository)
+		remoteRepo := new(MockTaskRepository)
+		classifier := new(MockTaskClassifier)
+		userInput := new(MockUserInput)
+		assetService := testutil.NewMockAssetService()
+		lockRepo := new(MockSprintLockRepository)
+
+		uc := NewClassifyTasksUseCase(localRepo, remoteRepo, classifier, userInput, assetService, lockRepo)
+
+		localRepo.On("FindByProjectAndSprint", mock.Anything, testProject, testSprint).Return(tasks, nil)
+		existingLock := domain.NewSprintLock(testProject, testSprint, 10)
+		lockRepo.On("FindLock", mock.Anything, testProject, testSprint).Return(existingLock, nil)
+		userInput.On("Confirm", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(true, nil)
+		classifier.On("ClassifyTasks", tasks).Return(map[string]domain.WorkType{"TEST-1": "cap-development"}, nil)
+		localRepo.On("Save", mock.Anything, mock.Anything).Return(nil)
+		remoteRepo.On("UpdateLabels", mock.Anything, mock.Anything, mock.Anything).Return(nil)
+		lockRepo.On("SaveLock", mock.Anything, mock.Anything).Return(nil)
+
+		input := domain.ClassifyTasksInput{
+			Project: testProject,
+			Sprint:  testSprint,
+			Apply:   true,
+			Force:   true,
+		}
+
+		err := uc.Execute(context.Background(), input)
+		assert.NoError(t, err)
+		userInput.AssertCalled(t, "Confirm", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything)
+		lockRepo.AssertCalled(t, "SaveLock", mock.Anything, mock.Anything)
+	})
+
+	t.Run("force apply aborted when user declines", func(t *testing.T) {
+		localRepo := new(MockTaskRepository)
+		remoteRepo := new(MockTaskRepository)
+		classifier := new(MockTaskClassifier)
+		userInput := new(MockUserInput)
+		assetService := testutil.NewMockAssetService()
+		lockRepo := new(MockSprintLockRepository)
+
+		uc := NewClassifyTasksUseCase(localRepo, remoteRepo, classifier, userInput, assetService, lockRepo)
+
+		localRepo.On("FindByProjectAndSprint", mock.Anything, testProject, testSprint).Return(tasks, nil)
+		existingLock := domain.NewSprintLock(testProject, testSprint, 10)
+		lockRepo.On("FindLock", mock.Anything, testProject, testSprint).Return(existingLock, nil)
+		userInput.On("Confirm", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(false, nil)
+
+		input := domain.ClassifyTasksInput{
+			Project: testProject,
+			Sprint:  testSprint,
+			Apply:   true,
+			Force:   true,
+		}
+
+		err := uc.Execute(context.Background(), input)
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "aborted by user")
+		lockRepo.AssertExpectations(t)
+	})
+
+	t.Run("dry-run always allowed even when locked", func(t *testing.T) {
+		localRepo := new(MockTaskRepository)
+		remoteRepo := new(MockTaskRepository)
+		classifier := new(MockTaskClassifier)
+		userInput := new(MockUserInput)
+		assetService := testutil.NewMockAssetService()
+		lockRepo := new(MockSprintLockRepository)
+
+		uc := NewClassifyTasksUseCase(localRepo, remoteRepo, classifier, userInput, assetService, lockRepo)
+
+		localRepo.On("FindByProjectAndSprint", mock.Anything, testProject, testSprint).Return([]*domain.Task{}, nil)
+		userInput.On("Confirm", mock.Anything, mock.Anything, mock.Anything).Return(false, nil)
+
+		input := domain.ClassifyTasksInput{
+			Project: testProject,
+			Sprint:  testSprint,
+			DryRun:  true,
+			Apply:   false,
+		}
+
+		err := uc.Execute(context.Background(), input)
+		assert.Error(t, err)
+		lockRepo.AssertNotCalled(t, "FindLock")
+	})
+
+	t.Run("lock check error propagated", func(t *testing.T) {
+		localRepo := new(MockTaskRepository)
+		remoteRepo := new(MockTaskRepository)
+		classifier := new(MockTaskClassifier)
+		userInput := new(MockUserInput)
+		assetService := testutil.NewMockAssetService()
+		lockRepo := new(MockSprintLockRepository)
+
+		uc := NewClassifyTasksUseCase(localRepo, remoteRepo, classifier, userInput, assetService, lockRepo)
+
+		localRepo.On("FindByProjectAndSprint", mock.Anything, testProject, testSprint).Return(tasks, nil)
+		lockRepo.On("FindLock", mock.Anything, testProject, testSprint).Return(nil, fmt.Errorf("storage error"))
+
+		input := domain.ClassifyTasksInput{
+			Project: testProject,
+			Sprint:  testSprint,
+			Apply:   true,
+		}
+
+		err := uc.Execute(context.Background(), input)
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "failed to check sprint lock")
+		lockRepo.AssertExpectations(t)
 	})
 }
