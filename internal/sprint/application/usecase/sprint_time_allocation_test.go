@@ -513,6 +513,14 @@ func (m *MockJiraAdapter) GetIssuesForSprintOnBoard(_, _ string, _ int) ([]ports
 	return nil, nil
 }
 
+func (m *MockJiraAdapter) UpdateCustomFields(_ string, _ ports.CustomFieldUpdate) error {
+	return nil
+}
+
+func (m *MockJiraAdapter) FetchCustomFields(_ string) (*ports.CustomFieldValues, error) {
+	return nil, nil
+}
+
 func TestGetIssueTimeRange(t *testing.T) {
 	// Don't run sub-tests in parallel to avoid directory conflicts
 	// The setupTestEnv changes working directory which can affect parallel tests

@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bufio"
 	"context"
 	"fmt"
 	"log"
@@ -59,14 +60,15 @@ var (
 
 // App holds all the application dependencies
 type App struct {
-	assetService      assetsapp.AssetService
-	taskService       tasksapp.TaskService
-	sprintService     sprintapp.SprintService
-	configService     ConfigService
-	investmentService *investmentservice.InvestmentService
-	teamResolver      *configapp.TeamResolverService
-	taskRepo          taskports.TaskRepository
-	taskClassifier    taskports.TaskClassifier
+	assetService       assetsapp.AssetService
+	taskService        tasksapp.TaskService
+	sprintService      sprintapp.SprintService
+	configService      ConfigService
+	investmentService  *investmentservice.InvestmentService
+	teamResolver       *configapp.TeamResolverService
+	taskRepo           taskports.TaskRepository
+	taskClassifier     taskports.TaskClassifier
+	allocationLockRepo taskports.SprintLockRepository
 }
 
 // ConfigService interface for configuration operations
@@ -270,6 +272,9 @@ For more information about a command:
 							sprintBounded := ctx.Bool("sprint-bounded")
 							workStreamsStr := ctx.String("work-streams")
 							withHours := ctx.Bool("with-hours")
+							apply := ctx.Bool("apply")
+							dryRun := ctx.Bool("dry-run")
+							force := ctx.Bool("force")
 
 							// Resolve team identifier to actual project code
 							if a.teamResolver != nil && project != "" {
@@ -300,6 +305,11 @@ For more information about a command:
 								opts = append(opts, sprintusecase.WithHours(true))
 							}
 
+							// If --apply is set, use the push-to-JIRA flow
+							if apply {
+								return a.handleAllocateApply(project, sprint, override, sprintBounded, dryRun, force, opts)
+							}
+
 							if len(opts) > 0 || sprintBounded {
 								result, err := a.sprintService.ProcessJiraIssuesWithOptions(project, sprint, override, sprintBounded, opts...)
 								if err != nil {
@@ -307,7 +317,6 @@ For more information about a command:
 								}
 								fmt.Print(result)
 							} else {
-								// Use legacy calculation (when --sprint-bounded=false and no options)
 								result, err := a.sprintService.ProcessJiraIssues(project, sprint, override)
 								if err != nil {
 									return err
@@ -348,6 +357,21 @@ For more information about a command:
 							&cli.BoolFlag{
 								Name:  "with-hours",
 								Usage: "Include engineering hours column in CSV output",
+								Value: false,
+							},
+							&cli.BoolFlag{
+								Name:  "apply",
+								Usage: "Push calculated allocation data back to JIRA custom fields",
+								Value: false,
+							},
+							&cli.BoolFlag{
+								Name:  "dry-run",
+								Usage: "Show what would be pushed without making changes (requires --apply)",
+								Value: false,
+							},
+							&cli.BoolFlag{
+								Name:  "force",
+								Usage: "Override allocation lock (requires --apply)",
 								Value: false,
 							},
 						},
@@ -2898,6 +2922,82 @@ func maskToken(token string) string {
 	return token[:4] + "..." + token[len(token)-4:]
 }
 
+// handleAllocateApply handles the --apply flow for sprint allocate
+func (a *App) handleAllocateApply(project, sprint, override string, sprintBounded, dryRun, force bool, opts []sprintusecase.SprintAllocationOption) error {
+	bgCtx := context.Background()
+
+	// Lock check (skip for dry-run)
+	if !dryRun && a.allocationLockRepo != nil {
+		lockKey := fmt.Sprintf("alloc::%s", sprint)
+		existing, err := a.allocationLockRepo.FindLock(bgCtx, project, lockKey)
+		if err != nil {
+			return fmt.Errorf("failed to check allocation lock: %w", err)
+		}
+		if existing != nil {
+			if !force {
+				return fmt.Errorf("sprint %q in project %q was already pushed on %s (%d issues). Use --force to override",
+					sprint, project, existing.LockedAt.Format("2006-01-02"), existing.TaskCount)
+			}
+			fmt.Printf("Warning: sprint %q in project %q was already pushed on %s (%d issues).\n",
+				sprint, project, existing.LockedAt.Format("2006-01-02"), existing.TaskCount)
+			fmt.Print("Are you sure you want to re-push? [y/N] ")
+			reader := bufio.NewReader(os.Stdin)
+			answer, _ := reader.ReadString('\n')
+			answer = strings.TrimSpace(strings.ToLower(answer))
+			if answer != "y" && answer != "yes" {
+				fmt.Println("Aborted.")
+				return nil
+			}
+		}
+	}
+
+	csvData, pushResult, err := a.sprintService.PushAllocationToJira(project, sprint, override, sprintBounded, dryRun, opts...)
+	if err != nil {
+		return err
+	}
+
+	// Print CSV output
+	fmt.Print(csvData)
+
+	// Print push summary table
+	if pushResult != nil && len(pushResult.Details) > 0 {
+		fmt.Println("\nAllocation Push Summary:")
+		fmt.Printf("%-12s | %-20s | %-15s | %-15s | %-12s | %s\n",
+			"Issue", "Field", "Current", "New", "Status", "Reason")
+		fmt.Println(strings.Repeat("-", 95))
+		for _, d := range pushResult.Details {
+			oldVal := d.OldValue
+			if oldVal == "" {
+				oldVal = "(empty)"
+			}
+			newVal := d.NewValue
+			if newVal == "" {
+				newVal = ""
+			}
+			fmt.Printf("%-12s | %-20s | %-15s | %-15s | %-12s | %s\n",
+				d.IssueKey, d.Field, oldVal, newVal, d.Status, d.Reason)
+		}
+		fmt.Printf("\nUpdated: %d  Skipped: %d  Errors: %d\n",
+			pushResult.UpdatedCount, pushResult.SkippedCount, pushResult.ErrorCount)
+	}
+
+	if dryRun {
+		fmt.Println("\nDry run complete. Remove --dry-run to push changes.")
+		return nil
+	}
+
+	// Save allocation lock after successful push
+	if a.allocationLockRepo != nil && pushResult != nil && pushResult.UpdatedCount > 0 {
+		lockKey := fmt.Sprintf("alloc::%s", sprint)
+		lock := tasksdomain.NewSprintLock(project, lockKey, pushResult.UpdatedCount)
+		if err := a.allocationLockRepo.SaveLock(bgCtx, lock); err != nil {
+			fmt.Printf("Warning: failed to save allocation lock: %v\n", err)
+		}
+	}
+
+	return nil
+}
+
 // initializeApp creates a new App instance with all dependencies
 func initializeApp() (*App, error) {
 	// Initialize shared configuration service first
@@ -3007,12 +3107,16 @@ func initializeApp() (*App, error) {
 	}
 	teamResolver := configapp.NewTeamResolverService(teamConfig)
 
+	// Initialize allocation lock storage (separate from classification locks)
+	allocationLockStorage := storage.NewSprintLockStorage(tasksDir, "sprint_allocation_locks.json")
+
 	app := NewApp(assetService, taskService, sprintService)
 	app.configService = configService
 	app.investmentService = investmentService
 	app.teamResolver = teamResolver
 	app.taskRepo = jiraRepo
 	app.taskClassifier = taskClassifier
+	app.allocationLockRepo = allocationLockStorage
 	return app, nil
 }
 

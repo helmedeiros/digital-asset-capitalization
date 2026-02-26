@@ -57,6 +57,14 @@ func (m *MockJiraPort) GetIssuesForSprintOnBoard(_, _ string, _ int) ([]ports.Ji
 	return nil, nil
 }
 
+func (m *MockJiraPort) UpdateCustomFields(_ string, _ ports.CustomFieldUpdate) error {
+	return nil
+}
+
+func (m *MockJiraPort) FetchCustomFields(_ string) (*ports.CustomFieldValues, error) {
+	return nil, nil
+}
+
 func TestListSprintsUseCase_Execute(t *testing.T) {
 	t.Run("should list sprints for a project in Q2 2025", func(t *testing.T) {
 		// Given

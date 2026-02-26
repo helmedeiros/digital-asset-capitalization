@@ -1,6 +1,7 @@
 package infrastructure
 
 import (
+	"encoding/json"
 	"fmt"
 	"net/url"
 	"os"
@@ -462,6 +463,84 @@ func (a *JiraAdapter) getIssuesForBoardByDateRange(project string, boardID int, 
 
 	a.enrichIssues(issues)
 	return a.convertToPortIssues(issues), nil
+}
+
+// UpdateCustomFields writes custom field values to a JIRA issue via PUT /rest/api/3/issue/{key}
+func (a *JiraAdapter) UpdateCustomFields(issueKey string, update ports.CustomFieldUpdate) error {
+	if a.fieldIDs == nil {
+		return fmt.Errorf("custom field IDs not resolved")
+	}
+
+	fields := make(map[string]interface{})
+
+	if update.EngineeringHours != nil && a.fieldIDs.EngineeringHours != "" {
+		fields[a.fieldIDs.EngineeringHours] = *update.EngineeringHours
+	}
+
+	if update.WorkStream != nil && a.fieldIDs.WorkStream != "" {
+		fields[a.fieldIDs.WorkStream] = map[string]string{"value": *update.WorkStream}
+	}
+
+	if len(update.TPDBusinessUnits) > 0 && a.fieldIDs.TPDBusinessUnit != "" {
+		values := make([]map[string]string, len(update.TPDBusinessUnits))
+		for i, bu := range update.TPDBusinessUnits {
+			values[i] = map[string]string{"value": bu}
+		}
+		fields[a.fieldIDs.TPDBusinessUnit] = values
+	}
+
+	if len(fields) == 0 {
+		return nil
+	}
+
+	payload := map[string]interface{}{"fields": fields}
+	body, err := json.Marshal(payload)
+	if err != nil {
+		return fmt.Errorf("failed to marshal update payload: %w", err)
+	}
+
+	putURL := fmt.Sprintf("%s/rest/api/3/issue/%s", a.config.GetBaseURL(), issueKey)
+	return a.httpClient.Put(putURL, body)
+}
+
+// FetchCustomFields reads current custom field values from a single JIRA issue
+func (a *JiraAdapter) FetchCustomFields(issueKey string) (*ports.CustomFieldValues, error) {
+	if a.fieldIDs == nil {
+		return nil, fmt.Errorf("custom field IDs not resolved")
+	}
+
+	var fieldParams []string
+	if a.fieldIDs.EngineeringHours != "" {
+		fieldParams = append(fieldParams, a.fieldIDs.EngineeringHours)
+	}
+	if a.fieldIDs.WorkStream != "" {
+		fieldParams = append(fieldParams, a.fieldIDs.WorkStream)
+	}
+	if a.fieldIDs.TPDBusinessUnit != "" {
+		fieldParams = append(fieldParams, a.fieldIDs.TPDBusinessUnit)
+	}
+
+	getURL := fmt.Sprintf("%s/rest/api/3/issue/%s?fields=%s",
+		a.config.GetBaseURL(), issueKey, strings.Join(fieldParams, ","))
+
+	body, err := a.httpClient.Get(getURL)
+	if err != nil {
+		return nil, fmt.Errorf("failed to fetch issue %s: %w", issueKey, err)
+	}
+
+	// Parse the issue to extract custom field values using the existing EnrichCustomFields logic
+	var issue domain.JiraIssue
+	if err := json.Unmarshal(body, &issue); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal issue %s: %w", issueKey, err)
+	}
+
+	issue.EnrichCustomFields(*a.fieldIDs)
+
+	return &ports.CustomFieldValues{
+		EngineeringHours: issue.Fields.EngineeringHours,
+		WorkStream:       issue.Fields.WorkStream,
+		TPDBusinessUnits: issue.Fields.TPDBusinessUnits,
+	}, nil
 }
 
 // Ensure JiraAdapter implements JiraPort

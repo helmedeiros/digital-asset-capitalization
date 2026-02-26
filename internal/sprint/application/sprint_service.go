@@ -24,4 +24,7 @@ type SprintService interface {
 
 	// ListSprints lists sprints for a project and time period
 	ListSprints(project, period string) (*usecase.ListSprintsResult, error)
+
+	// PushAllocationToJira calculates allocation and pushes results to JIRA custom fields
+	PushAllocationToJira(project, sprint, override string, useSprintBounded, dryRun bool, opts ...usecase.SprintAllocationOption) (string, *usecase.PushResult, error)
 }

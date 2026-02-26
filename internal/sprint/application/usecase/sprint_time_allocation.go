@@ -219,6 +219,78 @@ func (p *SprintTimeAllocationUseCase) Process() (string, error) {
 	return csvData, nil
 }
 
+// ProcessWithRecords calculates time allocation and returns both CSV data and structured allocation records
+func (p *SprintTimeAllocationUseCase) ProcessWithRecords() (string, []AllocationRecord, error) {
+	team, exists := p.teams.GetTeam(p.project)
+	if !exists {
+		return "", nil, fmt.Errorf("project %s not found in teams.json", p.project)
+	}
+
+	issues, err := p.fetchIssues()
+	if err != nil {
+		return "", nil, fmt.Errorf("failed to fetch issues: %w", err)
+	}
+
+	manualAdjustments, err := p.parseManualAdjustments()
+	if err != nil {
+		return "", nil, err
+	}
+
+	assetBUMap := p.loadAssetBusinessUnits()
+	totalHoursByPerson := p.calculateTotalHours(*team, issues, manualAdjustments)
+	results := p.calculatePercentageLoad(*team, issues, manualAdjustments, totalHoursByPerson, assetBUMap)
+
+	if p.withHours {
+		p.saveEngineeringHoursToLocalTasks(results)
+	}
+
+	csvData, err := p.generateCSV(*team, results)
+	if err != nil {
+		return "", nil, fmt.Errorf("failed to generate CSV: %w", err)
+	}
+
+	records := p.extractAllocationRecords(results)
+	return csvData, records, nil
+}
+
+// extractAllocationRecords converts the internal results maps to typed AllocationRecord slice
+func (p *SprintTimeAllocationUseCase) extractAllocationRecords(results []map[string]interface{}) []AllocationRecord {
+	records := make([]AllocationRecord, 0, len(results))
+	for _, r := range results {
+		key, _ := r["issueKey"].(string)
+		if key == "" {
+			continue
+		}
+
+		rec := AllocationRecord{
+			IssueKey: key,
+		}
+
+		if hoursStr, ok := r["engineeringHours"].(string); ok && hoursStr != "" {
+			var h float64
+			if _, err := fmt.Sscanf(hoursStr, "%f", &h); err == nil {
+				rec.EngineeringHours = &h
+			}
+		}
+
+		if ws, ok := r["workStream"].(string); ok {
+			rec.WorkStream = ws
+		}
+
+		if tpd, ok := r["tpdBusinessUnit"].(string); ok {
+			rec.TPDBusinessUnit = tpd
+		}
+
+		records = append(records, rec)
+	}
+	return records
+}
+
+// GetJiraPort returns the JIRA port for use by the push use case
+func (p *SprintTimeAllocationUseCase) GetJiraPort() ports.JiraPort {
+	return p.jiraPort
+}
+
 // saveEngineeringHoursToLocalTasks persists calculated engineering hours to local task storage.
 func (p *SprintTimeAllocationUseCase) saveEngineeringHoursToLocalTasks(results []map[string]interface{}) {
 	storage := tasksstorage.NewJSONStorage(".assetcap", "tasks.json")
