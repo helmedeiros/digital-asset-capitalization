@@ -154,6 +154,90 @@ func TestClose(t *testing.T) {
 	require.NoError(t, err)
 }
 
+func TestGenerateEmbeddings(t *testing.T) {
+	tests := []struct {
+		name          string
+		texts         []string
+		mockResponse  string
+		mockStatus    int
+		expectedCount int
+		expectedError string
+	}{
+		{
+			name:          "successful single embedding",
+			texts:         []string{"hello world"},
+			mockResponse:  `{"embeddings": [[0.1, 0.2, 0.3]]}`,
+			mockStatus:    http.StatusOK,
+			expectedCount: 1,
+		},
+		{
+			name:          "successful batch embeddings",
+			texts:         []string{"text one", "text two", "text three"},
+			mockResponse:  `{"embeddings": [[0.1, 0.2], [0.3, 0.4], [0.5, 0.6]]}`,
+			mockStatus:    http.StatusOK,
+			expectedCount: 3,
+		},
+		{
+			name:          "empty input returns empty",
+			texts:         []string{},
+			mockResponse:  "",
+			mockStatus:    http.StatusOK,
+			expectedCount: 0,
+		},
+		{
+			name:          "API error",
+			texts:         []string{"test"},
+			mockResponse:  `{"error": "model not found"}`,
+			mockStatus:    http.StatusNotFound,
+			expectedError: "Ollama embed returned status 404",
+		},
+		{
+			name:          "count mismatch",
+			texts:         []string{"one", "two"},
+			mockResponse:  `{"embeddings": [[0.1, 0.2]]}`,
+			mockStatus:    http.StatusOK,
+			expectedError: "expected 2 embeddings, got 1",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if len(tt.texts) == 0 {
+				client, err := NewClient(Config{BaseURL: "http://localhost:11434"})
+				require.NoError(t, err)
+				result, err := client.GenerateEmbeddings("llama3", tt.texts)
+				require.NoError(t, err)
+				assert.Empty(t, result)
+				return
+			}
+
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				assert.Equal(t, "POST", r.Method)
+				assert.Equal(t, "/api/embed", r.URL.Path)
+				assert.Equal(t, "application/json", r.Header.Get("Content-Type"))
+
+				w.WriteHeader(tt.mockStatus)
+				w.Write([]byte(tt.mockResponse))
+			}))
+			defer server.Close()
+
+			client, err := NewClient(Config{BaseURL: server.URL})
+			require.NoError(t, err)
+
+			result, err := client.GenerateEmbeddings("llama3", tt.texts)
+
+			if tt.expectedError != "" {
+				require.Error(t, err)
+				assert.Contains(t, err.Error(), tt.expectedError)
+				return
+			}
+
+			require.NoError(t, err)
+			assert.Len(t, result, tt.expectedCount)
+		})
+	}
+}
+
 func TestDefaultConfig(t *testing.T) {
 	t.Run("should use default URL when env var not set", func(t *testing.T) {
 		// Ensure env var is not set
