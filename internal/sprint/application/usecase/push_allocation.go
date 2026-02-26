@@ -3,6 +3,7 @@ package usecase
 import (
 	"fmt"
 	"strings"
+	"unicode"
 
 	"github.com/helmedeiros/digital-asset-capitalization/internal/sprint/domain/ports"
 )
@@ -47,39 +48,29 @@ func NewPushAllocationUseCase(jiraPort ports.JiraPort, dryRun bool) *PushAllocat
 	}
 }
 
-// Execute pushes allocation records to JIRA, only filling empty fields
+// Execute pushes allocation records to JIRA, only filling empty fields.
+// Each field is pushed individually so one unsupported field does not block others.
 func (uc *PushAllocationUseCase) Execute(records []AllocationRecord) (*PushResult, error) {
 	result := &PushResult{}
 
 	for _, rec := range records {
 		current, err := uc.jiraPort.FetchCustomFields(rec.IssueKey)
 		if err != nil {
-			detail := PushDetail{
+			result.Details = append(result.Details, PushDetail{
 				IssueKey: rec.IssueKey,
 				Field:    "all",
 				Status:   "error",
 				Reason:   fmt.Sprintf("failed to fetch current values: %v", err),
-			}
-			result.Details = append(result.Details, detail)
+			})
 			result.ErrorCount++
 			continue
 		}
 
-		update := ports.CustomFieldUpdate{}
-		hasUpdates := false
-
-		// Engineering Hours: only update if JIRA field is empty
+		// Engineering Hours
 		if rec.EngineeringHours != nil && current.EngineeringHours == nil {
-			update.EngineeringHours = rec.EngineeringHours
-			hasUpdates = true
-			result.Details = append(result.Details, PushDetail{
-				IssueKey: rec.IssueKey,
-				Field:    "Engineering Hours",
-				OldValue: "",
-				NewValue: fmt.Sprintf("%.2f", *rec.EngineeringHours),
-				Status:   uc.statusLabel("updated"),
-			})
-			result.UpdatedCount++
+			uc.pushField(result, rec.IssueKey, "Engineering Hours",
+				"", fmt.Sprintf("%.2f", *rec.EngineeringHours),
+				ports.CustomFieldUpdate{EngineeringHours: rec.EngineeringHours})
 		} else if rec.EngineeringHours != nil && current.EngineeringHours != nil {
 			result.Details = append(result.Details, PushDetail{
 				IssueKey: rec.IssueKey,
@@ -91,19 +82,12 @@ func (uc *PushAllocationUseCase) Execute(records []AllocationRecord) (*PushResul
 			result.SkippedCount++
 		}
 
-		// Work Stream: only update if JIRA field is empty
+		// Work Stream
 		if rec.WorkStream != "" && current.WorkStream == "" {
-			ws := rec.WorkStream
-			update.WorkStream = &ws
-			hasUpdates = true
-			result.Details = append(result.Details, PushDetail{
-				IssueKey: rec.IssueKey,
-				Field:    "Work Stream",
-				OldValue: "",
-				NewValue: rec.WorkStream,
-				Status:   uc.statusLabel("updated"),
-			})
-			result.UpdatedCount++
+			ws := titleCase(rec.WorkStream)
+			uc.pushField(result, rec.IssueKey, "Work Stream",
+				"", ws,
+				ports.CustomFieldUpdate{WorkStream: &ws})
 		} else if rec.WorkStream != "" && current.WorkStream != "" {
 			result.Details = append(result.Details, PushDetail{
 				IssueKey: rec.IssueKey,
@@ -115,19 +99,12 @@ func (uc *PushAllocationUseCase) Execute(records []AllocationRecord) (*PushResul
 			result.SkippedCount++
 		}
 
-		// TPD Business Unit: only update if JIRA field is empty
+		// TPD Business Unit
 		if rec.TPDBusinessUnit != "" && len(current.TPDBusinessUnits) == 0 {
 			buList := strings.Split(rec.TPDBusinessUnit, "; ")
-			update.TPDBusinessUnits = buList
-			hasUpdates = true
-			result.Details = append(result.Details, PushDetail{
-				IssueKey: rec.IssueKey,
-				Field:    "TPD Business Unit",
-				OldValue: "",
-				NewValue: rec.TPDBusinessUnit,
-				Status:   uc.statusLabel("updated"),
-			})
-			result.UpdatedCount++
+			uc.pushField(result, rec.IssueKey, "TPD Business Unit",
+				"", rec.TPDBusinessUnit,
+				ports.CustomFieldUpdate{TPDBusinessUnits: buList})
 		} else if rec.TPDBusinessUnit != "" && len(current.TPDBusinessUnits) > 0 {
 			result.Details = append(result.Details, PushDetail{
 				IssueKey: rec.IssueKey,
@@ -138,31 +115,53 @@ func (uc *PushAllocationUseCase) Execute(records []AllocationRecord) (*PushResul
 			})
 			result.SkippedCount++
 		}
-
-		if !hasUpdates || uc.dryRun {
-			continue
-		}
-
-		if err := uc.jiraPort.UpdateCustomFields(rec.IssueKey, update); err != nil {
-			// Mark previously counted updates as errors
-			for i := len(result.Details) - 1; i >= 0; i-- {
-				d := &result.Details[i]
-				if d.IssueKey == rec.IssueKey && d.Status == "updated" {
-					d.Status = "error"
-					d.Reason = fmt.Sprintf("update failed: %v", err)
-					result.UpdatedCount--
-					result.ErrorCount++
-				}
-			}
-		}
 	}
 
 	return result, nil
 }
 
-func (uc *PushAllocationUseCase) statusLabel(real string) string {
+// pushField pushes a single field update and records the result
+func (uc *PushAllocationUseCase) pushField(result *PushResult, issueKey, field, oldValue, newValue string, update ports.CustomFieldUpdate) {
 	if uc.dryRun {
-		return "will update"
+		result.Details = append(result.Details, PushDetail{
+			IssueKey: issueKey,
+			Field:    field,
+			OldValue: oldValue,
+			NewValue: newValue,
+			Status:   "will update",
+		})
+		result.UpdatedCount++
+		return
 	}
-	return real
+
+	if err := uc.jiraPort.UpdateCustomFields(issueKey, update); err != nil {
+		result.Details = append(result.Details, PushDetail{
+			IssueKey: issueKey,
+			Field:    field,
+			OldValue: oldValue,
+			NewValue: newValue,
+			Status:   "error",
+			Reason:   fmt.Sprintf("update failed: %v", err),
+		})
+		result.ErrorCount++
+	} else {
+		result.Details = append(result.Details, PushDetail{
+			IssueKey: issueKey,
+			Field:    field,
+			OldValue: oldValue,
+			NewValue: newValue,
+			Status:   "updated",
+		})
+		result.UpdatedCount++
+	}
+}
+
+// titleCase capitalises the first letter of a string (e.g. "product" -> "Product")
+func titleCase(s string) string {
+	if s == "" {
+		return s
+	}
+	runes := []rune(s)
+	runes[0] = unicode.ToUpper(runes[0])
+	return string(runes)
 }

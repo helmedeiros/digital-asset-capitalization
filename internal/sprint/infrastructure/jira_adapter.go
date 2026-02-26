@@ -465,20 +465,27 @@ func (a *JiraAdapter) getIssuesForBoardByDateRange(project string, boardID int, 
 	return a.convertToPortIssues(issues), nil
 }
 
-// UpdateCustomFields writes custom field values to a JIRA issue via PUT /rest/api/3/issue/{key}
+// UpdateCustomFields writes custom field values to a JIRA issue via PUT /rest/api/3/issue/{key}.
+// Each field is sent individually so that one unsupported field does not block the others.
 func (a *JiraAdapter) UpdateCustomFields(issueKey string, update ports.CustomFieldUpdate) error {
 	if a.fieldIDs == nil {
 		return fmt.Errorf("custom field IDs not resolved")
 	}
 
-	fields := make(map[string]interface{})
+	// Build individual field updates
+	type fieldEntry struct {
+		id    string
+		value interface{}
+		name  string
+	}
+	var entries []fieldEntry
 
 	if update.EngineeringHours != nil && a.fieldIDs.EngineeringHours != "" {
-		fields[a.fieldIDs.EngineeringHours] = *update.EngineeringHours
+		entries = append(entries, fieldEntry{a.fieldIDs.EngineeringHours, *update.EngineeringHours, "Engineering Hours"})
 	}
 
 	if update.WorkStream != nil && a.fieldIDs.WorkStream != "" {
-		fields[a.fieldIDs.WorkStream] = map[string]string{"value": *update.WorkStream}
+		entries = append(entries, fieldEntry{a.fieldIDs.WorkStream, map[string]string{"value": *update.WorkStream}, "Work Stream"})
 	}
 
 	if len(update.TPDBusinessUnits) > 0 && a.fieldIDs.TPDBusinessUnit != "" {
@@ -486,21 +493,32 @@ func (a *JiraAdapter) UpdateCustomFields(issueKey string, update ports.CustomFie
 		for i, bu := range update.TPDBusinessUnits {
 			values[i] = map[string]string{"value": bu}
 		}
-		fields[a.fieldIDs.TPDBusinessUnit] = values
+		entries = append(entries, fieldEntry{a.fieldIDs.TPDBusinessUnit, values, "TPD Business Unit"})
 	}
 
-	if len(fields) == 0 {
+	if len(entries) == 0 {
 		return nil
 	}
 
-	payload := map[string]interface{}{"fields": fields}
-	body, err := json.Marshal(payload)
-	if err != nil {
-		return fmt.Errorf("failed to marshal update payload: %w", err)
+	putURL := fmt.Sprintf("%s/rest/api/3/issue/%s", a.config.GetBaseURL(), issueKey)
+	var errors []string
+
+	for _, e := range entries {
+		payload := map[string]interface{}{"fields": map[string]interface{}{e.id: e.value}}
+		body, err := json.Marshal(payload)
+		if err != nil {
+			errors = append(errors, fmt.Sprintf("%s: marshal error: %v", e.name, err))
+			continue
+		}
+		if err := a.httpClient.Put(putURL, body); err != nil {
+			errors = append(errors, fmt.Sprintf("%s: %v", e.name, err))
+		}
 	}
 
-	putURL := fmt.Sprintf("%s/rest/api/3/issue/%s", a.config.GetBaseURL(), issueKey)
-	return a.httpClient.Put(putURL, body)
+	if len(errors) > 0 {
+		return fmt.Errorf("partial update for %s: %s", issueKey, strings.Join(errors, "; "))
+	}
+	return nil
 }
 
 // FetchCustomFields reads current custom field values from a single JIRA issue
