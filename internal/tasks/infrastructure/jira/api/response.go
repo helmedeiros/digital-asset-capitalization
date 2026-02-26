@@ -219,7 +219,68 @@ type Assignee struct {
 	DisplayName string `json:"displayName"`
 }
 
-// Add IssueType struct
+// IssueType represents the type of a Jira issue
 type IssueType struct {
 	Name string `json:"name"`
+}
+
+// GetTPDBusinessUnits extracts TPD Business Unit values from a custom field
+func (f *Fields) GetTPDBusinessUnits(fieldID string) []string {
+	if fieldID == "" || f.RawFields == nil {
+		return nil
+	}
+	raw, ok := f.RawFields[fieldID]
+	if !ok || raw == nil {
+		return nil
+	}
+	arr, ok := raw.([]interface{})
+	if !ok {
+		return nil
+	}
+	var values []string
+	for _, item := range arr {
+		if obj, ok := item.(map[string]interface{}); ok {
+			if val, ok := obj["value"].(string); ok && val != "" {
+				values = append(values, val)
+			}
+		}
+	}
+	return values
+}
+
+// GetEngineeringHours extracts the engineering hours numeric field
+func (f *Fields) GetEngineeringHours(fieldID string) *float64 {
+	if fieldID == "" || f.RawFields == nil {
+		return nil
+	}
+	raw, ok := f.RawFields[fieldID]
+	if !ok || raw == nil {
+		return nil
+	}
+	switch v := raw.(type) {
+	case float64:
+		return &v
+	case int:
+		fv := float64(v)
+		return &fv
+	default:
+		return nil
+	}
+}
+
+// GetWorkStream extracts the Work Stream single-select field
+func (f *Fields) GetWorkStream(fieldID string) string {
+	if fieldID == "" || f.RawFields == nil {
+		return ""
+	}
+	raw, ok := f.RawFields[fieldID]
+	if !ok || raw == nil {
+		return ""
+	}
+	if obj, ok := raw.(map[string]interface{}); ok {
+		if val, ok := obj["value"].(string); ok {
+			return val
+		}
+	}
+	return ""
 }

@@ -51,3 +51,10 @@ func (a *ComprehensiveClassifierAdapter) ClassifyTasks(tasks []*taskdomain.Task)
 func (a *ComprehensiveClassifierAdapter) ClassifyTasksComprehensive(tasks []*taskdomain.Task) ([]*ports.ComprehensiveClassificationResult, error) {
 	return a.chain.ClassifyTasks(tasks)
 }
+
+// SetLLMEnabled forwards the LLM toggle to the underlying classification chain
+func (a *ComprehensiveClassifierAdapter) SetLLMEnabled(enabled bool) {
+	if chain, ok := a.chain.(*ComprehensiveClassificationChainWithInheritance); ok {
+		chain.SetLLMEnabled(enabled)
+	}
+}

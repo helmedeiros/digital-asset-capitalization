@@ -7,4 +7,5 @@ type ClassifyTasksInput struct {
 	DryRun  bool
 	Apply   bool
 	Force   bool
+	WithLLM bool
 }

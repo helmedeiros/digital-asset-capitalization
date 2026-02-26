@@ -113,6 +113,10 @@ func (m *mockJiraPort) GetSprintByName(_ string, _ string) (*ports.Sprint, error
 	return nil, nil
 }
 
+func (m *mockJiraPort) GetIssuesForSprintOnBoard(_, _ string, _ int) ([]ports.JiraIssue, error) {
+	return nil, nil
+}
+
 func TestSprintService_ProcessJiraIssues(t *testing.T) {
 	cleanup := setupTestEnv(t)
 	defer cleanup()

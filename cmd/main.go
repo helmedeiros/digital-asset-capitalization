@@ -16,6 +16,7 @@ import (
 	assetsusecase "github.com/helmedeiros/digital-asset-capitalization/internal/assets/application/usecase"
 	assetsinfra "github.com/helmedeiros/digital-asset-capitalization/internal/assets/infrastructure"
 	assetid "github.com/helmedeiros/digital-asset-capitalization/internal/assets/infrastructure/id"
+	"github.com/helmedeiros/digital-asset-capitalization/internal/assets/infrastructure/llama"
 	configapp "github.com/helmedeiros/digital-asset-capitalization/internal/config/application"
 	"github.com/helmedeiros/digital-asset-capitalization/internal/config/application/service"
 	"github.com/helmedeiros/digital-asset-capitalization/internal/config/application/usecase"
@@ -26,6 +27,7 @@ import (
 	investmentinfra "github.com/helmedeiros/digital-asset-capitalization/internal/investment/infrastructure"
 	"github.com/helmedeiros/digital-asset-capitalization/internal/shell/completion"
 	sprintapp "github.com/helmedeiros/digital-asset-capitalization/internal/sprint/application"
+	sprintusecase "github.com/helmedeiros/digital-asset-capitalization/internal/sprint/application/usecase"
 	sprintinfra "github.com/helmedeiros/digital-asset-capitalization/internal/sprint/infrastructure"
 	"github.com/helmedeiros/digital-asset-capitalization/internal/sprint/infrastructure/formatting"
 	tasksapp "github.com/helmedeiros/digital-asset-capitalization/internal/tasks/application"
@@ -266,6 +268,8 @@ For more information about a command:
 							sprint := ctx.String("sprint")
 							override := ctx.String("override")
 							sprintBounded := ctx.Bool("sprint-bounded")
+							workStreamsStr := ctx.String("work-streams")
+							withHours := ctx.Bool("with-hours")
 
 							// Resolve team identifier to actual project code
 							if a.teamResolver != nil && project != "" {
@@ -276,15 +280,34 @@ For more information about a command:
 								project = resolvedProject
 							}
 
-							if sprintBounded {
-								// Use sprint-bounded calculation (default)
-								result, err := a.sprintService.ProcessJiraIssuesWithStrategy(project, sprint, override, true)
+							// Parse work streams
+							var workStreams []string
+							if workStreamsStr != "" {
+								for _, ws := range strings.Split(workStreamsStr, ",") {
+									trimmed := strings.TrimSpace(ws)
+									if trimmed != "" {
+										workStreams = append(workStreams, trimmed)
+									}
+								}
+							}
+
+							// Build options
+							var opts []sprintusecase.SprintAllocationOption
+							if len(workStreams) > 0 {
+								opts = append(opts, sprintusecase.WithWorkStreams(workStreams))
+							}
+							if withHours {
+								opts = append(opts, sprintusecase.WithHours(true))
+							}
+
+							if len(opts) > 0 || sprintBounded {
+								result, err := a.sprintService.ProcessJiraIssuesWithOptions(project, sprint, override, sprintBounded, opts...)
 								if err != nil {
 									return err
 								}
 								fmt.Print(result)
 							} else {
-								// Use legacy calculation (when --sprint-bounded=false)
+								// Use legacy calculation (when --sprint-bounded=false and no options)
 								result, err := a.sprintService.ProcessJiraIssues(project, sprint, override)
 								if err != nil {
 									return err
@@ -315,7 +338,17 @@ For more information about a command:
 								Name:    "sprint-bounded",
 								Aliases: []string{"sb"},
 								Usage:   "Use sprint-bounded time calculation (respects sprint date boundaries)",
-								Value:   true, // Changed to true to use sprint-bounded by default
+								Value:   true,
+							},
+							&cli.StringFlag{
+								Name:    "work-streams",
+								Aliases: []string{"ws"},
+								Usage:   "Comma-separated work streams to include (e.g., 'product,operational')",
+							},
+							&cli.BoolFlag{
+								Name:  "with-hours",
+								Usage: "Include engineering hours column in CSV output",
+								Value: false,
 							},
 						},
 					},
@@ -1349,8 +1382,18 @@ For more information about a command:
 							fmt.Printf("\nTasks for project %s and sprint %s:\n", project, sprint)
 							fmt.Println("----------------------------------------")
 							for _, task := range tasks {
-								fmt.Printf("Key: %s\nType: %s\nSummary: %s\nStatus: %s\nEpic: %s\nWork Type: %s\nLabels: %v\n\n",
+								fmt.Printf("Key: %s\nType: %s\nSummary: %s\nStatus: %s\nEpic: %s\nWork Type: %s\nLabels: %v\n",
 									task.Key, task.Type, task.Summary, task.Status, task.Epic, task.WorkType, task.Labels)
+								if len(task.TPDBusinessUnits) > 0 {
+									fmt.Printf("TPD Business Unit: %s\n", strings.Join(task.TPDBusinessUnits, ", "))
+								}
+								if task.WorkStream != "" {
+									fmt.Printf("Work Stream: %s\n", task.WorkStream)
+								}
+								if task.EngineeringHours != nil {
+									fmt.Printf("Engineering Hours: %.2f\n", *task.EngineeringHours)
+								}
+								fmt.Println()
 							}
 							return nil
 						},
@@ -1379,6 +1422,7 @@ For more information about a command:
 							dryRun := ctx.Bool("dry-run")
 							apply := ctx.Bool("apply")
 							force := ctx.Bool("force")
+							withLLM := ctx.Bool("with-llm")
 
 							// Resolve team identifier to actual project code
 							if a.teamResolver != nil && project != "" {
@@ -1395,6 +1439,7 @@ For more information about a command:
 								DryRun:  dryRun,
 								Apply:   apply,
 								Force:   force,
+								WithLLM: withLLM,
 							}
 							if err := a.taskService.ClassifyTasks(context.Background(), input); err != nil {
 								return err
@@ -1442,6 +1487,11 @@ For more information about a command:
 								Usage: "Override sprint classification lock (requires --apply)",
 								Value: false,
 							},
+							&cli.BoolFlag{
+								Name:  "with-llm",
+								Usage: "Enable LLM comparison mode (dry-run only, requires Ollama)",
+								Value: false,
+							},
 						},
 					},
 					{
@@ -1476,6 +1526,15 @@ For more information about a command:
 							fmt.Printf("Priority:      %s\n", task.Priority)
 							fmt.Printf("Platform:      %s\n", task.Platform)
 							fmt.Printf("Labels:        %v\n", task.Labels)
+							if len(task.TPDBusinessUnits) > 0 {
+								fmt.Printf("TPD BU:        %s\n", strings.Join(task.TPDBusinessUnits, ", "))
+							}
+							if task.WorkStream != "" {
+								fmt.Printf("Work Stream:   %s\n", task.WorkStream)
+							}
+							if task.EngineeringHours != nil {
+								fmt.Printf("Eng. Hours:    %.2f\n", *task.EngineeringHours)
+							}
 							fmt.Printf("Created:       %s\n", task.CreatedAt.Format("2006-01-02 15:04:05"))
 							fmt.Printf("Updated:       %s\n", task.UpdatedAt.Format("2006-01-02 15:04:05"))
 							fmt.Printf("Version:       %d\n", task.Version)
@@ -2154,6 +2213,138 @@ For more information about a command:
 						},
 					},
 					{
+						Name:  "board-work-streams",
+						Usage: "Manage board-to-workstream mappings per project",
+						Subcommands: []*cli.Command{
+							{
+								Name:  "set",
+								Usage: "Set work stream for a board in a project",
+								Action: func(ctx *cli.Context) error {
+									project := ctx.String("project")
+									boardID := ctx.Int("board")
+									workStream := ctx.String("work-stream")
+
+									if project == "" {
+										return fmt.Errorf("project is required")
+									}
+									if boardID == 0 {
+										return fmt.Errorf("board ID is required")
+									}
+									if workStream == "" {
+										return fmt.Errorf("work-stream is required")
+									}
+
+									configRepo := configinfra.NewFileRepository(configDir)
+									configSvc := service.NewConfigService(configRepo)
+
+									if err := configSvc.SetBoardWorkStream(project, boardID, workStream); err != nil {
+										return fmt.Errorf("failed to set board work stream: %v", err)
+									}
+
+									fmt.Printf("Set board %d -> '%s' for project '%s'\n", boardID, workStream, project)
+									return nil
+								},
+								Flags: []cli.Flag{
+									&cli.StringFlag{
+										Name:     "project",
+										Aliases:  []string{"p"},
+										Usage:    "Project key (e.g., COP)",
+										Required: true,
+									},
+									&cli.IntFlag{
+										Name:     "board",
+										Aliases:  []string{"b"},
+										Usage:    "Board ID (e.g., 5119)",
+										Required: true,
+									},
+									&cli.StringFlag{
+										Name:     "work-stream",
+										Aliases:  []string{"ws"},
+										Usage:    "Work stream name (e.g., Product, Operational)",
+										Required: true,
+									},
+								},
+							},
+							{
+								Name:  "show",
+								Usage: "Show board-to-workstream mappings for a specific project",
+								Action: func(ctx *cli.Context) error {
+									project := ctx.String("project")
+									if project == "" {
+										return fmt.Errorf("project is required")
+									}
+
+									configRepo := configinfra.NewFileRepository(configDir)
+									configSvc := service.NewConfigService(configRepo)
+
+									teamConfig, err := configSvc.GetTeamConfig()
+									if err != nil {
+										return fmt.Errorf("failed to load team config: %v", err)
+									}
+
+									mapping := teamConfig.GetBoardWorkStreams(project)
+									if len(mapping) == 0 {
+										fmt.Printf("Project '%s' has no board-to-workstream mappings\n", project)
+									} else {
+										fmt.Printf("Board Work Streams for '%s':\n", project)
+										for boardID, ws := range mapping {
+											fmt.Printf("  Board %d -> %s\n", boardID, ws)
+										}
+									}
+									return nil
+								},
+								Flags: []cli.Flag{
+									&cli.StringFlag{
+										Name:     "project",
+										Aliases:  []string{"p"},
+										Usage:    "Project key (e.g., COP)",
+										Required: true,
+									},
+								},
+							},
+							{
+								Name:  "list",
+								Usage: "List board-to-workstream mappings for all projects",
+								Action: func(_ *cli.Context) error {
+									configRepo := configinfra.NewFileRepository(configDir)
+									configSvc := service.NewConfigService(configRepo)
+
+									teamConfig, err := configSvc.GetTeamConfig()
+									if err != nil {
+										return fmt.Errorf("failed to load team config: %v", err)
+									}
+
+									projects := teamConfig.GetProjects()
+									if len(projects) == 0 {
+										fmt.Println("No teams configured")
+										return nil
+									}
+
+									fmt.Println("Board Work Streams:")
+									fmt.Println("===================")
+
+									found := false
+									for _, project := range projects {
+										mapping := teamConfig.GetBoardWorkStreams(project)
+										if len(mapping) > 0 {
+											fmt.Printf("  %s:\n", project)
+											for boardID, ws := range mapping {
+												fmt.Printf("    Board %d -> %s\n", boardID, ws)
+											}
+											found = true
+										}
+									}
+
+									if !found {
+										fmt.Println("  No board-to-workstream mappings configured")
+									}
+
+									return nil
+								},
+							},
+						},
+					},
+					{
 						Name:  "excluded-issue-types",
 						Usage: "Manage excluded issue types for sprint allocation per project",
 						Subcommands: []*cli.Command{
@@ -2765,8 +2956,15 @@ func initializeApp() (*App, error) {
 	// Work type classifier for determining capitalization category
 	workTypeClassifier := classifier.NewBusinessRulesClassifier(assetRepo)
 
-	// Comprehensive classification chain with subtask inheritance support
-	classificationChain := classifier.NewComprehensiveClassificationChainWithInheritance(assetClassifier, workTypeClassifier)
+	// LLM asset classifier for comparison mode (optional, uses Ollama)
+	llamaConfig := llama.DefaultConfig()
+	var llmClassifier taskports.AssetClassifier
+	if llamaConfig.BaseURL != "" {
+		llmClassifier = classifier.NewLLMAssetClassifier(llamaConfig.BaseURL, "llama3", assetRepo)
+	}
+
+	// Comprehensive classification chain with subtask inheritance and optional LLM support
+	classificationChain := classifier.NewComprehensiveClassificationChainWithLLM(assetClassifier, workTypeClassifier, llmClassifier)
 
 	// Create adapter to bridge comprehensive results with existing use case interface
 	taskClassifier := classifier.NewComprehensiveClassifierAdapter(classificationChain)

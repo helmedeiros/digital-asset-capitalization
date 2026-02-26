@@ -16,14 +16,18 @@ type Sprint struct {
 
 // JiraIssue represents a Jira issue in the ports layer
 type JiraIssue struct {
-	Key         string
-	Summary     string
-	Assignee    string
-	Status      string
-	StoryPoints *float64
-	IssueType   string
-	Labels      []string
-	Changelog   JiraChangelog
+	Key              string
+	Summary          string
+	Assignee         string
+	Status           string
+	StoryPoints      *float64
+	IssueType        string
+	Labels           []string
+	Changelog        JiraChangelog
+	TPDBusinessUnits []string
+	EngineeringHours *float64
+	WorkStream       string
+	BoardWorkStream  string // derived from board-to-workstream config, used as fallback
 }
 
 // JiraChangelog represents the changelog of a Jira issue
@@ -60,6 +64,8 @@ type JiraPort interface {
 	GetTeamIssues(team *domain.Team) ([]JiraIssue, error)
 	// GetSprintByName retrieves sprint details by project and sprint name
 	GetSprintByName(project, sprintName string) (*Sprint, error)
+	// GetIssuesForSprintOnBoard retrieves issues for a sprint filtered to a specific board
+	GetIssuesForSprintOnBoard(project, sprintName string, boardID int) ([]JiraIssue, error)
 }
 
 // BoardInfo represents information about a board

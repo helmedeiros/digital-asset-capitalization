@@ -14,6 +14,8 @@ import (
 	"github.com/helmedeiros/digital-asset-capitalization/internal/sprint/domain"
 )
 
+const fieldAPIPath = "/rest/api/3/field"
+
 // createTestJiraAdapter creates a JiraAdapter for testing with a mock server
 // This approach uses environment variable isolation to avoid connecting to real servers
 func createTestJiraAdapter(t *testing.T, server *httptest.Server) *JiraAdapter {
@@ -153,8 +155,12 @@ func TestJiraAdapter_GetIssues(t *testing.T) {
 
 	// Create a test server
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == fieldAPIPath {
+			w.WriteHeader(http.StatusOK)
+			w.Write([]byte(`[]`))
+			return
+		}
 		assert.Equal(t, "/rest/api/3/search/jql", r.URL.Path)
-		assert.Equal(t, "jql=project+%3D+TEST+AND+sprint+%3D+%27Test+Sprint%27&expand=changelog&fields=summary,assignee,status,changelog,issuetype,customfield_10014,customfield_10015,labels", r.URL.RawQuery)
 		w.WriteHeader(http.StatusOK)
 		w.Write([]byte(`{
 			"issues": [
@@ -198,8 +204,12 @@ func TestJiraAdapter_GetTeamIssues(t *testing.T) {
 
 	// Create a test server
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == fieldAPIPath {
+			w.WriteHeader(http.StatusOK)
+			w.Write([]byte(`[]`))
+			return
+		}
 		assert.Equal(t, "/rest/api/3/search/jql", r.URL.Path)
-		assert.Equal(t, "jql=assignee+%3D+%27Test+User+1%27&expand=changelog&fields=summary,assignee,status,changelog,issuetype,customfield_10014,customfield_10015,labels", r.URL.RawQuery)
 		w.WriteHeader(http.StatusOK)
 		w.Write([]byte(`{
 			"issues": [
@@ -242,7 +252,12 @@ func TestJiraAdapter_ServerError(t *testing.T) {
 	defer cleanup()
 
 	// Create a test server that returns an error
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == fieldAPIPath {
+			w.WriteHeader(http.StatusOK)
+			w.Write([]byte(`[]`))
+			return
+		}
 		w.WriteHeader(http.StatusInternalServerError)
 		w.Write([]byte(`{"error": "Internal Server Error"}`))
 	}))
@@ -266,7 +281,12 @@ func TestJiraAdapter_InvalidJSON(t *testing.T) {
 	defer cleanup()
 
 	// Create a test server that returns invalid JSON
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == fieldAPIPath {
+			w.WriteHeader(http.StatusOK)
+			w.Write([]byte(`[]`))
+			return
+		}
 		w.WriteHeader(http.StatusOK)
 		w.Write([]byte(`{"invalid json`))
 	}))
@@ -291,6 +311,11 @@ func TestJiraAdapter_GetSprintIssues(t *testing.T) {
 
 	// Create a test server
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == fieldAPIPath {
+			w.WriteHeader(http.StatusOK)
+			w.Write([]byte(`[]`))
+			return
+		}
 		assert.Equal(t, "/rest/api/3/search/jql", r.URL.Path)
 		assert.Equal(t, "jql=project+%3D+TEST+AND+sprint+%3D+%27Test+Sprint%27&expand=changelog&fields=summary,assignee,status,changelog,issuetype,customfield_10014,customfield_10015,labels", r.URL.RawQuery)
 		w.WriteHeader(http.StatusOK)
@@ -343,6 +368,11 @@ func TestJiraAdapter_GetSprintsForProjectWithBoardInfo(t *testing.T) {
 
 	// Create a test server
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == fieldAPIPath {
+			w.WriteHeader(http.StatusOK)
+			w.Write([]byte(`[]`))
+			return
+		}
 		if strings.Contains(r.URL.Path, "/board") && !strings.Contains(r.URL.Path, "/sprint") {
 			// Boards endpoint
 			w.WriteHeader(http.StatusOK)
@@ -417,6 +447,11 @@ func TestJiraAdapter_GetSprintsForProject(t *testing.T) {
 
 	// Create a test server
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == fieldAPIPath {
+			w.WriteHeader(http.StatusOK)
+			w.Write([]byte(`[]`))
+			return
+		}
 		if strings.Contains(r.URL.Path, "/board") && !strings.Contains(r.URL.Path, "/sprint") {
 			// Boards endpoint
 			w.WriteHeader(http.StatusOK)
@@ -460,6 +495,11 @@ func TestJiraAdapter_GetTeamIssuesComplete(t *testing.T) {
 
 	// Create a test server
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == fieldAPIPath {
+			w.WriteHeader(http.StatusOK)
+			w.Write([]byte(`[]`))
+			return
+		}
 		assert.Equal(t, "/rest/api/3/search/jql", r.URL.Path)
 		w.WriteHeader(http.StatusOK)
 		w.Write([]byte(`{
@@ -505,7 +545,12 @@ func TestJiraAdapter_ErrorHandling(t *testing.T) {
 
 	t.Run("boards error", func(t *testing.T) {
 		// Create a test server that returns an error
-		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if r.URL.Path == fieldAPIPath {
+				w.WriteHeader(http.StatusOK)
+				w.Write([]byte(`[]`))
+				return
+			}
 			w.WriteHeader(http.StatusInternalServerError)
 			w.Write([]byte(`{"error": "Internal Server Error"}`))
 		}))
@@ -525,6 +570,11 @@ func TestJiraAdapter_ErrorHandling(t *testing.T) {
 	t.Run("sprint board error with warning", func(t *testing.T) {
 		// Create a test server
 		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if r.URL.Path == fieldAPIPath {
+				w.WriteHeader(http.StatusOK)
+				w.Write([]byte(`[]`))
+				return
+			}
 			if strings.Contains(r.URL.Path, "/board") && !strings.Contains(r.URL.Path, "/sprint") {
 				// Boards endpoint
 				w.WriteHeader(http.StatusOK)

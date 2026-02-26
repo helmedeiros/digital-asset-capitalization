@@ -13,6 +13,8 @@ import (
 
 	"github.com/helmedeiros/digital-asset-capitalization/internal/tasks/domain"
 	"github.com/helmedeiros/digital-asset-capitalization/internal/tasks/infrastructure/jira/api"
+
+	sharedjira "github.com/helmedeiros/digital-asset-capitalization/internal/shared/jira"
 )
 
 // Client defines the interface for Jira API interactions
@@ -40,8 +42,10 @@ var NewClient ClientFactory = newClient
 
 // client implements the Client interface
 type client struct {
-	httpClient HTTPClient
-	config     *Config
+	httpClient       HTTPClient
+	config           *Config
+	customFieldIDs   *sharedjira.CustomFieldIDs
+	fieldIDsResolved bool
 }
 
 // NewClient creates a new Jira client instance
@@ -56,6 +60,25 @@ func newClient(config *Config) (Client, error) {
 		},
 		config: config,
 	}, nil
+}
+
+// resolveFieldIDs lazily resolves custom field IDs on first use
+func (c *client) resolveFieldIDs() *sharedjira.CustomFieldIDs {
+	if c.fieldIDsResolved {
+		return c.customFieldIDs
+	}
+	c.fieldIDsResolved = true
+
+	if c.config == nil {
+		return nil
+	}
+
+	resolver := sharedjira.NewFieldResolver(c.config.GetBaseURL(), c.config.GetAuthHeader())
+	fieldIDs, err := resolver.ResolveCustomFieldIDs()
+	if err == nil {
+		c.customFieldIDs = fieldIDs
+	}
+	return c.customFieldIDs
 }
 
 // mapJiraStatus converts a Jira status to our domain TaskStatus
@@ -230,6 +253,13 @@ func (c *client) convertToDomainTasks(searchResp api.SearchResult, sprint string
 			if task.WorkType != "" {
 				break
 			}
+		}
+
+		// Populate TPD fields from custom field IDs
+		if fieldIDs := c.resolveFieldIDs(); fieldIDs != nil {
+			task.TPDBusinessUnits = issue.Fields.GetTPDBusinessUnits(fieldIDs.TPDBusinessUnit)
+			task.EngineeringHours = issue.Fields.GetEngineeringHours(fieldIDs.EngineeringHours)
+			task.WorkStream = issue.Fields.GetWorkStream(fieldIDs.WorkStream)
 		}
 
 		tasks = append(tasks, task)
@@ -672,6 +702,13 @@ func (c *client) convertSingleIssueToDomainTask(issue api.Issue) (*domain.Task, 
 	task.CreatedAt = created
 	task.UpdatedAt = updated
 	task.WorkType = workType
+
+	// Populate TPD fields from custom field IDs
+	if c.customFieldIDs != nil {
+		task.TPDBusinessUnits = issue.Fields.GetTPDBusinessUnits(c.customFieldIDs.TPDBusinessUnit)
+		task.EngineeringHours = issue.Fields.GetEngineeringHours(c.customFieldIDs.EngineeringHours)
+		task.WorkStream = issue.Fields.GetWorkStream(c.customFieldIDs.WorkStream)
+	}
 
 	return task, nil
 }

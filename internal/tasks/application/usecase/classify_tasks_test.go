@@ -1507,7 +1507,7 @@ func TestPreviewClassificationsWithAssetSync(t *testing.T) {
 		comprehensiveClassifier.On("ClassifyTasksComprehensive", tasks).Return(results, nil)
 
 		// Act - call previewClassificationsWithRetry directly with hasTriedSync=true
-		err := uc.previewClassificationsWithRetry(tasks, true)
+		err := uc.previewClassificationsWithRetry(tasks, true, false)
 
 		// Assert
 		assert.NoError(t, err)
@@ -1948,7 +1948,7 @@ func TestSortingAndDisplayLogic(t *testing.T) {
 		userInput.On("Confirm", "Would you like to sync assets from Confluence to potentially improve classification?").Return(false, nil)
 
 		// Act - call previewClassificationsWithRetry directly to test sorting logic
-		err := uc.previewClassificationsWithRetry(tasks, false)
+		err := uc.previewClassificationsWithRetry(tasks, false, false)
 
 		// Assert
 		assert.NoError(t, err)
@@ -2093,7 +2093,7 @@ func TestSortingAndDisplayLogic(t *testing.T) {
 		comprehensiveClassifier.On("ClassifyTasksComprehensive", tasks).Return(results, nil)
 
 		// Act
-		err := uc.previewClassificationsWithRetry(tasks, false)
+		err := uc.previewClassificationsWithRetry(tasks, false, false)
 
 		// Assert
 		assert.NoError(t, err)

@@ -180,6 +180,68 @@ func (s *ConfigService) GetExcludedIssueTypesForProject(project string) ([]strin
 	return config.GetExcludedIssueTypes(project), nil
 }
 
+// GetBoardWorkStream returns the work stream for a specific board in a project
+func (s *ConfigService) GetBoardWorkStream(project string, boardID int) (string, error) {
+	config, err := s.GetTeamConfig()
+	if err != nil {
+		return "", fmt.Errorf("failed to load team configuration: %w", err)
+	}
+
+	return config.GetBoardWorkStream(project, boardID), nil
+}
+
+// GetBoardsForWorkStream returns board IDs for a given work stream in a project
+func (s *ConfigService) GetBoardsForWorkStream(project, workStream string) ([]int, error) {
+	config, err := s.GetTeamConfig()
+	if err != nil {
+		return nil, fmt.Errorf("failed to load team configuration: %w", err)
+	}
+
+	return config.GetBoardsForWorkStream(project, workStream), nil
+}
+
+// SetBoardWorkStreams sets the board-to-workstream mapping for a project and saves
+func (s *ConfigService) SetBoardWorkStreams(project string, mapping map[int]string) error {
+	config, err := s.GetTeamConfig()
+	if err != nil {
+		return fmt.Errorf("failed to load team configuration: %w", err)
+	}
+
+	if err := config.SetBoardWorkStreams(project, mapping); err != nil {
+		return fmt.Errorf("failed to set board work streams: %w", err)
+	}
+
+	if err := s.SaveTeamConfig(config); err != nil {
+		return fmt.Errorf("failed to save team configuration: %w", err)
+	}
+
+	return nil
+}
+
+// SetBoardWorkStream sets a single board-to-workstream mapping for a project and saves
+func (s *ConfigService) SetBoardWorkStream(project string, boardID int, workStream string) error {
+	config, err := s.GetTeamConfig()
+	if err != nil {
+		return fmt.Errorf("failed to load team configuration: %w", err)
+	}
+
+	existing := config.GetBoardWorkStreams(project)
+	if existing == nil {
+		existing = make(map[int]string)
+	}
+	existing[boardID] = workStream
+
+	if err := config.SetBoardWorkStreams(project, existing); err != nil {
+		return fmt.Errorf("failed to set board work stream: %w", err)
+	}
+
+	if err := s.SaveTeamConfig(config); err != nil {
+		return fmt.Errorf("failed to save team configuration: %w", err)
+	}
+
+	return nil
+}
+
 // InitializeConfigDirectory initializes the configuration directory
 func (s *ConfigService) InitializeConfigDirectory() error {
 	return s.repo.InitializeConfigDirectory()

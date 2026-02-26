@@ -79,6 +79,16 @@ func (s *SprintServiceImpl) ProcessJiraIssuesWithStrategy(project, sprint, overr
 	return processor.Process()
 }
 
+// ProcessJiraIssuesWithOptions processes Jira issues with functional options
+func (s *SprintServiceImpl) ProcessJiraIssuesWithOptions(project, sprint, override string, useSprintBoundedCalculation bool, opts ...usecase.SprintAllocationOption) (string, error) {
+	processor, err := usecase.NewSprintTimeAllocationUseCaseWithOptions(project, sprint, override, useSprintBoundedCalculation, opts...)
+	if err != nil {
+		return "", fmt.Errorf("failed to create Jira processor with options: %w", err)
+	}
+
+	return processor.Process()
+}
+
 // ListSprints lists sprints for a project and time period
 func (s *SprintServiceImpl) ListSprints(project, period string) (*usecase.ListSprintsResult, error) {
 	listSprintsUseCase := usecase.NewListSprintsUseCase(s.jiraPort)

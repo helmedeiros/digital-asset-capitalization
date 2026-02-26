@@ -5,9 +5,11 @@ import (
 	"net/url"
 	"os"
 	"strings"
+	"time"
 
 	"github.com/helmedeiros/digital-asset-capitalization/internal/config/application/service"
 	"github.com/helmedeiros/digital-asset-capitalization/internal/config/infrastructure"
+	sharedjira "github.com/helmedeiros/digital-asset-capitalization/internal/shared/jira"
 	"github.com/helmedeiros/digital-asset-capitalization/internal/sprint/config"
 	"github.com/helmedeiros/digital-asset-capitalization/internal/sprint/domain"
 	"github.com/helmedeiros/digital-asset-capitalization/internal/sprint/domain/ports"
@@ -19,6 +21,7 @@ type JiraAdapter struct {
 	teams         domain.TeamMap
 	httpClient    *HTTPClient
 	configService *service.ConfigService
+	fieldIDs      *sharedjira.CustomFieldIDs
 }
 
 // NewJiraAdapter creates a new Jira adapter using shared configuration
@@ -42,11 +45,21 @@ func NewJiraAdapter() (*JiraAdapter, error) {
 	// Create HTTP client
 	httpClient := NewHTTPClient(jiraConfig.GetBaseURL(), jiraConfig.GetAuthHeader())
 
+	// Resolve custom field IDs for TPD Business Unit, Work Stream, Engineering Hours
+	fieldResolver := sharedjira.NewFieldResolver(jiraConfig.GetBaseURL(), jiraConfig.GetAuthHeader())
+	fieldIDs, err := fieldResolver.ResolveCustomFieldIDs()
+	if err != nil {
+		// Non-fatal: log warning and continue without custom fields
+		fmt.Printf("Warning: could not resolve custom field IDs: %v\n", err)
+		fieldIDs = &sharedjira.CustomFieldIDs{}
+	}
+
 	return &JiraAdapter{
 		config:        jiraConfig,
 		teams:         teams,
 		httpClient:    httpClient,
 		configService: configService,
+		fieldIDs:      fieldIDs,
 	}, nil
 }
 
@@ -95,11 +108,38 @@ func loadJiraConfig(configService *service.ConfigService) (*config.JiraConfig, e
 	return legacyConfig, nil
 }
 
+// buildFieldsParam returns the fields parameter including any discovered custom field IDs
+func (a *JiraAdapter) buildFieldsParam() string {
+	fields := "summary,assignee,status,changelog,issuetype,customfield_10014,customfield_10015,labels"
+	if a.fieldIDs != nil {
+		if a.fieldIDs.TPDBusinessUnit != "" {
+			fields += "," + a.fieldIDs.TPDBusinessUnit
+		}
+		if a.fieldIDs.EngineeringHours != "" {
+			fields += "," + a.fieldIDs.EngineeringHours
+		}
+		if a.fieldIDs.WorkStream != "" {
+			fields += "," + a.fieldIDs.WorkStream
+		}
+	}
+	return fields
+}
+
+// enrichIssues enriches domain issues with custom field data
+func (a *JiraAdapter) enrichIssues(issues []domain.JiraIssue) {
+	if a.fieldIDs == nil {
+		return
+	}
+	for i := range issues {
+		issues[i].EnrichCustomFields(*a.fieldIDs)
+	}
+}
+
 // GetIssuesForSprint retrieves all issues for a given sprint
 func (a *JiraAdapter) GetIssuesForSprint(project, sprintID string) ([]ports.JiraIssue, error) {
 	query := fmt.Sprintf("project = %s AND sprint = '%s'", project, sprintID)
 	encodedQuery := url.QueryEscape(query)
-	fields := "summary,assignee,status,changelog,issuetype,customfield_10014,customfield_10015,labels"
+	fields := a.buildFieldsParam()
 	jiraURL := fmt.Sprintf("%s/rest/api/3/search/jql?jql=%s&expand=changelog&fields=%s",
 		a.config.GetBaseURL(), encodedQuery, fields)
 
@@ -108,6 +148,7 @@ func (a *JiraAdapter) GetIssuesForSprint(project, sprintID string) ([]ports.Jira
 		return nil, fmt.Errorf("failed to fetch sprint issues: %w", err)
 	}
 
+	a.enrichIssues(issues)
 	return a.convertToPortIssues(issues), nil
 }
 
@@ -115,7 +156,7 @@ func (a *JiraAdapter) GetIssuesForSprint(project, sprintID string) ([]ports.Jira
 func (a *JiraAdapter) GetIssuesForTeamMember(member string) ([]ports.JiraIssue, error) {
 	query := fmt.Sprintf("assignee = '%s'", member)
 	encodedQuery := url.QueryEscape(query)
-	fields := "summary,assignee,status,changelog,issuetype,customfield_10014,customfield_10015,labels"
+	fields := a.buildFieldsParam()
 	jiraURL := fmt.Sprintf("%s/rest/api/3/search/jql?jql=%s&expand=changelog&fields=%s",
 		a.config.GetBaseURL(), encodedQuery, fields)
 
@@ -124,6 +165,7 @@ func (a *JiraAdapter) GetIssuesForTeamMember(member string) ([]ports.JiraIssue, 
 		return nil, fmt.Errorf("failed to fetch team member issues: %w", err)
 	}
 
+	a.enrichIssues(issues)
 	return a.convertToPortIssues(issues), nil
 }
 
@@ -189,14 +231,17 @@ func (a *JiraAdapter) convertToPortIssues(issues []domain.JiraIssue) []ports.Jir
 
 	for _, issue := range issues {
 		portIssue := ports.JiraIssue{
-			Key:         issue.Key,
-			Summary:     issue.Fields.Summary,
-			Assignee:    issue.Fields.Assignee.DisplayName,
-			Status:      issue.Fields.Status.Name,
-			StoryPoints: issue.Fields.StoryPoints,
-			IssueType:   issue.Fields.IssueType.Name,
-			Labels:      issue.Fields.Labels,
-			Changelog:   convertChangelog(issue.Changelog),
+			Key:              issue.Key,
+			Summary:          issue.Fields.Summary,
+			Assignee:         issue.Fields.Assignee.DisplayName,
+			Status:           issue.Fields.Status.Name,
+			StoryPoints:      issue.Fields.StoryPoints,
+			IssueType:        issue.Fields.IssueType.Name,
+			Labels:           issue.Fields.Labels,
+			Changelog:        convertChangelog(issue.Changelog),
+			TPDBusinessUnits: issue.Fields.TPDBusinessUnits,
+			EngineeringHours: issue.Fields.EngineeringHours,
+			WorkStream:       issue.Fields.WorkStream,
 		}
 
 		portIssues = append(portIssues, portIssue)
@@ -334,6 +379,89 @@ func (a *JiraAdapter) GetSprintByName(project, sprintName string) (*ports.Sprint
 	}
 
 	return nil, fmt.Errorf("sprint '%s' not found in project %s", sprintName, project)
+}
+
+// GetIssuesForSprintOnBoard retrieves issues for a sprint filtered to a specific board.
+// For scrum boards, it finds the sprint by name on that board and fetches its issues.
+// For kanban boards (no sprints), it fetches board issues updated within the sprint date range.
+func (a *JiraAdapter) GetIssuesForSprintOnBoard(project, sprintName string, boardID int) ([]ports.JiraIssue, error) {
+	// Try to find the sprint on this board
+	sprints, err := a.getSprintsForBoard(boardID, []string{})
+	if err != nil {
+		// Kanban board — no sprints. Fall back to date-range query using sprint dates from other boards.
+		sprintDetails, lookupErr := a.GetSprintByName(project, sprintName)
+		if lookupErr != nil {
+			return nil, fmt.Errorf("failed to get sprint details for date range: %w", lookupErr)
+		}
+		return a.getIssuesForBoardByDateRange(project, boardID, sprintDetails.StartDate, sprintDetails.EndDate)
+	}
+
+	// Find matching sprint on this board
+	var sprintID string
+	for _, s := range sprints {
+		if s.Name == sprintName {
+			sprintID = s.ID
+			break
+		}
+	}
+
+	if sprintID == "" {
+		// Sprint not on this board — try date-range approach
+		sprintDetails, lookupErr := a.GetSprintByName(project, sprintName)
+		if lookupErr != nil {
+			return nil, fmt.Errorf("sprint '%s' not found on board %d and failed date range fallback: %w", sprintName, boardID, lookupErr)
+		}
+		return a.getIssuesForBoardByDateRange(project, boardID, sprintDetails.StartDate, sprintDetails.EndDate)
+	}
+
+	// Scrum board with matching sprint — use sprint-filtered JQL
+	query := fmt.Sprintf("project = %s AND sprint = '%s'", project, sprintName)
+	encodedQuery := url.QueryEscape(query)
+	fields := a.buildFieldsParam()
+	jiraURL := fmt.Sprintf("%s/rest/api/3/search/jql?jql=%s&expand=changelog&fields=%s",
+		a.config.GetBaseURL(), encodedQuery, fields)
+
+	issues, err := a.httpClient.GetJiraIssues(jiraURL)
+	if err != nil {
+		return nil, fmt.Errorf("failed to fetch sprint issues for board %d: %w", boardID, err)
+	}
+
+	a.enrichIssues(issues)
+	return a.convertToPortIssues(issues), nil
+}
+
+// getIssuesForBoardByDateRange fetches issues from a board that were updated within the given date range.
+func (a *JiraAdapter) getIssuesForBoardByDateRange(project string, boardID int, startDate, endDate string) ([]ports.JiraIssue, error) {
+	// Parse dates to extract just the date portion for JQL
+	start, err := time.Parse(time.RFC3339, startDate)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse start date: %w", err)
+	}
+	end, err := time.Parse(time.RFC3339, endDate)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse end date: %w", err)
+	}
+
+	startStr := start.Format("2006-01-02")
+	endStr := end.Format("2006-01-02")
+
+	// Query issues updated during the sprint period, filtered by board membership
+	query := fmt.Sprintf("project = %s AND updatedDate >= '%s' AND updatedDate <= '%s'",
+		project, startStr, endStr)
+	encodedQuery := url.QueryEscape(query)
+	fields := a.buildFieldsParam()
+
+	// Use the Agile board issue endpoint to only get issues visible on this board
+	jiraURL := fmt.Sprintf("%s/rest/agile/1.0/board/%d/issue?jql=%s&expand=changelog&fields=%s",
+		a.config.GetBaseURL(), boardID, encodedQuery, fields)
+
+	issues, err := a.httpClient.GetJiraIssues(jiraURL)
+	if err != nil {
+		return nil, fmt.Errorf("failed to fetch board %d issues by date range: %w", boardID, err)
+	}
+
+	a.enrichIssues(issues)
+	return a.convertToPortIssues(issues), nil
 }
 
 // Ensure JiraAdapter implements JiraPort

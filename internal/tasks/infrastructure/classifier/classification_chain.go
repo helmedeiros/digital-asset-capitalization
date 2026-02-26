@@ -2,6 +2,7 @@ package classifier
 
 import (
 	"fmt"
+	"log"
 	"strings"
 
 	assetdomain "github.com/helmedeiros/digital-asset-capitalization/internal/assets/domain"
@@ -27,6 +28,8 @@ func NewComprehensiveClassificationChain(assetClassifier ports.AssetClassifier, 
 type ComprehensiveClassificationChainWithInheritance struct {
 	assetClassifier    ports.AssetClassifier
 	workTypeClassifier ports.TaskClassifier
+	llmClassifier      ports.AssetClassifier
+	llmEnabled         bool
 	taskLookup         map[string]*taskdomain.Task // For parent task lookup
 }
 
@@ -37,6 +40,21 @@ func NewComprehensiveClassificationChainWithInheritance(assetClassifier ports.As
 		workTypeClassifier: workTypeClassifier,
 		taskLookup:         make(map[string]*taskdomain.Task),
 	}
+}
+
+// NewComprehensiveClassificationChainWithLLM creates a classification chain with an optional LLM classifier
+func NewComprehensiveClassificationChainWithLLM(assetClassifier ports.AssetClassifier, workTypeClassifier ports.TaskClassifier, llmClassifier ports.AssetClassifier) ports.ClassificationChain {
+	return &ComprehensiveClassificationChainWithInheritance{
+		assetClassifier:    assetClassifier,
+		workTypeClassifier: workTypeClassifier,
+		llmClassifier:      llmClassifier,
+		taskLookup:         make(map[string]*taskdomain.Task),
+	}
+}
+
+// SetLLMEnabled enables or disables the LLM classifier for comparison mode
+func (c *ComprehensiveClassificationChainWithInheritance) SetLLMEnabled(enabled bool) {
+	c.llmEnabled = enabled
 }
 
 // ClassifyTask performs comprehensive classification including asset assignment and work type
@@ -114,12 +132,14 @@ func (c *ComprehensiveClassificationChainWithInheritance) ClassifyTask(task *tas
 			workTypeReason = c.generateWorkTypeReason(task, assetResult, workType)
 		}
 
-		return &ports.ComprehensiveClassificationResult{
+		result := &ports.ComprehensiveClassificationResult{
 			Task:           task,
 			Asset:          assetResult,
 			WorkType:       workType,
 			WorkTypeReason: workTypeReason,
-		}, nil
+		}
+		c.runLLMClassification(task, result)
+		return result, nil
 	}
 
 	// Step 4: Determine work type reason
@@ -132,8 +152,22 @@ func (c *ComprehensiveClassificationChainWithInheritance) ClassifyTask(task *tas
 		WorkType:       workType,
 		WorkTypeReason: workTypeReason,
 	}
+	c.runLLMClassification(task, result)
 
 	return result, nil
+}
+
+// runLLMClassification runs the LLM classifier if enabled and attaches the result
+func (c *ComprehensiveClassificationChainWithInheritance) runLLMClassification(task *taskdomain.Task, result *ports.ComprehensiveClassificationResult) {
+	if !c.llmEnabled || c.llmClassifier == nil {
+		return
+	}
+	llmResult, err := c.llmClassifier.ClassifyTaskAsset(task)
+	if err != nil {
+		log.Printf("Warning: LLM classification failed for %s: %v", task.Key, err)
+		return
+	}
+	result.LLMAsset = llmResult
 }
 
 // hasExplicitWorkTypeLabel checks if the task has an explicit work type label
@@ -165,8 +199,10 @@ func (c *ComprehensiveClassificationChainWithInheritance) needsInheritance(task 
 		return false
 	}
 
-	// If no asset was found or confidence is low, we need inheritance
-	hasWeakAssetClassification := assetResult == nil || assetResult.Asset == nil || assetResult.Confidence < 0.5
+	// If no asset was found or confidence is not strong enough, we need inheritance
+	// Subtasks with weak keyword/partial matches (< 0.8) should inherit from parent
+	// rather than keeping a potentially incorrect low-confidence match
+	hasWeakAssetClassification := assetResult == nil || assetResult.Asset == nil || assetResult.Confidence < 0.8
 
 	// Discovery/spike tasks often lack explicit asset mentions but should inherit from epic
 	isDiscoveryTask := workType == taskdomain.WorkTypeDiscovery || c.containsResearchKeywords(task)

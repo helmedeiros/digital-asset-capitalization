@@ -509,6 +509,10 @@ func (m *MockJiraAdapter) GetSprintByName(_, _ string) (*ports.Sprint, error) {
 	return nil, nil
 }
 
+func (m *MockJiraAdapter) GetIssuesForSprintOnBoard(_, _ string, _ int) ([]ports.JiraIssue, error) {
+	return nil, nil
+}
+
 func TestGetIssueTimeRange(t *testing.T) {
 	// Don't run sub-tests in parallel to avoid directory conflicts
 	// The setupTestEnv changes working directory which can affect parallel tests
@@ -926,7 +930,7 @@ func TestCalculatePercentageLoad(t *testing.T) {
 		"test.user": 8.0,
 	}
 
-	results := processor.calculatePercentageLoad(team, issues, nil, totalHoursByPerson)
+	results := processor.calculatePercentageLoad(team, issues, nil, totalHoursByPerson, nil)
 	require.Len(t, results, 1)
 
 	result := results[0]
@@ -952,19 +956,21 @@ func TestGenerateCSV(t *testing.T) {
 			},
 			results: []map[string]interface{}{
 				{
-					"sprint":        "Sprint 1",
-					"issueKey":      "TEST-1",
-					"issueType":     "Task",
-					"issueTitle":    "Test Task",
-					"workType":      "Development",
-					"assetName":     "cap-asset-booking",
-					"status":        domain.StatusDone,
-					"dateStarted":   "2024-03-20",
-					"dateCompleted": "2024-03-21",
-					"engineer1":     "50.00%",
+					"sprint":          "Sprint 1",
+					"issueKey":        "TEST-1",
+					"issueType":       "Task",
+					"issueTitle":      "Test Task",
+					"workType":        "Development",
+					"assetName":       "cap-asset-booking",
+					"status":          domain.StatusDone,
+					"dateStarted":     "2024-03-20",
+					"dateCompleted":   "2024-03-21",
+					"tpdBusinessUnit": "",
+					"workStream":      "",
+					"engineer1":       "50.00%",
 				},
 			},
-			expectedHeader: `sprint,issueKey,issueType,issueTitle,workType,assetName,status,dateStarted,dateCompleted,engineer1`,
+			expectedHeader: `sprint,issueKey,issueType,issueTitle,workType,assetName,status,dateStarted,dateCompleted,tpdBusinessUnit,workStream,engineer1`,
 			wantErr:        false,
 		},
 		{
@@ -974,19 +980,21 @@ func TestGenerateCSV(t *testing.T) {
 			},
 			results: []map[string]interface{}{
 				{
-					"sprint":        "Sprint 1",
-					"issueKey":      "TEST-1",
-					"issueType":     "Task",
-					"issueTitle":    "Test Task",
-					"workType":      "Development",
-					"assetName":     "cap-asset-booking",
-					"status":        domain.StatusDone,
-					"dateStarted":   "2024-03-20",
-					"dateCompleted": "2024-03-21",
-					"engineer1":     "50.00%",
+					"sprint":          "Sprint 1",
+					"issueKey":        "TEST-1",
+					"issueType":       "Task",
+					"issueTitle":      "Test Task",
+					"workType":        "Development",
+					"assetName":       "cap-asset-booking",
+					"status":          domain.StatusDone,
+					"dateStarted":     "2024-03-20",
+					"dateCompleted":   "2024-03-21",
+					"tpdBusinessUnit": "",
+					"workStream":      "",
+					"engineer1":       "50.00%",
 				},
 			},
-			expectedHeader: `sprint,issueKey,issueType,issueTitle,workType,assetName,status,dateStarted,dateCompleted,engineer1`,
+			expectedHeader: `sprint,issueKey,issueType,issueTitle,workType,assetName,status,dateStarted,dateCompleted,tpdBusinessUnit,workStream,engineer1`,
 			wantErr:        false,
 		},
 		{
@@ -996,21 +1004,23 @@ func TestGenerateCSV(t *testing.T) {
 			},
 			results: []map[string]interface{}{
 				{
-					"sprint":        "Sprint 1",
-					"issueKey":      "TEST-1",
-					"issueType":     "Task",
-					"issueTitle":    "Test Task",
-					"workType":      "Development",
-					"assetName":     "cap-asset-booking",
-					"status":        domain.StatusDone,
-					"dateStarted":   "2024-03-20",
-					"dateCompleted": "2024-03-21",
-					"engineer1":     "30.00%",
-					"engineer2":     "70.00%",
-					"engineer3":     "",
+					"sprint":          "Sprint 1",
+					"issueKey":        "TEST-1",
+					"issueType":       "Task",
+					"issueTitle":      "Test Task",
+					"workType":        "Development",
+					"assetName":       "cap-asset-booking",
+					"status":          domain.StatusDone,
+					"dateStarted":     "2024-03-20",
+					"dateCompleted":   "2024-03-21",
+					"tpdBusinessUnit": "",
+					"workStream":      "",
+					"engineer1":       "30.00%",
+					"engineer2":       "70.00%",
+					"engineer3":       "",
 				},
 			},
-			expectedHeader: `sprint,issueKey,issueType,issueTitle,workType,assetName,status,dateStarted,dateCompleted,engineer1,engineer2,engineer3`,
+			expectedHeader: `sprint,issueKey,issueType,issueTitle,workType,assetName,status,dateStarted,dateCompleted,tpdBusinessUnit,workStream,engineer1,engineer2,engineer3`,
 			wantErr:        false,
 		},
 		{
@@ -1020,18 +1030,20 @@ func TestGenerateCSV(t *testing.T) {
 			},
 			results: []map[string]interface{}{
 				{
-					"sprint":        "Sprint 1",
-					"issueKey":      "TEST-1",
-					"issueType":     "Task",
-					"issueTitle":    "Test Task",
-					"workType":      "Development",
-					"assetName":     "cap-asset-booking",
-					"status":        domain.StatusDone,
-					"dateStarted":   "2024-03-20",
-					"dateCompleted": "2024-03-21",
+					"sprint":          "Sprint 1",
+					"issueKey":        "TEST-1",
+					"issueType":       "Task",
+					"issueTitle":      "Test Task",
+					"workType":        "Development",
+					"assetName":       "cap-asset-booking",
+					"status":          domain.StatusDone,
+					"dateStarted":     "2024-03-20",
+					"dateCompleted":   "2024-03-21",
+					"tpdBusinessUnit": "",
+					"workStream":      "",
 				},
 			},
-			expectedHeader: `sprint,issueKey,issueType,issueTitle,workType,assetName,status,dateStarted,dateCompleted`,
+			expectedHeader: `sprint,issueKey,issueType,issueTitle,workType,assetName,status,dateStarted,dateCompleted,tpdBusinessUnit,workStream`,
 			wantErr:        false,
 		},
 		{
@@ -1380,7 +1392,7 @@ func TestFilterSubtasks(t *testing.T) {
 		"test.user": 8.0,
 	}
 
-	results := processor.calculatePercentageLoad(team, issues, nil, totalHoursByPerson)
+	results := processor.calculatePercentageLoad(team, issues, nil, totalHoursByPerson, nil)
 	require.Len(t, results, 1, "Should only include non-subtask issues")
 
 	result := results[0]
@@ -1440,7 +1452,7 @@ func TestUncompletedIssues(t *testing.T) {
 	}
 
 	// Calculate results
-	results := processor.calculatePercentageLoad(team, issues, nil, map[string]float64{"Test User 1": 8.0})
+	results := processor.calculatePercentageLoad(team, issues, nil, map[string]float64{"Test User 1": 8.0}, nil)
 
 	// Verify results
 	assert.Equal(t, 1, len(results))
@@ -1550,7 +1562,7 @@ func TestMinimumHoursForDirectDone(t *testing.T) {
 	// Calculate actual total hours using the same logic as the main flow
 	totalHoursByPerson := processor.calculateTotalHours(team, issues, nil)
 
-	results := processor.calculatePercentageLoad(team, issues, nil, totalHoursByPerson)
+	results := processor.calculatePercentageLoad(team, issues, nil, totalHoursByPerson, nil)
 	require.Len(t, results, 2)
 
 	// Test first issue (direct to Done)
@@ -1685,7 +1697,7 @@ func TestPercentageLoadWithMinimumHours(t *testing.T) {
 		"test.user": 8.0,
 	}
 
-	results := processor.calculatePercentageLoad(team, issues, nil, totalHoursByPerson)
+	results := processor.calculatePercentageLoad(team, issues, nil, totalHoursByPerson, nil)
 	require.Len(t, results, 3)
 
 	// Calculate total percentage and verify individual percentages
@@ -1809,7 +1821,7 @@ func TestSprintTimeAllocationWithCustomStatuses_AD_Team(t *testing.T) {
 		"Helio Medeiros": 29.0,
 	}
 
-	results := processor.calculatePercentageLoad(team, issues, nil, totalHoursByPerson)
+	results := processor.calculatePercentageLoad(team, issues, nil, totalHoursByPerson, nil)
 
 	require.Len(t, results, 1, "Should process AD team issue")
 	result := results[0]
@@ -1952,7 +1964,7 @@ func TestSprintTimeAllocationWithDefaultStatuses_FN_Team(t *testing.T) {
 		"Viktor Kovarik": 29.0,
 	}
 
-	results := processor.calculatePercentageLoad(team, issues, nil, totalHoursByPerson)
+	results := processor.calculatePercentageLoad(team, issues, nil, totalHoursByPerson, nil)
 
 	// This test should PASS both before and after the fix
 	require.Len(t, results, 1, "Should process FN team issue")

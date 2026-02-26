@@ -49,6 +49,11 @@ func (m *mockSprintPort) GetTeamIssues(team *sprintDomain.Team) ([]sprintPorts.J
 	return args.Get(0).([]sprintPorts.JiraIssue), args.Error(1)
 }
 
+func (m *mockSprintPort) GetIssuesForSprintOnBoard(project, sprintName string, boardID int) ([]sprintPorts.JiraIssue, error) {
+	args := m.Called(project, sprintName, boardID)
+	return args.Get(0).([]sprintPorts.JiraIssue), args.Error(1)
+}
+
 func (m *mockSprintPort) GetSprintByName(project, sprintName string) (*sprintPorts.Sprint, error) {
 	args := m.Called(project, sprintName)
 	if args.Get(0) == nil {

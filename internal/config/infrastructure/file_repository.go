@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strconv"
 
 	"github.com/helmedeiros/digital-asset-capitalization/internal/config/domain"
 )
@@ -98,13 +99,14 @@ func (r *FileRepository) LoadTeamConfig() (*domain.TeamConfig, error) {
 
 	// Parse existing file format
 	var fileFormat map[string]struct {
-		Team                 []string `json:"team"`
-		Nicknames            []string `json:"nicknames,omitempty"`
-		Tribe                string   `json:"tribe,omitempty"`
-		Company              string   `json:"company,omitempty"`
-		ConfluenceSpace      string   `json:"confluence_space,omitempty"`
-		ConfluenceParentPage string   `json:"confluence_parent_page,omitempty"`
-		ExcludedIssueTypes   []string `json:"excluded_issue_types,omitempty"`
+		Team                 []string          `json:"team"`
+		Nicknames            []string          `json:"nicknames,omitempty"`
+		Tribe                string            `json:"tribe,omitempty"`
+		Company              string            `json:"company,omitempty"`
+		ConfluenceSpace      string            `json:"confluence_space,omitempty"`
+		ConfluenceParentPage string            `json:"confluence_parent_page,omitempty"`
+		ExcludedIssueTypes   []string          `json:"excluded_issue_types,omitempty"`
+		BoardWorkStreams     map[string]string `json:"board_work_streams,omitempty"`
 	}
 
 	if err := json.Unmarshal(data, &fileFormat); err != nil {
@@ -119,6 +121,7 @@ func (r *FileRepository) LoadTeamConfig() (*domain.TeamConfig, error) {
 	confluenceSpaces := make(map[string]string)
 	confluenceParentPages := make(map[string]string)
 	excludedIssueTypes := make(map[string][]string)
+	boardWorkStreams := make(map[string]map[int]string)
 
 	for project, teamInfo := range fileFormat {
 		teams[project] = teamInfo.Team
@@ -140,9 +143,22 @@ func (r *FileRepository) LoadTeamConfig() (*domain.TeamConfig, error) {
 		if len(teamInfo.ExcludedIssueTypes) > 0 {
 			excludedIssueTypes[project] = teamInfo.ExcludedIssueTypes
 		}
+		if len(teamInfo.BoardWorkStreams) > 0 {
+			mapping := make(map[int]string, len(teamInfo.BoardWorkStreams))
+			for boardIDStr, workStream := range teamInfo.BoardWorkStreams {
+				boardID, err := strconv.Atoi(boardIDStr)
+				if err != nil {
+					continue // skip invalid board IDs
+				}
+				mapping[boardID] = workStream
+			}
+			if len(mapping) > 0 {
+				boardWorkStreams[project] = mapping
+			}
+		}
 	}
 
-	return domain.NewTeamConfigWithExcludedTypes(teams, nicknames, tribes, companies, confluenceSpaces, confluenceParentPages, excludedIssueTypes)
+	return domain.NewTeamConfigWithBoardWorkStreams(teams, nicknames, tribes, companies, confluenceSpaces, confluenceParentPages, excludedIssueTypes, boardWorkStreams)
 }
 
 // SaveTeamConfig saves team configuration to file with format transformation
@@ -150,26 +166,28 @@ func (r *FileRepository) SaveTeamConfig(config *domain.TeamConfig) error {
 	path := filepath.Join(r.configDir, "teams.json")
 
 	// Transform from domain format to file format
-	teams, nicknames, tribes, companies, confluenceSpaces, confluenceParentPages, excludedIssueTypes := config.ToCompleteMapWithExcludedTypes()
+	teams, nicknames, tribes, companies, confluenceSpaces, confluenceParentPages, excludedIssueTypes, boardWorkStreams := config.ToCompleteMapWithBoardWorkStreams()
 	fileFormat := make(map[string]struct {
-		Team                 []string `json:"team"`
-		Nicknames            []string `json:"nicknames,omitempty"`
-		Tribe                string   `json:"tribe,omitempty"`
-		Company              string   `json:"company,omitempty"`
-		ConfluenceSpace      string   `json:"confluence_space,omitempty"`
-		ConfluenceParentPage string   `json:"confluence_parent_page,omitempty"`
-		ExcludedIssueTypes   []string `json:"excluded_issue_types,omitempty"`
+		Team                 []string          `json:"team"`
+		Nicknames            []string          `json:"nicknames,omitempty"`
+		Tribe                string            `json:"tribe,omitempty"`
+		Company              string            `json:"company,omitempty"`
+		ConfluenceSpace      string            `json:"confluence_space,omitempty"`
+		ConfluenceParentPage string            `json:"confluence_parent_page,omitempty"`
+		ExcludedIssueTypes   []string          `json:"excluded_issue_types,omitempty"`
+		BoardWorkStreams     map[string]string `json:"board_work_streams,omitempty"`
 	})
 
 	for project, members := range teams {
 		entry := struct {
-			Team                 []string `json:"team"`
-			Nicknames            []string `json:"nicknames,omitempty"`
-			Tribe                string   `json:"tribe,omitempty"`
-			Company              string   `json:"company,omitempty"`
-			ConfluenceSpace      string   `json:"confluence_space,omitempty"`
-			ConfluenceParentPage string   `json:"confluence_parent_page,omitempty"`
-			ExcludedIssueTypes   []string `json:"excluded_issue_types,omitempty"`
+			Team                 []string          `json:"team"`
+			Nicknames            []string          `json:"nicknames,omitempty"`
+			Tribe                string            `json:"tribe,omitempty"`
+			Company              string            `json:"company,omitempty"`
+			ConfluenceSpace      string            `json:"confluence_space,omitempty"`
+			ConfluenceParentPage string            `json:"confluence_parent_page,omitempty"`
+			ExcludedIssueTypes   []string          `json:"excluded_issue_types,omitempty"`
+			BoardWorkStreams     map[string]string `json:"board_work_streams,omitempty"`
 		}{
 			Team: members,
 		}
@@ -202,6 +220,15 @@ func (r *FileRepository) SaveTeamConfig(config *domain.TeamConfig) error {
 		// Add excluded issue types if they exist for this project
 		if types, exists := excludedIssueTypes[project]; exists && len(types) > 0 {
 			entry.ExcludedIssueTypes = types
+		}
+
+		// Add board work streams if they exist for this project
+		if mapping, exists := boardWorkStreams[project]; exists && len(mapping) > 0 {
+			strMapping := make(map[string]string, len(mapping))
+			for boardID, ws := range mapping {
+				strMapping[strconv.Itoa(boardID)] = ws
+			}
+			entry.BoardWorkStreams = strMapping
 		}
 
 		fileFormat[project] = entry

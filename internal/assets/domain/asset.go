@@ -66,6 +66,8 @@ type Asset struct {
 	OwningTeam string `json:"owning_team,omitempty"`
 	// ContributingTeams are teams that contribute to this asset
 	ContributingTeams []string `json:"contributing_teams,omitempty"`
+	// BusinessUnit is the TPD business unit associated with this asset
+	BusinessUnit string `json:"business_unit,omitempty"`
 }
 
 // UnmarshalJSON implements the json.Unmarshaler interface
