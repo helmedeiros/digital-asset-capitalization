@@ -211,4 +211,17 @@ func (m *MockSprintService) ProcessJiraIssuesWithStrategy(project, sprint, overr
 	return args.String(0), args.Error(1)
 }
 
+func (m *MockSprintService) ProcessJiraIssuesWithOptions(project, sprint, override string, useSprintBounded bool, opts ...sprintusecase.SprintAllocationOption) (string, error) {
+	args := m.Called(project, sprint, override, useSprintBounded)
+	return args.String(0), args.Error(1)
+}
+
+func (m *MockSprintService) PushAllocationToJira(project, sprint, override string, useSprintBounded, dryRun bool, opts ...sprintusecase.SprintAllocationOption) (string, *sprintusecase.PushResult, error) {
+	args := m.Called(project, sprint, override, useSprintBounded, dryRun)
+	if args.Get(1) == nil {
+		return args.String(0), nil, args.Error(2)
+	}
+	return args.String(0), args.Get(1).(*sprintusecase.PushResult), args.Error(2)
+}
+
 // MockConfigService is defined in config_commands_test.go to avoid duplication

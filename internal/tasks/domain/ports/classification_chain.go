@@ -8,6 +8,7 @@ import (
 type ComprehensiveClassificationResult struct {
 	Task           *taskdomain.Task           `json:"task"`
 	Asset          *AssetClassificationResult `json:"asset_classification"`
+	LLMAsset       *AssetClassificationResult `json:"llm_asset_classification,omitempty"`
 	WorkType       taskdomain.WorkType        `json:"work_type"`
 	WorkTypeReason string                     `json:"work_type_reason"`
 }

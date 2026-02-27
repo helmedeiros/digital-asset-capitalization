@@ -19,6 +19,12 @@ type SprintService interface {
 	// ProcessJiraIssuesWithStrategy processes Jira issues with configurable time calculation strategy
 	ProcessJiraIssuesWithStrategy(project, sprint, override string, useSprintBoundedCalculation bool) (string, error)
 
+	// ProcessJiraIssuesWithOptions processes Jira issues with functional options
+	ProcessJiraIssuesWithOptions(project, sprint, override string, useSprintBoundedCalculation bool, opts ...usecase.SprintAllocationOption) (string, error)
+
 	// ListSprints lists sprints for a project and time period
 	ListSprints(project, period string) (*usecase.ListSprintsResult, error)
+
+	// PushAllocationToJira calculates allocation and pushes results to JIRA custom fields
+	PushAllocationToJira(project, sprint, override string, useSprintBounded, dryRun bool, opts ...usecase.SprintAllocationOption) (string, *usecase.PushResult, error)
 }

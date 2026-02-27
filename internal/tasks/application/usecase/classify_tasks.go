@@ -106,7 +106,7 @@ func (uc *ClassifyTasksUseCase) Execute(ctx context.Context, input domain.Classi
 
 	// Preview classifications if in dry run mode
 	if input.DryRun {
-		return uc.previewClassifications(tasks)
+		return uc.previewClassifications(tasks, input.WithLLM)
 	}
 
 	// Update tasks with their classifications
@@ -200,16 +200,32 @@ func (uc *ClassifyTasksUseCase) Execute(ctx context.Context, input domain.Classi
 
 // previewClassifications shows classification preview with enhanced output when comprehensive results are available
 // Includes intelligent asset syncing when unassigned tasks are detected
-func (uc *ClassifyTasksUseCase) previewClassifications(tasks []*domain.Task) error {
+func (uc *ClassifyTasksUseCase) previewClassifications(tasks []*domain.Task, withLLM bool) error {
 	fmt.Printf("\n🔍 CLASSIFICATION PREVIEW\n")
 	fmt.Printf("═══════════════════════════════════════════════════════════════\n")
 	fmt.Printf("Found %d task(s) to classify\n\n", len(tasks))
-	return uc.previewClassificationsWithRetry(tasks, false)
+	if withLLM {
+		fmt.Printf("LLM comparison mode enabled\n\n")
+	}
+	return uc.previewClassificationsWithRetry(tasks, false, withLLM)
+}
+
+// LLMToggler allows toggling LLM comparison mode on a classifier
+type LLMToggler interface {
+	SetLLMEnabled(enabled bool)
 }
 
 // previewClassificationsWithRetry handles the classification preview with optional asset sync retry
-func (uc *ClassifyTasksUseCase) previewClassificationsWithRetry(tasks []*domain.Task, hasTriedSync bool) error {
+func (uc *ClassifyTasksUseCase) previewClassificationsWithRetry(tasks []*domain.Task, hasTriedSync bool, withLLM bool) error {
 	fmt.Println("\nPreview of task classifications:")
+
+	// Enable LLM if requested
+	if withLLM {
+		if toggler, ok := uc.classifier.(LLMToggler); ok {
+			toggler.SetLLMEnabled(true)
+			defer toggler.SetLLMEnabled(false)
+		}
+	}
 
 	// Check if classifier supports comprehensive results
 	if comprehensiveClassifier, ok := uc.classifier.(ports.ComprehensiveTaskClassifier); ok {
@@ -245,12 +261,41 @@ func (uc *ClassifyTasksUseCase) previewClassificationsWithRetry(tasks []*domain.
 
 				// Show asset association
 				if result.Asset != nil && result.Asset.Asset != nil {
-					fmt.Printf("     💼 Asset: %s (%.0f%% confidence)\n", result.Asset.Asset.Name, result.Asset.Confidence*100)
+					if result.LLMAsset != nil {
+						fmt.Printf("     [Heuristic] Asset: %s (%.0f%% confidence)\n", result.Asset.Asset.Name, result.Asset.Confidence*100)
+					} else {
+						fmt.Printf("     💼 Asset: %s (%.0f%% confidence)\n", result.Asset.Asset.Name, result.Asset.Confidence*100)
+					}
 					if result.Asset.Reason != "" {
 						fmt.Printf("     📝 Match: %s\n", result.Asset.Reason)
 					}
 				} else {
 					fmt.Printf("     ❌ Asset: No assignment found\n")
+				}
+
+				// Show LLM classification if available
+				if result.LLMAsset != nil {
+					if result.LLMAsset.Asset != nil {
+						fmt.Printf("     [LLM] Asset: %s (%.0f%% confidence)\n", result.LLMAsset.Asset.Name, result.LLMAsset.Confidence*100)
+						if result.LLMAsset.Reason != "" {
+							fmt.Printf("     📝 LLM Reason: %s\n", result.LLMAsset.Reason)
+						}
+					} else {
+						fmt.Printf("     [LLM] Asset: No assignment found\n")
+					}
+
+					// Highlight disagreement
+					heuristicName := ""
+					llmName := ""
+					if result.Asset != nil && result.Asset.Asset != nil {
+						heuristicName = result.Asset.Asset.Name
+					}
+					if result.LLMAsset.Asset != nil {
+						llmName = result.LLMAsset.Asset.Name
+					}
+					if heuristicName != llmName {
+						fmt.Printf("     ** DISAGREEMENT: Heuristic=%q vs LLM=%q **\n", heuristicName, llmName)
+					}
 				}
 
 				// Show work type reasoning
@@ -267,6 +312,42 @@ func (uc *ClassifyTasksUseCase) previewClassificationsWithRetry(tasks []*domain.
 					fmt.Printf(" | Labels: %v", result.Task.Labels)
 				}
 				fmt.Printf("\n\n")
+			}
+		}
+
+		// Show LLM comparison summary if LLM was used
+		if withLLM {
+			agreements := 0
+			disagreements := 0
+			llmUsed := 0
+			for _, result := range results {
+				if result.LLMAsset == nil {
+					continue
+				}
+				llmUsed++
+				heuristicName := ""
+				llmName := ""
+				if result.Asset != nil && result.Asset.Asset != nil {
+					heuristicName = result.Asset.Asset.Name
+				}
+				if result.LLMAsset.Asset != nil {
+					llmName = result.LLMAsset.Asset.Name
+				}
+				if heuristicName == llmName {
+					agreements++
+				} else {
+					disagreements++
+				}
+			}
+			if llmUsed > 0 {
+				fmt.Printf("\n📊 LLM COMPARISON SUMMARY\n")
+				fmt.Printf("─────────────────────────────────────────────────────────────\n")
+				fmt.Printf("  Total tasks: %d | LLM classified: %d\n", len(results), llmUsed)
+				fmt.Printf("  Agreements: %d | Disagreements: %d\n", agreements, disagreements)
+				if disagreements > 0 {
+					fmt.Printf("  Review disagreements above to evaluate LLM accuracy\n")
+				}
+				fmt.Println()
 			}
 		}
 
@@ -296,7 +377,7 @@ func (uc *ClassifyTasksUseCase) previewClassificationsWithRetry(tasks []*domain.
 
 					// Re-run classification with updated assets (only once to avoid loops)
 					fmt.Println("\nRe-running classification with updated assets...")
-					return uc.previewClassificationsWithRetry(tasks, true)
+					return uc.previewClassificationsWithRetry(tasks, true, withLLM)
 				}
 			}
 		}

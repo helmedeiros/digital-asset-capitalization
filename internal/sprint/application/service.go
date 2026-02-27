@@ -79,8 +79,42 @@ func (s *SprintServiceImpl) ProcessJiraIssuesWithStrategy(project, sprint, overr
 	return processor.Process()
 }
 
+// ProcessJiraIssuesWithOptions processes Jira issues with functional options
+func (s *SprintServiceImpl) ProcessJiraIssuesWithOptions(project, sprint, override string, useSprintBoundedCalculation bool, opts ...usecase.SprintAllocationOption) (string, error) {
+	processor, err := usecase.NewSprintTimeAllocationUseCaseWithOptions(project, sprint, override, useSprintBoundedCalculation, opts...)
+	if err != nil {
+		return "", fmt.Errorf("failed to create Jira processor with options: %w", err)
+	}
+
+	return processor.Process()
+}
+
 // ListSprints lists sprints for a project and time period
 func (s *SprintServiceImpl) ListSprints(project, period string) (*usecase.ListSprintsResult, error) {
 	listSprintsUseCase := usecase.NewListSprintsUseCase(s.jiraPort)
 	return listSprintsUseCase.Execute(project, period)
+}
+
+// PushAllocationToJira calculates allocation and pushes results to JIRA custom fields
+func (s *SprintServiceImpl) PushAllocationToJira(project, sprint, override string, useSprintBounded, dryRun bool, opts ...usecase.SprintAllocationOption) (string, *usecase.PushResult, error) {
+	// Ensure --with-hours is always enabled for push (we need engineering hours)
+	opts = append(opts, usecase.WithHours(true))
+
+	processor, err := usecase.NewSprintTimeAllocationUseCaseWithOptions(project, sprint, override, useSprintBounded, opts...)
+	if err != nil {
+		return "", nil, fmt.Errorf("failed to create Jira processor: %w", err)
+	}
+
+	csvData, records, err := processor.ProcessWithRecords()
+	if err != nil {
+		return "", nil, fmt.Errorf("failed to process allocation: %w", err)
+	}
+
+	pushUC := usecase.NewPushAllocationUseCase(processor.GetJiraPort(), dryRun)
+	pushResult, err := pushUC.Execute(records)
+	if err != nil {
+		return csvData, nil, fmt.Errorf("failed to push allocation: %w", err)
+	}
+
+	return csvData, pushResult, nil
 }

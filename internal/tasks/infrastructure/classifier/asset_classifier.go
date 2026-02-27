@@ -55,12 +55,10 @@ func (c *ContentBasedAssetClassifier) ClassifyTaskAsset(task *taskdomain.Task) (
 				Reason:     "existing asset label preserved",
 			}
 
-			// SMART LOGIC: Only preserve existing label if natural classification is weak
-			// or if existing label is reasonably close to natural classification
-			if naturalClassification.Confidence < 0.7 {
-				// Natural classification is weak, preserve existing label
-				return existingLabelResult, nil
-			}
+			// SMART LOGIC: Only override existing labels when natural classification
+			// is very strong (>= 0.9). Moderate-confidence natural classifications
+			// (0.7-0.89) should NOT override correct existing labels, as they often
+			// produce incorrect matches based on generic keyword overlap.
 			if naturalClassification.Confidence >= 0.9 {
 				// Natural classification is very strong, override existing label
 				naturalClassification.Reason = fmt.Sprintf("natural classification (%.0f%% confidence) overrides existing label '%s'",
@@ -68,22 +66,8 @@ func (c *ContentBasedAssetClassifier) ClassifyTaskAsset(task *taskdomain.Task) (
 				return naturalClassification, nil
 			}
 
-			// Natural classification is moderate, check if it's the same asset
-			naturalAssetName := ""
-			if naturalClassification.Asset != nil {
-				naturalAssetName = strings.ToLower(naturalClassification.Asset.Name)
-			}
-
-			if strings.Contains(naturalAssetName, strings.ToLower(assetName)) ||
-				strings.Contains(strings.ToLower(assetName), naturalAssetName) {
-				// Same asset, preserve existing label
-				return existingLabelResult, nil
-			}
-
-			// Different asset with good confidence, override existing label
-			naturalClassification.Reason = fmt.Sprintf("natural classification (%.0f%% confidence) overrides existing label '%s'",
-				naturalClassification.Confidence*100, assetIdentifier)
-			return naturalClassification, nil
+			// Natural classification is not strong enough, preserve existing label
+			return existingLabelResult, nil
 		}
 	}
 

@@ -68,6 +68,11 @@ func TestClient_FetchTasks(t *testing.T) {
 	t.Run("successful fetch", func(t *testing.T) {
 		// Create test server
 		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if r.URL.Path == "/rest/api/3/field" {
+				w.WriteHeader(http.StatusOK)
+				w.Write([]byte(`[]`))
+				return
+			}
 			// Verify request
 			assert.Equal(t, http.MethodGet, r.Method, "Method should be GET")
 			assert.Equal(t, "/rest/api/3/search/jql", r.URL.Path, "Path should match")
@@ -1499,6 +1504,12 @@ func TestFetchTasksWithFallback(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			var queryCount int64
 			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				if r.URL.Path == "/rest/api/3/field" {
+					w.Header().Set("Content-Type", "application/json")
+					w.WriteHeader(http.StatusOK)
+					w.Write([]byte(`[]`))
+					return
+				}
 				atomic.AddInt64(&queryCount, 1)
 				w.Header().Set("Content-Type", "application/json")
 

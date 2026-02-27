@@ -121,6 +121,30 @@ func (c *HTTPClient) Get(url string) ([]byte, error) {
 	return body, nil
 }
 
+// Put performs a PUT request to the Jira API
+func (c *HTTPClient) Put(url string, body []byte) error {
+	req, err := http.NewRequest("PUT", url, strings.NewReader(string(body)))
+	if err != nil {
+		return fmt.Errorf("failed to create PUT request: %w", err)
+	}
+
+	req.Header.Set("Authorization", c.auth)
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := c.client.Do(req)
+	if err != nil {
+		return fmt.Errorf("failed to send PUT request: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusNoContent {
+		respBody, _ := io.ReadAll(resp.Body)
+		return fmt.Errorf("error response from Jira PUT: %s - %s", resp.Status, string(respBody))
+	}
+
+	return nil
+}
+
 // JiraResponse represents the response from a Jira API search query
 type JiraResponse struct {
 	Issues []domain.JiraIssue `json:"issues"`

@@ -63,22 +63,25 @@ const (
 
 // Task represents a task from a project management platform
 type Task struct {
-	Key         string       `json:"key"`
-	Summary     string       `json:"summary"`
-	Description string       `json:"description"`
-	Project     string       `json:"project"`
-	Sprint      string       `json:"sprint"`            // Legacy field for backward compatibility
-	Sprints     []string     `json:"sprints,omitempty"` // New array field for multi-sprint support
-	Platform    string       `json:"platform"`
-	Status      TaskStatus   `json:"status"`
-	Type        TaskType     `json:"type"`
-	Priority    TaskPriority `json:"priority"`
-	WorkType    WorkType     `json:"work_type"`
-	Labels      []string     `json:"labels"`
-	Epic        string       `json:"epic"`
-	CreatedAt   time.Time    `json:"created_at"`
-	UpdatedAt   time.Time    `json:"updated_at"`
-	Version     int          `json:"version"`
+	Key              string       `json:"key"`
+	Summary          string       `json:"summary"`
+	Description      string       `json:"description"`
+	Project          string       `json:"project"`
+	Sprint           string       `json:"sprint"`            // Legacy field for backward compatibility
+	Sprints          []string     `json:"sprints,omitempty"` // New array field for multi-sprint support
+	Platform         string       `json:"platform"`
+	Status           TaskStatus   `json:"status"`
+	Type             TaskType     `json:"type"`
+	Priority         TaskPriority `json:"priority"`
+	WorkType         WorkType     `json:"work_type"`
+	Labels           []string     `json:"labels"`
+	Epic             string       `json:"epic"`
+	TPDBusinessUnits []string     `json:"tpd_business_units,omitempty"`
+	EngineeringHours *float64     `json:"engineering_hours,omitempty"`
+	WorkStream       string       `json:"work_stream,omitempty"`
+	CreatedAt        time.Time    `json:"created_at"`
+	UpdatedAt        time.Time    `json:"updated_at"`
+	Version          int          `json:"version"`
 }
 
 // NewTask creates a new task with the given parameters

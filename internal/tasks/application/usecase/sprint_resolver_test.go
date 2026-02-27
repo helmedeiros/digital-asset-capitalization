@@ -49,12 +49,30 @@ func (m *mockSprintPort) GetTeamIssues(team *sprintDomain.Team) ([]sprintPorts.J
 	return args.Get(0).([]sprintPorts.JiraIssue), args.Error(1)
 }
 
+func (m *mockSprintPort) GetIssuesForSprintOnBoard(project, sprintName string, boardID int) ([]sprintPorts.JiraIssue, error) {
+	args := m.Called(project, sprintName, boardID)
+	return args.Get(0).([]sprintPorts.JiraIssue), args.Error(1)
+}
+
 func (m *mockSprintPort) GetSprintByName(project, sprintName string) (*sprintPorts.Sprint, error) {
 	args := m.Called(project, sprintName)
 	if args.Get(0) == nil {
 		return nil, args.Error(1)
 	}
 	return args.Get(0).(*sprintPorts.Sprint), args.Error(1)
+}
+
+func (m *mockSprintPort) UpdateCustomFields(issueKey string, update sprintPorts.CustomFieldUpdate) error {
+	args := m.Called(issueKey, update)
+	return args.Error(0)
+}
+
+func (m *mockSprintPort) FetchCustomFields(issueKey string) (*sprintPorts.CustomFieldValues, error) {
+	args := m.Called(issueKey)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*sprintPorts.CustomFieldValues), args.Error(1)
 }
 
 type mockSelectionPort struct {

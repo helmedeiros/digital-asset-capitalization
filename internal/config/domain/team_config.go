@@ -9,12 +9,13 @@ import (
 // TeamConfig represents the team configuration domain entity
 type TeamConfig struct {
 	teams                 map[string][]string
-	nicknames             map[string][]string // project -> nicknames mapping
-	tribes                map[string]string   // project -> tribe mapping
-	companies             map[string]string   // project -> company mapping
-	confluenceSpaces      map[string]string   // project -> confluence space mapping
-	confluenceParentPages map[string]string   // project -> confluence parent page ID mapping
-	excludedIssueTypes    map[string][]string // project -> excluded issue types for sprint allocation
+	nicknames             map[string][]string       // project -> nicknames mapping
+	tribes                map[string]string         // project -> tribe mapping
+	companies             map[string]string         // project -> company mapping
+	confluenceSpaces      map[string]string         // project -> confluence space mapping
+	confluenceParentPages map[string]string         // project -> confluence parent page ID mapping
+	excludedIssueTypes    map[string][]string       // project -> excluded issue types for sprint allocation
+	boardWorkStreams      map[string]map[int]string // project -> boardID -> workstream name
 }
 
 // NewTeamConfig creates a new TeamConfig with validation
@@ -27,6 +28,7 @@ func NewTeamConfig(teams map[string][]string) (*TeamConfig, error) {
 		confluenceSpaces:      make(map[string]string),
 		confluenceParentPages: make(map[string]string),
 		excludedIssueTypes:    make(map[string][]string),
+		boardWorkStreams:      make(map[string]map[int]string),
 	}
 
 	for project, members := range teams {
@@ -566,4 +568,91 @@ func (tc *TeamConfig) SetExcludedIssueTypes(project string, types []string) erro
 	}
 	tc.excludedIssueTypes[trimmedProject] = types
 	return nil
+}
+
+// NewTeamConfigWithBoardWorkStreams creates a new TeamConfig with all fields including board work streams
+func NewTeamConfigWithBoardWorkStreams(teams map[string][]string, nicknames map[string][]string, tribes map[string]string, companies map[string]string, confluenceSpaces map[string]string, confluenceParentPages map[string]string, excludedIssueTypes map[string][]string, boardWorkStreams map[string]map[int]string) (*TeamConfig, error) {
+	config, err := NewTeamConfigWithExcludedTypes(teams, nicknames, tribes, companies, confluenceSpaces, confluenceParentPages, excludedIssueTypes)
+	if err != nil {
+		return nil, err
+	}
+
+	for project, mapping := range boardWorkStreams {
+		trimmedProject := strings.TrimSpace(project)
+		if trimmedProject == "" {
+			continue
+		}
+		if _, exists := config.teams[trimmedProject]; exists && len(mapping) > 0 {
+			config.boardWorkStreams[trimmedProject] = mapping
+		}
+	}
+
+	return config, nil
+}
+
+// GetBoardWorkStream returns the work stream for a given project and board ID
+func (tc *TeamConfig) GetBoardWorkStream(project string, boardID int) string {
+	if mapping, exists := tc.boardWorkStreams[project]; exists {
+		return mapping[boardID]
+	}
+	return ""
+}
+
+// GetBoardsForWorkStream returns board IDs for a given work stream in a project
+func (tc *TeamConfig) GetBoardsForWorkStream(project string, workStream string) []int {
+	mapping, exists := tc.boardWorkStreams[project]
+	if !exists {
+		return nil
+	}
+
+	lowerWorkStream := strings.ToLower(workStream)
+	var boardIDs []int
+	for boardID, ws := range mapping {
+		if strings.ToLower(ws) == lowerWorkStream {
+			boardIDs = append(boardIDs, boardID)
+		}
+	}
+	return boardIDs
+}
+
+// GetBoardWorkStreams returns the full board-to-workstream mapping for a project
+func (tc *TeamConfig) GetBoardWorkStreams(project string) map[int]string {
+	mapping, exists := tc.boardWorkStreams[project]
+	if !exists {
+		return nil
+	}
+	result := make(map[int]string, len(mapping))
+	for k, v := range mapping {
+		result[k] = v
+	}
+	return result
+}
+
+// SetBoardWorkStreams sets the board-to-workstream mapping for a project
+func (tc *TeamConfig) SetBoardWorkStreams(project string, mapping map[int]string) error {
+	trimmedProject := strings.TrimSpace(project)
+	if trimmedProject == "" {
+		return fmt.Errorf("project key cannot be empty")
+	}
+	if _, exists := tc.teams[trimmedProject]; !exists {
+		return fmt.Errorf("project '%s' does not exist", trimmedProject)
+	}
+	tc.boardWorkStreams[trimmedProject] = mapping
+	return nil
+}
+
+// ToCompleteMapWithBoardWorkStreams returns all maps including board work streams
+func (tc *TeamConfig) ToCompleteMapWithBoardWorkStreams() (teams map[string][]string, nicknames map[string][]string, tribes map[string]string, companies map[string]string, confluenceSpaces map[string]string, confluenceParentPages map[string]string, excludedIssueTypes map[string][]string, boardWorkStreams map[string]map[int]string) {
+	teams, nicknames, tribes, companies, confluenceSpaces, confluenceParentPages, excludedIssueTypes = tc.ToCompleteMapWithExcludedTypes()
+
+	boardWorkStreams = make(map[string]map[int]string, len(tc.boardWorkStreams))
+	for project, mapping := range tc.boardWorkStreams {
+		mappingCopy := make(map[int]string, len(mapping))
+		for k, v := range mapping {
+			mappingCopy[k] = v
+		}
+		boardWorkStreams[project] = mappingCopy
+	}
+
+	return
 }

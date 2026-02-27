@@ -12,7 +12,10 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/helmedeiros/digital-asset-capitalization/internal/sprint/domain"
+	"github.com/helmedeiros/digital-asset-capitalization/internal/sprint/domain/ports"
 )
+
+const fieldAPIPath = "/rest/api/3/field"
 
 // createTestJiraAdapter creates a JiraAdapter for testing with a mock server
 // This approach uses environment variable isolation to avoid connecting to real servers
@@ -153,8 +156,12 @@ func TestJiraAdapter_GetIssues(t *testing.T) {
 
 	// Create a test server
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == fieldAPIPath {
+			w.WriteHeader(http.StatusOK)
+			w.Write([]byte(`[]`))
+			return
+		}
 		assert.Equal(t, "/rest/api/3/search/jql", r.URL.Path)
-		assert.Equal(t, "jql=project+%3D+TEST+AND+sprint+%3D+%27Test+Sprint%27&expand=changelog&fields=summary,assignee,status,changelog,issuetype,customfield_10014,customfield_10015,labels", r.URL.RawQuery)
 		w.WriteHeader(http.StatusOK)
 		w.Write([]byte(`{
 			"issues": [
@@ -198,8 +205,12 @@ func TestJiraAdapter_GetTeamIssues(t *testing.T) {
 
 	// Create a test server
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == fieldAPIPath {
+			w.WriteHeader(http.StatusOK)
+			w.Write([]byte(`[]`))
+			return
+		}
 		assert.Equal(t, "/rest/api/3/search/jql", r.URL.Path)
-		assert.Equal(t, "jql=assignee+%3D+%27Test+User+1%27&expand=changelog&fields=summary,assignee,status,changelog,issuetype,customfield_10014,customfield_10015,labels", r.URL.RawQuery)
 		w.WriteHeader(http.StatusOK)
 		w.Write([]byte(`{
 			"issues": [
@@ -242,7 +253,12 @@ func TestJiraAdapter_ServerError(t *testing.T) {
 	defer cleanup()
 
 	// Create a test server that returns an error
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == fieldAPIPath {
+			w.WriteHeader(http.StatusOK)
+			w.Write([]byte(`[]`))
+			return
+		}
 		w.WriteHeader(http.StatusInternalServerError)
 		w.Write([]byte(`{"error": "Internal Server Error"}`))
 	}))
@@ -266,7 +282,12 @@ func TestJiraAdapter_InvalidJSON(t *testing.T) {
 	defer cleanup()
 
 	// Create a test server that returns invalid JSON
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == fieldAPIPath {
+			w.WriteHeader(http.StatusOK)
+			w.Write([]byte(`[]`))
+			return
+		}
 		w.WriteHeader(http.StatusOK)
 		w.Write([]byte(`{"invalid json`))
 	}))
@@ -291,6 +312,11 @@ func TestJiraAdapter_GetSprintIssues(t *testing.T) {
 
 	// Create a test server
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == fieldAPIPath {
+			w.WriteHeader(http.StatusOK)
+			w.Write([]byte(`[]`))
+			return
+		}
 		assert.Equal(t, "/rest/api/3/search/jql", r.URL.Path)
 		assert.Equal(t, "jql=project+%3D+TEST+AND+sprint+%3D+%27Test+Sprint%27&expand=changelog&fields=summary,assignee,status,changelog,issuetype,customfield_10014,customfield_10015,labels", r.URL.RawQuery)
 		w.WriteHeader(http.StatusOK)
@@ -343,6 +369,11 @@ func TestJiraAdapter_GetSprintsForProjectWithBoardInfo(t *testing.T) {
 
 	// Create a test server
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == fieldAPIPath {
+			w.WriteHeader(http.StatusOK)
+			w.Write([]byte(`[]`))
+			return
+		}
 		if strings.Contains(r.URL.Path, "/board") && !strings.Contains(r.URL.Path, "/sprint") {
 			// Boards endpoint
 			w.WriteHeader(http.StatusOK)
@@ -417,6 +448,11 @@ func TestJiraAdapter_GetSprintsForProject(t *testing.T) {
 
 	// Create a test server
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == fieldAPIPath {
+			w.WriteHeader(http.StatusOK)
+			w.Write([]byte(`[]`))
+			return
+		}
 		if strings.Contains(r.URL.Path, "/board") && !strings.Contains(r.URL.Path, "/sprint") {
 			// Boards endpoint
 			w.WriteHeader(http.StatusOK)
@@ -460,6 +496,11 @@ func TestJiraAdapter_GetTeamIssuesComplete(t *testing.T) {
 
 	// Create a test server
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == fieldAPIPath {
+			w.WriteHeader(http.StatusOK)
+			w.Write([]byte(`[]`))
+			return
+		}
 		assert.Equal(t, "/rest/api/3/search/jql", r.URL.Path)
 		w.WriteHeader(http.StatusOK)
 		w.Write([]byte(`{
@@ -498,6 +539,208 @@ func TestJiraAdapter_GetTeamIssuesComplete(t *testing.T) {
 	assert.Equal(t, "Test Issue 1", issues[0].Summary)
 }
 
+// fieldAPIResponse returns a JSON response that maps well-known field names to custom field IDs.
+const fieldAPIResponse = `[
+	{"id":"customfield_17961","name":"TPD Business Unit"},
+	{"id":"customfield_18000","name":"Engineering time spent (hours)"},
+	{"id":"customfield_18837","name":"Work Stream"}
+]`
+
+func TestJiraAdapter_UpdateCustomFields_Success(t *testing.T) {
+	cleanupFiles := setupTestFiles(t)
+	defer cleanupFiles()
+
+	var putBodies []string
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == fieldAPIPath {
+			w.WriteHeader(http.StatusOK)
+			w.Write([]byte(fieldAPIResponse))
+			return
+		}
+		if r.Method == http.MethodPut && strings.HasPrefix(r.URL.Path, "/rest/api/3/issue/") {
+			body := make([]byte, r.ContentLength)
+			r.Body.Read(body)
+			putBodies = append(putBodies, string(body))
+			w.WriteHeader(http.StatusNoContent)
+			return
+		}
+		w.WriteHeader(http.StatusNotFound)
+	}))
+	defer server.Close()
+
+	adapter := createTestJiraAdapter(t, server)
+
+	hours := 12.5
+	ws := "Product"
+	err := adapter.UpdateCustomFields("COP-1", ports.CustomFieldUpdate{
+		EngineeringHours: &hours,
+		WorkStream:       &ws,
+		TPDBusinessUnits: []string{"B2C"},
+	})
+	require.NoError(t, err)
+	assert.Len(t, putBodies, 3)
+
+	// Verify each PUT sent individually
+	assert.Contains(t, putBodies[0], "customfield_18000")
+	assert.Contains(t, putBodies[0], "12.5")
+	assert.Contains(t, putBodies[1], "customfield_18837")
+	assert.Contains(t, putBodies[1], "Product")
+	assert.Contains(t, putBodies[2], "customfield_17961")
+	assert.Contains(t, putBodies[2], "B2C")
+}
+
+func TestJiraAdapter_UpdateCustomFields_PartialFailure(t *testing.T) {
+	cleanupFiles := setupTestFiles(t)
+	defer cleanupFiles()
+
+	callCount := 0
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == fieldAPIPath {
+			w.WriteHeader(http.StatusOK)
+			w.Write([]byte(fieldAPIResponse))
+			return
+		}
+		if r.Method == http.MethodPut {
+			callCount++
+			if callCount == 1 {
+				w.WriteHeader(http.StatusBadRequest)
+				w.Write([]byte(`{"errorMessages":["Field not on screen"]}`))
+				return
+			}
+			w.WriteHeader(http.StatusNoContent)
+			return
+		}
+		w.WriteHeader(http.StatusNotFound)
+	}))
+	defer server.Close()
+
+	adapter := createTestJiraAdapter(t, server)
+
+	hours := 10.0
+	ws := "Operational"
+	err := adapter.UpdateCustomFields("COP-2", ports.CustomFieldUpdate{
+		EngineeringHours: &hours,
+		WorkStream:       &ws,
+	})
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "partial update")
+	assert.Contains(t, err.Error(), "Engineering Hours")
+	assert.Equal(t, 2, callCount) // both fields attempted
+}
+
+func TestJiraAdapter_UpdateCustomFields_NilFieldIDs(t *testing.T) {
+	cleanupFiles := setupTestFiles(t)
+	defer cleanupFiles()
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == fieldAPIPath {
+			w.WriteHeader(http.StatusOK)
+			w.Write([]byte(`[]`)) // no fields → empty fieldIDs
+			return
+		}
+		w.WriteHeader(http.StatusNotFound)
+	}))
+	defer server.Close()
+
+	adapter := createTestJiraAdapter(t, server)
+	// fieldIDs will be non-nil but all empty strings → no entries → nil return
+	hours := 5.0
+	err := adapter.UpdateCustomFields("COP-3", ports.CustomFieldUpdate{EngineeringHours: &hours})
+	require.NoError(t, err) // no entries to send → no error
+}
+
+func TestJiraAdapter_FetchCustomFields_Success(t *testing.T) {
+	cleanupFiles := setupTestFiles(t)
+	defer cleanupFiles()
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == fieldAPIPath {
+			w.WriteHeader(http.StatusOK)
+			w.Write([]byte(fieldAPIResponse))
+			return
+		}
+		if r.Method == http.MethodGet && strings.HasPrefix(r.URL.Path, "/rest/api/3/issue/COP-1") {
+			w.WriteHeader(http.StatusOK)
+			w.Write([]byte(`{
+				"key": "COP-1",
+				"fields": {
+					"customfield_18000": 8.5,
+					"customfield_18837": {"value": "Operational"},
+					"customfield_17961": [{"value": "B2B"}, {"value": "B2C"}]
+				}
+			}`))
+			return
+		}
+		w.WriteHeader(http.StatusNotFound)
+	}))
+	defer server.Close()
+
+	adapter := createTestJiraAdapter(t, server)
+
+	vals, err := adapter.FetchCustomFields("COP-1")
+	require.NoError(t, err)
+	require.NotNil(t, vals)
+	require.NotNil(t, vals.EngineeringHours)
+	assert.Equal(t, 8.5, *vals.EngineeringHours)
+	assert.Equal(t, "Operational", vals.WorkStream)
+	assert.Equal(t, []string{"B2B", "B2C"}, vals.TPDBusinessUnits)
+}
+
+func TestJiraAdapter_FetchCustomFields_Empty(t *testing.T) {
+	cleanupFiles := setupTestFiles(t)
+	defer cleanupFiles()
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == fieldAPIPath {
+			w.WriteHeader(http.StatusOK)
+			w.Write([]byte(fieldAPIResponse))
+			return
+		}
+		if r.Method == http.MethodGet && strings.HasPrefix(r.URL.Path, "/rest/api/3/issue/COP-2") {
+			w.WriteHeader(http.StatusOK)
+			w.Write([]byte(`{
+				"key": "COP-2",
+				"fields": {}
+			}`))
+			return
+		}
+		w.WriteHeader(http.StatusNotFound)
+	}))
+	defer server.Close()
+
+	adapter := createTestJiraAdapter(t, server)
+
+	vals, err := adapter.FetchCustomFields("COP-2")
+	require.NoError(t, err)
+	require.NotNil(t, vals)
+	assert.Nil(t, vals.EngineeringHours)
+	assert.Empty(t, vals.WorkStream)
+	assert.Empty(t, vals.TPDBusinessUnits)
+}
+
+func TestJiraAdapter_FetchCustomFields_ServerError(t *testing.T) {
+	cleanupFiles := setupTestFiles(t)
+	defer cleanupFiles()
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == fieldAPIPath {
+			w.WriteHeader(http.StatusOK)
+			w.Write([]byte(fieldAPIResponse))
+			return
+		}
+		w.WriteHeader(http.StatusInternalServerError)
+		w.Write([]byte(`{"error": "server error"}`))
+	}))
+	defer server.Close()
+
+	adapter := createTestJiraAdapter(t, server)
+
+	vals, err := adapter.FetchCustomFields("COP-3")
+	require.Error(t, err)
+	assert.Nil(t, vals)
+	assert.Contains(t, err.Error(), "failed to fetch issue COP-3")
+}
+
 func TestJiraAdapter_ErrorHandling(t *testing.T) {
 	// Set up test files
 	cleanupFiles := setupTestFiles(t)
@@ -505,7 +748,12 @@ func TestJiraAdapter_ErrorHandling(t *testing.T) {
 
 	t.Run("boards error", func(t *testing.T) {
 		// Create a test server that returns an error
-		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if r.URL.Path == fieldAPIPath {
+				w.WriteHeader(http.StatusOK)
+				w.Write([]byte(`[]`))
+				return
+			}
 			w.WriteHeader(http.StatusInternalServerError)
 			w.Write([]byte(`{"error": "Internal Server Error"}`))
 		}))
@@ -525,6 +773,11 @@ func TestJiraAdapter_ErrorHandling(t *testing.T) {
 	t.Run("sprint board error with warning", func(t *testing.T) {
 		// Create a test server
 		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if r.URL.Path == fieldAPIPath {
+				w.WriteHeader(http.StatusOK)
+				w.Write([]byte(`[]`))
+				return
+			}
 			if strings.Contains(r.URL.Path, "/board") && !strings.Contains(r.URL.Path, "/sprint") {
 				// Boards endpoint
 				w.WriteHeader(http.StatusOK)

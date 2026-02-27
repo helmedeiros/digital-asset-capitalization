@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	assetsinfra "github.com/helmedeiros/digital-asset-capitalization/internal/assets/infrastructure"
 	configService "github.com/helmedeiros/digital-asset-capitalization/internal/config/application/service"
 	configInfrastructure "github.com/helmedeiros/digital-asset-capitalization/internal/config/infrastructure"
 	"github.com/helmedeiros/digital-asset-capitalization/internal/sprint/application/service"
@@ -16,6 +17,8 @@ import (
 	"github.com/helmedeiros/digital-asset-capitalization/internal/sprint/domain"
 	"github.com/helmedeiros/digital-asset-capitalization/internal/sprint/domain/ports"
 	"github.com/helmedeiros/digital-asset-capitalization/internal/sprint/infrastructure"
+	tasksdomain "github.com/helmedeiros/digital-asset-capitalization/internal/tasks/domain"
+	tasksstorage "github.com/helmedeiros/digital-asset-capitalization/internal/tasks/infrastructure/storage"
 )
 
 // SprintTimeAllocationUseCase handles the processing of Jira issues and time calculations
@@ -29,11 +32,43 @@ type SprintTimeAllocationUseCase struct {
 	statusPort     ports.StatusPort
 	timeCalculator *domain.WorkTimeCalculator
 	sprintBoundary *domain.SprintBoundary
+	configSvc      *configService.ConfigService
+	workStreams    []string
+	withHours      bool
+}
+
+// SprintAllocationOption is a functional option for the sprint time allocation use case
+type SprintAllocationOption func(*SprintTimeAllocationUseCase)
+
+// WithWorkStreams sets the work streams to include in allocation
+func WithWorkStreams(workStreams []string) SprintAllocationOption {
+	return func(uc *SprintTimeAllocationUseCase) {
+		uc.workStreams = workStreams
+	}
+}
+
+// WithHours enables the engineering hours column in the CSV output
+func WithHours(withHours bool) SprintAllocationOption {
+	return func(uc *SprintTimeAllocationUseCase) {
+		uc.withHours = withHours
+	}
 }
 
 // NewSprintTimeAllocationUseCase creates a new JiraProcessor instance
 func NewSprintTimeAllocationUseCase(project, sprint, override string) (*SprintTimeAllocationUseCase, error) {
 	return NewSprintTimeAllocationUseCaseWithStrategy(project, sprint, override, false)
+}
+
+// NewSprintTimeAllocationUseCaseWithOptions creates a new use case with functional options
+func NewSprintTimeAllocationUseCaseWithOptions(project, sprint, override string, useSprintBoundedCalculation bool, opts ...SprintAllocationOption) (*SprintTimeAllocationUseCase, error) {
+	uc, err := NewSprintTimeAllocationUseCaseWithStrategy(project, sprint, override, useSprintBoundedCalculation)
+	if err != nil {
+		return nil, err
+	}
+	for _, opt := range opts {
+		opt(uc)
+	}
+	return uc, nil
 }
 
 // NewSprintTimeAllocationUseCaseWithStrategy creates a new use case with configurable time calculation strategy
@@ -116,7 +151,35 @@ func NewSprintTimeAllocationUseCaseWithStrategy(project, sprint, override string
 		statusPort:     statusService,
 		timeCalculator: timeCalculator,
 		sprintBoundary: sprintBoundary,
+		configSvc:      configSvc,
 	}, nil
+}
+
+// loadAssetBusinessUnits loads asset name -> business unit mapping from local assets
+func (p *SprintTimeAllocationUseCase) loadAssetBusinessUnits() map[string]string {
+	repo := assetsinfra.NewJSONRepository(assetsinfra.RepositoryConfig{
+		Directory: ".assetcap",
+		Filename:  "assets.json",
+		FileMode:  0644,
+		DirMode:   0755,
+	})
+
+	assets, err := repo.FindAll()
+	if err != nil {
+		return nil
+	}
+
+	buMap := make(map[string]string, len(assets)*2)
+	for _, a := range assets {
+		if a.BusinessUnit != "" {
+			// Index by both display name and asset ID (cap-asset-* label)
+			buMap[a.Name] = a.BusinessUnit
+			if a.ID != "" {
+				buMap[a.ID] = a.BusinessUnit
+			}
+		}
+	}
+	return buMap
 }
 
 // Process calculates time allocation and returns CSV data
@@ -136,9 +199,17 @@ func (p *SprintTimeAllocationUseCase) Process() (string, error) {
 		return "", err
 	}
 
+	// Load asset BU lookup for fallback
+	assetBUMap := p.loadAssetBusinessUnits()
+
 	totalHoursByPerson := p.calculateTotalHours(*team, issues, manualAdjustments)
 
-	results := p.calculatePercentageLoad(*team, issues, manualAdjustments, totalHoursByPerson)
+	results := p.calculatePercentageLoad(*team, issues, manualAdjustments, totalHoursByPerson, assetBUMap)
+
+	// When --with-hours is set, save calculated hours to local tasks
+	if p.withHours {
+		p.saveEngineeringHoursToLocalTasks(results)
+	}
 
 	csvData, err := p.generateCSV(*team, results)
 	if err != nil {
@@ -148,8 +219,127 @@ func (p *SprintTimeAllocationUseCase) Process() (string, error) {
 	return csvData, nil
 }
 
+// ProcessWithRecords calculates time allocation and returns both CSV data and structured allocation records
+func (p *SprintTimeAllocationUseCase) ProcessWithRecords() (string, []AllocationRecord, error) {
+	team, exists := p.teams.GetTeam(p.project)
+	if !exists {
+		return "", nil, fmt.Errorf("project %s not found in teams.json", p.project)
+	}
+
+	issues, err := p.fetchIssues()
+	if err != nil {
+		return "", nil, fmt.Errorf("failed to fetch issues: %w", err)
+	}
+
+	manualAdjustments, err := p.parseManualAdjustments()
+	if err != nil {
+		return "", nil, err
+	}
+
+	assetBUMap := p.loadAssetBusinessUnits()
+	totalHoursByPerson := p.calculateTotalHours(*team, issues, manualAdjustments)
+	results := p.calculatePercentageLoad(*team, issues, manualAdjustments, totalHoursByPerson, assetBUMap)
+
+	if p.withHours {
+		p.saveEngineeringHoursToLocalTasks(results)
+	}
+
+	csvData, err := p.generateCSV(*team, results)
+	if err != nil {
+		return "", nil, fmt.Errorf("failed to generate CSV: %w", err)
+	}
+
+	records := p.extractAllocationRecords(results)
+	return csvData, records, nil
+}
+
+// extractAllocationRecords converts the internal results maps to typed AllocationRecord slice
+func (p *SprintTimeAllocationUseCase) extractAllocationRecords(results []map[string]interface{}) []AllocationRecord {
+	records := make([]AllocationRecord, 0, len(results))
+	for _, r := range results {
+		key, _ := r["issueKey"].(string)
+		if key == "" {
+			continue
+		}
+
+		rec := AllocationRecord{
+			IssueKey: key,
+		}
+
+		if hoursStr, ok := r["engineeringHours"].(string); ok && hoursStr != "" {
+			var h float64
+			if _, err := fmt.Sscanf(hoursStr, "%f", &h); err == nil {
+				rec.EngineeringHours = &h
+			}
+		}
+
+		if ws, ok := r["workStream"].(string); ok {
+			rec.WorkStream = ws
+		}
+
+		if tpd, ok := r["tpdBusinessUnit"].(string); ok {
+			rec.TPDBusinessUnit = tpd
+		}
+
+		records = append(records, rec)
+	}
+	return records
+}
+
+// GetJiraPort returns the JIRA port for use by the push use case
+func (p *SprintTimeAllocationUseCase) GetJiraPort() ports.JiraPort {
+	return p.jiraPort
+}
+
+// saveEngineeringHoursToLocalTasks persists calculated engineering hours to local task storage.
+func (p *SprintTimeAllocationUseCase) saveEngineeringHoursToLocalTasks(results []map[string]interface{}) {
+	storage := tasksstorage.NewJSONStorage(".assetcap", "tasks.json")
+	ctx := context.Background()
+
+	for _, result := range results {
+		key, ok := result["issueKey"].(string)
+		if !ok || key == "" {
+			continue
+		}
+		hoursStr, ok := result["engineeringHours"].(string)
+		if !ok || hoursStr == "" {
+			continue
+		}
+
+		// Parse the hours value
+		var hours float64
+		if _, err := fmt.Sscanf(hoursStr, "%f", &hours); err != nil {
+			continue
+		}
+
+		// Try to load existing task; if not found, create a minimal one
+		task, err := storage.FindByKey(ctx, key)
+		if err != nil || task == nil {
+			task = &tasksdomain.Task{
+				Key:     key,
+				Project: p.project,
+				Sprint:  p.sprint,
+			}
+		}
+
+		task.EngineeringHours = &hours
+
+		// Also save TPD BU and Work Stream if available
+		if tpdBU, ok := result["tpdBusinessUnit"].(string); ok && tpdBU != "" && len(task.TPDBusinessUnits) == 0 {
+			task.TPDBusinessUnits = strings.Split(tpdBU, "; ")
+		}
+		if ws, ok := result["workStream"].(string); ok && ws != "" && task.WorkStream == "" {
+			task.WorkStream = ws
+		}
+
+		if err := storage.Save(ctx, task); err != nil {
+			fmt.Printf("Warning: failed to save engineering hours for %s: %v\n", key, err)
+		}
+	}
+}
+
 func (p *SprintTimeAllocationUseCase) fetchIssues() ([]domain.JiraIssue, error) {
-	issues, err := p.jiraPort.GetIssuesForSprint(p.project, p.sprint)
+	issues, err := p.fetchIssuesByWorkStreams()
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch sprint issues: %w", err)
 	}
@@ -166,7 +356,11 @@ func (p *SprintTimeAllocationUseCase) fetchIssues() ([]domain.JiraIssue, error) 
 				Status: domain.JiraStatus{
 					Name: issue.Status,
 				},
-				StoryPoints: issue.StoryPoints,
+				StoryPoints:      issue.StoryPoints,
+				TPDBusinessUnits: issue.TPDBusinessUnits,
+				EngineeringHours: issue.EngineeringHours,
+				WorkStream:       issue.WorkStream,
+				BoardWorkStream:  issue.BoardWorkStream,
 				IssueType: domain.IssueType{
 					Name: issue.IssueType,
 				},
@@ -200,6 +394,72 @@ func (p *SprintTimeAllocationUseCase) fetchIssues() ([]domain.JiraIssue, error) 
 	}
 
 	return domainIssues, nil
+}
+
+// fetchIssuesByWorkStreams fetches issues using board-to-workstream mapping when work streams are specified.
+// When no work streams are configured or no board mapping exists, falls back to the default sprint query.
+func (p *SprintTimeAllocationUseCase) fetchIssuesByWorkStreams() ([]ports.JiraIssue, error) {
+	if len(p.workStreams) == 0 || p.configSvc == nil {
+		issues, err := p.jiraPort.GetIssuesForSprint(p.project, p.sprint)
+		if err != nil {
+			return nil, err
+		}
+		// Tag issues with default work stream ("Product") since sprint queries return scrum board issues
+		if p.configSvc != nil {
+			for i := range issues {
+				if issues[i].BoardWorkStream == "" {
+					// Sprint issues come from scrum boards; find the first scrum board's work stream
+					boards, _ := p.configSvc.GetBoardsForWorkStream(p.project, "Product")
+					if len(boards) > 0 {
+						issues[i].BoardWorkStream = "Product"
+					}
+				}
+			}
+		}
+		return issues, nil
+	}
+
+	// Build board ID -> work stream name mapping
+	type boardEntry struct {
+		id         int
+		workStream string
+	}
+	var boards []boardEntry
+	for _, ws := range p.workStreams {
+		boardIDs, err := p.configSvc.GetBoardsForWorkStream(p.project, ws)
+		if err != nil || len(boardIDs) == 0 {
+			continue
+		}
+		for _, bid := range boardIDs {
+			boards = append(boards, boardEntry{id: bid, workStream: ws})
+		}
+	}
+
+	if len(boards) == 0 {
+		// No board mapping found — fall back to default
+		return p.jiraPort.GetIssuesForSprint(p.project, p.sprint)
+	}
+
+	// Fetch issues from each board, deduplicating by issue key
+	seen := make(map[string]bool)
+	var allIssues []ports.JiraIssue
+
+	for _, b := range boards {
+		issues, err := p.jiraPort.GetIssuesForSprintOnBoard(p.project, p.sprint, b.id)
+		if err != nil {
+			fmt.Printf("Warning: failed to fetch issues for board %d: %v\n", b.id, err)
+			continue
+		}
+		for i := range issues {
+			if !seen[issues[i].Key] {
+				seen[issues[i].Key] = true
+				issues[i].BoardWorkStream = b.workStream
+				allIssues = append(allIssues, issues[i])
+			}
+		}
+	}
+
+	return allIssues, nil
 }
 
 func (p *SprintTimeAllocationUseCase) parseManualAdjustments() (map[string]float64, error) {
@@ -404,7 +664,7 @@ func (p *SprintTimeAllocationUseCase) getIssueTimeRange(issue domain.JiraIssue) 
 	return startTime, endTime
 }
 
-func (p *SprintTimeAllocationUseCase) calculatePercentageLoad(team domain.Team, issues []domain.JiraIssue, manualAdjustments map[string]float64, totalHoursByPerson map[string]float64) []map[string]interface{} {
+func (p *SprintTimeAllocationUseCase) calculatePercentageLoad(team domain.Team, issues []domain.JiraIssue, manualAdjustments map[string]float64, totalHoursByPerson map[string]float64, assetBUMap map[string]string) []map[string]interface{} {
 	var results = make([]map[string]interface{}, 0, len(issues))
 	processedStories := make(map[string]bool)
 
@@ -502,6 +762,33 @@ func (p *SprintTimeAllocationUseCase) calculatePercentageLoad(team domain.Team, 
 			result["dateCompleted"] = ""
 		}
 
+		// TPD Business Unit: from JIRA field, fallback to classified asset's BU
+		tpdBU := strings.Join(issue.Fields.TPDBusinessUnits, "; ")
+		if tpdBU == "" && assetBUMap != nil {
+			assetName := issue.GetAssetName()
+			if bu, ok := assetBUMap[assetName]; ok {
+				tpdBU = bu
+			}
+		}
+		result["tpdBusinessUnit"] = tpdBU
+
+		// Work Stream: from JIRA field if set, fallback to board-to-workstream config
+		workStream := issue.Fields.WorkStream
+		if workStream == "" {
+			workStream = issue.Fields.BoardWorkStream
+		}
+		result["workStream"] = workStream
+
+		// Engineering hours: only included when --with-hours is set
+		// If JIRA field is set, use it; otherwise fall back to calculated hours from changelog
+		if p.withHours {
+			if issue.Fields.EngineeringHours != nil {
+				result["engineeringHours"] = formatOptionalFloat(issue.Fields.EngineeringHours)
+			} else {
+				result["engineeringHours"] = fmt.Sprintf("%.2f", storyTotalHours)
+			}
+		}
+
 		// Initialize all team member columns to empty
 		for _, person := range team.Team {
 			result[person] = ""
@@ -547,8 +834,12 @@ func (p *SprintTimeAllocationUseCase) generateCSV(team domain.Team, results []ma
 	copy(sortedTeamMembers, team.Team)
 	sort.Strings(sortedTeamMembers)
 
-	headers := make([]string, 0, 9+len(sortedTeamMembers))
+	headers := make([]string, 0, 12+len(sortedTeamMembers))
 	headers = append(headers, "sprint", "issueKey", "issueType", "issueTitle", "workType", "assetName", "status", "dateStarted", "dateCompleted")
+	headers = append(headers, "tpdBusinessUnit", "workStream")
+	if p.withHours {
+		headers = append(headers, "engineeringHours")
+	}
 
 	headers = append(headers, sortedTeamMembers...)
 
@@ -558,6 +849,14 @@ func (p *SprintTimeAllocationUseCase) generateCSV(team domain.Team, results []ma
 	}
 
 	return csvData, nil
+}
+
+// formatOptionalFloat formats an optional float64 pointer as a string
+func formatOptionalFloat(v *float64) string {
+	if v == nil {
+		return ""
+	}
+	return fmt.Sprintf("%.2f", *v)
 }
 
 // calculateWorkingHours calculates the working hours for an issue

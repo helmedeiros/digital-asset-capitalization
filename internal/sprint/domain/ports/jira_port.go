@@ -16,14 +16,18 @@ type Sprint struct {
 
 // JiraIssue represents a Jira issue in the ports layer
 type JiraIssue struct {
-	Key         string
-	Summary     string
-	Assignee    string
-	Status      string
-	StoryPoints *float64
-	IssueType   string
-	Labels      []string
-	Changelog   JiraChangelog
+	Key              string
+	Summary          string
+	Assignee         string
+	Status           string
+	StoryPoints      *float64
+	IssueType        string
+	Labels           []string
+	Changelog        JiraChangelog
+	TPDBusinessUnits []string
+	EngineeringHours *float64
+	WorkStream       string
+	BoardWorkStream  string // derived from board-to-workstream config, used as fallback
 }
 
 // JiraChangelog represents the changelog of a Jira issue
@@ -44,6 +48,20 @@ type JiraChangeItem struct {
 	ToString   string
 }
 
+// CustomFieldUpdate holds values to write back to JIRA custom fields
+type CustomFieldUpdate struct {
+	EngineeringHours *float64
+	WorkStream       *string
+	TPDBusinessUnits []string
+}
+
+// CustomFieldValues holds the current values of JIRA custom fields for an issue
+type CustomFieldValues struct {
+	EngineeringHours *float64
+	WorkStream       string
+	TPDBusinessUnits []string
+}
+
 // JiraPort defines the interface for Jira integration
 type JiraPort interface {
 	// GetSprintsForProject retrieves all sprints for a given project
@@ -60,6 +78,12 @@ type JiraPort interface {
 	GetTeamIssues(team *domain.Team) ([]JiraIssue, error)
 	// GetSprintByName retrieves sprint details by project and sprint name
 	GetSprintByName(project, sprintName string) (*Sprint, error)
+	// GetIssuesForSprintOnBoard retrieves issues for a sprint filtered to a specific board
+	GetIssuesForSprintOnBoard(project, sprintName string, boardID int) ([]JiraIssue, error)
+	// UpdateCustomFields writes custom field values to a JIRA issue
+	UpdateCustomFields(issueKey string, update CustomFieldUpdate) error
+	// FetchCustomFields reads current custom field values from a JIRA issue
+	FetchCustomFields(issueKey string) (*CustomFieldValues, error)
 }
 
 // BoardInfo represents information about a board
