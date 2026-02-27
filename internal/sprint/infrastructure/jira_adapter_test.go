@@ -775,18 +775,18 @@ func TestJiraAdapter_ConvertToPortIssues_PopulatesParentKey(t *testing.T) {
 		w.Write([]byte(`{
 			"issues": [
 				{
-					"key": "COP-102",
+					"key": "PRJ-102",
 					"fields": {
-						"summary": "Subtask of COP-67",
+						"summary": "Subtask of PRJ-67",
 						"assignee": {"displayName": "Developer A"},
 						"status": {"name": "Done"},
 						"issuetype": {"name": "Sub-task"},
-						"parent": {"key": "COP-67"},
+						"parent": {"key": "PRJ-67"},
 						"labels": []
 					}
 				},
 				{
-					"key": "COP-67",
+					"key": "PRJ-67",
 					"fields": {
 						"summary": "Parent Story",
 						"assignee": {"displayName": "Developer B"},
@@ -801,16 +801,16 @@ func TestJiraAdapter_ConvertToPortIssues_PopulatesParentKey(t *testing.T) {
 	defer server.Close()
 
 	adapter := createTestJiraAdapter(t, server)
-	issues, err := adapter.GetIssuesForSprint("COP", "Sprint 1")
+	issues, err := adapter.GetIssuesForSprint("PRJ", "Sprint 1")
 	require.NoError(t, err)
 	require.Len(t, issues, 2)
 
 	// Subtask should have parent key populated
-	assert.Equal(t, "COP-102", issues[0].Key)
-	assert.Equal(t, "COP-67", issues[0].ParentKey)
+	assert.Equal(t, "PRJ-102", issues[0].Key)
+	assert.Equal(t, "PRJ-67", issues[0].ParentKey)
 
 	// Parent story should have no parent key
-	assert.Equal(t, "COP-67", issues[1].Key)
+	assert.Equal(t, "PRJ-67", issues[1].Key)
 	assert.Equal(t, "", issues[1].ParentKey)
 }
 

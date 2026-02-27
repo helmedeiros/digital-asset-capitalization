@@ -1983,3 +1983,445 @@ func TestSprintTimeAllocationWithDefaultStatuses_FN_Team(t *testing.T) {
 	assert.Equal(t, "2024-03-21", result["dateCompleted"], "Should have correct completion date")
 	assert.Equal(t, "2024-03-20", result["dateStarted"], "Should have correct start date")
 }
+
+func TestAggregateSubTaskHours(t *testing.T) {
+	cleanup := setupTestEnv(t)
+	defer cleanup()
+
+	processor := &SprintTimeAllocationUseCase{
+		sprint:     "Test Sprint",
+		project:    "DEFAULT",
+		statusPort: createBasicStatusService(),
+	}
+
+	team := domain.Team{
+		Team: []string{"Alice", "Bob"},
+	}
+
+	subTasks := []domain.JiraIssue{
+		{
+			Key: "PRJ-10",
+			Fields: domain.JiraFields{
+				Assignee:  domain.JiraAssignee{DisplayName: "Alice"},
+				IssueType: domain.IssueType{Name: "Sub-task"},
+				Status:    domain.JiraStatus{Name: domain.StatusDone},
+			},
+			Changelog: domain.JiraChangelog{
+				Histories: []domain.JiraChangeHistory{
+					{
+						Created: "2024-03-20T09:00:00.000+0000",
+						Items: []domain.JiraChangeItem{
+							{Field: "status", FromString: "To Do", ToString: domain.StatusInProgress},
+						},
+					},
+					{
+						Created: "2024-03-20T17:00:00.000+0000",
+						Items: []domain.JiraChangeItem{
+							{Field: "status", FromString: domain.StatusInProgress, ToString: domain.StatusDone},
+						},
+					},
+				},
+			},
+		},
+		{
+			Key: "PRJ-11",
+			Fields: domain.JiraFields{
+				Assignee:  domain.JiraAssignee{DisplayName: "Bob"},
+				IssueType: domain.IssueType{Name: "Sub-task"},
+				Status:    domain.JiraStatus{Name: domain.StatusDone},
+			},
+			Changelog: domain.JiraChangelog{
+				Histories: []domain.JiraChangeHistory{
+					{
+						Created: "2024-03-20T10:00:00.000+0000",
+						Items: []domain.JiraChangeItem{
+							{Field: "status", FromString: "To Do", ToString: domain.StatusInProgress},
+						},
+					},
+					{
+						Created: "2024-03-21T10:00:00.000+0000",
+						Items: []domain.JiraChangeItem{
+							{Field: "status", FromString: domain.StatusInProgress, ToString: domain.StatusDone},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	hoursByAssignee := processor.aggregateSubTaskHours(subTasks, nil, team)
+
+	assert.Contains(t, hoursByAssignee, "Alice")
+	assert.Contains(t, hoursByAssignee, "Bob")
+	assert.Greater(t, hoursByAssignee["Alice"], 0.0)
+	assert.Greater(t, hoursByAssignee["Bob"], 0.0)
+	// Bob worked across two days (should have more hours)
+	assert.Greater(t, hoursByAssignee["Bob"], hoursByAssignee["Alice"])
+}
+
+func TestAggregateSubTaskHours_SkipsNonTeamMembers(t *testing.T) {
+	cleanup := setupTestEnv(t)
+	defer cleanup()
+
+	processor := &SprintTimeAllocationUseCase{
+		sprint:     "Test Sprint",
+		project:    "DEFAULT",
+		statusPort: createBasicStatusService(),
+	}
+
+	team := domain.Team{
+		Team: []string{"Alice"},
+	}
+
+	subTasks := []domain.JiraIssue{
+		{
+			Key: "PRJ-10",
+			Fields: domain.JiraFields{
+				Assignee:  domain.JiraAssignee{DisplayName: "Alice"},
+				IssueType: domain.IssueType{Name: "Sub-task"},
+				Status:    domain.JiraStatus{Name: domain.StatusDone},
+			},
+			Changelog: domain.JiraChangelog{
+				Histories: []domain.JiraChangeHistory{
+					{
+						Created: "2024-03-20T09:00:00.000+0000",
+						Items: []domain.JiraChangeItem{
+							{Field: "status", FromString: "To Do", ToString: domain.StatusDone},
+						},
+					},
+				},
+			},
+		},
+		{
+			Key: "PRJ-11",
+			Fields: domain.JiraFields{
+				Assignee:  domain.JiraAssignee{DisplayName: "External"},
+				IssueType: domain.IssueType{Name: "Sub-task"},
+				Status:    domain.JiraStatus{Name: domain.StatusDone},
+			},
+			Changelog: domain.JiraChangelog{
+				Histories: []domain.JiraChangeHistory{
+					{
+						Created: "2024-03-20T10:00:00.000+0000",
+						Items: []domain.JiraChangeItem{
+							{Field: "status", FromString: "To Do", ToString: domain.StatusDone},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	hoursByAssignee := processor.aggregateSubTaskHours(subTasks, nil, team)
+
+	assert.Contains(t, hoursByAssignee, "Alice")
+	assert.NotContains(t, hoursByAssignee, "External", "Non-team members should be excluded")
+}
+
+func TestGetSubTaskTimeRange(t *testing.T) {
+	cleanup := setupTestEnv(t)
+	defer cleanup()
+
+	processor := &SprintTimeAllocationUseCase{
+		sprint:     "Test Sprint",
+		project:    "DEFAULT",
+		statusPort: createBasicStatusService(),
+	}
+
+	subTasks := []domain.JiraIssue{
+		{
+			Key: "PRJ-10",
+			Fields: domain.JiraFields{
+				Assignee:  domain.JiraAssignee{DisplayName: "test.user"},
+				IssueType: domain.IssueType{Name: "Sub-task"},
+			},
+			Changelog: domain.JiraChangelog{
+				Histories: []domain.JiraChangeHistory{
+					{
+						Created: "2024-03-21T09:00:00.000+0000",
+						Items: []domain.JiraChangeItem{
+							{Field: "status", FromString: "To Do", ToString: domain.StatusInProgress},
+						},
+					},
+					{
+						Created: "2024-03-22T17:00:00.000+0000",
+						Items: []domain.JiraChangeItem{
+							{Field: "status", FromString: domain.StatusInProgress, ToString: domain.StatusDone},
+						},
+					},
+				},
+			},
+		},
+		{
+			Key: "PRJ-11",
+			Fields: domain.JiraFields{
+				Assignee:  domain.JiraAssignee{DisplayName: "test.user"},
+				IssueType: domain.IssueType{Name: "Sub-task"},
+			},
+			Changelog: domain.JiraChangelog{
+				Histories: []domain.JiraChangeHistory{
+					{
+						Created: "2024-03-20T10:00:00.000+0000",
+						Items: []domain.JiraChangeItem{
+							{Field: "status", FromString: "To Do", ToString: domain.StatusInProgress},
+						},
+					},
+					{
+						Created: "2024-03-25T15:00:00.000+0000",
+						Items: []domain.JiraChangeItem{
+							{Field: "status", FromString: domain.StatusInProgress, ToString: domain.StatusDone},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	start, end := processor.getSubTaskTimeRange(subTasks)
+
+	// Should use earliest start (PRJ-11 started 2024-03-20) and latest end (PRJ-11 ended 2024-03-25)
+	assert.False(t, start.IsZero(), "Start time should not be zero")
+	assert.False(t, end.IsZero(), "End time should not be zero")
+	assert.Equal(t, 20, start.Day(), "Should use earliest subtask start")
+	assert.Equal(t, 25, end.Day(), "Should use latest subtask end")
+}
+
+func TestCalculatePercentageLoad_WithSubTasks(t *testing.T) {
+	cleanup := setupTestEnv(t)
+	defer cleanup()
+
+	processor := &SprintTimeAllocationUseCase{
+		sprint:     "Test Sprint",
+		project:    "DEFAULT",
+		statusPort: createBasicStatusService(),
+		withHours:  true,
+	}
+
+	team := domain.Team{
+		Team: []string{"Alice", "Bob"},
+	}
+
+	// Parent story with two subtasks assigned to different people
+	issues := []domain.JiraIssue{
+		{
+			Key: "PRJ-1",
+			Fields: domain.JiraFields{
+				Assignee:  domain.JiraAssignee{DisplayName: "Alice"},
+				Summary:   "Parent Story",
+				IssueType: domain.IssueType{Name: "Story"},
+				Status:    domain.JiraStatus{Name: domain.StatusDone},
+			},
+			Changelog: domain.JiraChangelog{
+				Histories: []domain.JiraChangeHistory{
+					{
+						Created: "2024-03-20T09:00:00.000+0000",
+						Items: []domain.JiraChangeItem{
+							{Field: "status", FromString: "To Do", ToString: domain.StatusInProgress},
+						},
+					},
+					{
+						Created: "2024-03-22T17:00:00.000+0000",
+						Items: []domain.JiraChangeItem{
+							{Field: "status", FromString: domain.StatusInProgress, ToString: domain.StatusDone},
+						},
+					},
+				},
+			},
+		},
+		{
+			Key: "PRJ-10",
+			Fields: domain.JiraFields{
+				Assignee:  domain.JiraAssignee{DisplayName: "Alice"},
+				Summary:   "Subtask 1",
+				IssueType: domain.IssueType{Name: "Sub-task"},
+				Status:    domain.JiraStatus{Name: domain.StatusDone},
+				Parent:    &domain.JiraParent{Key: "PRJ-1"},
+			},
+			Changelog: domain.JiraChangelog{
+				Histories: []domain.JiraChangeHistory{
+					{
+						Created: "2024-03-20T09:00:00.000+0000",
+						Items: []domain.JiraChangeItem{
+							{Field: "status", FromString: "To Do", ToString: domain.StatusInProgress},
+						},
+					},
+					{
+						Created: "2024-03-20T17:00:00.000+0000",
+						Items: []domain.JiraChangeItem{
+							{Field: "status", FromString: domain.StatusInProgress, ToString: domain.StatusDone},
+						},
+					},
+				},
+			},
+		},
+		{
+			Key: "PRJ-11",
+			Fields: domain.JiraFields{
+				Assignee:  domain.JiraAssignee{DisplayName: "Bob"},
+				Summary:   "Subtask 2",
+				IssueType: domain.IssueType{Name: "Sub-task"},
+				Status:    domain.JiraStatus{Name: domain.StatusDone},
+				Parent:    &domain.JiraParent{Key: "PRJ-1"},
+			},
+			Changelog: domain.JiraChangelog{
+				Histories: []domain.JiraChangeHistory{
+					{
+						Created: "2024-03-20T10:00:00.000+0000",
+						Items: []domain.JiraChangeItem{
+							{Field: "status", FromString: "To Do", ToString: domain.StatusInProgress},
+						},
+					},
+					{
+						Created: "2024-03-21T16:00:00.000+0000",
+						Items: []domain.JiraChangeItem{
+							{Field: "status", FromString: domain.StatusInProgress, ToString: domain.StatusDone},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	totalHoursByPerson := map[string]float64{
+		"Alice": 40.0,
+		"Bob":   40.0,
+	}
+
+	results := processor.calculatePercentageLoad(team, issues, nil, totalHoursByPerson, nil)
+
+	require.Len(t, results, 1, "Should produce a single result for the parent story")
+
+	result := results[0]
+	assert.Equal(t, "PRJ-1", result["issueKey"])
+	assert.Equal(t, "Story", result["issueType"])
+
+	// Both Alice and Bob should have percentage allocations
+	alicePct, ok := result["Alice"].(string)
+	assert.True(t, ok && alicePct != "", "Alice should have a percentage from subtask work")
+	bobPct, ok := result["Bob"].(string)
+	assert.True(t, ok && bobPct != "", "Bob should have a percentage from subtask work")
+
+	// Engineering hours should be set (sum of subtask hours)
+	engHours, ok := result["engineeringHours"].(string)
+	assert.True(t, ok, "Engineering hours should be set for subtask stories")
+	assert.NotEqual(t, "0.00", engHours, "Engineering hours should be non-zero")
+}
+
+func TestCalculatePercentageLoad_NoSubTasks_WithHours(t *testing.T) {
+	cleanup := setupTestEnv(t)
+	defer cleanup()
+
+	sprintStart, _ := time.Parse("2006-01-02", "2024-03-18")
+	sprintEnd, _ := time.Parse("2006-01-02", "2024-03-29")
+	boundary, _ := domain.NewSprintBoundary(sprintStart, sprintEnd)
+
+	processor := &SprintTimeAllocationUseCase{
+		sprint:         "Test Sprint",
+		project:        "DEFAULT",
+		statusPort:     createBasicStatusService(),
+		withHours:      true,
+		sprintBoundary: &boundary,
+	}
+
+	team := domain.Team{
+		Team: []string{"Alice"},
+	}
+
+	issues := []domain.JiraIssue{
+		{
+			Key: "PRJ-5",
+			Fields: domain.JiraFields{
+				Assignee:  domain.JiraAssignee{DisplayName: "Alice"},
+				Summary:   "Solo Story",
+				IssueType: domain.IssueType{Name: "Story"},
+				Status:    domain.JiraStatus{Name: domain.StatusDone},
+			},
+			Changelog: domain.JiraChangelog{
+				Histories: []domain.JiraChangeHistory{
+					{
+						Created: "2024-03-20T09:00:00.000+0000",
+						Items: []domain.JiraChangeItem{
+							{Field: "status", FromString: "To Do", ToString: domain.StatusInProgress},
+						},
+					},
+					{
+						Created: "2024-03-22T17:00:00.000+0000",
+						Items: []domain.JiraChangeItem{
+							{Field: "status", FromString: domain.StatusInProgress, ToString: domain.StatusDone},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	totalHoursByPerson := map[string]float64{
+		"Alice": 40.0,
+	}
+
+	results := processor.calculatePercentageLoad(team, issues, nil, totalHoursByPerson, nil)
+
+	require.Len(t, results, 1)
+	result := results[0]
+	assert.Equal(t, "PRJ-5", result["issueKey"])
+
+	engHours, ok := result["engineeringHours"].(string)
+	assert.True(t, ok, "Engineering hours should be set")
+
+	// Parse hours and verify they're working hours (not calendar hours)
+	hoursVal, err := strconv.ParseFloat(engHours, 64)
+	require.NoError(t, err)
+	// 3 weekdays (Wed Mar 20 - Fri Mar 22) should give working hours, not 56+ calendar hours
+	assert.Less(t, hoursVal, 30.0, "Should be working hours, not calendar hours")
+	assert.Greater(t, hoursVal, 0.0, "Should have positive hours")
+}
+
+func TestFetchIssues_SetsParentFromParentKey(t *testing.T) {
+	cleanup := setupTestEnv(t)
+	defer cleanup()
+
+	mockJira := new(MockJiraAdapter)
+	mockJira.On("GetIssuesForSprint", "PRJ", "Sprint 1").Return([]ports.JiraIssue{
+		{
+			Key:       "PRJ-10",
+			Summary:   "Subtask",
+			Assignee:  "Dev A",
+			Status:    "Done",
+			IssueType: "Sub-task",
+			ParentKey: "PRJ-1",
+		},
+		{
+			Key:       "PRJ-1",
+			Summary:   "Parent",
+			Assignee:  "Dev B",
+			Status:    "Done",
+			IssueType: "Story",
+		},
+	}, nil)
+
+	processor := &SprintTimeAllocationUseCase{
+		sprint:     "Sprint 1",
+		project:    "PRJ",
+		jiraPort:   mockJira,
+		statusPort: createBasicStatusService(),
+	}
+
+	issues, err := processor.fetchIssues()
+	require.NoError(t, err)
+	require.Len(t, issues, 2)
+
+	// Subtask should have Parent field set from ParentKey
+	subtask := issues[0]
+	assert.Equal(t, "PRJ-10", subtask.Key)
+	assert.NotNil(t, subtask.Fields.Parent, "Subtask should have Parent set from ParentKey")
+	assert.Equal(t, "PRJ-1", subtask.Fields.Parent.Key)
+	assert.True(t, subtask.IsSubTask())
+	assert.Equal(t, "PRJ-1", subtask.GetParentKey())
+
+	// Parent should not have Parent field
+	parent := issues[1]
+	assert.Equal(t, "PRJ-1", parent.Key)
+	assert.Nil(t, parent.Fields.Parent, "Parent story should not have Parent field")
+
+	mockJira.AssertExpectations(t)
+}
