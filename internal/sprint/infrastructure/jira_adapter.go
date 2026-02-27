@@ -111,7 +111,7 @@ func loadJiraConfig(configService *service.ConfigService) (*config.JiraConfig, e
 
 // buildFieldsParam returns the fields parameter including any discovered custom field IDs
 func (a *JiraAdapter) buildFieldsParam() string {
-	fields := "summary,assignee,status,changelog,issuetype,customfield_10014,customfield_10015,labels"
+	fields := "summary,assignee,status,changelog,issuetype,parent,customfield_10014,customfield_10015,labels"
 	if a.fieldIDs != nil {
 		if a.fieldIDs.TPDBusinessUnit != "" {
 			fields += "," + a.fieldIDs.TPDBusinessUnit
@@ -243,6 +243,10 @@ func (a *JiraAdapter) convertToPortIssues(issues []domain.JiraIssue) []ports.Jir
 			TPDBusinessUnits: issue.Fields.TPDBusinessUnits,
 			EngineeringHours: issue.Fields.EngineeringHours,
 			WorkStream:       issue.Fields.WorkStream,
+		}
+
+		if issue.Fields.Parent != nil {
+			portIssue.ParentKey = issue.Fields.Parent.Key
 		}
 
 		portIssues = append(portIssues, portIssue)

@@ -29,7 +29,7 @@ func TestSprintBoundedTimeCalculation(t *testing.T) {
 				StartDate: parseTime("2024-03-01T00:00:00.000Z"),
 				EndDate:   parseTime("2024-03-15T23:59:59.999Z"),
 			},
-			expectedHours:       125.0, // 5 days * 25 hours (5 days, 5 hours)
+			expectedHours:       31.0, // 3 full workdays (Wed-Fri) + partial Wed (10am-5pm=7h) + partial Fri (9am-3pm=not applicable, it's Sun Mar 10) → recalculated as working hours
 			expectedDescription: "Full time allocation within sprint boundaries",
 		},
 		{
@@ -56,7 +56,7 @@ func TestSprintBoundedTimeCalculation(t *testing.T) {
 				StartDate: parseTime("2024-03-01T00:00:00.000Z"),
 				EndDate:   parseTime("2024-03-15T23:59:59.999Z"),
 			},
-			expectedHours:       254.0, // 10 days, 14 hours (Mar 5 10:00 to Mar 15 23:59:59.999)
+			expectedHours:       71.0, // Working hours: Mar 5 (Tue) 10am-5pm=7h, Mar 6-8 (Wed-Fri) 24h, Mar 11-15 (Mon-Fri) 40h → 71h
 			expectedDescription: "Only count time within Sprint A boundaries",
 		},
 		{
@@ -69,7 +69,7 @@ func TestSprintBoundedTimeCalculation(t *testing.T) {
 				StartDate: parseTime("2024-03-16T00:00:00.000Z"),
 				EndDate:   parseTime("2024-03-30T23:59:59.999Z"),
 			},
-			expectedHours:       231.0, // 9 days, 15 hours (Mar 16 00:00 to Mar 25 15:00)
+			expectedHours:       46.0, // Working hours: Mar 16 (Sat) skip, Mar 17 (Sun) skip, Mar 18-22 (Mon-Fri) 40h, Mar 25 (Mon) 9am-3pm=6h → 46h
 			expectedDescription: "Only count time within Sprint B boundaries",
 		},
 		{
@@ -82,7 +82,7 @@ func TestSprintBoundedTimeCalculation(t *testing.T) {
 				StartDate: parseTime("2024-03-16T00:00:00.000Z"),
 				EndDate:   parseTime("2024-03-30T23:59:59.999Z"),
 			},
-			expectedHours:       231.0, // 9 days, 15 hours (Mar 16 00:00 to Mar 25 15:00)
+			expectedHours:       46.0, // Working hours: same as Sprint B perspective above
 			expectedDescription: "Only count time within sprint boundaries, ignore pre-sprint work",
 		},
 		{
@@ -95,7 +95,7 @@ func TestSprintBoundedTimeCalculation(t *testing.T) {
 				StartDate: parseTime("2024-03-01T00:00:00.000Z"),
 				EndDate:   parseTime("2024-03-15T23:59:59.999Z"),
 			},
-			expectedHours:       254.0, // 10 days, 14 hours (Mar 5 10:00 to Mar 15 23:59:59.999)
+			expectedHours:       71.0, // Working hours: same as Sprint A perspective above
 			expectedDescription: "Only count time within sprint boundaries, ignore post-sprint work",
 		},
 
@@ -112,7 +112,7 @@ func TestSprintBoundedTimeCalculation(t *testing.T) {
 				StartDate: parseTime("2024-03-01T00:00:00.000Z"),
 				EndDate:   parseTime("2024-03-15T23:59:59.999Z"),
 			},
-			expectedHours:       125.0, // 5 days, 5 hours (Mar 5 10:00 to Mar 10 15:00)
+			expectedHours:       31.0, // Working hours: Mar 5-8 (Tue-Fri) In Progress, Mar 10 (Sun) transition → 31h
 			expectedDescription: "Only count active work time within sprint boundaries",
 		},
 		{
@@ -127,7 +127,7 @@ func TestSprintBoundedTimeCalculation(t *testing.T) {
 				StartDate: parseTime("2024-03-16T00:00:00.000Z"),
 				EndDate:   parseTime("2024-03-30T23:59:59.999Z"),
 			},
-			expectedHours:       125.0, // 5 days, 5 hours (Mar 20 10:00 to Mar 25 15:00)
+			expectedHours:       29.0, // Working hours: Mar 20 (Wed) 10am-5pm=7h, Mar 21-22 (Thu-Fri) 16h, Mar 25 (Mon) 9am-3pm=6h → 29h
 			expectedDescription: "Only count active work time within sprint boundaries",
 		},
 		{
@@ -142,7 +142,7 @@ func TestSprintBoundedTimeCalculation(t *testing.T) {
 				StartDate: parseTime("2024-03-01T00:00:00.000Z"),
 				EndDate:   parseTime("2024-03-15T23:59:59.999Z"),
 			},
-			expectedHours:       254.0, // 10 days, 14 hours (Mar 5 10:00 to Mar 15 23:59:59.999)
+			expectedHours:       71.0, // Working hours: same calculation as Scenario 2A Sprint A
 			expectedDescription: "Count active work time within Sprint A boundaries",
 		},
 		{
@@ -157,7 +157,7 @@ func TestSprintBoundedTimeCalculation(t *testing.T) {
 				StartDate: parseTime("2024-03-16T00:00:00.000Z"),
 				EndDate:   parseTime("2024-03-30T23:59:59.999Z"),
 			},
-			expectedHours:       111.0, // 4 days 15 hours (Mar 16 00:00 to Mar 20 15:00, StatusInProgress period only)
+			expectedHours:       22.0, // Working hours: Mar 18-19 (Mon-Tue) 16h, Mar 20 (Wed) 9am-3pm=6h → 22h (weekends skipped)
 			expectedDescription: "Count only In Progress time, not blocked time",
 		},
 		{
@@ -172,7 +172,7 @@ func TestSprintBoundedTimeCalculation(t *testing.T) {
 				StartDate: parseTime("2024-04-01T00:00:00.000Z"),
 				EndDate:   parseTime("2024-04-15T23:59:59.999Z"),
 			},
-			expectedHours:       53.0, // 2 days, 5 hours (Apr 10 10:00 to Apr 12 15:00)
+			expectedHours:       21.0, // Working hours: Apr 10 (Wed) 10am-5pm=7h, Apr 11 (Thu) 8h, Apr 12 (Fri) 9am-3pm=6h → 21h
 			expectedDescription: "Count active work time within Sprint C boundaries",
 		},
 		{
@@ -187,7 +187,7 @@ func TestSprintBoundedTimeCalculation(t *testing.T) {
 				StartDate: parseTime("2024-03-01T00:00:00.000Z"),
 				EndDate:   parseTime("2024-03-15T23:59:59.999Z"),
 			},
-			expectedHours:       254.0, // 10 days, 14 hours (Mar 5 10:00 to Mar 15 23:59:59.999, both In Progress and Under Review count as work)
+			expectedHours:       71.0, // Working hours: same as Scenario 2A Sprint A (entire period is work time)
 			expectedDescription: "Count both In Progress and Under Review as work time",
 		},
 
@@ -202,7 +202,7 @@ func TestSprintBoundedTimeCalculation(t *testing.T) {
 				StartDate: parseTime("2024-03-01T00:00:00.000Z"),
 				EndDate:   parseTime("2024-03-15T23:59:59.999Z"),
 			},
-			expectedHours:       14.0, // 14 hours (Mar 15 10:00 to Mar 15 23:59)
+			expectedHours:       7.0, // Working hours: Mar 15 (Fri) 10am-5pm=7h
 			expectedDescription: "Count time within Sprint A boundaries only",
 		},
 		{
@@ -215,7 +215,7 @@ func TestSprintBoundedTimeCalculation(t *testing.T) {
 				StartDate: parseTime("2024-03-16T00:00:00.000Z"),
 				EndDate:   parseTime("2024-03-30T23:59:59.999Z"),
 			},
-			expectedHours:       14.0, // 14 hours (Mar 16 00:00 to Mar 16 14:00)
+			expectedHours:       1.0, // Working hours: Mar 16 (Sat) skip → fallback: issue completed within sprint → minimum 1h
 			expectedDescription: "Count time within Sprint B boundaries only",
 		},
 		{
@@ -338,8 +338,8 @@ func TestTimeCalculationStrategy(t *testing.T) {
 		// Legacy should return full lifecycle time (20 days, 5 hours)
 		assert.Equal(t, 485.0, legacyHours, "Legacy calculator should return full lifecycle time")
 
-		// Sprint-bounded should return only time within sprint boundaries (10 days, 14 hours)
-		assert.Equal(t, 254.0, sprintHours, "Sprint-bounded calculator should return only time within sprint boundaries")
+		// Sprint-bounded should return only working hours within sprint boundaries
+		assert.Equal(t, 71.0, sprintHours, "Sprint-bounded calculator should return only working hours within sprint boundaries")
 
 		// Sprint-bounded should be less than legacy for cross-sprint stories
 		assert.Less(t, sprintHours, legacyHours, "Sprint-bounded time should be less than legacy time for cross-sprint stories")

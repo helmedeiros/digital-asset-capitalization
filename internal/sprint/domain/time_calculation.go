@@ -294,34 +294,24 @@ func (calc *SprintBoundedTimeCalculator) extractStatusChangePeriods(issue JiraIs
 	return periods
 }
 
-// calculatePeriodHours calculates hours for a specific period within sprint boundaries
+// calculatePeriodHours calculates working hours for a specific period within sprint boundaries.
+// It clamps the period to the sprint window and then converts to business hours
+// (8h/day, weekdays only, 9am-5pm).
 func (calc *SprintBoundedTimeCalculator) calculatePeriodHours(period StatusChangePeriod, sprintBoundary SprintBoundary) float64 {
-	// Clamp period to sprint boundaries
 	startTime := sprintBoundary.ClampTime(period.StartTime)
 	endTime := period.EndTime
 
-	// If end time is zero (ongoing), use sprint end time
 	if endTime.IsZero() {
 		endTime = sprintBoundary.EndDate
 	} else {
 		endTime = sprintBoundary.ClampTime(endTime)
 	}
 
-	// If start time is after end time, no overlap with sprint
 	if startTime.After(endTime) {
 		return 0
 	}
 
-	// Calculate duration in hours
-	duration := endTime.Sub(startTime)
-	hours := duration.Hours()
-
-	// Ensure non-negative hours
-	if hours < 0 {
-		hours = 0
-	}
-
-	return hours
+	return CalendarToWorkingHours(startTime, endTime)
 }
 
 // isCurrentlyDone checks if the issue's current status is a done state
@@ -518,6 +508,67 @@ func parseTimestamp(timestampStr string) (time.Time, error) {
 	}
 
 	return time.Time{}, fmt.Errorf("unable to parse timestamp: %s", timestampStr)
+}
+
+// WorkingHoursPerDay defines the standard working hours in a business day (9am-5pm).
+const WorkingHoursPerDay = 8.0
+
+// workDayStart and workDayEnd define the working window within a day.
+const workDayStart = 9 // 9:00 AM
+const workDayEnd = 17  // 5:00 PM
+
+// CalendarToWorkingHours converts a calendar time range [start, end) into
+// business working hours, counting only weekdays (Mon-Fri) and capping at
+// 8 hours per day within the 9:00-17:00 window.
+func CalendarToWorkingHours(start, end time.Time) float64 {
+	if end.Before(start) || end.Equal(start) {
+		return 0
+	}
+
+	var totalHours float64
+
+	// Iterate day by day from start to end
+	current := start
+	for current.Before(end) {
+		// Skip weekends
+		if current.Weekday() == time.Saturday || current.Weekday() == time.Sunday {
+			// Advance to next day at midnight
+			current = time.Date(current.Year(), current.Month(), current.Day()+1, 0, 0, 0, 0, current.Location())
+			continue
+		}
+
+		// Define the working window for this day
+		dayStart := time.Date(current.Year(), current.Month(), current.Day(), workDayStart, 0, 0, 0, current.Location())
+		dayEnd := time.Date(current.Year(), current.Month(), current.Day(), workDayEnd, 0, 0, 0, current.Location())
+
+		// Compute the overlap between [start, end) and [dayStart, dayEnd)
+		overlapStart := current
+		if dayStart.After(overlapStart) {
+			overlapStart = dayStart
+		}
+		// Also clamp to the overall start time
+		if start.After(overlapStart) {
+			overlapStart = start
+		}
+
+		overlapEnd := end
+		if dayEnd.Before(overlapEnd) {
+			overlapEnd = dayEnd
+		}
+
+		if overlapStart.Before(overlapEnd) {
+			hours := overlapEnd.Sub(overlapStart).Hours()
+			if hours > WorkingHoursPerDay {
+				hours = WorkingHoursPerDay
+			}
+			totalHours += hours
+		}
+
+		// Advance to next day at midnight
+		current = time.Date(current.Year(), current.Month(), current.Day()+1, 0, 0, 0, 0, current.Location())
+	}
+
+	return roundHours(totalHours)
 }
 
 // roundHours rounds hours to 2 decimal places to avoid floating-point precision issues

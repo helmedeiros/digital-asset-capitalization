@@ -28,6 +28,7 @@ type JiraIssue struct {
 	EngineeringHours *float64
 	WorkStream       string
 	BoardWorkStream  string // derived from board-to-workstream config, used as fallback
+	ParentKey        string
 }
 
 // JiraChangelog represents the changelog of a Jira issue

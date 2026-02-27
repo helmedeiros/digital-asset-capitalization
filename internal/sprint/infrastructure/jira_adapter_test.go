@@ -318,7 +318,7 @@ func TestJiraAdapter_GetSprintIssues(t *testing.T) {
 			return
 		}
 		assert.Equal(t, "/rest/api/3/search/jql", r.URL.Path)
-		assert.Equal(t, "jql=project+%3D+TEST+AND+sprint+%3D+%27Test+Sprint%27&expand=changelog&fields=summary,assignee,status,changelog,issuetype,customfield_10014,customfield_10015,labels", r.URL.RawQuery)
+		assert.Equal(t, "jql=project+%3D+TEST+AND+sprint+%3D+%27Test+Sprint%27&expand=changelog&fields=summary,assignee,status,changelog,issuetype,parent,customfield_10014,customfield_10015,labels", r.URL.RawQuery)
 		w.WriteHeader(http.StatusOK)
 		w.Write([]byte(`{
 			"issues": [
@@ -739,6 +739,79 @@ func TestJiraAdapter_FetchCustomFields_ServerError(t *testing.T) {
 	require.Error(t, err)
 	assert.Nil(t, vals)
 	assert.Contains(t, err.Error(), "failed to fetch issue COP-3")
+}
+
+func TestJiraAdapter_BuildFieldsParam_IncludesParent(t *testing.T) {
+	cleanupFiles := setupTestFiles(t)
+	defer cleanupFiles()
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == fieldAPIPath {
+			w.WriteHeader(http.StatusOK)
+			w.Write([]byte(`[]`))
+			return
+		}
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte(`{"issues":[]}`))
+	}))
+	defer server.Close()
+
+	adapter := createTestJiraAdapter(t, server)
+	fields := adapter.buildFieldsParam()
+	assert.Contains(t, fields, "parent")
+}
+
+func TestJiraAdapter_ConvertToPortIssues_PopulatesParentKey(t *testing.T) {
+	cleanupFiles := setupTestFiles(t)
+	defer cleanupFiles()
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == fieldAPIPath {
+			w.WriteHeader(http.StatusOK)
+			w.Write([]byte(`[]`))
+			return
+		}
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte(`{
+			"issues": [
+				{
+					"key": "COP-102",
+					"fields": {
+						"summary": "Subtask of COP-67",
+						"assignee": {"displayName": "Developer A"},
+						"status": {"name": "Done"},
+						"issuetype": {"name": "Sub-task"},
+						"parent": {"key": "COP-67"},
+						"labels": []
+					}
+				},
+				{
+					"key": "COP-67",
+					"fields": {
+						"summary": "Parent Story",
+						"assignee": {"displayName": "Developer B"},
+						"status": {"name": "Done"},
+						"issuetype": {"name": "Story"},
+						"labels": []
+					}
+				}
+			]
+		}`))
+	}))
+	defer server.Close()
+
+	adapter := createTestJiraAdapter(t, server)
+	issues, err := adapter.GetIssuesForSprint("COP", "Sprint 1")
+	require.NoError(t, err)
+	require.Len(t, issues, 2)
+
+	// Subtask should have parent key populated
+	assert.Equal(t, "COP-102", issues[0].Key)
+	assert.Equal(t, "COP-67", issues[0].ParentKey)
+
+	// Parent story should have no parent key
+	assert.Equal(t, "COP-67", issues[1].Key)
+	assert.Equal(t, "", issues[1].ParentKey)
 }
 
 func TestJiraAdapter_ErrorHandling(t *testing.T) {
