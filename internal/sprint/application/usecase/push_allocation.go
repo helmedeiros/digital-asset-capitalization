@@ -66,20 +66,27 @@ func (uc *PushAllocationUseCase) Execute(records []AllocationRecord) (*PushResul
 			continue
 		}
 
-		// Engineering Hours
-		if rec.EngineeringHours != nil && current.EngineeringHours == nil {
-			uc.pushField(result, rec.IssueKey, "Engineering Hours",
-				"", fmt.Sprintf("%.2f", *rec.EngineeringHours),
-				ports.CustomFieldUpdate{EngineeringHours: rec.EngineeringHours})
-		} else if rec.EngineeringHours != nil && current.EngineeringHours != nil {
-			result.Details = append(result.Details, PushDetail{
-				IssueKey: rec.IssueKey,
-				Field:    "Engineering Hours",
-				OldValue: fmt.Sprintf("%.2f", *current.EngineeringHours),
-				Status:   "skipped",
-				Reason:   "already set",
-			})
-			result.SkippedCount++
+		// Engineering Hours – always overwrite with the latest calculated value
+		if rec.EngineeringHours != nil {
+			oldVal := ""
+			if current.EngineeringHours != nil {
+				oldVal = fmt.Sprintf("%.2f", *current.EngineeringHours)
+			}
+			newVal := fmt.Sprintf("%.2f", *rec.EngineeringHours)
+			if oldVal == newVal {
+				result.Details = append(result.Details, PushDetail{
+					IssueKey: rec.IssueKey,
+					Field:    "Engineering Hours",
+					OldValue: oldVal,
+					Status:   "skipped",
+					Reason:   "unchanged",
+				})
+				result.SkippedCount++
+			} else {
+				uc.pushField(result, rec.IssueKey, "Engineering Hours",
+					oldVal, newVal,
+					ports.CustomFieldUpdate{EngineeringHours: rec.EngineeringHours})
+			}
 		}
 
 		// Work Stream

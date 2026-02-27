@@ -139,9 +139,12 @@ func TestPushAllocationUseCase_NonEmptyFieldsSkipped(t *testing.T) {
 
 	result, err := uc.Execute(records)
 	require.NoError(t, err)
-	assert.Equal(t, 0, result.UpdatedCount)
-	assert.Equal(t, 3, result.SkippedCount)
-	assert.Len(t, mock.updateCalls, 0)
+	// Engineering hours always overwrite when value differs (12.5 != 8.0)
+	assert.Equal(t, 1, result.UpdatedCount)
+	assert.Equal(t, 2, result.SkippedCount)
+	assert.Len(t, mock.updateCalls, 1)
+	assert.NotNil(t, mock.updateCalls[0].Update.EngineeringHours)
+	assert.Equal(t, 12.5, *mock.updateCalls[0].Update.EngineeringHours)
 }
 
 func TestPushAllocationUseCase_DryRunDoesNotCallUpdate(t *testing.T) {
@@ -251,11 +254,14 @@ func TestPushAllocationUseCase_PartialUpdate(t *testing.T) {
 
 	result, err := uc.Execute(records)
 	require.NoError(t, err)
-	assert.Equal(t, 1, result.UpdatedCount)
-	assert.Equal(t, 1, result.SkippedCount)
-	assert.Len(t, mock.updateCalls, 1)
-	assert.NotNil(t, mock.updateCalls[0].Update.WorkStream)
-	assert.Equal(t, "Product", *mock.updateCalls[0].Update.WorkStream)
+	// Engineering hours overwrite (10.0 != 5.0), work stream fills empty field
+	assert.Equal(t, 2, result.UpdatedCount)
+	assert.Equal(t, 0, result.SkippedCount)
+	assert.Len(t, mock.updateCalls, 2)
+	assert.NotNil(t, mock.updateCalls[0].Update.EngineeringHours)
+	assert.Equal(t, 10.0, *mock.updateCalls[0].Update.EngineeringHours)
+	assert.NotNil(t, mock.updateCalls[1].Update.WorkStream)
+	assert.Equal(t, "Product", *mock.updateCalls[1].Update.WorkStream)
 }
 
 func TestPushAllocationUseCase_WorkStreamTitleCased(t *testing.T) {

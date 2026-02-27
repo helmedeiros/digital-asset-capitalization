@@ -390,6 +390,10 @@ func (p *SprintTimeAllocationUseCase) fetchIssues() ([]domain.JiraIssue, error) 
 			domainIssue.Changelog.Histories[i] = domainHistory
 		}
 
+		if issue.ParentKey != "" {
+			domainIssue.Fields.Parent = &domain.JiraParent{Key: issue.ParentKey}
+		}
+
 		domainIssues = append(domainIssues, domainIssue)
 	}
 
@@ -779,13 +783,26 @@ func (p *SprintTimeAllocationUseCase) calculatePercentageLoad(team domain.Team, 
 		}
 		result["workStream"] = workStream
 
-		// Engineering hours: only included when --with-hours is set
-		// If JIRA field is set, use it; otherwise fall back to calculated hours from changelog
+		// Engineering hours: only included when --with-hours is set.
+		// For subtask stories, use the aggregated subtask hours (storyTotalHours)
+		// which correctly sums per-subtask working hours including parallel work.
+		// For no-subtask stories, clamp to sprint boundaries and convert to working hours.
 		if p.withHours {
-			if issue.Fields.EngineeringHours != nil {
-				result["engineeringHours"] = formatOptionalFloat(issue.Fields.EngineeringHours)
-			} else {
+			if len(subTasks) > 0 {
 				result["engineeringHours"] = fmt.Sprintf("%.2f", storyTotalHours)
+			} else {
+				ehStart := storyStartTime
+				ehEnd := storyEndTime
+				if p.sprintBoundary != nil {
+					ehStart = p.sprintBoundary.ClampTime(ehStart)
+					if ehEnd.IsZero() {
+						ehEnd = p.sprintBoundary.EndDate
+					} else {
+						ehEnd = p.sprintBoundary.ClampTime(ehEnd)
+					}
+				}
+				workingHrs := domain.CalendarToWorkingHours(ehStart, ehEnd)
+				result["engineeringHours"] = fmt.Sprintf("%.2f", workingHrs)
 			}
 		}
 
@@ -849,14 +866,6 @@ func (p *SprintTimeAllocationUseCase) generateCSV(team domain.Team, results []ma
 	}
 
 	return csvData, nil
-}
-
-// formatOptionalFloat formats an optional float64 pointer as a string
-func formatOptionalFloat(v *float64) string {
-	if v == nil {
-		return ""
-	}
-	return fmt.Sprintf("%.2f", *v)
 }
 
 // calculateWorkingHours calculates the working hours for an issue
