@@ -171,6 +171,55 @@ Field content:`, asset.Name, asset.Why, asset.Benefits, asset.How, asset.Metrics
 	return result.Response, nil
 }
 
+// GenerateEmbeddings generates embedding vectors for the given texts using Ollama's /api/embed endpoint
+func (c *Client) GenerateEmbeddings(model string, texts []string) ([][]float64, error) {
+	if len(texts) == 0 {
+		return [][]float64{}, nil
+	}
+
+	requestBody := map[string]interface{}{
+		"model": model,
+		"input": texts,
+	}
+
+	jsonData, err := json.Marshal(requestBody)
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal embedding request: %w", err)
+	}
+
+	req, err := http.NewRequest("POST", c.baseURL+"/api/embed", bytes.NewBuffer(jsonData))
+	if err != nil {
+		return nil, fmt.Errorf("failed to create embedding request: %w", err)
+	}
+
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("failed to call Ollama embed: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(resp.Body)
+		return nil, fmt.Errorf("Ollama embed returned status %d: %s", resp.StatusCode, string(body))
+	}
+
+	var result struct {
+		Embeddings [][]float64 `json:"embeddings"`
+	}
+
+	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+		return nil, fmt.Errorf("failed to decode embedding response: %w", err)
+	}
+
+	if len(result.Embeddings) != len(texts) {
+		return nil, fmt.Errorf("expected %d embeddings, got %d", len(texts), len(result.Embeddings))
+	}
+
+	return result.Embeddings, nil
+}
+
 // Close closes the client connection
 func (c *Client) Close() error {
 	// No resources to clean up since we're using the default http.Client

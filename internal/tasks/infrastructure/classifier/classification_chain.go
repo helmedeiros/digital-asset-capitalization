@@ -478,7 +478,36 @@ func (c *ComprehensiveClassificationChainWithInheritance) ClassifyTasks(tasks []
 		results = append(results, result)
 	}
 
+	// Step 3: Run batched LLM classification if enabled
+	if c.llmEnabled && c.llmClassifier != nil {
+		c.runBatchLLMClassification(tasks, results)
+	}
+
 	return results, nil
+}
+
+// runBatchLLMClassification runs LLM classification for all tasks in batch and attaches results
+func (c *ComprehensiveClassificationChainWithInheritance) runBatchLLMClassification(tasks []*taskdomain.Task, results []*ports.ComprehensiveClassificationResult) {
+	llmResults, err := c.llmClassifier.ClassifyTasksAssets(tasks)
+	if err != nil {
+		log.Printf("Warning: batch LLM classification failed: %v", err)
+		return
+	}
+
+	// Build lookup from task key to LLM result
+	llmLookup := make(map[string]*ports.AssetClassificationResult, len(llmResults))
+	for _, r := range llmResults {
+		if r != nil && r.Task != nil {
+			llmLookup[r.Task.Key] = r
+		}
+	}
+
+	// Attach LLM results to comprehensive results
+	for _, result := range results {
+		if llmResult, ok := llmLookup[result.Task.Key]; ok {
+			result.LLMAsset = llmResult
+		}
+	}
 }
 
 // generateWorkTypeReason generates a human-readable reason for the work type classification

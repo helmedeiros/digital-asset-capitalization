@@ -3056,11 +3056,19 @@ func initializeApp() (*App, error) {
 	// Work type classifier for determining capitalization category
 	workTypeClassifier := classifier.NewBusinessRulesClassifier(assetRepo)
 
-	// LLM asset classifier for comparison mode (optional, uses Ollama)
+	// Embedding-based asset classifier for comparison mode (optional, uses Ollama)
 	llamaConfig := llama.DefaultConfig()
 	var llmClassifier taskports.AssetClassifier
 	if llamaConfig.BaseURL != "" {
-		llmClassifier = classifier.NewLLMAssetClassifier(llamaConfig.BaseURL, "llama3", assetRepo)
+		llamaClient, llamaErr := llama.NewClient(llamaConfig)
+		if llamaErr == nil {
+			embeddingService := classifier.NewOllamaEmbeddingAdapter(llamaClient, "nomic-embed-text")
+			embeddingStorePath := filepath.Join(configDir, "embeddings.json")
+			embeddingStore, storeErr := classifier.NewEmbeddingStore(embeddingStorePath)
+			if storeErr == nil {
+				llmClassifier = classifier.NewEmbeddingAssetClassifier(embeddingService, assetRepo, embeddingStore)
+			}
+		}
 	}
 
 	// Comprehensive classification chain with subtask inheritance and optional LLM support
