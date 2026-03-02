@@ -803,6 +803,62 @@ func TestGetAssetLabel(t *testing.T) {
 	}
 }
 
+func TestGetAssetLabel_WithAssetObject(t *testing.T) {
+	mockLocalRepo := new(MockTaskRepository)
+	mockRemoteRepo := new(MockTaskRepository)
+	mockClassifier := new(MockTaskClassifier)
+	mockUserInput := new(MockUserInput)
+	assetService := testutil.NewMockAssetService()
+	uc := NewClassifyTasksUseCase(mockLocalRepo, mockRemoteRepo, mockClassifier, mockUserInput, assetService, nil)
+
+	t.Run("should use asset ID when it has cap-asset prefix", func(t *testing.T) {
+		asset := &assetsdomain.Asset{ID: "cap-asset-mode-comparison-optimization", Name: "Mode Comparison Optimization"}
+		result := uc.getAssetLabel(asset)
+		assert.Equal(t, "cap-asset-mode-comparison-optimization", result)
+	})
+
+	t.Run("should generate label from asset Name when ID has no cap-asset prefix", func(t *testing.T) {
+		asset := &assetsdomain.Asset{ID: "some-other-id", Name: "Mode Comparison Optimization"}
+		result := uc.getAssetLabel(asset)
+		assert.Equal(t, "cap-asset-mode-comparison-optimization", result)
+	})
+
+	t.Run("should generate label from asset Name when ID is empty", func(t *testing.T) {
+		asset := &assetsdomain.Asset{Name: "Home Page Optimization"}
+		result := uc.getAssetLabel(asset)
+		assert.Equal(t, "cap-asset-home-page-optimization", result)
+	})
+
+	t.Run("should handle asset with special characters in name", func(t *testing.T) {
+		asset := &assetsdomain.Asset{Name: "Dynamic Currency Conversion (DCC)"}
+		result := uc.getAssetLabel(asset)
+		assert.Equal(t, "cap-asset-dynamic-currency-conversion-dcc", result)
+	})
+
+	t.Run("should return unknown for nil asset", func(t *testing.T) {
+		result := uc.getAssetLabel(nil)
+		assert.Equal(t, "cap-asset-unknown", result)
+	})
+}
+
+func TestFormatAssetLabel(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    string
+		expected string
+	}{
+		{"simple name", "Home Page", "cap-asset-home-page"},
+		{"with ampersand", "Search & Filter", "cap-asset-search-and-filter"},
+		{"with parentheses", "Dynamic Currency Conversion (DCC)", "cap-asset-dynamic-currency-conversion-dcc"},
+		{"already lowercase", "booking success", "cap-asset-booking-success"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.expected, formatAssetLabel(tt.input))
+		})
+	}
+}
+
 func TestClassifyTasksComprehensive(t *testing.T) {
 	ctx := context.Background()
 

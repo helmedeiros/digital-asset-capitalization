@@ -178,6 +178,32 @@ func TestContentBasedAssetClassifier_ClassifyTaskAsset(t *testing.T) {
 			expectedReason:    "no matching asset found",
 		},
 		{
+			name: "existing label preserved even when natural classification is strong",
+			task: &taskdomain.Task{
+				Key:         "TEST-8",
+				Summary:     "AB Mode Comparison on SRP - Desktop Web",
+				Description: "Implement mode comparison feature on search results page",
+				Epic:        "SRP Improvements",
+				Labels:      []string{"cap-asset-mode-comparison", "cap-development"},
+			},
+			assets: []*assetdomain.Asset{
+				{
+					Name:        "Mode Comparison",
+					Description: "Compare different travel modes",
+					Keywords:    []string{"mode", "comparison", "srp"},
+				},
+				{
+					Name:        "Search Results Page",
+					Description: "Search results page optimization",
+					Keywords:    []string{"search", "results", "srp", "filtering"},
+				},
+			},
+			expectedAssetName: "Mode Comparison",
+			expectedMinConf:   0.85,
+			expectedMaxConf:   0.85,
+			expectedReason:    "existing asset label preserved",
+		},
+		{
 			name: "case insensitive matching",
 			task: &taskdomain.Task{
 				Key:         "TEST-7",
