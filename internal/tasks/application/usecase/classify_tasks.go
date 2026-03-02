@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	assetsapp "github.com/helmedeiros/digital-asset-capitalization/internal/assets/application"
+	assetdomain "github.com/helmedeiros/digital-asset-capitalization/internal/assets/domain"
 	"github.com/helmedeiros/digital-asset-capitalization/internal/tasks/domain"
 	"github.com/helmedeiros/digital-asset-capitalization/internal/tasks/domain/ports"
 )
@@ -493,45 +494,34 @@ func (uc *ClassifyTasksUseCase) buildUpdatedLabels(existingLabels []string, work
 
 // getAssetLabel returns the proper asset label, preferring the asset ID if available
 func (uc *ClassifyTasksUseCase) getAssetLabel(asset interface{}) string {
-	// If we receive a full Asset object, use its ID
-	if assetObj, ok := asset.(interface{ GetID() string }); ok {
+	// If we receive a full Asset object, use its ID or Name
+	if assetObj, ok := asset.(*assetdomain.Asset); ok {
 		id := assetObj.GetID()
-		// Use the ID if it follows the cap-asset-* format
 		if strings.HasPrefix(id, "cap-asset-") {
 			return id
 		}
+		// Fallback to generating from Name
+		if assetObj.Name != "" {
+			return formatAssetLabel(assetObj.Name)
+		}
 	}
 
-	// Fallback: generate from asset name (for backward compatibility)
+	// Fallback: generate from asset name string
 	var assetName string
 	switch v := asset.(type) {
 	case string:
 		assetName = v
 	default:
-		// For assets without proper ID, we need to handle test assets that
-		// are created with direct struct initialization and don't have IDs
-		// but do have Name fields accessible through reflection
-		if asset == nil {
-			assetName = "unknown"
-		} else {
-			// For test purposes, we need a more sophisticated approach
-			// Since tests create assets with struct literals like &Asset{Name: "Test Asset"}
-			// we need to try to access the name through interface conversion
-			typeName := fmt.Sprintf("%T", asset)
-			if strings.Contains(typeName, "Asset") {
-				// Default fallback for test assets - in practice this should be rare
-				// since production assets should have proper IDs
-				assetName = "test-asset"
-			} else {
-				assetName = "unknown"
-			}
-		}
+		assetName = "unknown"
 	}
 
-	// Convert asset name to lowercase and replace spaces with hyphens for label format
-	labelName := strings.ToLower(assetName)
+	return formatAssetLabel(assetName)
+}
+
+// formatAssetLabel converts an asset name to a cap-asset-* label format
+func formatAssetLabel(name string) string {
+	labelName := strings.ToLower(name)
 	labelName = strings.ReplaceAll(labelName, " ", "-")
-	// Remove parentheses and other special characters
 	labelName = strings.ReplaceAll(labelName, "(", "")
 	labelName = strings.ReplaceAll(labelName, ")", "")
 	labelName = strings.ReplaceAll(labelName, "&", "and")
