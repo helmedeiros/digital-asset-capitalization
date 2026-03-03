@@ -119,8 +119,8 @@ func (r *TaskRepository) DeleteByProjectAndSprint(_ context.Context, _, _ string
 }
 
 // UpdateLabels updates the labels of a task in the remote repository
-func (r *TaskRepository) UpdateLabels(ctx context.Context, taskKey string, labels []string) error {
-	return r.client.UpdateLabels(ctx, taskKey, labels)
+func (r *TaskRepository) UpdateLabels(ctx context.Context, taskKey string, addLabels, removeLabels []string) error {
+	return r.client.UpdateLabels(ctx, taskKey, addLabels, removeLabels)
 }
 
 // Ensure Repository implements ports.Repository

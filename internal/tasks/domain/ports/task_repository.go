@@ -36,5 +36,6 @@ type TaskRepository interface {
 	DeleteByProjectAndSprint(ctx context.Context, project, sprint string) error
 
 	// UpdateLabels updates the labels of a task in the remote repository
-	UpdateLabels(ctx context.Context, taskKey string, labels []string) error
+	// using add/remove operations to avoid overwriting non-cap labels
+	UpdateLabels(ctx context.Context, taskKey string, addLabels, removeLabels []string) error
 }

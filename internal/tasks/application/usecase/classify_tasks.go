@@ -162,15 +162,15 @@ func (uc *ClassifyTasksUseCase) Execute(ctx context.Context, input domain.Classi
 
 		// Apply labels to Jira if requested
 		if input.Apply {
-			// Build new labels preserving existing ones but updating work type and asset
-			newLabels := uc.buildUpdatedLabels(task.Labels, workType, result.Asset)
+			// Build add/remove label sets for cap-prefixed labels only
+			addLabels, removeLabels := uc.buildLabelChanges(task.Labels, workType, result.Asset)
 
 			fmt.Printf("  🏷️  %s → %s", task.Key, workType)
 			if result.Asset != nil && result.Asset.Asset != nil {
 				fmt.Printf(" + %s", uc.getAssetLabel(result.Asset.Asset))
 			}
 
-			if err := uc.remoteRepo.UpdateLabels(ctx, task.Key, newLabels); err != nil {
+			if err := uc.remoteRepo.UpdateLabels(ctx, task.Key, addLabels, removeLabels); err != nil {
 				fmt.Printf(" ❌ Failed to update JIRA\n")
 				return fmt.Errorf("failed to apply labels to task %s: %w", task.Key, err)
 			}
@@ -454,42 +454,44 @@ func formatWorkType(workType domain.WorkType) string {
 	}
 }
 
-// buildUpdatedLabels builds new labels preserving existing ones but updating work type and asset
-func (uc *ClassifyTasksUseCase) buildUpdatedLabels(existingLabels []string, workType domain.WorkType, assetResult *ports.AssetClassificationResult) []string {
-	// Pre-allocate with estimated capacity: existing labels + work type + potential asset label
-	newLabels := make([]string, 0, len(existingLabels)+2)
-
-	// Check if we should preserve existing asset labels
+// buildLabelChanges computes which cap-prefixed labels to add and remove
+// so that JIRA's update operations only touch cap-prefixed labels
+func (uc *ClassifyTasksUseCase) buildLabelChanges(existingLabels []string, workType domain.WorkType, assetResult *ports.AssetClassificationResult) (addLabels, removeLabels []string) {
 	preserveExistingAsset := assetResult != nil && assetResult.Reason == "existing asset label preserved" && assetResult.Confidence >= 0.95
 
-	// Keep all labels except old work type and conditionally old asset labels
+	// Collect old cap work-type and asset labels to remove
 	for _, label := range existingLabels {
-		// Skip old work type labels
 		if label == "cap-development" || label == "cap-maintenance" || label == "cap-discovery" {
-			continue
+			removeLabels = append(removeLabels, label)
 		}
-		// Skip old asset labels ONLY if we're not preserving them
-		if strings.HasPrefix(label, "cap-asset-") {
-			if preserveExistingAsset {
-				// Keep existing asset labels when they should be preserved
-				newLabels = append(newLabels, label)
-			}
-			continue
+		if strings.HasPrefix(label, "cap-asset-") && !preserveExistingAsset {
+			removeLabels = append(removeLabels, label)
 		}
-		// Keep all other labels
-		newLabels = append(newLabels, label)
 	}
 
 	// Add new work type label
-	newLabels = append(newLabels, string(workType))
+	addLabels = append(addLabels, string(workType))
 
 	// Add new asset label if available and not preserving existing ones
 	if assetResult != nil && assetResult.Asset != nil && !preserveExistingAsset {
 		assetLabel := uc.getAssetLabel(assetResult.Asset)
-		newLabels = append(newLabels, assetLabel)
+		addLabels = append(addLabels, assetLabel)
 	}
 
-	return newLabels
+	// Remove the new label from removeLabels if it was already there (no-op)
+	addSet := make(map[string]bool, len(addLabels))
+	for _, l := range addLabels {
+		addSet[l] = true
+	}
+	filtered := removeLabels[:0]
+	for _, l := range removeLabels {
+		if !addSet[l] {
+			filtered = append(filtered, l)
+		}
+	}
+	removeLabels = filtered
+
+	return addLabels, removeLabels
 }
 
 // getAssetLabel returns the proper asset label, preferring the asset ID if available

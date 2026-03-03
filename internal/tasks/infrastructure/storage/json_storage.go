@@ -183,8 +183,9 @@ func (s *JSONStorage) DeleteByProjectAndSprint(_ context.Context, project, sprin
 	return s.saveTasks(newTasks)
 }
 
-// UpdateLabels updates the labels of a task in the remote repository
-func (s *JSONStorage) UpdateLabels(_ context.Context, taskKey string, labels []string) error {
+// UpdateLabels updates the labels of a task in the local repository
+// using add/remove semantics to stay consistent with the port interface
+func (s *JSONStorage) UpdateLabels(_ context.Context, taskKey string, addLabels, removeLabels []string) error {
 	if taskKey == "" {
 		return fmt.Errorf("task key cannot be empty")
 	}
@@ -199,7 +200,32 @@ func (s *JSONStorage) UpdateLabels(_ context.Context, taskKey string, labels []s
 		return fmt.Errorf("task %s not found", taskKey)
 	}
 
-	task.Labels = labels
+	// Build a set of labels to remove for fast lookup
+	removeSet := make(map[string]bool, len(removeLabels))
+	for _, label := range removeLabels {
+		removeSet[label] = true
+	}
+
+	// Filter out removed labels
+	filtered := make([]string, 0, len(task.Labels))
+	for _, label := range task.Labels {
+		if !removeSet[label] {
+			filtered = append(filtered, label)
+		}
+	}
+
+	// Add new labels (avoid duplicates)
+	existing := make(map[string]bool, len(filtered))
+	for _, label := range filtered {
+		existing[label] = true
+	}
+	for _, label := range addLabels {
+		if !existing[label] {
+			filtered = append(filtered, label)
+		}
+	}
+
+	task.Labels = filtered
 	return s.saveTasks(tasks)
 }
 
