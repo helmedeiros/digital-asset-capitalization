@@ -49,7 +49,7 @@ func (m *MockHTTPClient) Do(req *http.Request) (*http.Response, error) {
 type MockClient struct {
 	FetchTasksFunc     func(ctx context.Context, project, sprint string) ([]*domain.Task, error)
 	FetchTaskByKeyFunc func(ctx context.Context, key string) (*domain.Task, error)
-	UpdateLabelsFunc   func(ctx context.Context, issueKey string, labels []string) error
+	UpdateLabelsFunc   func(ctx context.Context, issueKey string, addLabels, removeLabels []string) error
 }
 
 func (m *MockClient) FetchTasks(ctx context.Context, project, sprint string) ([]*domain.Task, error) {
@@ -66,9 +66,9 @@ func (m *MockClient) FetchTaskByKey(ctx context.Context, key string) (*domain.Ta
 	return nil, nil
 }
 
-func (m *MockClient) UpdateLabels(ctx context.Context, issueKey string, labels []string) error {
+func (m *MockClient) UpdateLabels(ctx context.Context, issueKey string, addLabels, removeLabels []string) error {
 	if m.UpdateLabelsFunc != nil {
-		return m.UpdateLabelsFunc(ctx, issueKey, labels)
+		return m.UpdateLabelsFunc(ctx, issueKey, addLabels, removeLabels)
 	}
 	return nil
 }
@@ -76,7 +76,7 @@ func (m *MockClient) UpdateLabels(ctx context.Context, issueKey string, labels [
 type mockClient struct {
 	fetchTasksFunc     func(ctx context.Context, project, sprint string) ([]*domain.Task, error)
 	fetchTaskByKeyFunc func(ctx context.Context, key string) (*domain.Task, error)
-	updateLabelsFunc   func(ctx context.Context, issueKey string, labels []string) error
+	updateLabelsFunc   func(ctx context.Context, issueKey string, addLabels, removeLabels []string) error
 }
 
 func (m *mockClient) FetchTasks(ctx context.Context, project, sprint string) ([]*domain.Task, error) {
@@ -93,9 +93,9 @@ func (m *mockClient) FetchTaskByKey(ctx context.Context, key string) (*domain.Ta
 	return nil, nil
 }
 
-func (m *mockClient) UpdateLabels(ctx context.Context, issueKey string, labels []string) error {
+func (m *mockClient) UpdateLabels(ctx context.Context, issueKey string, addLabels, removeLabels []string) error {
 	if m.updateLabelsFunc != nil {
-		return m.updateLabelsFunc(ctx, issueKey, labels)
+		return m.updateLabelsFunc(ctx, issueKey, addLabels, removeLabels)
 	}
 	return nil
 }
@@ -418,21 +418,24 @@ func TestJiraTaskRepository_UpdateLabels(t *testing.T) {
 	tests := []struct {
 		name          string
 		taskKey       string
-		labels        []string
+		addLabels     []string
+		removeLabels  []string
 		mockError     error
 		expectedError bool
 	}{
 		{
 			name:          "successful label update",
 			taskKey:       "TEST-1",
-			labels:        []string{"development"},
+			addLabels:     []string{"cap-development"},
+			removeLabels:  []string{"cap-maintenance"},
 			mockError:     nil,
 			expectedError: false,
 		},
 		{
 			name:          "failed label update",
 			taskKey:       "TEST-1",
-			labels:        []string{"development"},
+			addLabels:     []string{"cap-development"},
+			removeLabels:  nil,
 			mockError:     fmt.Errorf("failed to update labels"),
 			expectedError: true,
 		},
@@ -442,7 +445,7 @@ func TestJiraTaskRepository_UpdateLabels(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			// Create mock client
 			mockClient := &mockClient{
-				updateLabelsFunc: func(_ context.Context, _ string, _ []string) error {
+				updateLabelsFunc: func(_ context.Context, _ string, _, _ []string) error {
 					return tt.mockError
 				},
 			}
@@ -453,7 +456,7 @@ func TestJiraTaskRepository_UpdateLabels(t *testing.T) {
 			}
 
 			// Test UpdateLabels
-			err := repo.UpdateLabels(context.Background(), tt.taskKey, tt.labels)
+			err := repo.UpdateLabels(context.Background(), tt.taskKey, tt.addLabels, tt.removeLabels)
 
 			if tt.expectedError {
 				assert.Error(t, err)

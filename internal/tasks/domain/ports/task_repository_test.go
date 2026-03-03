@@ -96,8 +96,8 @@ func (m *mockRepository) DeleteByProjectAndSprint(_ context.Context, project, sp
 	return nil
 }
 
-// UpdateLabels updates the labels of a task in the remote repository
-func (m *mockRepository) UpdateLabels(_ context.Context, taskKey string, labels []string) error {
+// UpdateLabels updates the labels of a task using add/remove semantics
+func (m *mockRepository) UpdateLabels(_ context.Context, taskKey string, addLabels, removeLabels []string) error {
 	if taskKey == "" {
 		return fmt.Errorf("task key cannot be empty")
 	}
@@ -107,7 +107,32 @@ func (m *mockRepository) UpdateLabels(_ context.Context, taskKey string, labels 
 		return fmt.Errorf("task %s not found", taskKey)
 	}
 
-	task.Labels = labels
+	// Build remove set
+	removeSet := make(map[string]bool, len(removeLabels))
+	for _, l := range removeLabels {
+		removeSet[l] = true
+	}
+
+	// Filter out removed labels
+	filtered := make([]string, 0, len(task.Labels))
+	for _, l := range task.Labels {
+		if !removeSet[l] {
+			filtered = append(filtered, l)
+		}
+	}
+
+	// Add new labels (avoid duplicates)
+	existing := make(map[string]bool, len(filtered))
+	for _, l := range filtered {
+		existing[l] = true
+	}
+	for _, l := range addLabels {
+		if !existing[l] {
+			filtered = append(filtered, l)
+		}
+	}
+
+	task.Labels = filtered
 	return nil
 }
 
@@ -191,23 +216,31 @@ func TestRepositoryOperations(t *testing.T) {
 	err = repo.Save(ctx, task3)
 	require.NoError(t, err)
 
-	// Test updating labels
-	newLabels := []string{"label1", "label2"}
-	err = repo.UpdateLabels(ctx, "TASK-3", newLabels)
+	// Test updating labels using add/remove semantics
+	addLabels := []string{"label1", "label2"}
+	err = repo.UpdateLabels(ctx, "TASK-3", addLabels, nil)
 	require.NoError(t, err)
 
-	// Verify the labels were updated
+	// Verify the labels were added
 	updatedTask, err := repo.FindByKey(ctx, "TASK-3")
 	require.NoError(t, err)
-	assert.Equal(t, newLabels, updatedTask.Labels)
+	assert.Equal(t, addLabels, updatedTask.Labels)
+
+	// Test removing a label and adding another
+	err = repo.UpdateLabels(ctx, "TASK-3", []string{"label3"}, []string{"label1"})
+	require.NoError(t, err)
+
+	updatedTask, err = repo.FindByKey(ctx, "TASK-3")
+	require.NoError(t, err)
+	assert.ElementsMatch(t, []string{"label2", "label3"}, updatedTask.Labels)
 
 	// Test updating labels for non-existent task
-	err = repo.UpdateLabels(ctx, "NON-EXISTENT", newLabels)
+	err = repo.UpdateLabels(ctx, "NON-EXISTENT", addLabels, nil)
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "task NON-EXISTENT not found")
 
 	// Test updating labels with empty task key
-	err = repo.UpdateLabels(ctx, "", newLabels)
+	err = repo.UpdateLabels(ctx, "", addLabels, nil)
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "task key cannot be empty")
 }

@@ -11,7 +11,7 @@ import (
 type MockTaskRepository struct {
 	findByProjectAndSprintFunc func(ctx context.Context, project, sprint string) ([]*domain.Task, error)
 	saveFunc                   func(ctx context.Context, task *domain.Task) error
-	updateLabelsFunc           func(ctx context.Context, taskKey string, labels []string) error
+	updateLabelsFunc           func(ctx context.Context, taskKey string, addLabels, removeLabels []string) error
 	findAllFunc                func(ctx context.Context) ([]*domain.Task, error)
 	findByKeyFunc              func(ctx context.Context, key string) (*domain.Task, error)
 }
@@ -41,7 +41,7 @@ func (m *MockTaskRepository) SetSaveFunc(f func(ctx context.Context, task *domai
 }
 
 // SetUpdateLabelsFunc sets the mock function for UpdateLabels
-func (m *MockTaskRepository) SetUpdateLabelsFunc(f func(ctx context.Context, taskKey string, labels []string) error) {
+func (m *MockTaskRepository) SetUpdateLabelsFunc(f func(ctx context.Context, taskKey string, addLabels, removeLabels []string) error) {
 	m.updateLabelsFunc = f
 }
 
@@ -113,9 +113,9 @@ func (m *MockTaskRepository) DeleteByProjectAndSprint(ctx context.Context, proje
 }
 
 // UpdateLabels updates the labels of a task in the remote repository
-func (m *MockTaskRepository) UpdateLabels(ctx context.Context, taskKey string, labels []string) error {
+func (m *MockTaskRepository) UpdateLabels(ctx context.Context, taskKey string, addLabels, removeLabels []string) error {
 	if m.updateLabelsFunc != nil {
-		return m.updateLabelsFunc(ctx, taskKey, labels)
+		return m.updateLabelsFunc(ctx, taskKey, addLabels, removeLabels)
 	}
 	return nil
 }

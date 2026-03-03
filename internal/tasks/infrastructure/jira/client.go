@@ -25,8 +25,8 @@ type Client interface {
 	// FetchTaskByKey retrieves a single task from Jira by its key
 	FetchTaskByKey(ctx context.Context, key string) (*domain.Task, error)
 
-	// UpdateLabels updates the labels of a Jira issue
-	UpdateLabels(ctx context.Context, issueKey string, labels []string) error
+	// UpdateLabels updates the labels of a Jira issue using add/remove operations
+	UpdateLabels(ctx context.Context, issueKey string, addLabels, removeLabels []string) error
 }
 
 // HTTPClient defines the interface for making HTTP requests
@@ -713,15 +713,35 @@ func (c *client) convertSingleIssueToDomainTask(issue api.Issue) (*domain.Task, 
 	return task, nil
 }
 
-// UpdateLabels updates the labels of a Jira issue
-func (c *client) UpdateLabels(ctx context.Context, issueKey string, labels []string) error {
-	// Construct the request body
+// labelOperation represents a single JIRA label add/remove operation
+type labelOperation struct {
+	Add    string `json:"add,omitempty"`
+	Remove string `json:"remove,omitempty"`
+}
+
+// UpdateLabels updates the labels of a Jira issue using add/remove operations
+// to avoid overwriting non-cap labels
+func (c *client) UpdateLabels(ctx context.Context, issueKey string, addLabels, removeLabels []string) error {
+	// Build label operations
+	ops := make([]labelOperation, 0, len(addLabels)+len(removeLabels))
+	for _, label := range removeLabels {
+		ops = append(ops, labelOperation{Remove: label})
+	}
+	for _, label := range addLabels {
+		ops = append(ops, labelOperation{Add: label})
+	}
+
+	if len(ops) == 0 {
+		return nil
+	}
+
+	// Construct the request body using JIRA update operations
 	body := struct {
-		Fields struct {
-			Labels []string `json:"labels"`
-		} `json:"fields"`
+		Update struct {
+			Labels []labelOperation `json:"labels"`
+		} `json:"update"`
 	}{}
-	body.Fields.Labels = labels
+	body.Update.Labels = ops
 
 	// Convert to JSON
 	jsonBody, err := json.Marshal(body)
@@ -748,8 +768,8 @@ func (c *client) UpdateLabels(ctx context.Context, issueKey string, labels []str
 
 	// Check response status
 	if resp.StatusCode != http.StatusNoContent && resp.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(resp.Body)
-		return fmt.Errorf("failed to update labels: status %d, body: %s", resp.StatusCode, string(body))
+		respBody, _ := io.ReadAll(resp.Body)
+		return fmt.Errorf("failed to update labels: status %d, body: %s", resp.StatusCode, string(respBody))
 	}
 
 	return nil

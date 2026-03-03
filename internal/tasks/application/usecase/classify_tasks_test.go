@@ -94,8 +94,8 @@ func (m *MockTaskRepository) DeleteByProjectAndSprint(ctx context.Context, proje
 	return args.Error(0)
 }
 
-func (m *MockTaskRepository) UpdateLabels(ctx context.Context, taskKey string, labels []string) error {
-	args := m.Called(ctx, taskKey, labels)
+func (m *MockTaskRepository) UpdateLabels(ctx context.Context, taskKey string, addLabels, removeLabels []string) error {
+	args := m.Called(ctx, taskKey, addLabels, removeLabels)
 	return args.Error(0)
 }
 
@@ -199,8 +199,8 @@ func TestClassifyTasksUseCase_Execute(t *testing.T) {
 					"TEST-2": domain.WorkTypeMaintenance,
 				}, nil)
 				localRepo.On("Save", ctx, mock.Anything).Return(nil).Times(2)
-				remoteRepo.On("UpdateLabels", ctx, "TEST-1", []string{"cap-development"}).Return(nil)
-				remoteRepo.On("UpdateLabels", ctx, "TEST-2", []string{"cap-maintenance"}).Return(nil)
+				remoteRepo.On("UpdateLabels", ctx, "TEST-1", []string{"cap-development"}, []string(nil)).Return(nil)
+				remoteRepo.On("UpdateLabels", ctx, "TEST-2", []string{"cap-maintenance"}, []string(nil)).Return(nil)
 			},
 		},
 		{
@@ -234,8 +234,8 @@ func TestClassifyTasksUseCase_Execute(t *testing.T) {
 					"TEST-3": domain.WorkTypeDiscovery,
 					"TEST-4": domain.WorkTypeDevelopment,
 				}, nil)
-				remoteRepo.On("UpdateLabels", ctx, "TEST-3", []string{"cap-discovery"}).Return(nil)
-				remoteRepo.On("UpdateLabels", ctx, "TEST-4", []string{"cap-development"}).Return(nil)
+				remoteRepo.On("UpdateLabels", ctx, "TEST-3", []string{"cap-discovery"}, []string(nil)).Return(nil)
+				remoteRepo.On("UpdateLabels", ctx, "TEST-4", []string{"cap-development"}, []string(nil)).Return(nil)
 			},
 		},
 		{
@@ -624,7 +624,7 @@ func TestFormatWorkType(t *testing.T) {
 	}
 }
 
-func TestBuildUpdatedLabels(t *testing.T) {
+func TestBuildLabelChanges(t *testing.T) {
 	// Create mocks for the use case (needed to call the method)
 	mockLocalRepo := new(MockTaskRepository)
 	mockRemoteRepo := new(MockTaskRepository)
@@ -638,21 +638,24 @@ func TestBuildUpdatedLabels(t *testing.T) {
 		existingLabels []string
 		workType       domain.WorkType
 		assetResult    *ports.AssetClassificationResult
-		expected       []string
+		expectedAdd    []string
+		expectedRemove []string
 	}{
 		{
 			name:           "should add new work type label to empty labels",
 			existingLabels: []string{},
 			workType:       domain.WorkTypeDevelopment,
 			assetResult:    nil,
-			expected:       []string{"cap-development"},
+			expectedAdd:    []string{"cap-development"},
+			expectedRemove: nil,
 		},
 		{
 			name:           "should replace existing work type label",
 			existingLabels: []string{"cap-maintenance", "other-label"},
 			workType:       domain.WorkTypeDevelopment,
 			assetResult:    nil,
-			expected:       []string{"other-label", "cap-development"},
+			expectedAdd:    []string{"cap-development"},
+			expectedRemove: []string{"cap-maintenance"},
 		},
 		{
 			name:           "should add asset label when provided",
@@ -663,7 +666,8 @@ func TestBuildUpdatedLabels(t *testing.T) {
 				Confidence: 0.85,
 				Reason:     "keyword match",
 			},
-			expected: []string{"existing-label", "cap-development", "cap-asset-test-asset"},
+			expectedAdd:    []string{"cap-development", "cap-asset-test-asset"},
+			expectedRemove: nil,
 		},
 		{
 			name:           "should preserve existing asset label when confidence is high and reason indicates preservation",
@@ -674,7 +678,8 @@ func TestBuildUpdatedLabels(t *testing.T) {
 				Confidence: 0.95,
 				Reason:     "existing asset label preserved",
 			},
-			expected: []string{"cap-asset-existing", "other-label", "cap-development"},
+			expectedAdd:    []string{"cap-development"},
+			expectedRemove: []string{"cap-maintenance"},
 		},
 		{
 			name:           "should replace asset label when confidence is low",
@@ -685,14 +690,16 @@ func TestBuildUpdatedLabels(t *testing.T) {
 				Confidence: 0.75,
 				Reason:     "keyword match",
 			},
-			expected: []string{"other-label", "cap-development", "cap-asset-new-asset"},
+			expectedAdd:    []string{"cap-development", "cap-asset-new-asset"},
+			expectedRemove: []string{"cap-maintenance", "cap-asset-old"},
 		},
 		{
 			name:           "should handle multiple work type labels and replace all",
 			existingLabels: []string{"cap-development", "cap-maintenance", "cap-discovery", "other-label"},
 			workType:       domain.WorkTypeMaintenance,
 			assetResult:    nil,
-			expected:       []string{"other-label", "cap-maintenance"},
+			expectedAdd:    []string{"cap-maintenance"},
+			expectedRemove: []string{"cap-development", "cap-discovery"},
 		},
 		{
 			name:           "should handle multiple asset labels and replace with new one",
@@ -703,14 +710,16 @@ func TestBuildUpdatedLabels(t *testing.T) {
 				Confidence: 0.90,
 				Reason:     "best match found",
 			},
-			expected: []string{"other-label", "cap-development", "cap-asset-new-asset"},
+			expectedAdd:    []string{"cap-development", "cap-asset-new-asset"},
+			expectedRemove: []string{"cap-asset-old1", "cap-asset-old2"},
 		},
 		{
-			name:           "should preserve non-asset and non-work-type labels",
+			name:           "should not touch non-cap labels",
 			existingLabels: []string{"bug", "priority-high", "team-backend", "cap-development"},
 			workType:       domain.WorkTypeDiscovery,
 			assetResult:    nil,
-			expected:       []string{"bug", "priority-high", "team-backend", "cap-discovery"},
+			expectedAdd:    []string{"cap-discovery"},
+			expectedRemove: []string{"cap-development"},
 		},
 		{
 			name:           "should handle asset result with nil asset",
@@ -721,7 +730,8 @@ func TestBuildUpdatedLabels(t *testing.T) {
 				Confidence: 0.0,
 				Reason:     "no match found",
 			},
-			expected: []string{"existing-label", "cap-development"},
+			expectedAdd:    []string{"cap-development"},
+			expectedRemove: nil,
 		},
 		{
 			name:           "should handle complex scenario with preservation and replacement",
@@ -732,14 +742,52 @@ func TestBuildUpdatedLabels(t *testing.T) {
 				Confidence: 0.98,
 				Reason:     "existing asset label preserved",
 			},
-			expected: []string{"cap-asset-preserved", "bug", "priority-high", "cap-development"},
+			expectedAdd:    []string{"cap-development"},
+			expectedRemove: []string{"cap-maintenance"},
+		},
+		{
+			name:           "should not remove the same label being added",
+			existingLabels: []string{"cap-development"},
+			workType:       domain.WorkTypeDevelopment,
+			assetResult:    nil,
+			expectedAdd:    []string{"cap-development"},
+			expectedRemove: nil,
+		},
+		{
+			name:           "should never touch non-cap labels like workstream",
+			existingLabels: []string{"workstream", "cap-maintenance", "team-backend", "cap-asset-old-feature"},
+			workType:       domain.WorkTypeDevelopment,
+			assetResult: &ports.AssetClassificationResult{
+				Asset:      createTestAsset("New Feature"),
+				Confidence: 0.85,
+				Reason:     "keyword match",
+			},
+			expectedAdd:    []string{"cap-development", "cap-asset-new-feature"},
+			expectedRemove: []string{"cap-maintenance", "cap-asset-old-feature"},
+		},
+		{
+			name:           "should only produce cap-prefixed labels in add and remove lists",
+			existingLabels: []string{"bug", "priority-high", "workstream", "sprint-goal", "cap-discovery", "cap-asset-payments"},
+			workType:       domain.WorkTypeMaintenance,
+			assetResult: &ports.AssetClassificationResult{
+				Asset:      createTestAsset("Infrastructure"),
+				Confidence: 0.80,
+				Reason:     "keyword match",
+			},
+			expectedAdd:    []string{"cap-maintenance", "cap-asset-infrastructure"},
+			expectedRemove: []string{"cap-discovery", "cap-asset-payments"},
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result := uc.buildUpdatedLabels(tt.existingLabels, tt.workType, tt.assetResult)
-			assert.ElementsMatch(t, tt.expected, result)
+			addLabels, removeLabels := uc.buildLabelChanges(tt.existingLabels, tt.workType, tt.assetResult)
+			assert.ElementsMatch(t, tt.expectedAdd, addLabels, "add labels mismatch")
+			if tt.expectedRemove == nil {
+				assert.Empty(t, removeLabels, "remove labels should be empty")
+			} else {
+				assert.ElementsMatch(t, tt.expectedRemove, removeLabels, "remove labels mismatch")
+			}
 		})
 	}
 }
@@ -912,8 +960,8 @@ func TestClassifyTasksComprehensive(t *testing.T) {
 		localRepo.On("FindByProjectAndSprint", ctx, testProject, testSprint).Return(tasks, nil)
 		comprehensiveClassifier.On("ClassifyTasksComprehensive", tasks).Return(comprehensiveResults, nil)
 		localRepo.On("Save", ctx, mock.Anything).Return(nil).Times(2)
-		remoteRepo.On("UpdateLabels", ctx, "TEST-1", []string{"cap-development", "cap-asset-test-asset"}).Return(nil)
-		remoteRepo.On("UpdateLabels", ctx, "TEST-2", []string{"cap-maintenance"}).Return(nil)
+		remoteRepo.On("UpdateLabels", ctx, "TEST-1", []string{"cap-development", "cap-asset-test-asset"}, []string(nil)).Return(nil)
+		remoteRepo.On("UpdateLabels", ctx, "TEST-2", []string{"cap-maintenance"}, []string(nil)).Return(nil)
 
 		// Act
 		err = uc.Execute(ctx, input)
@@ -986,7 +1034,7 @@ func TestClassifyTasksComprehensive(t *testing.T) {
 		localRepo.On("FindByProjectAndSprint", ctx, testProject, testSprint).Return(tasks, nil)
 		simpleClassifier.On("ClassifyTasks", tasks).Return(workTypes, nil)
 		localRepo.On("Save", ctx, mock.Anything).Return(nil)
-		remoteRepo.On("UpdateLabels", ctx, "TEST-1", []string{"cap-development"}).Return(nil)
+		remoteRepo.On("UpdateLabels", ctx, "TEST-1", []string{"cap-development"}, []string(nil)).Return(nil)
 
 		// Act
 		err := uc.Execute(ctx, input)
@@ -1130,7 +1178,7 @@ func TestClassifyTasksEdgeCases(t *testing.T) {
 		localRepo.On("FindByProjectAndSprint", ctx, testProject, testSprint).Return(tasks, nil)
 		classifier.On("ClassifyTasks", tasks).Return(workTypes, nil)
 		localRepo.On("Save", ctx, mock.Anything).Return(nil)
-		remoteRepo.On("UpdateLabels", ctx, "TEST-1", []string{"cap-development"}).Return(nil)
+		remoteRepo.On("UpdateLabels", ctx, "TEST-1", []string{"cap-development"}, []string(nil)).Return(nil)
 
 		// Act
 		err := uc.Execute(ctx, input)
@@ -1204,7 +1252,7 @@ func TestClassifyTasksEdgeCases(t *testing.T) {
 		localRepo.On("FindByProjectAndSprint", ctx, testProject, testSprint).Return(tasks, nil)
 		classifier.On("ClassifyTasks", tasks).Return(workTypes, nil)
 		localRepo.On("Save", ctx, mock.Anything).Return(nil)
-		remoteRepo.On("UpdateLabels", ctx, "TEST-1", []string{"cap-development"}).Return(fmt.Errorf("update error"))
+		remoteRepo.On("UpdateLabels", ctx, "TEST-1", []string{"cap-development"}, []string(nil)).Return(fmt.Errorf("update error"))
 
 		// Act
 		err := uc.Execute(ctx, input)
@@ -1757,7 +1805,7 @@ func TestAdditionalErrorHandlingAndEdgeCases(t *testing.T) {
 		comprehensiveClassifier.On("ClassifyTasksComprehensive", tasks).Return(results, nil)
 		// First task saves successfully
 		localRepo.On("Save", ctx, tasks[0]).Return(nil)
-		remoteRepo.On("UpdateLabels", ctx, "TEST-1", []string{"cap-development"}).Return(nil)
+		remoteRepo.On("UpdateLabels", ctx, "TEST-1", []string{"cap-development"}, []string(nil)).Return(nil)
 		// Second task fails to save
 		localRepo.On("Save", ctx, tasks[1]).Return(fmt.Errorf("save error"))
 
@@ -1867,17 +1915,75 @@ func TestAdditionalErrorHandlingAndEdgeCases(t *testing.T) {
 			},
 		}
 
-		expectedLabels := []string{"existing-label", "cap-development", "cap-asset-test-asset"}
+		expectedAddLabels := []string{"cap-development", "cap-asset-test-asset"}
+		expectedRemoveLabels := []string{"cap-maintenance", "cap-asset-old"}
 
 		localRepo.On("FindByProjectAndSprint", ctx, testProject, testSprint).Return([]*domain.Task{task}, nil)
 		comprehensiveClassifier.On("ClassifyTasksComprehensive", []*domain.Task{task}).Return(results, nil)
 		localRepo.On("Save", ctx, mock.Anything).Return(nil)
-		remoteRepo.On("UpdateLabels", ctx, "TEST-1", expectedLabels).Return(nil)
+		remoteRepo.On("UpdateLabels", ctx, "TEST-1", expectedAddLabels, expectedRemoveLabels).Return(nil)
 
 		// Act
 		err := uc.Execute(ctx, input)
 
 		// Assert
+		assert.NoError(t, err)
+		localRepo.AssertExpectations(t)
+		remoteRepo.AssertExpectations(t)
+		comprehensiveClassifier.AssertExpectations(t)
+	})
+
+	t.Run("should never include non-cap labels in add or remove operations", func(t *testing.T) {
+		// This test reproduces the original bug: COP-147 had a "workstream" label
+		// that was overwritten when classify --apply used PUT with full label replacement.
+		// With add/remove operations, "workstream" must never appear in either list.
+		localRepo := new(MockTaskRepository)
+		remoteRepo := new(MockTaskRepository)
+		comprehensiveClassifier := new(MockComprehensiveTaskClassifier)
+		userInput := new(MockUserInput)
+		assetService := testutil.NewMockAssetService()
+
+		uc := NewClassifyTasksUseCase(localRepo, remoteRepo, comprehensiveClassifier, userInput, assetService, nil)
+
+		input := domain.ClassifyTasksInput{
+			Project: testProject,
+			Sprint:  testSprint,
+			DryRun:  false,
+			Apply:   true,
+		}
+
+		task := &domain.Task{
+			Key:     "COP-147",
+			Summary: "Fix payment processing",
+			Labels:  []string{"workstream", "cap-maintenance"},
+		}
+
+		results := []*ports.ComprehensiveClassificationResult{
+			{
+				Task:     task,
+				WorkType: domain.WorkTypeDevelopment,
+				Asset: &ports.AssetClassificationResult{
+					Asset:      createTestAsset("Payment Processing"),
+					Confidence: 0.90,
+					Reason:     "keyword match",
+				},
+				WorkTypeReason: "Development pattern",
+			},
+		}
+
+		localRepo.On("FindByProjectAndSprint", ctx, testProject, testSprint).Return([]*domain.Task{task}, nil)
+		comprehensiveClassifier.On("ClassifyTasksComprehensive", []*domain.Task{task}).Return(results, nil)
+		localRepo.On("Save", ctx, mock.Anything).Return(nil)
+
+		// The key assertion: only cap-prefixed labels appear in add/remove.
+		// "workstream" must NOT appear in either list.
+		remoteRepo.On("UpdateLabels", ctx, "COP-147",
+			[]string{"cap-development", "cap-asset-payment-processing"},
+			[]string{"cap-maintenance"},
+		).Return(nil)
+
+		err := uc.Execute(ctx, input)
+
 		assert.NoError(t, err)
 		localRepo.AssertExpectations(t)
 		remoteRepo.AssertExpectations(t)
@@ -1939,17 +2045,17 @@ func TestSortingAndDisplayLogic(t *testing.T) {
 		localRepo.On("Save", ctx, mock.MatchedBy(func(task *domain.Task) bool {
 			return task.Key == "TEST-1"
 		})).Return(nil).Once()
-		remoteRepo.On("UpdateLabels", ctx, "TEST-1", []string{"cap-maintenance"}).Return(nil).Once()
+		remoteRepo.On("UpdateLabels", ctx, "TEST-1", []string{"cap-maintenance"}, []string(nil)).Return(nil).Once()
 
 		localRepo.On("Save", ctx, mock.MatchedBy(func(task *domain.Task) bool {
 			return task.Key == "TEST-2"
 		})).Return(nil).Once()
-		remoteRepo.On("UpdateLabels", ctx, "TEST-2", []string{"cap-discovery"}).Return(nil).Once()
+		remoteRepo.On("UpdateLabels", ctx, "TEST-2", []string{"cap-discovery"}, []string(nil)).Return(nil).Once()
 
 		localRepo.On("Save", ctx, mock.MatchedBy(func(task *domain.Task) bool {
 			return task.Key == "TEST-3"
 		})).Return(nil).Once()
-		remoteRepo.On("UpdateLabels", ctx, "TEST-3", []string{"cap-development"}).Return(nil).Once()
+		remoteRepo.On("UpdateLabels", ctx, "TEST-3", []string{"cap-development"}, []string(nil)).Return(nil).Once()
 
 		// Act
 		err := uc.Execute(ctx, input)
@@ -2249,7 +2355,7 @@ func TestSprintLockBehavior(t *testing.T) {
 		userInput.On("Confirm", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(true, nil)
 		classifier.On("ClassifyTasks", tasks).Return(map[string]domain.WorkType{"TEST-1": "cap-development"}, nil)
 		localRepo.On("Save", mock.Anything, mock.Anything).Return(nil)
-		remoteRepo.On("UpdateLabels", mock.Anything, mock.Anything, mock.Anything).Return(nil)
+		remoteRepo.On("UpdateLabels", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil)
 		lockRepo.On("SaveLock", mock.Anything, mock.Anything).Return(nil)
 
 		input := domain.ClassifyTasksInput{

@@ -68,8 +68,8 @@ func (m *MockTaskRepository) DeleteByProjectAndSprint(ctx context.Context, proje
 	return args.Error(0)
 }
 
-func (m *MockTaskRepository) UpdateLabels(ctx context.Context, taskKey string, labels []string) error {
-	args := m.Called(ctx, taskKey, labels)
+func (m *MockTaskRepository) UpdateLabels(ctx context.Context, taskKey string, addLabels, removeLabels []string) error {
+	args := m.Called(ctx, taskKey, addLabels, removeLabels)
 	return args.Error(0)
 }
 

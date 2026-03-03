@@ -422,75 +422,88 @@ func TestJSONStorage_UpdateLabels(t *testing.T) {
 	h := setupTest(t)
 	defer h.cleanup(t)
 
-	t.Run("should update labels for existing task", func(t *testing.T) {
+	t.Run("should add labels to existing task", func(t *testing.T) {
 		task := h.createTestTask("TEST-1", "Test Task", "TEST", "Sprint 1")
 		err := h.storage.Save(context.Background(), task)
 		require.NoError(t, err, "Failed to save task")
 
-		// Update labels
-		newLabels := []string{"bug", "high-priority", "urgent"}
-		err = h.storage.UpdateLabels(context.Background(), task.Key, newLabels)
+		// Add labels
+		err = h.storage.UpdateLabels(context.Background(), task.Key, []string{"bug", "high-priority"}, nil)
 		require.NoError(t, err, "Failed to update labels")
 
-		// Verify labels were updated
+		// Verify labels were added
 		loaded, err := h.storage.FindByKey(context.Background(), task.Key)
 		require.NoError(t, err, "Failed to load task")
-		assert.Equal(t, newLabels, loaded.Labels, "Labels should be updated")
+		assert.ElementsMatch(t, []string{"bug", "high-priority"}, loaded.Labels)
 	})
 
-	t.Run("should update labels to empty slice", func(t *testing.T) {
+	t.Run("should remove labels from existing task", func(t *testing.T) {
 		task := h.createTestTask("TEST-1", "Test Task", "TEST", "Sprint 1")
-		task.Labels = []string{"old-label"}
+		task.Labels = []string{"bug", "cap-maintenance", "workstream"}
 		err := h.storage.Save(context.Background(), task)
 		require.NoError(t, err, "Failed to save task")
 
-		// Update to empty labels
-		err = h.storage.UpdateLabels(context.Background(), task.Key, []string{})
+		// Remove cap-maintenance and add cap-development
+		err = h.storage.UpdateLabels(context.Background(), task.Key,
+			[]string{"cap-development"}, []string{"cap-maintenance"})
 		require.NoError(t, err, "Failed to update labels")
 
-		// Verify labels were cleared
+		// Verify only cap-maintenance was removed and cap-development was added
 		loaded, err := h.storage.FindByKey(context.Background(), task.Key)
 		require.NoError(t, err, "Failed to load task")
-		assert.Empty(t, loaded.Labels, "Labels should be empty")
+		assert.ElementsMatch(t, []string{"bug", "workstream", "cap-development"}, loaded.Labels)
 	})
 
-	t.Run("should update labels to nil slice", func(t *testing.T) {
+	t.Run("should handle empty add and remove", func(t *testing.T) {
 		task := h.createTestTask("TEST-1", "Test Task", "TEST", "Sprint 1")
-		task.Labels = []string{"old-label"}
+		task.Labels = []string{"existing-label"}
 		err := h.storage.Save(context.Background(), task)
 		require.NoError(t, err, "Failed to save task")
 
-		// Update to nil labels
-		err = h.storage.UpdateLabels(context.Background(), task.Key, nil)
+		// No changes
+		err = h.storage.UpdateLabels(context.Background(), task.Key, nil, nil)
 		require.NoError(t, err, "Failed to update labels")
 
-		// Verify labels were cleared
 		loaded, err := h.storage.FindByKey(context.Background(), task.Key)
 		require.NoError(t, err, "Failed to load task")
-		assert.Nil(t, loaded.Labels, "Labels should be nil")
+		assert.Equal(t, []string{"existing-label"}, loaded.Labels)
+	})
+
+	t.Run("should not add duplicate labels", func(t *testing.T) {
+		task := h.createTestTask("TEST-1", "Test Task", "TEST", "Sprint 1")
+		task.Labels = []string{"cap-development"}
+		err := h.storage.Save(context.Background(), task)
+		require.NoError(t, err, "Failed to save task")
+
+		// Add same label again
+		err = h.storage.UpdateLabels(context.Background(), task.Key, []string{"cap-development"}, nil)
+		require.NoError(t, err, "Failed to update labels")
+
+		loaded, err := h.storage.FindByKey(context.Background(), task.Key)
+		require.NoError(t, err, "Failed to load task")
+		assert.Equal(t, []string{"cap-development"}, loaded.Labels)
 	})
 
 	t.Run("should return error for empty task key", func(t *testing.T) {
-		err := h.storage.UpdateLabels(context.Background(), "", []string{"label"})
+		err := h.storage.UpdateLabels(context.Background(), "", []string{"label"}, nil)
 		assert.Error(t, err, "Expected error for empty task key")
-		assert.Contains(t, err.Error(), "task key cannot be empty", "Expected specific error message")
+		assert.Contains(t, err.Error(), "task key cannot be empty")
 	})
 
 	t.Run("should return error for non-existent task", func(t *testing.T) {
-		err := h.storage.UpdateLabels(context.Background(), "NON-EXISTENT", []string{"label"})
+		err := h.storage.UpdateLabels(context.Background(), "NON-EXISTENT", []string{"label"}, nil)
 		assert.Error(t, err, "Expected error for non-existent task")
-		assert.Contains(t, err.Error(), "not found", "Expected not found error")
+		assert.Contains(t, err.Error(), "not found")
 	})
 
 	t.Run("should handle storage loading error", func(t *testing.T) {
-		// Create storage pointing to invalid directory (read-only)
 		invalidDir := filepath.Join(h.dir, "readonly")
-		err := os.MkdirAll(invalidDir, 0444) // Read-only directory
+		err := os.MkdirAll(invalidDir, 0444)
 		require.NoError(t, err, "Failed to create readonly directory")
 
 		invalidStorage := NewJSONStorage(invalidDir, "nonexistent.json")
 
-		err = invalidStorage.UpdateLabels(context.Background(), "TEST-1", []string{"label"})
+		err = invalidStorage.UpdateLabels(context.Background(), "TEST-1", []string{"label"}, nil)
 		assert.Error(t, err, "Expected error when loading from readonly directory")
 	})
 }

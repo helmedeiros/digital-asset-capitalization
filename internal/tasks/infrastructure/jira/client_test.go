@@ -1037,66 +1037,94 @@ func TestClient_FetchTaskByKey(t *testing.T) {
 }
 
 func TestClient_UpdateLabels(t *testing.T) {
-	tests := []struct {
-		name           string
-		taskKey        string
-		labels         []string
-		serverResponse string
-		statusCode     int
-		expectError    bool
-	}{
-		{
-			name:           "successful update",
-			taskKey:        "TEST-1",
-			labels:         []string{"label1", "label2"},
-			serverResponse: `{"key": "TEST-1"}`,
-			statusCode:     200,
-			expectError:    false,
-		},
-		{
-			name:           "empty task key",
-			taskKey:        "",
-			labels:         []string{"label1"},
-			serverResponse: "",
-			statusCode:     400,
-			expectError:    true,
-		},
-		{
-			name:           "server error",
-			taskKey:        "TEST-1",
-			labels:         []string{"label1"},
-			serverResponse: `{"error": "Internal server error"}`,
-			statusCode:     500,
-			expectError:    true,
-		},
-	}
+	t.Run("successful update with add and remove operations", func(t *testing.T) {
+		var receivedBody map[string]interface{}
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			bodyBytes, _ := io.ReadAll(r.Body)
+			json.Unmarshal(bodyBytes, &receivedBody)
+			w.WriteHeader(http.StatusNoContent)
+		}))
+		defer server.Close()
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-				w.WriteHeader(tt.statusCode)
-				w.Write([]byte(tt.serverResponse))
-			}))
-			defer server.Close()
+		config := &Config{
+			BaseURL: server.URL,
+			Email:   "test@example.com",
+			Token:   "test-token",
+		}
 
-			config := &Config{
-				BaseURL: server.URL,
-				Email:   "test@example.com",
-				Token:   "test-token",
-			}
+		client, err := NewClient(config)
+		require.NoError(t, err)
 
-			client, err := NewClient(config)
-			require.NoError(t, err)
+		err = client.UpdateLabels(context.Background(), "TEST-1",
+			[]string{"cap-development", "cap-asset-new"},
+			[]string{"cap-maintenance", "cap-asset-old"},
+		)
 
-			err = client.UpdateLabels(context.Background(), tt.taskKey, tt.labels)
+		assert.NoError(t, err)
 
-			if tt.expectError {
-				assert.Error(t, err)
-			} else {
-				assert.NoError(t, err)
-			}
-		})
-	}
+		// Verify the request body uses update operations
+		update, ok := receivedBody["update"].(map[string]interface{})
+		require.True(t, ok, "body should have 'update' key")
+		labels, ok := update["labels"].([]interface{})
+		require.True(t, ok, "update should have 'labels' key")
+
+		// Should have 4 operations: 2 removes + 2 adds
+		assert.Len(t, labels, 4)
+
+		// First two should be removes
+		op0 := labels[0].(map[string]interface{})
+		assert.Equal(t, "cap-maintenance", op0["remove"])
+		op1 := labels[1].(map[string]interface{})
+		assert.Equal(t, "cap-asset-old", op1["remove"])
+
+		// Last two should be adds
+		op2 := labels[2].(map[string]interface{})
+		assert.Equal(t, "cap-development", op2["add"])
+		op3 := labels[3].(map[string]interface{})
+		assert.Equal(t, "cap-asset-new", op3["add"])
+
+		// Verify no 'fields' key exists
+		_, hasFields := receivedBody["fields"]
+		assert.False(t, hasFields, "body should not have 'fields' key")
+	})
+
+	t.Run("no operations when both add and remove are empty", func(t *testing.T) {
+		config := &Config{
+			BaseURL: "http://unused.example.com",
+			Email:   "test@example.com",
+			Token:   "test-token",
+		}
+
+		client, err := NewClient(config)
+		require.NoError(t, err)
+
+		err = client.UpdateLabels(context.Background(), "TEST-1", nil, nil)
+		assert.NoError(t, err)
+	})
+
+	t.Run("server error", func(t *testing.T) {
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			w.WriteHeader(http.StatusInternalServerError)
+			w.Write([]byte(`{"error": "Internal server error"}`))
+		}))
+		defer server.Close()
+
+		config := &Config{
+			BaseURL: server.URL,
+			Email:   "test@example.com",
+			Token:   "test-token",
+		}
+
+		client, err := NewClient(config)
+		require.NoError(t, err)
+
+		err = client.UpdateLabels(context.Background(), "TEST-1",
+			[]string{"cap-development"}, nil,
+		)
+
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "failed to update labels")
+	})
 }
 
 func TestNewRepositoryLegacy_ErrorHandling(t *testing.T) {
