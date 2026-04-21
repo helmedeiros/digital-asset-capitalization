@@ -2,6 +2,7 @@ package usecase
 
 import (
 	"fmt"
+	"time"
 
 	"github.com/helmedeiros/digital-asset-capitalization/internal/config/domain"
 	"github.com/helmedeiros/digital-asset-capitalization/internal/config/domain/ports"
@@ -66,6 +67,23 @@ func (s *SyncTeamFromJira) Execute(projectKey string) (*domain.TeamSyncResult, e
 
 	result.AddedMembers = findAddedMembers(currentMembers, newMemberNames)
 	result.RemovedMembers = findRemovedMembers(currentMembers, newMemberNames)
+
+	// Maintain team timeline if one exists
+	if currentTeamConfig.HasTeamTimeline(projectKey) {
+		now := time.Now()
+		for _, added := range result.AddedMembers {
+			if err := currentTeamConfig.AddMemberWithDates(projectKey, added, now); err != nil {
+				// Ignore duplicate errors — member may already have a timeline entry
+				_ = err
+			}
+		}
+		for _, removed := range result.RemovedMembers {
+			if err := currentTeamConfig.SetMemberLeft(projectKey, removed, now); err != nil {
+				// Ignore errors — member may already have a left date
+				_ = err
+			}
+		}
+	}
 
 	// Update team configuration
 	if err := currentTeamConfig.SetTeam(projectKey, newMemberNames); err != nil {

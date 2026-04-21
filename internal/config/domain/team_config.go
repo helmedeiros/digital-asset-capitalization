@@ -4,24 +4,56 @@ import (
 	"fmt"
 	"slices"
 	"strings"
+	"time"
 )
+
+// TeamMemberPeriod represents a team member's active period within a project
+type TeamMemberPeriod struct {
+	Member string
+	Joined time.Time
+	Left   *time.Time // nil means still active
+}
+
+// IsActiveAt returns true if the member was active at the given time
+func (p TeamMemberPeriod) IsActiveAt(t time.Time) bool {
+	if t.Before(p.Joined) {
+		return false
+	}
+	if p.Left != nil && t.After(*p.Left) {
+		return false
+	}
+	return true
+}
+
+// IsActiveDuring returns true if the member was active during any part of [start, end]
+func (p TeamMemberPeriod) IsActiveDuring(start, end time.Time) bool {
+	if p.Left != nil && p.Left.Before(start) {
+		return false
+	}
+	if p.Joined.After(end) {
+		return false
+	}
+	return true
+}
 
 // TeamConfig represents the team configuration domain entity
 type TeamConfig struct {
 	teams                 map[string][]string
-	nicknames             map[string][]string       // project -> nicknames mapping
-	tribes                map[string]string         // project -> tribe mapping
-	companies             map[string]string         // project -> company mapping
-	confluenceSpaces      map[string]string         // project -> confluence space mapping
-	confluenceParentPages map[string]string         // project -> confluence parent page ID mapping
-	excludedIssueTypes    map[string][]string       // project -> excluded issue types for sprint allocation
-	boardWorkStreams      map[string]map[int]string // project -> boardID -> workstream name
+	teamTimelines         map[string][]TeamMemberPeriod // project -> member periods
+	nicknames             map[string][]string           // project -> nicknames mapping
+	tribes                map[string]string             // project -> tribe mapping
+	companies             map[string]string             // project -> company mapping
+	confluenceSpaces      map[string]string             // project -> confluence space mapping
+	confluenceParentPages map[string]string             // project -> confluence parent page ID mapping
+	excludedIssueTypes    map[string][]string           // project -> excluded issue types for sprint allocation
+	boardWorkStreams      map[string]map[int]string     // project -> boardID -> workstream name
 }
 
 // NewTeamConfig creates a new TeamConfig with validation
 func NewTeamConfig(teams map[string][]string) (*TeamConfig, error) {
 	config := &TeamConfig{
 		teams:                 make(map[string][]string),
+		teamTimelines:         make(map[string][]TeamMemberPeriod),
 		nicknames:             make(map[string][]string),
 		tribes:                make(map[string]string),
 		companies:             make(map[string]string),
@@ -639,6 +671,161 @@ func (tc *TeamConfig) SetBoardWorkStreams(project string, mapping map[int]string
 	}
 	tc.boardWorkStreams[trimmedProject] = mapping
 	return nil
+}
+
+// GetTeamTimeline returns the timeline for a given project
+func (tc *TeamConfig) GetTeamTimeline(project string) []TeamMemberPeriod {
+	timeline, exists := tc.teamTimelines[project]
+	if !exists {
+		return nil
+	}
+	result := make([]TeamMemberPeriod, len(timeline))
+	copy(result, timeline)
+	return result
+}
+
+// HasTeamTimeline returns true if the project has a timeline configured
+func (tc *TeamConfig) HasTeamTimeline(project string) bool {
+	timeline, exists := tc.teamTimelines[project]
+	return exists && len(timeline) > 0
+}
+
+// SetTeamTimeline sets the timeline for a project
+func (tc *TeamConfig) SetTeamTimeline(project string, timeline []TeamMemberPeriod) error {
+	trimmedProject := strings.TrimSpace(project)
+	if trimmedProject == "" {
+		return fmt.Errorf("project key cannot be empty")
+	}
+	if _, exists := tc.teams[trimmedProject]; !exists {
+		return fmt.Errorf("project '%s' does not exist", trimmedProject)
+	}
+	tc.teamTimelines[trimmedProject] = timeline
+	return nil
+}
+
+// GetTeamForPeriod returns the union of members active during any part of [start, end].
+// A member who was active for even one day during the period is included.
+// Falls back to the flat team array if no timeline exists.
+func (tc *TeamConfig) GetTeamForPeriod(project string, start, end time.Time) ([]string, bool) {
+	timeline, exists := tc.teamTimelines[project]
+	if !exists || len(timeline) == 0 {
+		return tc.GetTeam(project)
+	}
+
+	seen := make(map[string]bool)
+	var members []string
+	for _, period := range timeline {
+		if period.IsActiveDuring(start, end) && !seen[period.Member] {
+			seen[period.Member] = true
+			members = append(members, period.Member)
+		}
+	}
+
+	if len(members) == 0 {
+		return nil, true
+	}
+	return members, true
+}
+
+// AddMemberWithDates adds a member to the timeline with a joined date
+func (tc *TeamConfig) AddMemberWithDates(project, member string, joined time.Time) error {
+	trimmedProject := strings.TrimSpace(project)
+	if trimmedProject == "" {
+		return fmt.Errorf("project key cannot be empty")
+	}
+	trimmedMember := strings.TrimSpace(member)
+	if trimmedMember == "" {
+		return fmt.Errorf("team member cannot be empty")
+	}
+	if _, exists := tc.teams[trimmedProject]; !exists {
+		return fmt.Errorf("project '%s' does not exist", trimmedProject)
+	}
+
+	// Check for duplicate active member
+	for _, p := range tc.teamTimelines[trimmedProject] {
+		if p.Member == trimmedMember && p.Left == nil {
+			return fmt.Errorf("team member '%s' already has an active period in project '%s'", trimmedMember, trimmedProject)
+		}
+	}
+
+	tc.teamTimelines[trimmedProject] = append(tc.teamTimelines[trimmedProject], TeamMemberPeriod{
+		Member: trimmedMember,
+		Joined: joined,
+	})
+	return nil
+}
+
+// SetMemberLeft sets the left date for an active member in the timeline
+func (tc *TeamConfig) SetMemberLeft(project, member string, left time.Time) error {
+	trimmedProject := strings.TrimSpace(project)
+	if trimmedProject == "" {
+		return fmt.Errorf("project key cannot be empty")
+	}
+	trimmedMember := strings.TrimSpace(member)
+	if trimmedMember == "" {
+		return fmt.Errorf("team member cannot be empty")
+	}
+
+	timeline, exists := tc.teamTimelines[trimmedProject]
+	if !exists {
+		return fmt.Errorf("project '%s' has no timeline", trimmedProject)
+	}
+
+	for i, p := range timeline {
+		if p.Member == trimmedMember && p.Left == nil {
+			tc.teamTimelines[trimmedProject][i].Left = &left
+			return nil
+		}
+	}
+
+	return fmt.Errorf("no active period found for member '%s' in project '%s'", trimmedMember, trimmedProject)
+}
+
+// DeriveActiveTeamFromTimeline returns the currently active members from the timeline
+func (tc *TeamConfig) DeriveActiveTeamFromTimeline(project string) []string {
+	timeline, exists := tc.teamTimelines[project]
+	if !exists || len(timeline) == 0 {
+		return nil
+	}
+
+	var active []string
+	for _, p := range timeline {
+		if p.Left == nil {
+			active = append(active, p.Member)
+		}
+	}
+	return active
+}
+
+// GetAllTeamTimelines returns a copy of all team timelines
+func (tc *TeamConfig) GetAllTeamTimelines() map[string][]TeamMemberPeriod {
+	result := make(map[string][]TeamMemberPeriod, len(tc.teamTimelines))
+	for project, timeline := range tc.teamTimelines {
+		timelineCopy := make([]TeamMemberPeriod, len(timeline))
+		copy(timelineCopy, timeline)
+		result[project] = timelineCopy
+	}
+	return result
+}
+
+// NewTeamConfigWithTimelines creates a new TeamConfig with all fields including team timelines
+func NewTeamConfigWithTimelines(teams map[string][]string, nicknames map[string][]string, tribes map[string]string, companies map[string]string, confluenceSpaces map[string]string, confluenceParentPages map[string]string, excludedIssueTypes map[string][]string, boardWorkStreams map[string]map[int]string, teamTimelines map[string][]TeamMemberPeriod) (*TeamConfig, error) {
+	config, err := NewTeamConfigWithBoardWorkStreams(teams, nicknames, tribes, companies, confluenceSpaces, confluenceParentPages, excludedIssueTypes, boardWorkStreams)
+	if err != nil {
+		return nil, err
+	}
+
+	for project, timeline := range teamTimelines {
+		trimmedProject := strings.TrimSpace(project)
+		if trimmedProject == "" {
+			continue
+		}
+		if _, exists := config.teams[trimmedProject]; exists && len(timeline) > 0 {
+			config.teamTimelines[trimmedProject] = timeline
+		}
+	}
+
+	return config, nil
 }
 
 // ToCompleteMapWithBoardWorkStreams returns all maps including board work streams

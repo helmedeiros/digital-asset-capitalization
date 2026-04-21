@@ -2,6 +2,7 @@ package service
 
 import (
 	"fmt"
+	"time"
 
 	"github.com/helmedeiros/digital-asset-capitalization/internal/config/domain"
 	configPorts "github.com/helmedeiros/digital-asset-capitalization/internal/config/domain/ports"
@@ -51,6 +52,41 @@ func (s *ConfigService) GetTeamMapForSprint() (sprintDomain.TeamMap, error) {
 	for _, project := range teamConfig.GetProjects() {
 		members, exists := teamConfig.GetTeam(project)
 		if exists {
+			teamMap[project] = sprintDomain.Team{
+				Team:               members,
+				ExcludedIssueTypes: teamConfig.GetExcludedIssueTypes(project),
+			}
+		}
+	}
+
+	return teamMap, nil
+}
+
+// GetTeamMapForSprintWithDates returns team data resolved for a specific date range.
+// For projects with a team timeline, members are resolved based on who was active
+// during [start, end]. For projects without a timeline, falls back to the flat team array.
+func (s *ConfigService) GetTeamMapForSprintWithDates(start, end time.Time) (sprintDomain.TeamMap, error) {
+	teamConfig, err := s.GetTeamConfig()
+	if err != nil {
+		return nil, fmt.Errorf("failed to get team configuration: %w", err)
+	}
+
+	teamMap := make(sprintDomain.TeamMap)
+	for _, project := range teamConfig.GetProjects() {
+		var members []string
+		if teamConfig.HasTeamTimeline(project) {
+			resolved, exists := teamConfig.GetTeamForPeriod(project, start, end)
+			if exists {
+				members = resolved
+			}
+		} else {
+			resolved, exists := teamConfig.GetTeam(project)
+			if exists {
+				members = resolved
+			}
+		}
+
+		if members != nil {
 			teamMap[project] = sprintDomain.Team{
 				Team:               members,
 				ExcludedIssueTypes: teamConfig.GetExcludedIssueTypes(project),

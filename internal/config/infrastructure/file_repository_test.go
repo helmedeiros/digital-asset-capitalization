@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -607,5 +608,141 @@ func TestFileRepository_TeamConfigWithExcludedIssueTypes(t *testing.T) {
 		require.NoError(t, err)
 
 		assert.Nil(t, config.GetExcludedIssueTypes("COP"))
+	})
+}
+
+func TestFileRepository_TeamConfigWithTimeline(t *testing.T) {
+	t.Run("should load team_timeline from teams.json", func(t *testing.T) {
+		tempDir := t.TempDir()
+		repo := NewFileRepository(tempDir)
+
+		teamsJSON := `{
+			"PROJECT-A": {
+				"team": ["Alice", "Charlie"],
+				"team_timeline": [
+					{"member": "Alice", "joined": "2024-01-01"},
+					{"member": "Bob", "joined": "2024-01-01", "left": "2024-06-30"},
+					{"member": "Charlie", "joined": "2024-03-01"}
+				]
+			}
+		}`
+
+		teamsPath := filepath.Join(tempDir, "teams.json")
+		err := os.WriteFile(teamsPath, []byte(teamsJSON), 0644)
+		require.NoError(t, err)
+
+		config, err := repo.LoadTeamConfig()
+		require.NoError(t, err)
+
+		assert.True(t, config.HasTeamTimeline("PROJECT-A"))
+
+		timeline := config.GetTeamTimeline("PROJECT-A")
+		require.Len(t, timeline, 3)
+
+		assert.Equal(t, "Alice", timeline[0].Member)
+		assert.Nil(t, timeline[0].Left)
+
+		assert.Equal(t, "Bob", timeline[1].Member)
+		require.NotNil(t, timeline[1].Left)
+		assert.Equal(t, time.Date(2024, 6, 30, 0, 0, 0, 0, time.UTC), *timeline[1].Left)
+
+		assert.Equal(t, "Charlie", timeline[2].Member)
+		assert.Nil(t, timeline[2].Left)
+	})
+
+	t.Run("should save and load team_timeline round-trip", func(t *testing.T) {
+		tempDir := t.TempDir()
+		repo := NewFileRepository(tempDir)
+
+		joined := time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC)
+		left := time.Date(2024, 6, 30, 0, 0, 0, 0, time.UTC)
+
+		teams := map[string][]string{"PROJECT-A": {"Alice", "Bob"}}
+		timelines := map[string][]domain.TeamMemberPeriod{
+			"PROJECT-A": {
+				{Member: "Alice", Joined: joined},
+				{Member: "Bob", Joined: joined, Left: &left},
+			},
+		}
+
+		config, err := domain.NewTeamConfigWithTimelines(teams, nil, nil, nil, nil, nil, nil, nil, timelines)
+		require.NoError(t, err)
+
+		err = repo.SaveTeamConfig(config)
+		require.NoError(t, err)
+
+		loadedConfig, err := repo.LoadTeamConfig()
+		require.NoError(t, err)
+
+		assert.True(t, loadedConfig.HasTeamTimeline("PROJECT-A"))
+
+		loadedTimeline := loadedConfig.GetTeamTimeline("PROJECT-A")
+		require.Len(t, loadedTimeline, 2)
+		assert.Equal(t, "Alice", loadedTimeline[0].Member)
+		assert.Nil(t, loadedTimeline[0].Left)
+		assert.Equal(t, "Bob", loadedTimeline[1].Member)
+		require.NotNil(t, loadedTimeline[1].Left)
+	})
+
+	t.Run("save derives active team from timeline", func(t *testing.T) {
+		tempDir := t.TempDir()
+		repo := NewFileRepository(tempDir)
+
+		joined := time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC)
+		left := time.Date(2024, 6, 30, 0, 0, 0, 0, time.UTC)
+
+		teams := map[string][]string{"PROJECT-A": {"Alice", "Bob"}}
+		timelines := map[string][]domain.TeamMemberPeriod{
+			"PROJECT-A": {
+				{Member: "Alice", Joined: joined},
+				{Member: "Bob", Joined: joined, Left: &left},
+			},
+		}
+
+		config, err := domain.NewTeamConfigWithTimelines(teams, nil, nil, nil, nil, nil, nil, nil, timelines)
+		require.NoError(t, err)
+
+		err = repo.SaveTeamConfig(config)
+		require.NoError(t, err)
+
+		// Read raw JSON to verify team array was derived
+		data, err := os.ReadFile(filepath.Join(tempDir, "teams.json"))
+		require.NoError(t, err)
+
+		var raw map[string]json.RawMessage
+		require.NoError(t, json.Unmarshal(data, &raw))
+
+		var projectData struct {
+			Team []string `json:"team"`
+		}
+		require.NoError(t, json.Unmarshal(raw["PROJECT-A"], &projectData))
+
+		// Only Alice should be in the active team (Bob has left)
+		assert.Equal(t, []string{"Alice"}, projectData.Team)
+	})
+
+	t.Run("should handle missing team_timeline field gracefully", func(t *testing.T) {
+		tempDir := t.TempDir()
+		repo := NewFileRepository(tempDir)
+
+		teamsJSON := `{
+			"PROJECT-A": {
+				"team": ["Alice", "Bob"]
+			}
+		}`
+
+		teamsPath := filepath.Join(tempDir, "teams.json")
+		err := os.WriteFile(teamsPath, []byte(teamsJSON), 0644)
+		require.NoError(t, err)
+
+		config, err := repo.LoadTeamConfig()
+		require.NoError(t, err)
+
+		assert.False(t, config.HasTeamTimeline("PROJECT-A"))
+
+		// Should fall back to flat team
+		members, exists := config.GetTeam("PROJECT-A")
+		assert.True(t, exists)
+		assert.Equal(t, []string{"Alice", "Bob"}, members)
 	})
 }
