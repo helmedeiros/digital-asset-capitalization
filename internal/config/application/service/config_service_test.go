@@ -3,6 +3,7 @@ package service
 import (
 	"errors"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
@@ -760,6 +761,94 @@ func TestConfigService_GetExcludedIssueTypesForProject(t *testing.T) {
 		require.Error(t, err)
 		assert.Nil(t, types)
 		assert.Contains(t, err.Error(), "failed to load team configuration")
+		repo.AssertExpectations(t)
+	})
+}
+
+func TestConfigService_GetTeamMapForSprintWithDates(t *testing.T) {
+	date := func(year int, month time.Month, day int) time.Time {
+		return time.Date(year, month, day, 0, 0, 0, 0, time.UTC)
+	}
+	datePtr := func(year int, month time.Month, day int) *time.Time {
+		t := date(year, month, day)
+		return &t
+	}
+
+	t.Run("resolves team from timeline for given period", func(t *testing.T) {
+		repo := &MockConfigurationRepository{}
+		svc := NewConfigService(repo)
+
+		teams := map[string][]string{"PROJECT-A": {"Alice", "Charlie"}}
+		timelines := map[string][]domain.TeamMemberPeriod{
+			"PROJECT-A": {
+				{Member: "Alice", Joined: date(2024, 1, 1)},
+				{Member: "Bob", Joined: date(2024, 1, 1), Left: datePtr(2024, 6, 30)},
+				{Member: "Charlie", Joined: date(2024, 7, 1)},
+			},
+		}
+		config, err := domain.NewTeamConfigWithTimelines(teams, nil, nil, nil, nil, nil, nil, nil, timelines)
+		require.NoError(t, err)
+
+		repo.On("LoadTeamConfig").Return(config, nil)
+
+		// Q1: Alice + Bob active
+		teamMap, err := svc.GetTeamMapForSprintWithDates(date(2024, 1, 1), date(2024, 3, 31))
+		require.NoError(t, err)
+
+		team, exists := teamMap.GetTeam("PROJECT-A")
+		require.True(t, exists)
+		assert.ElementsMatch(t, []string{"Alice", "Bob"}, team.Team)
+	})
+
+	t.Run("falls back to flat team without timeline", func(t *testing.T) {
+		repo := &MockConfigurationRepository{}
+		svc := NewConfigService(repo)
+
+		teams := map[string][]string{"PROJECT-A": {"Alice", "Bob"}}
+		config, err := domain.NewTeamConfig(teams)
+		require.NoError(t, err)
+
+		repo.On("LoadTeamConfig").Return(config, nil)
+
+		teamMap, err := svc.GetTeamMapForSprintWithDates(date(2024, 1, 1), date(2024, 3, 31))
+		require.NoError(t, err)
+
+		team, exists := teamMap.GetTeam("PROJECT-A")
+		require.True(t, exists)
+		assert.Equal(t, []string{"Alice", "Bob"}, team.Team)
+	})
+
+	t.Run("includes excluded issue types", func(t *testing.T) {
+		repo := &MockConfigurationRepository{}
+		svc := NewConfigService(repo)
+
+		teams := map[string][]string{"PROJECT-A": {"Alice"}}
+		timelines := map[string][]domain.TeamMemberPeriod{
+			"PROJECT-A": {{Member: "Alice", Joined: date(2024, 1, 1)}},
+		}
+		excluded := map[string][]string{"PROJECT-A": {"Experiment"}}
+		config, err := domain.NewTeamConfigWithTimelines(teams, nil, nil, nil, nil, nil, excluded, nil, timelines)
+		require.NoError(t, err)
+
+		repo.On("LoadTeamConfig").Return(config, nil)
+
+		teamMap, err := svc.GetTeamMapForSprintWithDates(date(2024, 1, 1), date(2024, 3, 31))
+		require.NoError(t, err)
+
+		team, exists := teamMap.GetTeam("PROJECT-A")
+		require.True(t, exists)
+		assert.Equal(t, []string{"Experiment"}, team.ExcludedIssueTypes)
+	})
+
+	t.Run("returns error when config loading fails", func(t *testing.T) {
+		repo := &MockConfigurationRepository{}
+		svc := NewConfigService(repo)
+
+		repo.On("LoadTeamConfig").Return(nil, errors.New("repository error"))
+
+		teamMap, err := svc.GetTeamMapForSprintWithDates(date(2024, 1, 1), date(2024, 3, 31))
+		require.Error(t, err)
+		assert.Nil(t, teamMap)
 		repo.AssertExpectations(t)
 	})
 }

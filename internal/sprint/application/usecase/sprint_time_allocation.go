@@ -90,9 +90,16 @@ func NewSprintTimeAllocationUseCaseWithStrategy(project, sprint, override string
 	configSvc := configService.NewConfigService(configRepo)
 
 	// Load teams data using shared configuration service
-	teams, err := configSvc.GetTeamMapForSprint()
-	if err != nil {
-		return nil, fmt.Errorf("failed to load team configuration: %w", err)
+	// When sprint boundary is available, resolve team membership for the sprint period
+	var teams domain.TeamMap
+	if useSprintBoundedCalculation {
+		// We need sprint dates first, so defer team loading until after sprint boundary is resolved
+		teams = nil
+	} else {
+		teams, err = configSvc.GetTeamMapForSprint()
+		if err != nil {
+			return nil, fmt.Errorf("failed to load team configuration: %w", err)
+		}
 	}
 
 	// Create StatusService for team-specific status mapping
@@ -129,6 +136,12 @@ func NewSprintTimeAllocationUseCaseWithStrategy(project, sprint, override string
 			return nil, fmt.Errorf("failed to create sprint boundary: %w", err)
 		}
 		sprintBoundary = &boundary
+
+		// Load teams resolved for the sprint date range
+		teams, err = configSvc.GetTeamMapForSprintWithDates(startDate, endDate)
+		if err != nil {
+			return nil, fmt.Errorf("failed to load team configuration for sprint dates: %w", err)
+		}
 
 		// Use sprint-bounded time calculator with status checker
 		// For sprint-bounded calculation, we need team info which we'll get from the first issue processed

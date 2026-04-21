@@ -2,6 +2,7 @@ package domain
 
 import (
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -1064,5 +1065,347 @@ func TestNewTeamConfigWithExcludedTypes(t *testing.T) {
 
 		_, _, _, _, _, _, resultExcluded := config.ToCompleteMapWithExcludedTypes()
 		assert.Equal(t, []string{"Experiment", "Spike"}, resultExcluded["COP"])
+	})
+}
+
+// --- Team Timeline Tests ---
+
+func date(year int, month time.Month, day int) time.Time {
+	return time.Date(year, month, day, 0, 0, 0, 0, time.UTC)
+}
+
+func datePtr(year int, month time.Month, day int) *time.Time {
+	t := date(year, month, day)
+	return &t
+}
+
+func TestTeamMemberPeriod_IsActiveAt(t *testing.T) {
+	tests := []struct {
+		name   string
+		period TeamMemberPeriod
+		at     time.Time
+		want   bool
+	}{
+		{
+			name:   "active member at date after joined",
+			period: TeamMemberPeriod{Member: "Alice", Joined: date(2024, 1, 1)},
+			at:     date(2024, 6, 15),
+			want:   true,
+		},
+		{
+			name:   "active member on join date",
+			period: TeamMemberPeriod{Member: "Alice", Joined: date(2024, 1, 1)},
+			at:     date(2024, 1, 1),
+			want:   true,
+		},
+		{
+			name:   "before join date",
+			period: TeamMemberPeriod{Member: "Alice", Joined: date(2024, 6, 1)},
+			at:     date(2024, 1, 1),
+			want:   false,
+		},
+		{
+			name:   "after left date",
+			period: TeamMemberPeriod{Member: "Alice", Joined: date(2024, 1, 1), Left: datePtr(2024, 6, 30)},
+			at:     date(2024, 7, 15),
+			want:   false,
+		},
+		{
+			name:   "on left date",
+			period: TeamMemberPeriod{Member: "Alice", Joined: date(2024, 1, 1), Left: datePtr(2024, 6, 30)},
+			at:     date(2024, 6, 30),
+			want:   true,
+		},
+		{
+			name:   "between joined and left",
+			period: TeamMemberPeriod{Member: "Alice", Joined: date(2024, 1, 1), Left: datePtr(2024, 6, 30)},
+			at:     date(2024, 3, 15),
+			want:   true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.want, tt.period.IsActiveAt(tt.at))
+		})
+	}
+}
+
+func TestTeamMemberPeriod_IsActiveDuring(t *testing.T) {
+	tests := []struct {
+		name   string
+		period TeamMemberPeriod
+		start  time.Time
+		end    time.Time
+		want   bool
+	}{
+		{
+			name:   "active member overlaps entire period",
+			period: TeamMemberPeriod{Member: "Alice", Joined: date(2024, 1, 1)},
+			start:  date(2024, 3, 1),
+			end:    date(2024, 3, 15),
+			want:   true,
+		},
+		{
+			name:   "left before period starts",
+			period: TeamMemberPeriod{Member: "Alice", Joined: date(2024, 1, 1), Left: datePtr(2024, 2, 28)},
+			start:  date(2024, 3, 1),
+			end:    date(2024, 3, 15),
+			want:   false,
+		},
+		{
+			name:   "joined after period ends",
+			period: TeamMemberPeriod{Member: "Alice", Joined: date(2024, 4, 1)},
+			start:  date(2024, 3, 1),
+			end:    date(2024, 3, 15),
+			want:   false,
+		},
+		{
+			name:   "left during period - partial overlap",
+			period: TeamMemberPeriod{Member: "Alice", Joined: date(2024, 1, 1), Left: datePtr(2024, 3, 5)},
+			start:  date(2024, 3, 1),
+			end:    date(2024, 3, 15),
+			want:   true,
+		},
+		{
+			name:   "joined during period - partial overlap",
+			period: TeamMemberPeriod{Member: "Alice", Joined: date(2024, 3, 10)},
+			start:  date(2024, 3, 1),
+			end:    date(2024, 3, 15),
+			want:   true,
+		},
+		{
+			name:   "left on period start date",
+			period: TeamMemberPeriod{Member: "Alice", Joined: date(2024, 1, 1), Left: datePtr(2024, 3, 1)},
+			start:  date(2024, 3, 1),
+			end:    date(2024, 3, 15),
+			want:   true,
+		},
+		{
+			name:   "joined on period end date",
+			period: TeamMemberPeriod{Member: "Alice", Joined: date(2024, 3, 15)},
+			start:  date(2024, 3, 1),
+			end:    date(2024, 3, 15),
+			want:   true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.want, tt.period.IsActiveDuring(tt.start, tt.end))
+		})
+	}
+}
+
+func TestTeamConfig_GetTeamForPeriod(t *testing.T) {
+	teams := map[string][]string{
+		"PROJECT-A": {"Alice", "Bob", "Charlie", "Dave"},
+		"PROJECT-B": {"Eve"},
+	}
+
+	timeline := map[string][]TeamMemberPeriod{
+		"PROJECT-A": {
+			{Member: "Alice", Joined: date(2024, 1, 1)},                               // still active
+			{Member: "Bob", Joined: date(2024, 1, 1), Left: datePtr(2024, 6, 30)},     // left mid-year
+			{Member: "Charlie", Joined: date(2024, 1, 1), Left: datePtr(2024, 3, 31)}, // left Q1
+			{Member: "Dave", Joined: date(2024, 7, 1)},                                // joined mid-year
+			{Member: "Eve", Joined: date(2024, 10, 1), Left: datePtr(2024, 12, 31)},   // short stint
+		},
+	}
+
+	config, err := NewTeamConfigWithTimelines(teams, nil, nil, nil, nil, nil, nil, nil, timeline)
+	require.NoError(t, err)
+
+	t.Run("Q1 period includes Alice Bob Charlie", func(t *testing.T) {
+		members, exists := config.GetTeamForPeriod("PROJECT-A", date(2024, 1, 1), date(2024, 3, 31))
+		assert.True(t, exists)
+		assert.ElementsMatch(t, []string{"Alice", "Bob", "Charlie"}, members)
+	})
+
+	t.Run("Q2 period includes Alice Bob", func(t *testing.T) {
+		members, exists := config.GetTeamForPeriod("PROJECT-A", date(2024, 4, 1), date(2024, 6, 30))
+		assert.True(t, exists)
+		assert.ElementsMatch(t, []string{"Alice", "Bob"}, members)
+	})
+
+	t.Run("Q3 period includes Alice Dave", func(t *testing.T) {
+		members, exists := config.GetTeamForPeriod("PROJECT-A", date(2024, 7, 1), date(2024, 9, 30))
+		assert.True(t, exists)
+		assert.ElementsMatch(t, []string{"Alice", "Dave"}, members)
+	})
+
+	t.Run("Q4 period includes Alice Dave Eve", func(t *testing.T) {
+		members, exists := config.GetTeamForPeriod("PROJECT-A", date(2024, 10, 1), date(2024, 12, 31))
+		assert.True(t, exists)
+		assert.ElementsMatch(t, []string{"Alice", "Dave", "Eve"}, members)
+	})
+
+	t.Run("far future includes only active members", func(t *testing.T) {
+		members, exists := config.GetTeamForPeriod("PROJECT-A", date(2025, 6, 1), date(2025, 6, 15))
+		assert.True(t, exists)
+		assert.ElementsMatch(t, []string{"Alice", "Dave"}, members)
+	})
+
+	t.Run("project without timeline falls back to flat team", func(t *testing.T) {
+		members, exists := config.GetTeamForPeriod("PROJECT-B", date(2024, 1, 1), date(2024, 3, 31))
+		assert.True(t, exists)
+		assert.Equal(t, []string{"Eve"}, members)
+	})
+
+	t.Run("non-existent project", func(t *testing.T) {
+		members, exists := config.GetTeamForPeriod("UNKNOWN", date(2024, 1, 1), date(2024, 3, 31))
+		assert.False(t, exists)
+		assert.Nil(t, members)
+	})
+}
+
+func TestTeamConfig_AddMemberWithDates(t *testing.T) {
+	teams := map[string][]string{"PROJECT-A": {"Alice"}}
+	config, err := NewTeamConfig(teams)
+	require.NoError(t, err)
+
+	t.Run("add member with join date", func(t *testing.T) {
+		err := config.AddMemberWithDates("PROJECT-A", "Bob", date(2024, 6, 1))
+		require.NoError(t, err)
+
+		timeline := config.GetTeamTimeline("PROJECT-A")
+		require.Len(t, timeline, 1)
+		assert.Equal(t, "Bob", timeline[0].Member)
+		assert.Equal(t, date(2024, 6, 1), timeline[0].Joined)
+		assert.Nil(t, timeline[0].Left)
+	})
+
+	t.Run("add duplicate active member fails", func(t *testing.T) {
+		err := config.AddMemberWithDates("PROJECT-A", "Bob", date(2024, 7, 1))
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "already has an active period")
+	})
+
+	t.Run("empty project", func(t *testing.T) {
+		err := config.AddMemberWithDates("", "Bob", date(2024, 6, 1))
+		assert.Error(t, err)
+	})
+
+	t.Run("empty member", func(t *testing.T) {
+		err := config.AddMemberWithDates("PROJECT-A", "", date(2024, 6, 1))
+		assert.Error(t, err)
+	})
+
+	t.Run("non-existent project", func(t *testing.T) {
+		err := config.AddMemberWithDates("UNKNOWN", "Bob", date(2024, 6, 1))
+		assert.Error(t, err)
+	})
+}
+
+func TestTeamConfig_SetMemberLeft(t *testing.T) {
+	teams := map[string][]string{"PROJECT-A": {"Alice"}}
+	timeline := map[string][]TeamMemberPeriod{
+		"PROJECT-A": {
+			{Member: "Alice", Joined: date(2024, 1, 1)},
+			{Member: "Bob", Joined: date(2024, 1, 1), Left: datePtr(2024, 6, 30)},
+		},
+	}
+
+	config, err := NewTeamConfigWithTimelines(teams, nil, nil, nil, nil, nil, nil, nil, timeline)
+	require.NoError(t, err)
+
+	t.Run("set left date for active member", func(t *testing.T) {
+		err := config.SetMemberLeft("PROJECT-A", "Alice", date(2024, 12, 31))
+		require.NoError(t, err)
+
+		tl := config.GetTeamTimeline("PROJECT-A")
+		for _, p := range tl {
+			if p.Member == "Alice" {
+				require.NotNil(t, p.Left)
+				assert.Equal(t, date(2024, 12, 31), *p.Left)
+			}
+		}
+	})
+
+	t.Run("cannot set left for already departed member", func(t *testing.T) {
+		err := config.SetMemberLeft("PROJECT-A", "Bob", date(2024, 12, 31))
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "no active period found")
+	})
+
+	t.Run("empty project", func(t *testing.T) {
+		err := config.SetMemberLeft("", "Alice", date(2024, 12, 31))
+		assert.Error(t, err)
+	})
+
+	t.Run("project without timeline", func(t *testing.T) {
+		err := config.SetMemberLeft("UNKNOWN", "Alice", date(2024, 12, 31))
+		assert.Error(t, err)
+	})
+}
+
+func TestTeamConfig_DeriveActiveTeamFromTimeline(t *testing.T) {
+	teams := map[string][]string{"PROJECT-A": {"Alice", "Bob", "Charlie"}}
+	timeline := map[string][]TeamMemberPeriod{
+		"PROJECT-A": {
+			{Member: "Alice", Joined: date(2024, 1, 1)},
+			{Member: "Bob", Joined: date(2024, 1, 1), Left: datePtr(2025, 6, 30)},
+			{Member: "Charlie", Joined: date(2024, 3, 1)},
+		},
+	}
+
+	config, err := NewTeamConfigWithTimelines(teams, nil, nil, nil, nil, nil, nil, nil, timeline)
+	require.NoError(t, err)
+
+	active := config.DeriveActiveTeamFromTimeline("PROJECT-A")
+	assert.ElementsMatch(t, []string{"Alice", "Charlie"}, active)
+}
+
+func TestTeamConfig_HasTeamTimeline(t *testing.T) {
+	teams := map[string][]string{
+		"PROJECT-A": {"Alice"},
+		"PROJECT-B": {"Bob"},
+	}
+	timeline := map[string][]TeamMemberPeriod{
+		"PROJECT-A": {{Member: "Alice", Joined: date(2024, 1, 1)}},
+	}
+
+	config, err := NewTeamConfigWithTimelines(teams, nil, nil, nil, nil, nil, nil, nil, timeline)
+	require.NoError(t, err)
+
+	assert.True(t, config.HasTeamTimeline("PROJECT-A"))
+	assert.False(t, config.HasTeamTimeline("PROJECT-B"))
+	assert.False(t, config.HasTeamTimeline("UNKNOWN"))
+}
+
+func TestNewTeamConfigWithTimelines(t *testing.T) {
+	t.Run("creates config with timelines", func(t *testing.T) {
+		teams := map[string][]string{"PROJECT-A": {"Alice"}}
+		timeline := map[string][]TeamMemberPeriod{
+			"PROJECT-A": {{Member: "Alice", Joined: date(2024, 1, 1)}},
+		}
+
+		config, err := NewTeamConfigWithTimelines(teams, nil, nil, nil, nil, nil, nil, nil, timeline)
+		require.NoError(t, err)
+		assert.True(t, config.HasTeamTimeline("PROJECT-A"))
+	})
+
+	t.Run("ignores timeline for non-existent project", func(t *testing.T) {
+		teams := map[string][]string{"PROJECT-A": {"Alice"}}
+		timeline := map[string][]TeamMemberPeriod{
+			"UNKNOWN": {{Member: "Bob", Joined: date(2024, 1, 1)}},
+		}
+
+		config, err := NewTeamConfigWithTimelines(teams, nil, nil, nil, nil, nil, nil, nil, timeline)
+		require.NoError(t, err)
+		assert.False(t, config.HasTeamTimeline("UNKNOWN"))
+	})
+
+	t.Run("nil timeline is fine", func(t *testing.T) {
+		teams := map[string][]string{"PROJECT-A": {"Alice"}}
+
+		config, err := NewTeamConfigWithTimelines(teams, nil, nil, nil, nil, nil, nil, nil, nil)
+		require.NoError(t, err)
+		assert.False(t, config.HasTeamTimeline("PROJECT-A"))
+
+		// Falls back to flat team
+		members, exists := config.GetTeamForPeriod("PROJECT-A", date(2024, 1, 1), date(2024, 3, 31))
+		assert.True(t, exists)
+		assert.Equal(t, []string{"Alice"}, members)
 	})
 }

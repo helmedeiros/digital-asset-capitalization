@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
+	"time"
 
 	"github.com/helmedeiros/digital-asset-capitalization/internal/config/domain"
 )
@@ -99,7 +100,12 @@ func (r *FileRepository) LoadTeamConfig() (*domain.TeamConfig, error) {
 
 	// Parse existing file format
 	var fileFormat map[string]struct {
-		Team                 []string          `json:"team"`
+		Team         []string `json:"team"`
+		TeamTimeline []struct {
+			Member string `json:"member"`
+			Joined string `json:"joined"`
+			Left   string `json:"left,omitempty"`
+		} `json:"team_timeline,omitempty"`
 		Nicknames            []string          `json:"nicknames,omitempty"`
 		Tribe                string            `json:"tribe,omitempty"`
 		Company              string            `json:"company,omitempty"`
@@ -115,6 +121,7 @@ func (r *FileRepository) LoadTeamConfig() (*domain.TeamConfig, error) {
 
 	// Transform to domain format
 	teams := make(map[string][]string)
+	teamTimelines := make(map[string][]domain.TeamMemberPeriod)
 	nicknames := make(map[string][]string)
 	tribes := make(map[string]string)
 	companies := make(map[string]string)
@@ -125,6 +132,29 @@ func (r *FileRepository) LoadTeamConfig() (*domain.TeamConfig, error) {
 
 	for project, teamInfo := range fileFormat {
 		teams[project] = teamInfo.Team
+
+		if len(teamInfo.TeamTimeline) > 0 {
+			var periods []domain.TeamMemberPeriod
+			for _, entry := range teamInfo.TeamTimeline {
+				joined, err := time.Parse("2006-01-02", entry.Joined)
+				if err != nil {
+					return nil, fmt.Errorf("failed to parse joined date for %s in %s: %w", entry.Member, project, err)
+				}
+				period := domain.TeamMemberPeriod{
+					Member: entry.Member,
+					Joined: joined,
+				}
+				if entry.Left != "" {
+					left, err := time.Parse("2006-01-02", entry.Left)
+					if err != nil {
+						return nil, fmt.Errorf("failed to parse left date for %s in %s: %w", entry.Member, project, err)
+					}
+					period.Left = &left
+				}
+				periods = append(periods, period)
+			}
+			teamTimelines[project] = periods
+		}
 		if len(teamInfo.Nicknames) > 0 {
 			nicknames[project] = teamInfo.Nicknames
 		}
@@ -158,7 +188,7 @@ func (r *FileRepository) LoadTeamConfig() (*domain.TeamConfig, error) {
 		}
 	}
 
-	return domain.NewTeamConfigWithBoardWorkStreams(teams, nicknames, tribes, companies, confluenceSpaces, confluenceParentPages, excludedIssueTypes, boardWorkStreams)
+	return domain.NewTeamConfigWithTimelines(teams, nicknames, tribes, companies, confluenceSpaces, confluenceParentPages, excludedIssueTypes, boardWorkStreams, teamTimelines)
 }
 
 // SaveTeamConfig saves team configuration to file with format transformation
@@ -167,8 +197,17 @@ func (r *FileRepository) SaveTeamConfig(config *domain.TeamConfig) error {
 
 	// Transform from domain format to file format
 	teams, nicknames, tribes, companies, confluenceSpaces, confluenceParentPages, excludedIssueTypes, boardWorkStreams := config.ToCompleteMapWithBoardWorkStreams()
+	allTimelines := config.GetAllTeamTimelines()
+
+	type timelineEntry struct {
+		Member string `json:"member"`
+		Joined string `json:"joined"`
+		Left   string `json:"left,omitempty"`
+	}
+
 	fileFormat := make(map[string]struct {
 		Team                 []string          `json:"team"`
+		TeamTimeline         []timelineEntry   `json:"team_timeline,omitempty"`
 		Nicknames            []string          `json:"nicknames,omitempty"`
 		Tribe                string            `json:"tribe,omitempty"`
 		Company              string            `json:"company,omitempty"`
@@ -179,8 +218,15 @@ func (r *FileRepository) SaveTeamConfig(config *domain.TeamConfig) error {
 	})
 
 	for project, members := range teams {
+		// If timeline exists, derive active team from it
+		activeMembers := members
+		if timeline, hasTimeline := allTimelines[project]; hasTimeline && len(timeline) > 0 {
+			activeMembers = config.DeriveActiveTeamFromTimeline(project)
+		}
+
 		entry := struct {
 			Team                 []string          `json:"team"`
+			TeamTimeline         []timelineEntry   `json:"team_timeline,omitempty"`
 			Nicknames            []string          `json:"nicknames,omitempty"`
 			Tribe                string            `json:"tribe,omitempty"`
 			Company              string            `json:"company,omitempty"`
@@ -189,7 +235,23 @@ func (r *FileRepository) SaveTeamConfig(config *domain.TeamConfig) error {
 			ExcludedIssueTypes   []string          `json:"excluded_issue_types,omitempty"`
 			BoardWorkStreams     map[string]string `json:"board_work_streams,omitempty"`
 		}{
-			Team: members,
+			Team: activeMembers,
+		}
+
+		// Add timeline if it exists for this project
+		if timeline, hasTimeline := allTimelines[project]; hasTimeline && len(timeline) > 0 {
+			entries := make([]timelineEntry, 0, len(timeline))
+			for _, p := range timeline {
+				te := timelineEntry{
+					Member: p.Member,
+					Joined: p.Joined.Format("2006-01-02"),
+				}
+				if p.Left != nil {
+					te.Left = p.Left.Format("2006-01-02")
+				}
+				entries = append(entries, te)
+			}
+			entry.TeamTimeline = entries
 		}
 
 		// Add nicknames if they exist for this project
