@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"math/rand/v2"
 	"net/http"
 	"os"
 	"regexp"
@@ -20,16 +21,28 @@ import (
 // several minutes; a shorter value risks aborting valid in-flight requests.
 const DefaultTimeout = 5 * time.Minute
 
+// Retry defaults. DefaultMaxAttempts is "one try plus two retries", which
+// covers brief transport blips and short server hiccups without making a
+// genuinely-broken Ollama wait around for ages.
+const (
+	DefaultMaxAttempts = 3
+	DefaultBackoffBase = 500 * time.Millisecond
+)
+
 // Client represents an Ollama API client
 type Client struct {
-	baseURL    string
-	httpClient *http.Client
+	baseURL     string
+	httpClient  *http.Client
+	maxAttempts int
+	backoffBase time.Duration
 }
 
 // Config holds the configuration for the Ollama client
 type Config struct {
-	BaseURL string
-	Timeout time.Duration
+	BaseURL     string
+	Timeout     time.Duration
+	MaxAttempts int           // 0 -> DefaultMaxAttempts, 1 disables retries
+	BackoffBase time.Duration // 0 -> DefaultBackoffBase
 }
 
 // DefaultConfig returns a default configuration for the Ollama client
@@ -39,8 +52,10 @@ func DefaultConfig() Config {
 		baseURL = "http://localhost:11434"
 	}
 	return Config{
-		BaseURL: baseURL,
-		Timeout: DefaultTimeout,
+		BaseURL:     baseURL,
+		Timeout:     DefaultTimeout,
+		MaxAttempts: DefaultMaxAttempts,
+		BackoffBase: DefaultBackoffBase,
 	}
 }
 
@@ -55,10 +70,73 @@ func NewClient(config Config) (*Client, error) {
 		timeout = DefaultTimeout
 	}
 
+	maxAttempts := config.MaxAttempts
+	if maxAttempts <= 0 {
+		maxAttempts = DefaultMaxAttempts
+	}
+	backoffBase := config.BackoffBase
+	if backoffBase <= 0 {
+		backoffBase = DefaultBackoffBase
+	}
+
 	return &Client{
-		baseURL:    config.BaseURL,
-		httpClient: &http.Client{Timeout: timeout},
+		baseURL:     config.BaseURL,
+		httpClient:  &http.Client{Timeout: timeout},
+		maxAttempts: maxAttempts,
+		backoffBase: backoffBase,
 	}, nil
+}
+
+// isRetryableStatus reports whether an HTTP status code is worth a retry.
+// We retry on the canonical transient-server family (5xx) plus 408
+// (Request Timeout) and 429 (Too Many Requests). 4xx other than those is
+// a client error -- repeating the same request will not improve matters.
+func isRetryableStatus(code int) bool {
+	if code >= 500 && code < 600 {
+		return true
+	}
+	return code == http.StatusRequestTimeout || code == http.StatusTooManyRequests
+}
+
+// doWithRetry sends an HTTP request and retries on transport errors and
+// retryable status codes with exponential backoff and jitter. The
+// caller passes a request builder rather than a built request so the
+// body is fresh on every attempt -- a single bytes.Buffer or strings.Reader
+// would be drained after the first try.
+func (c *Client) doWithRetry(buildReq func() (*http.Request, error)) (*http.Response, error) {
+	var lastErr error
+	for attempt := 0; attempt < c.maxAttempts; attempt++ {
+		if attempt > 0 {
+			sleep := c.backoffBase << uint(attempt-1)
+			// Full jitter halves the worst case and stops fleets of clients
+			// from synchronising their retries into a thundering herd.
+			if sleep > 0 {
+				sleep = sleep/2 + time.Duration(rand.Int64N(int64(sleep)/2+1))
+			}
+			time.Sleep(sleep)
+		}
+
+		req, err := buildReq()
+		if err != nil {
+			return nil, err
+		}
+
+		resp, err := c.httpClient.Do(req)
+		if err != nil {
+			lastErr = err
+			continue
+		}
+		if !isRetryableStatus(resp.StatusCode) {
+			return resp, nil
+		}
+
+		// Drain and close the retryable response so the connection
+		// can return to the pool before we sleep.
+		_, _ = io.Copy(io.Discard, resp.Body)
+		_ = resp.Body.Close()
+		lastErr = fmt.Errorf("status %d", resp.StatusCode)
+	}
+	return nil, fmt.Errorf("Ollama request failed after %d attempts: %w", c.maxAttempts, lastErr)
 }
 
 var (
@@ -149,16 +227,16 @@ Field content:`, asset.Name, asset.Why, asset.Benefits, asset.How, asset.Metrics
 		return "", fmt.Errorf("failed to marshal request: %w", err)
 	}
 
-	req, err := http.NewRequest("POST", c.baseURL+"/api/generate", bytes.NewBuffer(jsonData))
+	resp, err := c.doWithRetry(func() (*http.Request, error) {
+		req, err := http.NewRequest("POST", c.baseURL+"/api/generate", bytes.NewBuffer(jsonData))
+		if err != nil {
+			return nil, fmt.Errorf("failed to create request: %w", err)
+		}
+		req.Header.Set("Content-Type", "application/json")
+		return req, nil
+	})
 	if err != nil {
-		return "", fmt.Errorf("failed to create request: %w", err)
-	}
-
-	req.Header.Set("Content-Type", "application/json")
-
-	resp, err := c.httpClient.Do(req)
-	if err != nil {
-		return "", fmt.Errorf("failed to send request: %w", err)
+		return "", err
 	}
 	defer resp.Body.Close()
 
@@ -198,14 +276,14 @@ func (c *Client) GenerateEmbeddings(model string, texts []string) ([][]float64, 
 		return nil, fmt.Errorf("failed to marshal embedding request: %w", err)
 	}
 
-	req, err := http.NewRequest("POST", c.baseURL+"/api/embed", bytes.NewBuffer(jsonData))
-	if err != nil {
-		return nil, fmt.Errorf("failed to create embedding request: %w", err)
-	}
-
-	req.Header.Set("Content-Type", "application/json")
-
-	resp, err := c.httpClient.Do(req)
+	resp, err := c.doWithRetry(func() (*http.Request, error) {
+		req, err := http.NewRequest("POST", c.baseURL+"/api/embed", bytes.NewBuffer(jsonData))
+		if err != nil {
+			return nil, fmt.Errorf("failed to create embedding request: %w", err)
+		}
+		req.Header.Set("Content-Type", "application/json")
+		return req, nil
+	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to call Ollama embed: %w", err)
 	}
