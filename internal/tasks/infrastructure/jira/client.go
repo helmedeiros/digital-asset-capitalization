@@ -12,10 +12,10 @@ import (
 	"sync"
 	"time"
 
+	"github.com/helmedeiros/digital-asset-capitalization/internal/shared/httputil"
+	sharedjira "github.com/helmedeiros/digital-asset-capitalization/internal/shared/jira"
 	"github.com/helmedeiros/digital-asset-capitalization/internal/tasks/domain"
 	"github.com/helmedeiros/digital-asset-capitalization/internal/tasks/infrastructure/jira/api"
-
-	sharedjira "github.com/helmedeiros/digital-asset-capitalization/internal/shared/jira"
 )
 
 // Client defines the interface for Jira API interactions
@@ -43,8 +43,9 @@ var NewClient ClientFactory = newClient
 
 // client implements the Client interface
 type client struct {
-	httpClient HTTPClient
-	config     *Config
+	httpClient  HTTPClient
+	config      *Config
+	retryPolicy httputil.RetryPolicy
 
 	// customFieldIDs is lazily populated via resolveFieldIDsOnce on first
 	// use. After the Once.Do fires, customFieldIDs is read-only for the
@@ -65,6 +66,13 @@ func newClient(config *Config) (Client, error) {
 			Timeout: 30 * time.Second,
 		},
 		config: config,
+		// Honoured per-call via httputil.DoWithRetry so transient blips,
+		// brief 5xx hiccups, and 429 rate-limit replies don't fail a whole
+		// sprint sync. Zero-valued fields fall back to httputil defaults.
+		retryPolicy: httputil.RetryPolicy{
+			MaxAttempts: config.MaxAttempts,
+			BackoffBase: config.BackoffBase,
+		},
 	}, nil
 }
 
@@ -505,18 +513,15 @@ func (c *client) search(ctx context.Context, jql string) (*api.SearchResult, err
 		c.config.GetBaseURL(),
 		url.QueryEscape(jql))
 
-	// Create request
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, requestURL, nil)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create request: %w", err)
-	}
-
-	// Add authentication headers
-	req.Header.Set("Authorization", c.config.GetAuthHeader())
-	req.Header.Set("Accept", "application/json")
-
-	// Execute request
-	resp, err := c.httpClient.Do(req)
+	resp, err := httputil.DoWithRetry(c.httpClient, c.retryPolicy, "JIRA search", func() (*http.Request, error) {
+		req, err := http.NewRequestWithContext(ctx, http.MethodGet, requestURL, nil)
+		if err != nil {
+			return nil, fmt.Errorf("failed to create request: %w", err)
+		}
+		req.Header.Set("Authorization", c.config.GetAuthHeader())
+		req.Header.Set("Accept", "application/json")
+		return req, nil
+	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to execute request: %w", err)
 	}
@@ -578,18 +583,15 @@ func (c *client) FetchTaskByKey(ctx context.Context, key string) (*domain.Task, 
 	// Build the URL for fetching a single issue
 	issueURL := fmt.Sprintf("%s/rest/api/3/issue/%s?expand=changelog", c.config.BaseURL, key)
 
-	// Create the request
-	req, err := http.NewRequestWithContext(ctx, "GET", issueURL, nil)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create request: %w", err)
-	}
-
-	// Add authentication
-	req.Header.Set("Authorization", c.config.GetAuthHeader())
-	req.Header.Set("Accept", "application/json")
-
-	// Execute the request
-	resp, err := c.httpClient.Do(req)
+	resp, err := httputil.DoWithRetry(c.httpClient, c.retryPolicy, "JIRA issue fetch", func() (*http.Request, error) {
+		req, err := http.NewRequestWithContext(ctx, "GET", issueURL, nil)
+		if err != nil {
+			return nil, fmt.Errorf("failed to create request: %w", err)
+		}
+		req.Header.Set("Authorization", c.config.GetAuthHeader())
+		req.Header.Set("Accept", "application/json")
+		return req, nil
+	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to execute request: %w", err)
 	}
@@ -758,18 +760,16 @@ func (c *client) UpdateLabels(ctx context.Context, issueKey string, addLabels, r
 		return fmt.Errorf("failed to marshal request body: %w", err)
 	}
 
-	// Construct the request
-	req, err := http.NewRequestWithContext(ctx, "PUT", fmt.Sprintf("%s/rest/api/3/issue/%s", c.config.GetBaseURL(), issueKey), bytes.NewBuffer(jsonBody))
-	if err != nil {
-		return fmt.Errorf("failed to create request: %w", err)
-	}
-
-	// Set headers
-	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("Authorization", c.config.GetAuthHeader())
-
-	// Send request
-	resp, err := c.httpClient.Do(req)
+	resp, err := httputil.DoWithRetry(c.httpClient, c.retryPolicy, "JIRA label update", func() (*http.Request, error) {
+		// Rebuild bytes.Buffer per attempt so the body is fresh on retries.
+		req, err := http.NewRequestWithContext(ctx, "PUT", fmt.Sprintf("%s/rest/api/3/issue/%s", c.config.GetBaseURL(), issueKey), bytes.NewBuffer(jsonBody))
+		if err != nil {
+			return nil, fmt.Errorf("failed to create request: %w", err)
+		}
+		req.Header.Set("Content-Type", "application/json")
+		req.Header.Set("Authorization", c.config.GetAuthHeader())
+		return req, nil
+	})
 	if err != nil {
 		return fmt.Errorf("failed to send request: %w", err)
 	}

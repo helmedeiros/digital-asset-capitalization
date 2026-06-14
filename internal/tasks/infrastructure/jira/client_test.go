@@ -17,6 +17,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/helmedeiros/digital-asset-capitalization/internal/shared/httputil"
 	"github.com/helmedeiros/digital-asset-capitalization/internal/tasks/domain"
 	"github.com/helmedeiros/digital-asset-capitalization/internal/tasks/infrastructure/jira/api"
 )
@@ -279,17 +280,20 @@ func TestClient_FetchTasks(t *testing.T) {
 		}))
 		defer server.Close()
 
+		// 500 is retryable; cap MaxAttempts at 1 so the test runs fast.
+		// Retry behaviour itself is covered in internal/shared/httputil.
 		config := &Config{
-			BaseURL: server.URL,
-			Email:   "test@example.com",
-			Token:   "test-token",
+			BaseURL:     server.URL,
+			Email:       "test@example.com",
+			Token:       "test-token",
+			MaxAttempts: 1,
 		}
 		client, err := NewClient(config)
 		require.NoError(t, err, "Should not return error")
 		tasks, err := client.FetchTasks(ctx, "TEST", "Sprint 1")
 		require.Error(t, err, "Should return error")
 		assert.Nil(t, tasks, "Tasks should be nil")
-		assert.Contains(t, err.Error(), "unexpected status code: 500", "Error message should indicate server error")
+		assert.Contains(t, err.Error(), "JIRA search failed after 1 attempts")
 	})
 
 	t.Run("invalid response", func(t *testing.T) {
@@ -981,7 +985,10 @@ func TestClient_FetchTaskByKey(t *testing.T) {
 				}
 			},
 			expectedError: true,
-			errorContains: "Jira API returned status 500",
+			// 500 is retryable; the test uses the table client below
+			// with MaxAttempts: 1 to skip the retry loop, so we report
+			// the new single-attempt error shape.
+			errorContains: "JIRA issue fetch failed after 1 attempts",
 		},
 		{
 			name: "invalid JSON response",
@@ -1012,10 +1019,12 @@ func TestClient_FetchTaskByKey(t *testing.T) {
 				Token:   "test-token",
 			}
 
-			// Create client
+			// Create client with MaxAttempts: 1 so retryable-status
+			// cases don't drag the suite through real backoff sleeps.
 			client := &client{
-				httpClient: mockHTTPClient,
-				config:     config,
+				httpClient:  mockHTTPClient,
+				config:      config,
+				retryPolicy: httputil.RetryPolicy{MaxAttempts: 1},
 			}
 
 			// Execute
@@ -1110,10 +1119,14 @@ func TestClient_UpdateLabels(t *testing.T) {
 		}))
 		defer server.Close()
 
+		// 500 is retryable; cap MaxAttempts at 1 so the test exercises
+		// a single-attempt failure path quickly. The retry path itself
+		// is covered exhaustively in internal/shared/httputil.
 		config := &Config{
-			BaseURL: server.URL,
-			Email:   "test@example.com",
-			Token:   "test-token",
+			BaseURL:     server.URL,
+			Email:       "test@example.com",
+			Token:       "test-token",
+			MaxAttempts: 1,
 		}
 
 		client, err := NewClient(config)
@@ -1124,7 +1137,7 @@ func TestClient_UpdateLabels(t *testing.T) {
 		)
 
 		assert.Error(t, err)
-		assert.Contains(t, err.Error(), "failed to update labels")
+		assert.Contains(t, err.Error(), "JIRA label update failed after 1 attempts")
 	})
 }
 
