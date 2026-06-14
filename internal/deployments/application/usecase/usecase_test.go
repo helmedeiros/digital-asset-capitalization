@@ -38,9 +38,9 @@ func (r *stubRepo) Save(_ context.Context, d *domain.Deployment) error {
 	r.saved = append(r.saved, d)
 	return nil
 }
-func (r *stubRepo) Update(context.Context, *domain.Deployment) error    { return nil }
-func (r *stubRepo) Delete(context.Context, string) error                { return nil }
-func (r *stubRepo) Count(context.Context) (int, error)                  { return len(r.saved), nil }
+func (r *stubRepo) Update(context.Context, *domain.Deployment) error { return nil }
+func (r *stubRepo) Delete(context.Context, string) error             { return nil }
+func (r *stubRepo) Count(context.Context) (int, error)               { return len(r.saved), nil }
 func (r *stubRepo) FindByID(context.Context, string) (*domain.Deployment, error) {
 	return nil, nil
 }
