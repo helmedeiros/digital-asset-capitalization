@@ -133,3 +133,98 @@ func TestStyled(t *testing.T) {
 		t.Error("Expected styled text to end with reset")
 	}
 }
+
+// assertWrapsWithReset checks that a colour/style helper preserved the
+// raw text in its output and terminated the styled span with Reset.
+// All the helpers below share that contract; deduplicating the
+// assertion keeps each subtest a single readable line.
+func assertWrapsWithReset(t *testing.T, got, raw string) {
+	t.Helper()
+	if !strings.Contains(got, raw) {
+		t.Errorf("expected output to contain raw text %q, got %q", raw, got)
+	}
+	if !strings.HasSuffix(got, Reset) {
+		t.Errorf("expected output to end with Reset, got %q", got)
+	}
+}
+
+func TestDimText(t *testing.T) {
+	got := DimText("hello")
+	assertWrapsWithReset(t, got, "hello")
+	if !strings.HasPrefix(got, Dim) {
+		t.Errorf("expected output to start with Dim, got %q", got)
+	}
+}
+
+func TestItalicText(t *testing.T) {
+	got := ItalicText("hi")
+	assertWrapsWithReset(t, got, "hi")
+	if !strings.HasPrefix(got, Italic) {
+		t.Errorf("expected output to start with Italic, got %q", got)
+	}
+}
+
+func TestSemanticTextWrappers(t *testing.T) {
+	cases := []struct {
+		name string
+		fn   func(string) string
+	}{
+		{"MutedText", MutedText},
+		{"PrimaryText", PrimaryText},
+		{"Code", Code},
+		{"Link", Link},
+		{"Subheader", Subheader},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			assertWrapsWithReset(t, c.fn("payload"), "payload")
+		})
+	}
+}
+
+func TestPromptText_AppliesBoldAndColor(t *testing.T) {
+	got := PromptText("> ")
+	// PromptText is Colorize(BoldText(text)) so the raw text and a
+	// Bold marker must both survive into the output.
+	if !strings.Contains(got, "> ") {
+		t.Errorf("expected raw text in output, got %q", got)
+	}
+	if !strings.Contains(got, Bold) {
+		t.Errorf("expected output to contain Bold, got %q", got)
+	}
+}
+
+func TestHeader_AppliesBoldOverPrimary(t *testing.T) {
+	got := Header("Title")
+	if !strings.Contains(got, "Title") {
+		t.Errorf("expected raw text in output, got %q", got)
+	}
+	if !strings.Contains(got, Bold) {
+		t.Errorf("expected Header to apply Bold, got %q", got)
+	}
+}
+
+func TestHighlight_WrapsWithBackgroundAndForeground(t *testing.T) {
+	got := Highlight("warn")
+	// Highlight is Styled(text, BgYellow, Black) so both style strings
+	// must appear before the text and a Reset must close the run.
+	if !strings.Contains(got, "warn") {
+		t.Errorf("expected raw text in output, got %q", got)
+	}
+	if !strings.HasSuffix(got, Reset) {
+		t.Errorf("expected output to end with Reset, got %q", got)
+	}
+	if !strings.Contains(got, BgYellow) || !strings.Contains(got, Black) {
+		t.Errorf("expected output to contain both BgYellow and Black style runs, got %q", got)
+	}
+}
+
+func TestGradient_StubFallsBackToStartColor(t *testing.T) {
+	// The documented behaviour is "for now, just use start color".
+	// Pin that so a future real gradient implementation surfaces in tests.
+	got := Gradient("g", ColorSuccess, ColorError)
+	assertWrapsWithReset(t, got, "g")
+	if !strings.HasPrefix(got, string(ColorSuccess)) {
+		t.Errorf("expected Gradient to begin with the start colour, got %q", got)
+	}
+}
