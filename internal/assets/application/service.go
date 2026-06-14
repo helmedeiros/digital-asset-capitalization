@@ -281,50 +281,26 @@ func (s *AssetServiceImpl) SyncFromConfluence(spaceKey, label string, debug bool
 		return nil, fmt.Errorf("failed to fetch assets from Confluence: %v", err)
 	}
 
+	return s.processFetchedAssets(assets)
+}
+
+// processFetchedAssets validates each fetched asset, preserves locally
+// generated metadata from the existing repository copy, and persists
+// the merged result. Extracted from SyncFromConfluence so the merge
+// loop can be unit-tested without driving the Confluence adapter.
+func (s *AssetServiceImpl) processFetchedAssets(assets []*domain.Asset) (*domain.SyncResult, error) {
 	result := domain.NewSyncResult()
 
-	// Update local repository with fetched assets
 	for _, asset := range assets {
 		missingFields := validateRequiredFields(asset)
 		if len(missingFields) > 0 {
-			notSynced := &domain.NotSyncedAsset{
-				Name:          asset.Name,
-				MissingFields: missingFields,
-				AvailableFields: map[string]string{
-					"ID":          asset.ID,
-					"Name":        asset.Name,
-					"Description": asset.Description,
-					"LaunchDate":  asset.LaunchDate.Format("2006-01-02"),
-					"Status":      asset.Status,
-					"DocLink":     asset.DocLink,
-					"Why":         asset.Why,
-					"Benefits":    asset.Benefits,
-					"How":         asset.How,
-					"Metrics":     asset.Metrics,
-				},
-			}
-			result.NotSyncedAssets = append(result.NotSyncedAssets, notSynced)
+			result.NotSyncedAssets = append(result.NotSyncedAssets, notSyncedFromAsset(asset, missingFields))
 			continue
 		}
 
-		// Preserve locally-generated data (keywords, team assignments) from existing asset
 		existingAsset, err := s.repo.FindByID(asset.ID)
 		if err == nil && existingAsset != nil {
-			// Preserve keywords if the new asset has none (Confluence doesn't store AI-generated keywords)
-			if len(asset.Keywords) == 0 && len(existingAsset.Keywords) > 0 {
-				asset.Keywords = existingAsset.Keywords
-			}
-			// Preserve team assignments
-			if asset.OwningTeam == "" && existingAsset.OwningTeam != "" {
-				asset.OwningTeam = existingAsset.OwningTeam
-			}
-			if len(asset.ContributingTeams) == 0 && len(existingAsset.ContributingTeams) > 0 {
-				asset.ContributingTeams = existingAsset.ContributingTeams
-			}
-			// Preserve task count
-			if existingAsset.AssociatedTaskCount > 0 {
-				asset.AssociatedTaskCount = existingAsset.AssociatedTaskCount
-			}
+			mergeLocalMetadata(asset, existingAsset)
 		}
 
 		if err := s.repo.Save(asset); err != nil {
@@ -334,6 +310,47 @@ func (s *AssetServiceImpl) SyncFromConfluence(spaceKey, label string, debug bool
 	}
 
 	return result, nil
+}
+
+// notSyncedFromAsset packages an asset's snapshot for the caller to
+// see which fields blocked the sync.
+func notSyncedFromAsset(asset *domain.Asset, missingFields []string) *domain.NotSyncedAsset {
+	return &domain.NotSyncedAsset{
+		Name:          asset.Name,
+		MissingFields: missingFields,
+		AvailableFields: map[string]string{
+			"ID":          asset.ID,
+			"Name":        asset.Name,
+			"Description": asset.Description,
+			"LaunchDate":  asset.LaunchDate.Format("2006-01-02"),
+			"Status":      asset.Status,
+			"DocLink":     asset.DocLink,
+			"Why":         asset.Why,
+			"Benefits":    asset.Benefits,
+			"How":         asset.How,
+			"Metrics":     asset.Metrics,
+		},
+	}
+}
+
+// mergeLocalMetadata copies locally-generated fields (AI keywords, team
+// assignments, task counts) from the existing repository copy onto the
+// freshly-fetched asset when the new asset has nothing for that slot.
+// Confluence does not store these locally-generated fields so a naive
+// overwrite would lose them on every sync.
+func mergeLocalMetadata(asset, existingAsset *domain.Asset) {
+	if len(asset.Keywords) == 0 && len(existingAsset.Keywords) > 0 {
+		asset.Keywords = existingAsset.Keywords
+	}
+	if asset.OwningTeam == "" && existingAsset.OwningTeam != "" {
+		asset.OwningTeam = existingAsset.OwningTeam
+	}
+	if len(asset.ContributingTeams) == 0 && len(existingAsset.ContributingTeams) > 0 {
+		asset.ContributingTeams = existingAsset.ContributingTeams
+	}
+	if existingAsset.AssociatedTaskCount > 0 {
+		asset.AssociatedTaskCount = existingAsset.AssociatedTaskCount
+	}
 }
 
 // EnrichAsset enriches a specific field of an asset using LLaMA 3
