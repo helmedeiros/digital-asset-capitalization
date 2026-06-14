@@ -18,7 +18,7 @@ import (
 	"github.com/helmedeiros/digital-asset-capitalization/internal/console/infrastructure/store"
 
 	assetsapp "github.com/helmedeiros/digital-asset-capitalization/internal/assets/application"
-	investmentservice "github.com/helmedeiros/digital-asset-capitalization/internal/investment/application/service"
+	investmentdomain "github.com/helmedeiros/digital-asset-capitalization/internal/investment/domain"
 	sprintapp "github.com/helmedeiros/digital-asset-capitalization/internal/sprint/application"
 	tasksapp "github.com/helmedeiros/digital-asset-capitalization/internal/tasks/application"
 	tasksdomain "github.com/helmedeiros/digital-asset-capitalization/internal/tasks/domain"
@@ -756,9 +756,21 @@ func (s *SprintServiceAdapter) AllocateSprint(_ context.Context, project, sprint
 	}, nil
 }
 
+// InvestmentServicePort is the narrow interface the InvestmentServiceAdapter
+// actually depends on -- only the three InvestmentService methods that the
+// adapter exercises. Pulling it out as a local interface lets the cmd-side
+// tests stub the service without rebuilding the costModel / allocation /
+// investment-repo graph behind *investmentservice.InvestmentService.
+// The concrete *investmentservice.InvestmentService satisfies it implicitly.
+type InvestmentServicePort interface {
+	CalculateAssetInvestment(ctx context.Context, assetName, project string, sprints []string) (*investmentdomain.Investment, error)
+	ListInvestments(ctx context.Context, project string) ([]*investmentdomain.Investment, error)
+	GetCostModel(ctx context.Context, project string) (*investmentdomain.CostModel, error)
+}
+
 // InvestmentServiceAdapter adapts the existing investment service
 type InvestmentServiceAdapter struct {
-	service *investmentservice.InvestmentService
+	service InvestmentServicePort
 }
 
 func (i *InvestmentServiceAdapter) CalculateInvestment(ctx context.Context, asset, project string, sprints []string) (interface{}, error) {
