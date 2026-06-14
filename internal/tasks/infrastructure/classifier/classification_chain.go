@@ -347,20 +347,15 @@ func (c *ComprehensiveClassificationChainWithInheritance) generateWorkTypeReason
 
 // containsResearchKeywords checks if task contains research-related keywords (inheritance version)
 func (c *ComprehensiveClassificationChainWithInheritance) containsResearchKeywords(task *taskdomain.Task) bool {
-	content := task.Summary + " " + task.Description
 	keywords := []string{"spike", "research", "discovery", "investigation", "poc", "proof-of-concept"}
 
-	for _, keyword := range keywords {
-		if contains(content, keyword) {
-			return true
-		}
+	if containsAny(task.Summary+" "+task.Description, keywords) {
+		return true
 	}
 
 	for _, label := range task.Labels {
-		for _, keyword := range keywords {
-			if contains(label, keyword) {
-				return true
-			}
+		if containsAny(label, keywords) {
+			return true
 		}
 	}
 
@@ -369,30 +364,15 @@ func (c *ComprehensiveClassificationChainWithInheritance) containsResearchKeywor
 
 // containsBugKeywords checks if task contains bug-related keywords (inheritance version)
 func (c *ComprehensiveClassificationChainWithInheritance) containsBugKeywords(task *taskdomain.Task) bool {
-	content := task.Summary + " " + task.Description
-	keywords := []string{"bug", "fix", "hotfix", "error", "issue", "defect"}
-
-	for _, keyword := range keywords {
-		if contains(content, keyword) {
-			return true
-		}
+	if containsAny(task.Summary+" "+task.Description, []string{"bug", "fix", "hotfix", "error", "issue", "defect"}) {
+		return true
 	}
-
 	return task.Type == taskdomain.TaskTypeBug
 }
 
 // containsAPIKeywords checks if task contains API-related keywords (inheritance version)
 func (c *ComprehensiveClassificationChainWithInheritance) containsAPIKeywords(task *taskdomain.Task) bool {
-	content := task.Summary + " " + task.Description
-	keywords := []string{"api", "endpoint", "service", "new", "add", "create", "implement"}
-
-	for _, keyword := range keywords {
-		if contains(content, keyword) {
-			return true
-		}
-	}
-
-	return false
+	return containsAny(task.Summary+" "+task.Description, []string{"api", "endpoint", "service", "new", "add", "create", "implement"})
 }
 
 // formatAssetName converts an asset identifier like "cabin-markup" to a proper asset name like "Cabin Markup"
@@ -597,20 +577,15 @@ func (c *ComprehensiveClassificationChain) generateWorkTypeReason(task *taskdoma
 
 // containsResearchKeywords checks if task contains research-related keywords
 func (c *ComprehensiveClassificationChain) containsResearchKeywords(task *taskdomain.Task) bool {
-	content := task.Summary + " " + task.Description
 	keywords := []string{"spike", "research", "discovery", "investigation", "poc", "proof-of-concept"}
 
-	for _, keyword := range keywords {
-		if contains(content, keyword) {
-			return true
-		}
+	if containsAny(task.Summary+" "+task.Description, keywords) {
+		return true
 	}
 
 	for _, label := range task.Labels {
-		for _, keyword := range keywords {
-			if contains(label, keyword) {
-				return true
-			}
+		if containsAny(label, keywords) {
+			return true
 		}
 	}
 
@@ -619,70 +594,32 @@ func (c *ComprehensiveClassificationChain) containsResearchKeywords(task *taskdo
 
 // containsBugKeywords checks if task contains bug-related keywords
 func (c *ComprehensiveClassificationChain) containsBugKeywords(task *taskdomain.Task) bool {
-	content := task.Summary + " " + task.Description
-	keywords := []string{"bug", "fix", "hotfix", "error", "issue", "defect"}
-
-	for _, keyword := range keywords {
-		if contains(content, keyword) {
-			return true
-		}
+	if containsAny(task.Summary+" "+task.Description, []string{"bug", "fix", "hotfix", "error", "issue", "defect"}) {
+		return true
 	}
-
 	return task.Type == taskdomain.TaskTypeBug
 }
 
 // containsAPIKeywords checks if task contains API-related keywords
 func (c *ComprehensiveClassificationChain) containsAPIKeywords(task *taskdomain.Task) bool {
-	content := task.Summary + " " + task.Description
-	keywords := []string{"api", "endpoint", "service", "new", "add", "create", "implement"}
-
-	for _, keyword := range keywords {
-		if contains(content, keyword) {
-			return true
-		}
-	}
-
-	return false
+	return containsAny(task.Summary+" "+task.Description, []string{"api", "endpoint", "service", "new", "add", "create", "implement"})
 }
 
-// contains performs case-insensitive substring matching
-func contains(content, keyword string) bool {
-	contentLower := ""
-	keywordLower := ""
-
-	for _, r := range content {
-		if r >= 'A' && r <= 'Z' {
-			contentLower += string(r + 32)
-		} else {
-			contentLower += string(r)
-		}
-	}
-
-	for _, r := range keyword {
-		if r >= 'A' && r <= 'Z' {
-			keywordLower += string(r + 32)
-		} else {
-			keywordLower += string(r)
-		}
-	}
-
-	// Simple substring search
-	if len(keywordLower) > len(contentLower) {
-		return false
-	}
-
-	for i := 0; i <= len(contentLower)-len(keywordLower); i++ {
-		match := true
-		for j := 0; j < len(keywordLower); j++ {
-			if contentLower[i+j] != keywordLower[j] {
-				match = false
-				break
-			}
-		}
-		if match {
+// containsAny lowers content once and reports whether any keyword
+// (also lowered, on the fly) appears as a substring. Replaces a
+// hand-rolled contains() that lowered both strings via N allocations
+// each inside a rune loop before doing a manual substring search --
+// with the parallel classifier loop hammering this per task, that
+// allocation churn dominated CPU. strings.ToLower / strings.Contains
+// do the same job with a single sized allocation per lowering and a
+// tuned substring search, and they handle full Unicode rather than
+// just ASCII A–Z.
+func containsAny(content string, keywords []string) bool {
+	loweredContent := strings.ToLower(content)
+	for _, k := range keywords {
+		if strings.Contains(loweredContent, strings.ToLower(k)) {
 			return true
 		}
 	}
-
 	return false
 }
