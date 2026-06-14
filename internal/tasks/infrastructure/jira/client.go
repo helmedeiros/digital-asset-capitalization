@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/helmedeiros/digital-asset-capitalization/internal/tasks/domain"
@@ -42,10 +43,15 @@ var NewClient ClientFactory = newClient
 
 // client implements the Client interface
 type client struct {
-	httpClient       HTTPClient
-	config           *Config
-	customFieldIDs   *sharedjira.CustomFieldIDs
-	fieldIDsResolved bool
+	httpClient HTTPClient
+	config     *Config
+
+	// customFieldIDs is lazily populated via resolveFieldIDsOnce on first
+	// use. After the Once.Do fires, customFieldIDs is read-only for the
+	// rest of the client's lifetime, so the field is safe to read from
+	// any goroutine that calls resolveFieldIDs() to drive the Once.
+	resolveFieldIDsOnce sync.Once
+	customFieldIDs      *sharedjira.CustomFieldIDs
 }
 
 // NewClient creates a new Jira client instance
@@ -62,22 +68,21 @@ func newClient(config *Config) (Client, error) {
 	}, nil
 }
 
-// resolveFieldIDs lazily resolves custom field IDs on first use
+// resolveFieldIDs lazily resolves custom field IDs on first use. Safe
+// to call from multiple goroutines concurrently: the initialisation
+// happens exactly once via sync.Once, and the post-init read of
+// customFieldIDs synchronises through Once.Do's happens-before guarantee.
 func (c *client) resolveFieldIDs() *sharedjira.CustomFieldIDs {
-	if c.fieldIDsResolved {
-		return c.customFieldIDs
-	}
-	c.fieldIDsResolved = true
-
-	if c.config == nil {
-		return nil
-	}
-
-	resolver := sharedjira.NewFieldResolver(c.config.GetBaseURL(), c.config.GetAuthHeader())
-	fieldIDs, err := resolver.ResolveCustomFieldIDs()
-	if err == nil {
-		c.customFieldIDs = fieldIDs
-	}
+	c.resolveFieldIDsOnce.Do(func() {
+		if c.config == nil {
+			return
+		}
+		resolver := sharedjira.NewFieldResolver(c.config.GetBaseURL(), c.config.GetAuthHeader())
+		fieldIDs, err := resolver.ResolveCustomFieldIDs()
+		if err == nil {
+			c.customFieldIDs = fieldIDs
+		}
+	})
 	return c.customFieldIDs
 }
 
@@ -703,11 +708,15 @@ func (c *client) convertSingleIssueToDomainTask(issue api.Issue) (*domain.Task, 
 	task.UpdatedAt = updated
 	task.WorkType = workType
 
-	// Populate TPD fields from custom field IDs
-	if c.customFieldIDs != nil {
-		task.TPDBusinessUnits = issue.Fields.GetTPDBusinessUnits(c.customFieldIDs.TPDBusinessUnit)
-		task.EngineeringHours = issue.Fields.GetEngineeringHours(c.customFieldIDs.EngineeringHours)
-		task.WorkStream = issue.Fields.GetWorkStream(c.customFieldIDs.WorkStream)
+	// Populate TPD fields from custom field IDs. Going through
+	// resolveFieldIDs (instead of reading c.customFieldIDs directly)
+	// ensures we initialise the cache lazily even when FetchTaskByKey
+	// is the first call against this client, and stays race-free with
+	// any concurrent fetch-tasks path that drives the same sync.Once.
+	if fieldIDs := c.resolveFieldIDs(); fieldIDs != nil {
+		task.TPDBusinessUnits = issue.Fields.GetTPDBusinessUnits(fieldIDs.TPDBusinessUnit)
+		task.EngineeringHours = issue.Fields.GetEngineeringHours(fieldIDs.EngineeringHours)
+		task.WorkStream = issue.Fields.GetWorkStream(fieldIDs.WorkStream)
 	}
 
 	return task, nil

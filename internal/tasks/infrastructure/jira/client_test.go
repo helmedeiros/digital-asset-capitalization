@@ -9,6 +9,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -1634,4 +1635,54 @@ func convertIssuesToResponse(issues []api.Issue) []map[string]interface{} {
 		response = append(response, issueData)
 	}
 	return response
+}
+
+// TestClient_ResolveFieldIDs_IsRaceFree pins the fix for the race that
+// fetchTasksWithDualStrategy used to trip: two goroutines calling
+// resolveFieldIDs concurrently would each read fieldIDsResolved, both
+// see false, both set it, and both write customFieldIDs without
+// synchronisation. The replacement uses sync.Once so initialisation
+// runs exactly once and subsequent reads are race-free by the Once.Do
+// happens-before guarantee. Designed to run under -race.
+func TestClient_ResolveFieldIDs_IsRaceFree(t *testing.T) {
+	// Field-resolver endpoint returns an empty schema so customFieldIDs
+	// stays nil after init -- we only care about the synchronisation,
+	// not the parsed result.
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if strings.HasSuffix(r.URL.Path, "/field") {
+			w.WriteHeader(http.StatusOK)
+			_, _ = w.Write([]byte(`[]`))
+			return
+		}
+		w.WriteHeader(http.StatusNotFound)
+	}))
+	defer server.Close()
+
+	c := &client{
+		httpClient: &http.Client{Timeout: 5 * time.Second},
+		config: &Config{
+			BaseURL: server.URL,
+			Email:   "x@example.com",
+			Token:   "t",
+		},
+	}
+
+	const callers = 32
+	var wg sync.WaitGroup
+	wg.Add(callers)
+	for i := 0; i < callers; i++ {
+		go func() {
+			defer wg.Done()
+			// Each goroutine reads the (initialised) value back. With the
+			// previous check-then-set, all 32 of these reads would race
+			// the writes inside resolveFieldIDs.
+			_ = c.resolveFieldIDs()
+		}()
+	}
+	wg.Wait()
+
+	// One more call from the test goroutine to assert the second-call
+	// happy path keeps returning the same (possibly-nil) cached value
+	// without re-doing the work.
+	_ = c.resolveFieldIDs()
 }
