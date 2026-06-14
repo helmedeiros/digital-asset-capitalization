@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sync"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -589,4 +590,119 @@ func TestJSONStorage_LoadTasks_ErrorCases(t *testing.T) {
 		err = os.Chmod(restrictedFile, 0644)
 		assert.NoError(t, err, "Failed to make file removable for cleanup")
 	})
+}
+
+func TestJSONStorage_SaveAll(t *testing.T) {
+	ctx := context.Background()
+
+	t.Run("empty batch is a no-op and returns nil", func(t *testing.T) {
+		h := setupTest(t)
+		defer h.cleanup(t)
+
+		require.NoError(t, h.storage.SaveAll(ctx, nil))
+		require.NoError(t, h.storage.SaveAll(ctx, []*domain.Task{}))
+
+		all, err := h.storage.FindAll(ctx)
+		require.NoError(t, err)
+		assert.Empty(t, all)
+	})
+
+	t.Run("persists every task in a single load/store cycle", func(t *testing.T) {
+		h := setupTest(t)
+		defer h.cleanup(t)
+
+		batch := []*domain.Task{
+			h.createTestTask("TST-1", "First", "TST", "Sprint A"),
+			h.createTestTask("TST-2", "Second", "TST", "Sprint A"),
+			h.createTestTask("TST-3", "Third", "TST", "Sprint B"),
+		}
+
+		require.NoError(t, h.storage.SaveAll(ctx, batch))
+
+		all, err := h.storage.FindAll(ctx)
+		require.NoError(t, err)
+		assert.Len(t, all, 3)
+	})
+
+	t.Run("nil entries in the batch are skipped", func(t *testing.T) {
+		h := setupTest(t)
+		defer h.cleanup(t)
+
+		batch := []*domain.Task{
+			h.createTestTask("TST-1", "First", "TST", "Sprint A"),
+			nil,
+			h.createTestTask("TST-2", "Second", "TST", "Sprint A"),
+		}
+
+		require.NoError(t, h.storage.SaveAll(ctx, batch))
+
+		all, err := h.storage.FindAll(ctx)
+		require.NoError(t, err)
+		assert.Len(t, all, 2)
+	})
+
+	t.Run("merges with existing tasks instead of replacing", func(t *testing.T) {
+		h := setupTest(t)
+		defer h.cleanup(t)
+
+		require.NoError(t, h.storage.Save(ctx, h.createTestTask("EXIST-1", "Pre-existing", "TST", "Sprint A")))
+
+		batch := []*domain.Task{
+			h.createTestTask("TST-1", "Fresh", "TST", "Sprint A"),
+			h.createTestTask("EXIST-1", "Updated description", "TST", "Sprint A"),
+		}
+		require.NoError(t, h.storage.SaveAll(ctx, batch))
+
+		updated, err := h.storage.FindByKey(ctx, "EXIST-1")
+		require.NoError(t, err)
+		assert.Equal(t, "Updated description", updated.Summary, "SaveAll should overwrite existing entries by key")
+
+		all, err := h.storage.FindAll(ctx)
+		require.NoError(t, err)
+		assert.Len(t, all, 2)
+	})
+}
+
+// TestJSONStorage_ConcurrentSaves drives many concurrent Save / SaveAll
+// callers and asserts every write is persisted. Without the mutex, the
+// read-modify-write inside each call would race and the final file would
+// silently miss writes. Designed to run under -race.
+func TestJSONStorage_ConcurrentSaves(t *testing.T) {
+	h := setupTest(t)
+	defer h.cleanup(t)
+
+	ctx := context.Background()
+	const single = 12
+	const batches = 4
+	const perBatch = 5
+	expected := single + batches*perBatch
+
+	var wg sync.WaitGroup
+
+	for i := 0; i < single; i++ {
+		wg.Add(1)
+		go func(i int) {
+			defer wg.Done()
+			task := h.createTestTask(fmt.Sprintf("ONE-%02d", i), "single", "TST", "Sprint A")
+			require.NoError(t, h.storage.Save(ctx, task))
+		}(i)
+	}
+
+	for b := 0; b < batches; b++ {
+		wg.Add(1)
+		go func(b int) {
+			defer wg.Done()
+			batch := make([]*domain.Task, 0, perBatch)
+			for j := 0; j < perBatch; j++ {
+				batch = append(batch, h.createTestTask(fmt.Sprintf("BATCH-%d-%02d", b, j), "batch", "TST", "Sprint A"))
+			}
+			require.NoError(t, h.storage.SaveAll(ctx, batch))
+		}(b)
+	}
+
+	wg.Wait()
+
+	all, err := h.storage.FindAll(ctx)
+	require.NoError(t, err)
+	assert.Len(t, all, expected, "every concurrent Save and SaveAll should be persisted")
 }

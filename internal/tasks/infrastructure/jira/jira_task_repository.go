@@ -62,6 +62,18 @@ func (r *TaskRepository) Save(_ context.Context, _ *domain.Task) error {
 	return fmt.Errorf("not implemented")
 }
 
+// SaveAll persists a batch of tasks. JIRA has no atomic bulk-write
+// endpoint for the fields we care about, so we satisfy the port by
+// delegating to Save in a loop. Returns on the first error.
+func (r *TaskRepository) SaveAll(ctx context.Context, tasks []*domain.Task) error {
+	for _, task := range tasks {
+		if err := r.Save(ctx, task); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 // FindByKey finds a task by its key
 func (r *TaskRepository) FindByKey(ctx context.Context, key string) (*domain.Task, error) {
 	if key == "" {

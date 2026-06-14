@@ -58,6 +58,15 @@ func (m *MockTaskRepository) Save(ctx context.Context, task *tasksDomain.Task) e
 	return args.Error(0)
 }
 
+func (m *MockTaskRepository) SaveAll(ctx context.Context, tasks []*tasksDomain.Task) error {
+	for _, task := range tasks {
+		if err := m.Save(ctx, task); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 func (m *MockTaskRepository) Delete(ctx context.Context, key string) error {
 	args := m.Called(ctx, key)
 	return args.Error(0)

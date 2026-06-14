@@ -27,6 +27,16 @@ func (m *mockRepository) Save(_ context.Context, task *domain.Task) error {
 	return nil
 }
 
+func (m *mockRepository) SaveAll(_ context.Context, tasks []*domain.Task) error {
+	for _, task := range tasks {
+		if task == nil {
+			continue
+		}
+		m.tasks[task.Key] = task
+	}
+	return nil
+}
+
 func (m *mockRepository) FindByKey(_ context.Context, key string) (*domain.Task, error) {
 	if task, exists := m.tasks[key]; exists {
 		return task, nil

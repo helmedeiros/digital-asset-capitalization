@@ -6,13 +6,22 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sync"
 
 	"github.com/helmedeiros/digital-asset-capitalization/internal/tasks/domain"
 	"github.com/helmedeiros/digital-asset-capitalization/internal/tasks/domain/ports"
 )
 
-// JSONStorage implements TaskRepository using JSON files
+// JSONStorage implements TaskRepository using JSON files.
+//
+// Every mutation does a full load / modify / write cycle. The mutex
+// serialises mutations and read methods so concurrent callers (the
+// classify-and-save loop, future parallel classification work) cannot
+// race read-modify-write cycles and lose updates. SaveAll exists for
+// the bulk-update path where calling Save in a loop would do N reads
+// and N writes; SaveAll does one of each.
 type JSONStorage struct {
+	mu   sync.RWMutex
 	dir  string
 	file string
 }
@@ -31,16 +40,41 @@ func (s *JSONStorage) Save(_ context.Context, task *domain.Task) error {
 		return fmt.Errorf("task cannot be nil")
 	}
 
-	// Load existing tasks
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
 	tasks, err := s.loadTasks()
 	if err != nil {
 		return fmt.Errorf("failed to load tasks: %w", err)
 	}
 
-	// Update or add the task
 	tasks[task.Key] = task
 
-	// Save back to file
+	return s.saveTasks(tasks)
+}
+
+// SaveAll persists multiple tasks in a single load/store cycle. Nil
+// entries in the slice are skipped; an empty input is a no-op.
+func (s *JSONStorage) SaveAll(_ context.Context, batch []*domain.Task) error {
+	if len(batch) == 0 {
+		return nil
+	}
+
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	tasks, err := s.loadTasks()
+	if err != nil {
+		return fmt.Errorf("failed to load tasks: %w", err)
+	}
+
+	for _, task := range batch {
+		if task == nil {
+			continue
+		}
+		tasks[task.Key] = task
+	}
+
 	return s.saveTasks(tasks)
 }
 
@@ -49,6 +83,9 @@ func (s *JSONStorage) FindByKey(_ context.Context, key string) (*domain.Task, er
 	if key == "" {
 		return nil, fmt.Errorf("task key cannot be empty")
 	}
+
+	s.mu.RLock()
+	defer s.mu.RUnlock()
 
 	tasks, err := s.loadTasks()
 	if err != nil {
@@ -65,6 +102,9 @@ func (s *JSONStorage) FindByKey(_ context.Context, key string) (*domain.Task, er
 
 // FindByProjectAndSprint retrieves tasks for a specific project and sprint
 func (s *JSONStorage) FindByProjectAndSprint(_ context.Context, project, sprint string) ([]*domain.Task, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
 	tasks, err := s.loadTasks()
 	if err != nil {
 		return nil, fmt.Errorf("failed to load tasks: %w", err)
@@ -82,6 +122,9 @@ func (s *JSONStorage) FindByProjectAndSprint(_ context.Context, project, sprint 
 
 // FindByProject retrieves all tasks for a specific project
 func (s *JSONStorage) FindByProject(_ context.Context, project string) ([]*domain.Task, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
 	tasks, err := s.loadTasks()
 	if err != nil {
 		return nil, fmt.Errorf("failed to load tasks: %w", err)
@@ -99,6 +142,9 @@ func (s *JSONStorage) FindByProject(_ context.Context, project string) ([]*domai
 
 // FindBySprint retrieves all tasks for a specific sprint
 func (s *JSONStorage) FindBySprint(_ context.Context, sprint string) ([]*domain.Task, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
 	tasks, err := s.loadTasks()
 	if err != nil {
 		return nil, fmt.Errorf("failed to load tasks: %w", err)
@@ -116,6 +162,9 @@ func (s *JSONStorage) FindBySprint(_ context.Context, sprint string) ([]*domain.
 
 // FindByPlatform retrieves all tasks for a specific platform
 func (s *JSONStorage) FindByPlatform(_ context.Context, platform string) ([]*domain.Task, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
 	tasks, err := s.loadTasks()
 	if err != nil {
 		return nil, fmt.Errorf("failed to load tasks: %w", err)
@@ -133,6 +182,9 @@ func (s *JSONStorage) FindByPlatform(_ context.Context, platform string) ([]*dom
 
 // FindAll retrieves all tasks
 func (s *JSONStorage) FindAll(_ context.Context) ([]*domain.Task, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
 	tasks, err := s.loadTasks()
 	if err != nil {
 		return nil, fmt.Errorf("failed to load tasks: %w", err)
@@ -152,6 +204,9 @@ func (s *JSONStorage) Delete(_ context.Context, key string) error {
 		return fmt.Errorf("task key cannot be empty")
 	}
 
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
 	tasks, err := s.loadTasks()
 	if err != nil {
 		return fmt.Errorf("failed to load tasks: %w", err)
@@ -167,6 +222,9 @@ func (s *JSONStorage) Delete(_ context.Context, key string) error {
 
 // DeleteByProjectAndSprint removes all tasks for a specific project and sprint
 func (s *JSONStorage) DeleteByProjectAndSprint(_ context.Context, project, sprint string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
 	tasks, err := s.loadTasks()
 	if err != nil {
 		return fmt.Errorf("failed to load tasks: %w", err)
@@ -189,6 +247,9 @@ func (s *JSONStorage) UpdateLabels(_ context.Context, taskKey string, addLabels,
 	if taskKey == "" {
 		return fmt.Errorf("task key cannot be empty")
 	}
+
+	s.mu.Lock()
+	defer s.mu.Unlock()
 
 	tasks, err := s.loadTasks()
 	if err != nil {

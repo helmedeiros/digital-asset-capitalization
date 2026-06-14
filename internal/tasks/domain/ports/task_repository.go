@@ -11,6 +11,14 @@ type TaskRepository interface {
 	// Save persists a task
 	Save(ctx context.Context, task *domain.Task) error
 
+	// SaveAll persists multiple tasks atomically with respect to the
+	// repository's internal load/store cycle. For implementations backed
+	// by a file (e.g. JSON storage) this is dramatically cheaper than
+	// calling Save in a loop, which would re-read and re-write the
+	// entire file once per task. Implementations MAY treat SaveAll as
+	// equivalent to Save-in-a-loop when no batch path applies.
+	SaveAll(ctx context.Context, tasks []*domain.Task) error
+
 	// FindByKey retrieves a task by its key
 	FindByKey(ctx context.Context, key string) (*domain.Task, error)
 
