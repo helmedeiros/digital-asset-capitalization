@@ -85,6 +85,28 @@ func TestEnhancedHandler_SpinnerMethods_Standalone(t *testing.T) {
 	})
 }
 
+// TestEnhancedHandler_Spinner_StartStopIsRaceFree asserts that
+// startProcessingIndicator and stopProcessingIndicator do not race on
+// h.spinner. Before the fix, the animate goroutine read h.spinner three
+// times per tick while stopProcessingIndicator wrote h.spinner = nil from
+// the caller's goroutine; the data race was reproducible under `go test
+// -race`. Running start/stop multiple times here -- and especially within
+// less than one tick interval -- exercises both the happy stop path and
+// the case where the goroutine is still picking up the spinner pointer
+// when stop fires.
+func TestEnhancedHandler_Spinner_StartStopIsRaceFree(t *testing.T) {
+	handler := NewEnhancedHandler(nil)
+
+	for i := 0; i < 5; i++ {
+		handler.startProcessingIndicator("Working...")
+		handler.stopProcessingIndicator()
+	}
+
+	// Also drive a stop on an idle handler -- previously a no-op, must
+	// stay a no-op.
+	handler.stopProcessingIndicator()
+}
+
 func TestEnhancedHandler_DisplayMethods_Standalone(t *testing.T) {
 	handler := NewEnhancedHandler(nil)
 

@@ -28,6 +28,8 @@ type EnhancedHandler struct {
 	promptSession  *ui.PromptSession
 	palette        ui.ColorPalette
 	spinner        *ui.Spinner
+	spinnerStop    chan struct{} // closed by stopProcessingIndicator to signal exit
+	spinnerDone    chan struct{} // closed by the animate goroutine on exit
 	smartFormatter *ui.SmartFormatter
 	maxWidth       int
 	commandHistory []string
@@ -245,43 +247,54 @@ func (h *EnhancedHandler) addToHistory(input, output string, duration time.Durat
 func (h *EnhancedHandler) startProcessingIndicator(message string) {
 	h.spinner = ui.NewSpinner(ui.SpinnerDots, message)
 	h.spinner.SetColor(ui.ColorInfo)
+	h.spinnerStop = make(chan struct{})
+	h.spinnerDone = make(chan struct{})
 
 	// Show initial spinner state
 	fmt.Printf("\n%s", h.spinner.Render())
 
-	// Start a goroutine to animate the spinner
-	go h.animateSpinner()
+	// Start a goroutine to animate the spinner. We pass the spinner and
+	// channels by value so the goroutine never reads h.spinner concurrently
+	// with the field being cleared in stopProcessingIndicator.
+	go animateSpinner(h.spinner, h.spinnerStop, h.spinnerDone)
 }
 
-// stopProcessingIndicator stops the processing spinner
+// stopProcessingIndicator stops the processing spinner. Safe to call when
+// no spinner is running.
 func (h *EnhancedHandler) stopProcessingIndicator() {
-	if h.spinner != nil {
-		// Clear the spinner line and move to next line
-		fmt.Print("\r" + strings.Repeat(" ", h.maxWidth) + "\r")
-		h.spinner = nil
-	}
-}
-
-// animateSpinner animates the spinner while processing
-func (h *EnhancedHandler) animateSpinner() {
 	if h.spinner == nil {
 		return
 	}
 
-	ticker := time.NewTicker(h.spinner.GetInterval())
+	close(h.spinnerStop)
+	<-h.spinnerDone
+
+	// Clear the spinner line. Safe to do now that the animate goroutine
+	// has exited and won't race with us.
+	fmt.Print("\r" + strings.Repeat(" ", h.maxWidth) + "\r")
+	h.spinner = nil
+	h.spinnerStop = nil
+	h.spinnerDone = nil
+}
+
+// animateSpinner animates the given spinner until stop is closed, then
+// signals done. It does not touch any handler state, which is what makes
+// it race-free against stopProcessingIndicator.
+func animateSpinner(spinner *ui.Spinner, stop <-chan struct{}, done chan<- struct{}) {
+	defer close(done)
+	if spinner == nil {
+		return
+	}
+
+	ticker := time.NewTicker(spinner.GetInterval())
 	defer ticker.Stop()
 
 	for {
-		<-ticker.C
-		if h.spinner == nil {
+		select {
+		case <-stop:
 			return
-		}
-		// Update spinner and redraw
-		fmt.Printf("\r%s", h.spinner.Render())
-
-		// Check if spinner was stopped
-		if h.spinner == nil {
-			return
+		case <-ticker.C:
+			fmt.Printf("\r%s", spinner.Render())
 		}
 	}
 }
