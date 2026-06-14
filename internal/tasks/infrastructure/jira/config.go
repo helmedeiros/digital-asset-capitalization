@@ -6,6 +6,7 @@ import (
 	"net/url"
 	"os"
 	"strings"
+	"time"
 )
 
 const (
@@ -19,6 +20,12 @@ type Config struct {
 	BaseURL string
 	Email   string
 	Token   string
+
+	// MaxAttempts and BackoffBase tune the retry policy applied to all
+	// outbound JIRA calls. Zero values fall back to the shared httputil
+	// defaults; MaxAttempts == 1 disables retries entirely.
+	MaxAttempts int
+	BackoffBase time.Duration
 }
 
 // ConfigFactory is a function type for creating new Jira configurations
