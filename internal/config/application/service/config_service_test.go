@@ -852,3 +852,196 @@ func TestConfigService_GetTeamMapForSprintWithDates(t *testing.T) {
 		repo.AssertExpectations(t)
 	})
 }
+
+func TestConfigService_GetBoardWorkStream(t *testing.T) {
+	t.Run("returns workstream for known board", func(t *testing.T) {
+		repo := &MockConfigurationRepository{}
+		service := NewConfigService(repo)
+		teamConfig, err := domain.NewTeamConfig(map[string][]string{"FN": {"alice"}})
+		require.NoError(t, err)
+		require.NoError(t, teamConfig.SetBoardWorkStreams("FN", map[int]string{42: "Pricing"}))
+		repo.On("LoadTeamConfig").Return(teamConfig, nil)
+
+		ws, err := service.GetBoardWorkStream("FN", 42)
+		require.NoError(t, err)
+		assert.Equal(t, "Pricing", ws)
+		repo.AssertExpectations(t)
+	})
+
+	t.Run("returns empty for unknown board without erroring", func(t *testing.T) {
+		repo := &MockConfigurationRepository{}
+		service := NewConfigService(repo)
+		teamConfig, err := domain.NewTeamConfig(map[string][]string{"FN": {"alice"}})
+		require.NoError(t, err)
+		repo.On("LoadTeamConfig").Return(teamConfig, nil)
+
+		ws, err := service.GetBoardWorkStream("FN", 99)
+		require.NoError(t, err)
+		assert.Equal(t, "", ws)
+		repo.AssertExpectations(t)
+	})
+
+	t.Run("wraps repository load errors", func(t *testing.T) {
+		repo := &MockConfigurationRepository{}
+		service := NewConfigService(repo)
+		repo.On("LoadTeamConfig").Return(nil, errors.New("repo down"))
+
+		_, err := service.GetBoardWorkStream("FN", 1)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "failed to load team configuration")
+		repo.AssertExpectations(t)
+	})
+}
+
+func TestConfigService_GetBoardsForWorkStream(t *testing.T) {
+	t.Run("returns matching boards (case-insensitive)", func(t *testing.T) {
+		repo := &MockConfigurationRepository{}
+		service := NewConfigService(repo)
+		teamConfig, err := domain.NewTeamConfig(map[string][]string{"FN": {"alice"}})
+		require.NoError(t, err)
+		require.NoError(t, teamConfig.SetBoardWorkStreams("FN", map[int]string{
+			1: "Pricing",
+			2: "pricing",
+			3: "Search",
+		}))
+		repo.On("LoadTeamConfig").Return(teamConfig, nil)
+
+		ids, err := service.GetBoardsForWorkStream("FN", "PRICING")
+		require.NoError(t, err)
+		assert.ElementsMatch(t, []int{1, 2}, ids)
+		repo.AssertExpectations(t)
+	})
+
+	t.Run("wraps repository load errors", func(t *testing.T) {
+		repo := &MockConfigurationRepository{}
+		service := NewConfigService(repo)
+		repo.On("LoadTeamConfig").Return(nil, errors.New("repo down"))
+
+		ids, err := service.GetBoardsForWorkStream("FN", "Pricing")
+		require.Error(t, err)
+		assert.Nil(t, ids)
+		assert.Contains(t, err.Error(), "failed to load team configuration")
+		repo.AssertExpectations(t)
+	})
+}
+
+func TestConfigService_SetBoardWorkStreams(t *testing.T) {
+	t.Run("happy path saves through to repository", func(t *testing.T) {
+		repo := &MockConfigurationRepository{}
+		service := NewConfigService(repo)
+		teamConfig, err := domain.NewTeamConfig(map[string][]string{"FN": {"alice"}})
+		require.NoError(t, err)
+		repo.On("LoadTeamConfig").Return(teamConfig, nil)
+		repo.On("SaveTeamConfig", mock.AnythingOfType("*domain.TeamConfig")).Return(nil)
+
+		require.NoError(t, service.SetBoardWorkStreams("FN", map[int]string{1: "Pricing"}))
+		repo.AssertExpectations(t)
+	})
+
+	t.Run("rejects unknown projects (domain-level validation)", func(t *testing.T) {
+		repo := &MockConfigurationRepository{}
+		service := NewConfigService(repo)
+		teamConfig, err := domain.NewTeamConfig(map[string][]string{"FN": {"alice"}})
+		require.NoError(t, err)
+		repo.On("LoadTeamConfig").Return(teamConfig, nil)
+
+		err = service.SetBoardWorkStreams("GHOST", map[int]string{1: "X"})
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "failed to set board work streams")
+		repo.AssertExpectations(t)
+	})
+
+	t.Run("wraps repository load errors", func(t *testing.T) {
+		repo := &MockConfigurationRepository{}
+		service := NewConfigService(repo)
+		repo.On("LoadTeamConfig").Return(nil, errors.New("repo down"))
+
+		err := service.SetBoardWorkStreams("FN", map[int]string{1: "Pricing"})
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "failed to load team configuration")
+		repo.AssertExpectations(t)
+	})
+
+	t.Run("wraps repository save errors", func(t *testing.T) {
+		repo := &MockConfigurationRepository{}
+		service := NewConfigService(repo)
+		teamConfig, err := domain.NewTeamConfig(map[string][]string{"FN": {"alice"}})
+		require.NoError(t, err)
+		repo.On("LoadTeamConfig").Return(teamConfig, nil)
+		repo.On("SaveTeamConfig", mock.AnythingOfType("*domain.TeamConfig")).Return(errors.New("disk full"))
+
+		err = service.SetBoardWorkStreams("FN", map[int]string{1: "Pricing"})
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "failed to save team configuration")
+		repo.AssertExpectations(t)
+	})
+}
+
+func TestConfigService_SetBoardWorkStream(t *testing.T) {
+	t.Run("creates a new mapping if none exists", func(t *testing.T) {
+		repo := &MockConfigurationRepository{}
+		service := NewConfigService(repo)
+		teamConfig, err := domain.NewTeamConfig(map[string][]string{"FN": {"alice"}})
+		require.NoError(t, err)
+		repo.On("LoadTeamConfig").Return(teamConfig, nil)
+		repo.On("SaveTeamConfig", mock.AnythingOfType("*domain.TeamConfig")).Return(nil)
+
+		require.NoError(t, service.SetBoardWorkStream("FN", 7, "Pricing"))
+		repo.AssertExpectations(t)
+	})
+
+	t.Run("merges into an existing mapping", func(t *testing.T) {
+		repo := &MockConfigurationRepository{}
+		service := NewConfigService(repo)
+		teamConfig, err := domain.NewTeamConfig(map[string][]string{"FN": {"alice"}})
+		require.NoError(t, err)
+		require.NoError(t, teamConfig.SetBoardWorkStreams("FN", map[int]string{1: "Existing"}))
+		repo.On("LoadTeamConfig").Return(teamConfig, nil)
+		repo.On("SaveTeamConfig", mock.AnythingOfType("*domain.TeamConfig")).Return(nil)
+
+		require.NoError(t, service.SetBoardWorkStream("FN", 2, "Added"))
+		// The save call should carry both the original and the new mapping.
+		final := teamConfig.GetBoardWorkStreams("FN")
+		assert.Equal(t, "Existing", final[1])
+		assert.Equal(t, "Added", final[2])
+		repo.AssertExpectations(t)
+	})
+
+	t.Run("rejects unknown projects (domain-level validation)", func(t *testing.T) {
+		repo := &MockConfigurationRepository{}
+		service := NewConfigService(repo)
+		teamConfig, err := domain.NewTeamConfig(map[string][]string{"FN": {"alice"}})
+		require.NoError(t, err)
+		repo.On("LoadTeamConfig").Return(teamConfig, nil)
+
+		err = service.SetBoardWorkStream("GHOST", 1, "X")
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "failed to set board work stream")
+		repo.AssertExpectations(t)
+	})
+
+	t.Run("wraps repository load errors", func(t *testing.T) {
+		repo := &MockConfigurationRepository{}
+		service := NewConfigService(repo)
+		repo.On("LoadTeamConfig").Return(nil, errors.New("repo down"))
+
+		err := service.SetBoardWorkStream("FN", 1, "X")
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "failed to load team configuration")
+		repo.AssertExpectations(t)
+	})
+
+	t.Run("wraps repository save errors", func(t *testing.T) {
+		repo := &MockConfigurationRepository{}
+		service := NewConfigService(repo)
+		teamConfig, err := domain.NewTeamConfig(map[string][]string{"FN": {"alice"}})
+		require.NoError(t, err)
+		repo.On("LoadTeamConfig").Return(teamConfig, nil)
+		repo.On("SaveTeamConfig", mock.AnythingOfType("*domain.TeamConfig")).Return(errors.New("disk full"))
+
+		err = service.SetBoardWorkStream("FN", 1, "Pricing")
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "failed to save team configuration")
+		repo.AssertExpectations(t)
+	})
+}
