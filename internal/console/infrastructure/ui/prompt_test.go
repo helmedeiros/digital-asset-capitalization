@@ -271,3 +271,26 @@ func TestClearScreen(t *testing.T) {
 	result := ps.ClearScreen()
 	assert.Equal(t, "\033[2J\033[H", result)
 }
+
+func TestRenderFullSession(t *testing.T) {
+	ps := NewPromptSession(80)
+
+	t.Run("empty history yields empty string", func(t *testing.T) {
+		assert.Equal(t, "", ps.RenderFullSession())
+	})
+
+	t.Run("populated history renders each entry's input", func(t *testing.T) {
+		ps.AddEntry("first input", "first output", 100*time.Millisecond, true)
+		ps.AddEntry("second input", "second output", 200*time.Millisecond, false)
+		got := ps.RenderFullSession()
+		assert.Contains(t, got, "first input")
+		assert.Contains(t, got, "second input")
+	})
+}
+
+func TestRenderCurrentPrompt(t *testing.T) {
+	ps := NewPromptSession(80)
+	got := ps.RenderCurrentPrompt()
+	assert.NotEmpty(t, got)
+	assert.True(t, strings.HasPrefix(got, "\n"), "RenderCurrentPrompt should lead with a newline separator")
+}
