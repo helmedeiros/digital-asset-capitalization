@@ -1,10 +1,13 @@
 package classifier
 
 import (
+	"fmt"
+	"sync/atomic"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
+	"github.com/stretchr/testify/require"
 
 	assetdomain "github.com/helmedeiros/digital-asset-capitalization/internal/assets/domain"
 	taskdomain "github.com/helmedeiros/digital-asset-capitalization/internal/tasks/domain"
@@ -775,4 +778,99 @@ func TestSubtaskInheritance_needsInheritance(t *testing.T) {
 			assert.Equal(t, tt.expected, result)
 		})
 	}
+}
+
+// concurrentAssetClassifier is a hand-rolled fake (no testify Mock,
+// which is not safe for concurrent use) that returns a fresh result
+// per call so we can drive the parallel classification path under
+// -race without setup ceremony.
+type concurrentAssetClassifier struct {
+	calls int64
+}
+
+func (c *concurrentAssetClassifier) ClassifyTaskAsset(task *taskdomain.Task) (*ports.AssetClassificationResult, error) {
+	atomic.AddInt64(&c.calls, 1)
+	return &ports.AssetClassificationResult{
+		Task:       task,
+		Asset:      &assetdomain.Asset{Name: "Auto-assigned"},
+		Confidence: 0.95,
+		Reason:     "stub asset",
+	}, nil
+}
+
+func (c *concurrentAssetClassifier) ClassifyTasksAssets(tasks []*taskdomain.Task) ([]*ports.AssetClassificationResult, error) {
+	out := make([]*ports.AssetClassificationResult, 0, len(tasks))
+	for _, task := range tasks {
+		r, _ := c.ClassifyTaskAsset(task)
+		out = append(out, r)
+	}
+	return out, nil
+}
+
+type concurrentWorkTypeClassifier struct {
+	calls int64
+}
+
+func (c *concurrentWorkTypeClassifier) ClassifyTask(_ *taskdomain.Task) (taskdomain.WorkType, error) {
+	atomic.AddInt64(&c.calls, 1)
+	return taskdomain.WorkTypeDevelopment, nil
+}
+
+func (c *concurrentWorkTypeClassifier) ClassifyTasks(tasks []*taskdomain.Task) (map[string]taskdomain.WorkType, error) {
+	out := make(map[string]taskdomain.WorkType, len(tasks))
+	for _, t := range tasks {
+		out[t.Key] = taskdomain.WorkTypeDevelopment
+	}
+	return out, nil
+}
+
+// TestComprehensiveClassificationChainWithInheritance_ClassifyTasks_ParallelOrder
+// asserts that the parallel pass preserves input order in its output
+// slice (non-subtasks first in their input order, then subtasks in theirs)
+// and that every task is classified exactly once. Designed to run under
+// -race; the high task count makes any per-iteration races likely to
+// surface and an out-of-order result obvious.
+func TestComprehensiveClassificationChainWithInheritance_ClassifyTasks_ParallelOrder(t *testing.T) {
+	const total = 200
+	tasks := make([]*taskdomain.Task, 0, total)
+	expectedOrder := make([]string, 0, total)
+
+	// Half non-subtasks (no Epic), half subtasks (Epic pointing at a non-subtask).
+	for i := 0; i < total/2; i++ {
+		key := fmt.Sprintf("STORY-%03d", i)
+		tasks = append(tasks, &taskdomain.Task{Key: key, Type: taskdomain.TaskTypeStory})
+		expectedOrder = append(expectedOrder, key)
+	}
+	for i := 0; i < total/2; i++ {
+		key := fmt.Sprintf("SUB-%03d", i)
+		tasks = append(tasks, &taskdomain.Task{
+			Key:  key,
+			Type: taskdomain.TaskTypeSubtask,
+			Epic: fmt.Sprintf("STORY-%03d", i),
+		})
+	}
+	// After the two-phase split, non-subtasks come first (in their input order)
+	// then subtasks (in their input order).
+	for i := 0; i < total/2; i++ {
+		expectedOrder = append(expectedOrder, fmt.Sprintf("SUB-%03d", i))
+	}
+
+	chain := NewComprehensiveClassificationChainWithInheritance(
+		&concurrentAssetClassifier{},
+		&concurrentWorkTypeClassifier{},
+	).(*ComprehensiveClassificationChainWithInheritance)
+
+	results, err := chain.ClassifyTasks(tasks)
+	require.NoError(t, err)
+	require.Len(t, results, total)
+
+	seen := make(map[string]bool, total)
+	for i, r := range results {
+		require.NotNil(t, r, "result %d should be non-nil", i)
+		require.NotNil(t, r.Task, "result %d task should be non-nil", i)
+		assert.Equal(t, expectedOrder[i], r.Task.Key, "order preserved within each phase")
+		assert.False(t, seen[r.Task.Key], "task %s classified more than once", r.Task.Key)
+		seen[r.Task.Key] = true
+	}
+	assert.Len(t, seen, total, "every input task should appear exactly once in results")
 }
