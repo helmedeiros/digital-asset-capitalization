@@ -4,6 +4,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -87,6 +88,8 @@ func TestEnrichContent(t *testing.T) {
 			mockStatus:   http.StatusOK,
 		},
 		{
+			// 500 is now retryable, so the resulting error reports the
+			// retry-budget exhaustion rather than the per-attempt body.
 			name:    "API error",
 			content: "Test content",
 			field:   "description",
@@ -99,7 +102,7 @@ func TestEnrichContent(t *testing.T) {
 			},
 			mockResponse:  `{"error": "API error"}`,
 			mockStatus:    http.StatusInternalServerError,
-			expectedError: "API request failed with status 500: {\"error\": \"API error\"}",
+			expectedError: "Ollama request failed after 3 attempts: status 500",
 		},
 		{
 			name:    "empty response",
@@ -130,7 +133,9 @@ func TestEnrichContent(t *testing.T) {
 			}))
 			defer server.Close()
 
-			client, err := NewClient(Config{BaseURL: server.URL})
+			// Tight backoff so the retryable-status case doesn't wait
+			// a second of real time per test invocation.
+			client, err := NewClient(Config{BaseURL: server.URL, BackoffBase: time.Microsecond})
 			require.NoError(t, err)
 
 			result, err := client.EnrichContent(tt.content, tt.field, tt.asset)
@@ -222,7 +227,7 @@ func TestGenerateEmbeddings(t *testing.T) {
 			}))
 			defer server.Close()
 
-			client, err := NewClient(Config{BaseURL: server.URL})
+			client, err := NewClient(Config{BaseURL: server.URL, BackoffBase: time.Microsecond})
 			require.NoError(t, err)
 
 			result, err := client.GenerateEmbeddings("llama3", tt.texts)
@@ -331,5 +336,127 @@ func TestDefaultConfig(t *testing.T) {
 		// Verify it's a proper Config struct
 		assert.IsType(t, Config{}, config, "Should return Config struct")
 		assert.NotEmpty(t, config.BaseURL, "BaseURL should not be empty")
+	})
+}
+
+func TestIsRetryableStatus(t *testing.T) {
+	cases := []struct {
+		code      int
+		retryable bool
+	}{
+		{http.StatusOK, false},
+		{http.StatusBadRequest, false},
+		{http.StatusUnauthorized, false},
+		{http.StatusNotFound, false},
+		{http.StatusRequestTimeout, true},
+		{http.StatusTooManyRequests, true},
+		{http.StatusInternalServerError, true},
+		{http.StatusBadGateway, true},
+		{http.StatusServiceUnavailable, true},
+		{http.StatusGatewayTimeout, true},
+	}
+	for _, c := range cases {
+		assert.Equal(t, c.retryable, isRetryableStatus(c.code), "status %d", c.code)
+	}
+}
+
+func TestDoWithRetry_RetriesTransientThenSucceeds(t *testing.T) {
+	var hits int64
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		n := atomic.AddInt64(&hits, 1)
+		if n < 3 {
+			w.WriteHeader(http.StatusServiceUnavailable)
+			_, _ = w.Write([]byte(`busy`))
+			return
+		}
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(`{"response":"ok"}`))
+	}))
+	defer server.Close()
+
+	client, err := NewClient(Config{BaseURL: server.URL, MaxAttempts: 3, BackoffBase: time.Microsecond})
+	require.NoError(t, err)
+
+	resp, err := client.doWithRetry(func() (*http.Request, error) {
+		return http.NewRequest("GET", server.URL+"/anything", nil)
+	})
+	require.NoError(t, err)
+	require.NotNil(t, resp)
+	defer resp.Body.Close()
+	assert.Equal(t, http.StatusOK, resp.StatusCode)
+	assert.Equal(t, int64(3), atomic.LoadInt64(&hits), "should have retried twice before success")
+}
+
+func TestDoWithRetry_GivesUpAfterMaxAttempts(t *testing.T) {
+	var hits int64
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		atomic.AddInt64(&hits, 1)
+		w.WriteHeader(http.StatusBadGateway)
+	}))
+	defer server.Close()
+
+	client, err := NewClient(Config{BaseURL: server.URL, MaxAttempts: 4, BackoffBase: time.Microsecond})
+	require.NoError(t, err)
+
+	resp, err := client.doWithRetry(func() (*http.Request, error) {
+		return http.NewRequest("GET", server.URL+"/anything", nil)
+	})
+	require.Error(t, err)
+	assert.Nil(t, resp)
+	assert.Contains(t, err.Error(), "after 4 attempts")
+	assert.Equal(t, int64(4), atomic.LoadInt64(&hits))
+}
+
+func TestDoWithRetry_DoesNotRetryClientErrors(t *testing.T) {
+	var hits int64
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		atomic.AddInt64(&hits, 1)
+		w.WriteHeader(http.StatusBadRequest)
+	}))
+	defer server.Close()
+
+	client, err := NewClient(Config{BaseURL: server.URL, MaxAttempts: 5, BackoffBase: time.Microsecond})
+	require.NoError(t, err)
+
+	resp, err := client.doWithRetry(func() (*http.Request, error) {
+		return http.NewRequest("GET", server.URL+"/anything", nil)
+	})
+	require.NoError(t, err)
+	require.NotNil(t, resp)
+	defer resp.Body.Close()
+	assert.Equal(t, http.StatusBadRequest, resp.StatusCode)
+	assert.Equal(t, int64(1), atomic.LoadInt64(&hits), "4xx must not retry")
+}
+
+func TestDoWithRetry_RetriesTransportError(t *testing.T) {
+	// Spin a server up to get an address, then close it so every attempt
+	// fails at the transport layer. With BackoffBase set to a single
+	// microsecond the retry loop costs effectively nothing.
+	server := httptest.NewServer(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {}))
+	server.Close()
+
+	client, err := NewClient(Config{BaseURL: server.URL, MaxAttempts: 3, BackoffBase: time.Microsecond})
+	require.NoError(t, err)
+
+	resp, err := client.doWithRetry(func() (*http.Request, error) {
+		return http.NewRequest("GET", server.URL+"/anything", nil)
+	})
+	require.Error(t, err)
+	assert.Nil(t, resp)
+	assert.Contains(t, err.Error(), "after 3 attempts")
+}
+
+func TestNewClient_AppliesRetryDefaults(t *testing.T) {
+	t.Run("zero MaxAttempts falls back to DefaultMaxAttempts", func(t *testing.T) {
+		client, err := NewClient(Config{BaseURL: "http://example.invalid"})
+		require.NoError(t, err)
+		assert.Equal(t, DefaultMaxAttempts, client.maxAttempts)
+		assert.Equal(t, DefaultBackoffBase, client.backoffBase)
+	})
+
+	t.Run("explicit MaxAttempts of 1 disables retries", func(t *testing.T) {
+		client, err := NewClient(Config{BaseURL: "http://example.invalid", MaxAttempts: 1})
+		require.NoError(t, err)
+		assert.Equal(t, 1, client.maxAttempts)
 	})
 }
