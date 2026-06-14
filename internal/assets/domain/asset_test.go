@@ -139,17 +139,15 @@ func TestUpdateDocumentation(t *testing.T) {
 	asset, err := NewAsset("test-asset", "Test description")
 	require.NoError(t, err)
 
-	// Store initial time
-	initialTime := asset.LastDocUpdateAt
+	// Backdate the doc timestamp so the value written by UpdateDocumentation
+	// (which calls time.Now()) is unambiguously later, without relying on
+	// monotonic clock resolution or a time.Sleep race.
+	past := time.Now().Add(-time.Hour)
+	asset.LastDocUpdateAt = past
 
-	// Wait a bit to ensure time difference
-	time.Sleep(time.Millisecond)
-
-	// Update documentation
 	asset.UpdateDocumentation()
 
-	// Verify update
-	assert.True(t, asset.LastDocUpdateAt.After(initialTime), "LastDocUpdateAt should be after initial time")
+	assert.True(t, asset.LastDocUpdateAt.After(past), "LastDocUpdateAt should be after the backdated value")
 	assert.Equal(t, 2, asset.Version)
 }
 
