@@ -5,13 +5,20 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sync"
 
 	"github.com/helmedeiros/digital-asset-capitalization/internal/assets/domain"
 	"github.com/helmedeiros/digital-asset-capitalization/internal/assets/domain/ports"
 )
 
-// JSONRepository implements AssetRepository using JSON files
+// JSONRepository implements AssetRepository using JSON files.
+//
+// Save, Delete, and the read methods all touch the same underlying JSON file.
+// The mutex serializes mutations so concurrent bulk operations (e.g. parallel
+// enrichment in BulkEnrichKeywordsUseCase / BulkEnrichFieldsUseCase) cannot
+// race read-modify-write cycles and lose updates.
 type JSONRepository struct {
+	mu   sync.RWMutex
 	dir  string
 	file string
 }
@@ -52,16 +59,16 @@ func (r *JSONRepository) Save(asset *domain.Asset) error {
 		return fmt.Errorf("cannot save nil asset")
 	}
 
-	// Load existing assets
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
 	assets, err := r.loadAssets()
 	if err != nil {
 		return fmt.Errorf("failed to load assets: %w", err)
 	}
 
-	// Update or add the asset
 	assets[asset.Name] = asset
 
-	// Save back to file
 	return r.saveAssets(assets)
 }
 
@@ -70,6 +77,9 @@ func (r *JSONRepository) FindByName(name string) (*domain.Asset, error) {
 	if name == "" {
 		return nil, fmt.Errorf("asset name cannot be empty")
 	}
+
+	r.mu.RLock()
+	defer r.mu.RUnlock()
 
 	assets, err := r.loadAssets()
 	if err != nil {
@@ -86,6 +96,9 @@ func (r *JSONRepository) FindByName(name string) (*domain.Asset, error) {
 
 // FindAll returns all assets
 func (r *JSONRepository) FindAll() ([]*domain.Asset, error) {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+
 	assets, err := r.loadAssets()
 	if err != nil {
 		return nil, fmt.Errorf("failed to load assets: %w", err)
@@ -105,6 +118,9 @@ func (r *JSONRepository) Delete(name string) error {
 		return fmt.Errorf("asset name cannot be empty")
 	}
 
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
 	assets, err := r.loadAssets()
 	if err != nil {
 		return fmt.Errorf("failed to load assets: %w", err)
@@ -123,6 +139,9 @@ func (r *JSONRepository) FindByID(id string) (*domain.Asset, error) {
 	if id == "" {
 		return nil, fmt.Errorf("asset ID cannot be empty")
 	}
+
+	r.mu.RLock()
+	defer r.mu.RUnlock()
 
 	assets, err := r.loadAssets()
 	if err != nil {

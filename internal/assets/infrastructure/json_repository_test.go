@@ -1,8 +1,10 @@
 package infrastructure
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
+	"sync"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -357,4 +359,30 @@ func TestJSONRepository_FindByID(t *testing.T) {
 		assert.Nil(t, found, "Expected nil asset for empty ID")
 		assert.Contains(t, err.Error(), "asset ID cannot be empty", "Unexpected error message")
 	})
+}
+
+// TestJSONRepository_ConcurrentSaves verifies that concurrent Save calls do
+// not lose updates. Without the mutex, the read-modify-write cycle in Save
+// would race and the final assets.json could miss writes made by sibling
+// goroutines.
+func TestJSONRepository_ConcurrentSaves(t *testing.T) {
+	h := setupTest(t)
+	defer h.cleanup(t)
+
+	const writers = 16
+	var wg sync.WaitGroup
+	wg.Add(writers)
+
+	for i := 0; i < writers; i++ {
+		go func(i int) {
+			defer wg.Done()
+			asset := h.createTestAsset(fmt.Sprintf("asset-%02d", i), "concurrent write")
+			require.NoError(t, h.repo.Save(asset))
+		}(i)
+	}
+	wg.Wait()
+
+	all, err := h.repo.FindAll()
+	require.NoError(t, err)
+	assert.Len(t, all, writers, "every concurrent save should be persisted")
 }
