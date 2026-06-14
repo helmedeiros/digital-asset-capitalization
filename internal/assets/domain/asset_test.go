@@ -1,6 +1,7 @@
 package domain
 
 import (
+	"strings"
 	"testing"
 	"time"
 
@@ -605,4 +606,61 @@ func TestAsset_TeamManagement(t *testing.T) {
 		assert.Len(t, allTeams, 1)
 		assert.Contains(t, allTeams, "team-owner")
 	})
+}
+
+func TestAsset_GetID(t *testing.T) {
+	asset, err := NewAsset("Payment Gateway", "Processes payments")
+	require.NoError(t, err)
+	// GetID exists specifically because the mutex-protected accessor
+	// path is what callers should use under concurrent reads; the raw
+	// .ID field is also exported but accessing it bypasses the lock.
+	assert.Equal(t, asset.ID, asset.GetID())
+	assert.True(t, strings.HasPrefix(asset.GetID(), "cap-asset-"))
+}
+
+func TestValidateAssetID(t *testing.T) {
+	cases := []struct {
+		name    string
+		id      string
+		wantErr bool
+	}{
+		{"valid cap-asset prefix", "cap-asset-payment-gateway", false},
+		{"missing cap-asset prefix", "payment-gateway", true},
+		{"wrong prefix", "asset-payment-gateway", true},
+		{"empty string", "", true},
+		// Surprising case: ValidateAssetID only checks the prefix, so
+		// the literal "cap-asset-" with no suffix is "valid" by its
+		// rules even though IsValidAssetID rejects it. Pin both
+		// behaviours so the contract is unambiguous.
+		{"bare prefix passes ValidateAssetID", "cap-asset-", false},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			err := ValidateAssetID(c.id)
+			if c.wantErr {
+				assert.ErrorIs(t, err, ErrInvalidAssetID)
+				return
+			}
+			assert.NoError(t, err)
+		})
+	}
+}
+
+func TestIsValidAssetID(t *testing.T) {
+	cases := []struct {
+		id   string
+		want bool
+	}{
+		{"cap-asset-payment-gateway", true},
+		{"cap-asset-x", true},
+		{"cap-asset-", false}, // prefix alone is rejected
+		{"payment-gateway", false},
+		{"asset-payment-gateway", false},
+		{"", false},
+	}
+	for _, c := range cases {
+		t.Run(c.id, func(t *testing.T) {
+			assert.Equal(t, c.want, IsValidAssetID(c.id))
+		})
+	}
 }
