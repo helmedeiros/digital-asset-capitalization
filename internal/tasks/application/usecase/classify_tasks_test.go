@@ -84,6 +84,18 @@ func (m *MockTaskRepository) Save(ctx context.Context, task *domain.Task) error 
 	return args.Error(0)
 }
 
+// SaveAll defers to Save so existing test expectations set on Save
+// (with Times(N), specific task args, or mock.Anything) cover the new
+// batch path without needing to be rewritten.
+func (m *MockTaskRepository) SaveAll(ctx context.Context, tasks []*domain.Task) error {
+	for _, task := range tasks {
+		if err := m.Save(ctx, task); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 func (m *MockTaskRepository) Delete(ctx context.Context, key string) error {
 	args := m.Called(ctx, key)
 	return args.Error(0)
@@ -1293,6 +1305,7 @@ func TestClassifyTasksEdgeCases(t *testing.T) {
 
 		localRepo.On("FindByProjectAndSprint", ctx, testProject, testSprint).Return(tasks, nil)
 		classifier.On("ClassifyTasks", tasks).Return(workTypes, nil)
+		// Save delegation under MockTaskRepository.SaveAll covers this expectation.
 		localRepo.On("Save", ctx, mock.Anything).Return(fmt.Errorf("save error"))
 
 		// Act
@@ -1300,7 +1313,7 @@ func TestClassifyTasksEdgeCases(t *testing.T) {
 
 		// Assert
 		assert.Error(t, err)
-		assert.Contains(t, err.Error(), "failed to save classified task TEST-1")
+		assert.Contains(t, err.Error(), "failed to persist classified tasks")
 		localRepo.AssertExpectations(t)
 		classifier.AssertExpectations(t)
 	})
@@ -1763,17 +1776,23 @@ func TestAdditionalErrorHandlingAndEdgeCases(t *testing.T) {
 	})
 
 	t.Run("should handle classification with mixed success and failure", func(t *testing.T) {
-		// Create mocks
+		// Under the original semantics this exercised an interleaved Save/Apply
+		// loop where Save(TEST-1) + Apply(TEST-1) succeeded before Save(TEST-2)
+		// failed. The batch-then-push design persists every task in one
+		// SaveAll call BEFORE any remote update, so a save failure now aborts
+		// before any UpdateLabels call. The test therefore asserts that:
+		//   - SaveAll returns the second task's failure (delegation routes
+		//     to Save(tasks[1]) which is wired to fail);
+		//   - the error message reports the batch-level persistence failure;
+		//   - no UpdateLabels expectation fires because phase 3 never runs.
 		localRepo := new(MockTaskRepository)
 		remoteRepo := new(MockTaskRepository)
 		comprehensiveClassifier := new(MockComprehensiveTaskClassifier)
 		userInput := new(MockUserInput)
 		assetService := testutil.NewMockAssetService()
 
-		// Create use case
 		uc := NewClassifyTasksUseCase(localRepo, remoteRepo, comprehensiveClassifier, userInput, assetService, nil)
 
-		// Arrange
 		input := domain.ClassifyTasksInput{
 			Project: testProject,
 			Sprint:  testSprint,
@@ -1803,18 +1822,13 @@ func TestAdditionalErrorHandlingAndEdgeCases(t *testing.T) {
 
 		localRepo.On("FindByProjectAndSprint", ctx, testProject, testSprint).Return(tasks, nil)
 		comprehensiveClassifier.On("ClassifyTasksComprehensive", tasks).Return(results, nil)
-		// First task saves successfully
 		localRepo.On("Save", ctx, tasks[0]).Return(nil)
-		remoteRepo.On("UpdateLabels", ctx, "TEST-1", []string{"cap-development"}, []string(nil)).Return(nil)
-		// Second task fails to save
 		localRepo.On("Save", ctx, tasks[1]).Return(fmt.Errorf("save error"))
 
-		// Act
 		err := uc.Execute(ctx, input)
 
-		// Assert
 		assert.Error(t, err)
-		assert.Contains(t, err.Error(), "failed to save classified task TEST-2")
+		assert.Contains(t, err.Error(), "failed to persist classified tasks")
 		localRepo.AssertExpectations(t)
 		remoteRepo.AssertExpectations(t)
 		comprehensiveClassifier.AssertExpectations(t)

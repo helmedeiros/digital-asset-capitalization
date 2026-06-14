@@ -65,11 +65,10 @@ func (uc *ClassifyTasksUseCase) Execute(ctx context.Context, input domain.Classi
 				return fmt.Errorf("failed to fetch tasks: %w", fetchErr)
 			}
 
-			// Save fetched tasks to repository
-			for _, task := range fetchedTasks {
-				if saveErr := uc.localRepo.Save(ctx, task); saveErr != nil {
-					return fmt.Errorf("failed to save fetched task %s: %w", task.Key, saveErr)
-				}
+			// Save fetched tasks to repository in one batch -- per-task Save
+			// would re-read and re-write the entire JSON file once per task.
+			if saveErr := uc.localRepo.SaveAll(ctx, fetchedTasks); saveErr != nil {
+				return fmt.Errorf("failed to save fetched tasks: %w", saveErr)
 			}
 			tasks = fetchedTasks
 		} else {
@@ -146,23 +145,34 @@ func (uc *ClassifyTasksUseCase) Execute(ctx context.Context, input domain.Classi
 		}
 	}
 
+	// Phase 1: stamp every task with its new work type in memory.
+	updatedTasks := make([]*domain.Task, 0, len(classificationResults))
+	for _, result := range classificationResults {
+		if err := result.Task.UpdateWorkType(result.WorkType); err != nil {
+			return fmt.Errorf("failed to update work type for task %s: %w", result.Task.Key, err)
+		}
+		updatedTasks = append(updatedTasks, result.Task)
+	}
+
+	// Phase 2: persist the whole batch locally in a single load/store
+	// cycle. Doing this BEFORE pushing to JIRA preserves the original
+	// invariant that any task whose classification we attempted to push
+	// remotely is already saved locally -- so a mid-loop JIRA failure
+	// doesn't leave the on-disk state out of sync with what's already
+	// landed on the remote.
+	if err := uc.localRepo.SaveAll(ctx, updatedTasks); err != nil {
+		return fmt.Errorf("failed to persist classified tasks: %w", err)
+	}
+
+	// Phase 3: apply label updates to JIRA (or just narrate when in
+	// local-only mode). Errors here abort the run; previously persisted
+	// local state stays correct because of phase 2.
 	successCount := 0
 	for _, result := range classificationResults {
 		task := result.Task
 		workType := result.WorkType
 
-		if err := task.UpdateWorkType(workType); err != nil {
-			return fmt.Errorf("failed to update work type for task %s: %w", task.Key, err)
-		}
-
-		// Save updated task locally
-		if err := uc.localRepo.Save(ctx, task); err != nil {
-			return fmt.Errorf("failed to save classified task %s: %w", task.Key, err)
-		}
-
-		// Apply labels to Jira if requested
 		if input.Apply {
-			// Build add/remove label sets for cap-prefixed labels only
 			addLabels, removeLabels := uc.buildLabelChanges(task.Labels, workType, result.Asset)
 
 			fmt.Printf("  🏷️  %s → %s", task.Key, workType)
@@ -418,11 +428,9 @@ func (uc *ClassifyTasksUseCase) GetTasks(ctx context.Context, project, sprint st
 			return nil, fmt.Errorf("failed to fetch tasks from remote: %w", fetchErr)
 		}
 
-		// Save remote tasks to local repository
-		for _, task := range remoteTasks {
-			if saveErr := uc.localRepo.Save(ctx, task); saveErr != nil {
-				return nil, fmt.Errorf("failed to save fetched task: %w", saveErr)
-			}
+		// Save remote tasks to local repository in one batch.
+		if saveErr := uc.localRepo.SaveAll(ctx, remoteTasks); saveErr != nil {
+			return nil, fmt.Errorf("failed to save fetched tasks: %w", saveErr)
 		}
 
 		return remoteTasks, nil

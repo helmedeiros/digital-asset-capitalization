@@ -53,11 +53,10 @@ func (u *FetchTasksUseCase) Execute(ctx context.Context, project, sprint, platfo
 		return fmt.Errorf("failed to fetch tasks: %w", err)
 	}
 
-	// Save tasks to local storage
-	for _, task := range tasks {
-		if err := u.localRepo.Save(ctx, task); err != nil {
-			return fmt.Errorf("failed to save task %s: %w", task.Key, err)
-		}
+	// Save tasks to local storage in one batch -- per-task Save would
+	// re-read and re-write the entire JSON file once per task.
+	if err := u.localRepo.SaveAll(ctx, tasks); err != nil {
+		return fmt.Errorf("failed to save tasks: %w", err)
 	}
 
 	// Display tasks

@@ -55,6 +55,17 @@ func (m *MockTaskRepository) SetFindByKeyFunc(f func(ctx context.Context, key st
 	m.findByKeyFunc = f
 }
 
+// SaveAll persists multiple tasks. The default implementation routes
+// each entry through Save so callers don't need a separate hook.
+func (m *MockTaskRepository) SaveAll(ctx context.Context, tasks []*domain.Task) error {
+	for _, task := range tasks {
+		if err := m.Save(ctx, task); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 // Save saves a task to the repository
 func (m *MockTaskRepository) Save(ctx context.Context, task *domain.Task) error {
 	if m.saveFunc != nil {
