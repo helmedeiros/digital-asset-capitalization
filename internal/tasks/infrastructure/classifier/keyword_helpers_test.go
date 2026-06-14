@@ -60,3 +60,34 @@ func TestComprehensiveClassificationChain_containsAPIKeywords(t *testing.T) {
 	assert.True(t, chain.containsAPIKeywords(&taskdomain.Task{Summary: "Add new endpoint"}))
 	assert.False(t, chain.containsAPIKeywords(&taskdomain.Task{Summary: "no relevant words"}))
 }
+
+func TestComprehensiveClassificationChainWithInheritance_containsResearchKeywords(t *testing.T) {
+	chain := &ComprehensiveClassificationChainWithInheritance{}
+
+	assert.True(t, chain.containsResearchKeywords(&taskdomain.Task{Summary: "Spike: new SDK"}))
+	assert.True(t, chain.containsResearchKeywords(&taskdomain.Task{
+		Summary: "neutral",
+		Labels:  []string{"discovery"},
+	}))
+	assert.False(t, chain.containsResearchKeywords(&taskdomain.Task{
+		Summary: "ship", Labels: []string{"other"},
+	}))
+}
+
+func TestComprehensiveClassificationChainWithInheritance_containsBugKeywords(t *testing.T) {
+	chain := &ComprehensiveClassificationChainWithInheritance{}
+
+	assert.True(t, chain.containsBugKeywords(&taskdomain.Task{Summary: "Fix the issue"}))
+	assert.True(t, chain.containsBugKeywords(&taskdomain.Task{
+		Summary: "neutral", Type: taskdomain.TaskTypeBug,
+	}))
+	assert.False(t, chain.containsBugKeywords(&taskdomain.Task{
+		Summary: "ship feature", Type: taskdomain.TaskTypeStory,
+	}))
+}
+
+func TestComprehensiveClassificationChainWithInheritance_containsAPIKeywords(t *testing.T) {
+	chain := &ComprehensiveClassificationChainWithInheritance{}
+	assert.True(t, chain.containsAPIKeywords(&taskdomain.Task{Summary: "Implement new service"}))
+	assert.False(t, chain.containsAPIKeywords(&taskdomain.Task{Summary: "unrelated words"}))
+}
