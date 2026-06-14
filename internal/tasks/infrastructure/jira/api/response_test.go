@@ -218,3 +218,211 @@ func TestDescriptionContent_extractText(t *testing.T) {
 		})
 	}
 }
+
+// fieldsWith constructs a Fields whose RawFields map matches what
+// Fields.UnmarshalJSON would have populated, without going through full
+// JSON unmarshaling. Lets the table tests assert on each custom-field
+// getter directly.
+func fieldsWith(raw map[string]interface{}) *Fields {
+	return &Fields{RawFields: raw}
+}
+
+func TestFields_GetTPDBusinessUnits(t *testing.T) {
+	const fieldID = "customfield_tpd"
+
+	tests := []struct {
+		name    string
+		fieldID string
+		fields  *Fields
+		want    []string
+	}{
+		{
+			name:    "empty field ID returns nil",
+			fieldID: "",
+			fields:  fieldsWith(map[string]interface{}{fieldID: []interface{}{}}),
+			want:    nil,
+		},
+		{
+			name:    "nil RawFields returns nil",
+			fieldID: fieldID,
+			fields:  &Fields{},
+			want:    nil,
+		},
+		{
+			name:    "missing key returns nil",
+			fieldID: fieldID,
+			fields:  fieldsWith(map[string]interface{}{"other": "value"}),
+			want:    nil,
+		},
+		{
+			name:    "nil value returns nil",
+			fieldID: fieldID,
+			fields:  fieldsWith(map[string]interface{}{fieldID: nil}),
+			want:    nil,
+		},
+		{
+			name:    "wrong type returns nil",
+			fieldID: fieldID,
+			fields:  fieldsWith(map[string]interface{}{fieldID: "scalar instead of array"}),
+			want:    nil,
+		},
+		{
+			name:    "extracts values from objects with value key",
+			fieldID: fieldID,
+			fields: fieldsWith(map[string]interface{}{
+				fieldID: []interface{}{
+					map[string]interface{}{"value": "Payments"},
+					map[string]interface{}{"value": "Search"},
+				},
+			}),
+			want: []string{"Payments", "Search"},
+		},
+		{
+			name:    "skips non-object items and objects missing value",
+			fieldID: fieldID,
+			fields: fieldsWith(map[string]interface{}{
+				fieldID: []interface{}{
+					"scalar item",
+					map[string]interface{}{"label": "no value key"},
+					map[string]interface{}{"value": ""},
+					map[string]interface{}{"value": "Mobility"},
+				},
+			}),
+			want: []string{"Mobility"},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.want, tt.fields.GetTPDBusinessUnits(tt.fieldID))
+		})
+	}
+}
+
+func TestFields_GetEngineeringHours(t *testing.T) {
+	const fieldID = "customfield_hours"
+
+	floatPtr := func(v float64) *float64 { return &v }
+
+	tests := []struct {
+		name    string
+		fieldID string
+		fields  *Fields
+		want    *float64
+	}{
+		{
+			name:    "empty field ID returns nil",
+			fieldID: "",
+			fields:  fieldsWith(map[string]interface{}{fieldID: 42.0}),
+			want:    nil,
+		},
+		{
+			name:    "nil RawFields returns nil",
+			fieldID: fieldID,
+			fields:  &Fields{},
+			want:    nil,
+		},
+		{
+			name:    "missing key returns nil",
+			fieldID: fieldID,
+			fields:  fieldsWith(map[string]interface{}{"other": 1.0}),
+			want:    nil,
+		},
+		{
+			name:    "nil value returns nil",
+			fieldID: fieldID,
+			fields:  fieldsWith(map[string]interface{}{fieldID: nil}),
+			want:    nil,
+		},
+		{
+			name:    "float64 returns pointer to value",
+			fieldID: fieldID,
+			fields:  fieldsWith(map[string]interface{}{fieldID: 7.5}),
+			want:    floatPtr(7.5),
+		},
+		{
+			name:    "int is converted to float64",
+			fieldID: fieldID,
+			fields:  fieldsWith(map[string]interface{}{fieldID: 12}),
+			want:    floatPtr(12),
+		},
+		{
+			name:    "unsupported type returns nil",
+			fieldID: fieldID,
+			fields:  fieldsWith(map[string]interface{}{fieldID: "12"}),
+			want:    nil,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := tt.fields.GetEngineeringHours(tt.fieldID)
+			if tt.want == nil {
+				assert.Nil(t, got)
+				return
+			}
+			require.NotNil(t, got)
+			assert.Equal(t, *tt.want, *got)
+		})
+	}
+}
+
+func TestFields_GetWorkStream(t *testing.T) {
+	const fieldID = "customfield_workstream"
+
+	tests := []struct {
+		name    string
+		fieldID string
+		fields  *Fields
+		want    string
+	}{
+		{
+			name:    "empty field ID returns empty",
+			fieldID: "",
+			fields:  fieldsWith(map[string]interface{}{fieldID: map[string]interface{}{"value": "X"}}),
+			want:    "",
+		},
+		{
+			name:    "nil RawFields returns empty",
+			fieldID: fieldID,
+			fields:  &Fields{},
+			want:    "",
+		},
+		{
+			name:    "missing key returns empty",
+			fieldID: fieldID,
+			fields:  fieldsWith(map[string]interface{}{"other": map[string]interface{}{"value": "X"}}),
+			want:    "",
+		},
+		{
+			name:    "nil value returns empty",
+			fieldID: fieldID,
+			fields:  fieldsWith(map[string]interface{}{fieldID: nil}),
+			want:    "",
+		},
+		{
+			name:    "wrong type returns empty",
+			fieldID: fieldID,
+			fields:  fieldsWith(map[string]interface{}{fieldID: []interface{}{"X"}}),
+			want:    "",
+		},
+		{
+			name:    "object without value key returns empty",
+			fieldID: fieldID,
+			fields:  fieldsWith(map[string]interface{}{fieldID: map[string]interface{}{"label": "X"}}),
+			want:    "",
+		},
+		{
+			name:    "returns value string",
+			fieldID: fieldID,
+			fields:  fieldsWith(map[string]interface{}{fieldID: map[string]interface{}{"value": "Pricing"}}),
+			want:    "Pricing",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.want, tt.fields.GetWorkStream(tt.fieldID))
+		})
+	}
+}
