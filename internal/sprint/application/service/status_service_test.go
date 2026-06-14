@@ -271,3 +271,19 @@ func TestLoadTeamConfigs(t *testing.T) {
 		assert.Nil(t, configs)
 	})
 }
+
+func TestNewStatusService(t *testing.T) {
+	// NewStatusService delegates to NewStatusServiceWithPath("") which
+	// looks up the user's home directory. We don't care which path it
+	// finally settles on -- only that the delegation works without
+	// panicking and either succeeds (file existed) or errors
+	// gracefully. The path-construction code lives entirely in
+	// NewStatusServiceWithPath, so this test fires only the delegation
+	// edge.
+	svc, err := NewStatusService()
+	if err != nil {
+		assert.Nil(t, svc)
+		return
+	}
+	require.NotNil(t, svc)
+}
