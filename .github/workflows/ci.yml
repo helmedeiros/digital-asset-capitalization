@@ -36,10 +36,16 @@ jobs:
         # -race catches data races on every PR; multiple were already
         # found and fixed in recent work (#70, #71, #72, #73) that CI
         # was missing because tests were not race-instrumented.
+        # The badge is computed from a filtered profile that drops
+        # testutil packages (test helpers that look like production
+        # code to `go test -cover`) -- matching what
+        # scripts/coverage-gate.sh enforces locally, so the badge and
+        # the gate never disagree.
         run: |
           go test -v -race -coverprofile=coverage.out ./...
-          go tool cover -func=coverage.out | tee coverage.txt
-          COVERAGE=$(go tool cover -func=coverage.out | grep total | awk '{print $3}' | sed 's/%//')
+          grep -v "testutil" coverage.out > coverage.filtered.out
+          go tool cover -func=coverage.filtered.out | tee coverage.txt
+          COVERAGE=$(go tool cover -func=coverage.filtered.out | grep total | awk '{print $3}' | sed 's/%//')
           echo "coverage=$COVERAGE" >> $GITHUB_OUTPUT
 
       - name: Upload coverage report
