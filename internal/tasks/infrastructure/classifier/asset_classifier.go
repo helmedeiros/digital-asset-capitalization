@@ -3,6 +3,7 @@ package classifier
 import (
 	"fmt"
 	"strings"
+	"sync"
 
 	assetdomain "github.com/helmedeiros/digital-asset-capitalization/internal/assets/domain"
 	assetports "github.com/helmedeiros/digital-asset-capitalization/internal/assets/domain/ports"
@@ -13,6 +14,15 @@ import (
 // ContentBasedAssetClassifier implements asset classification based on content analysis
 type ContentBasedAssetClassifier struct {
 	assetRepo assetports.AssetRepository
+
+	// loadOnce caches the FindAll() result for the lifetime of the
+	// classifier. Each CLI invocation builds a fresh chain, so the cache
+	// lives for one command and reads the assets file exactly once
+	// across the full sprint -- matching the sync.Once pattern that
+	// EmbeddingAssetClassifier already uses for the same reason.
+	loadOnce     sync.Once
+	cachedAssets []*assetdomain.Asset
+	cachedErr    error
 }
 
 // NewContentBasedAssetClassifier creates a new content-based asset classifier
@@ -22,14 +32,22 @@ func NewContentBasedAssetClassifier(assetRepo assetports.AssetRepository) ports.
 	}
 }
 
+// loadAssets returns the asset list, reading the repository exactly
+// once per classifier instance.
+func (c *ContentBasedAssetClassifier) loadAssets() ([]*assetdomain.Asset, error) {
+	c.loadOnce.Do(func() {
+		c.cachedAssets, c.cachedErr = c.assetRepo.FindAll()
+	})
+	return c.cachedAssets, c.cachedErr
+}
+
 // ClassifyTaskAsset determines which asset a task belongs to based on content analysis
 func (c *ContentBasedAssetClassifier) ClassifyTaskAsset(task *taskdomain.Task) (*ports.AssetClassificationResult, error) {
 	if task == nil {
 		return nil, fmt.Errorf("task cannot be nil")
 	}
 
-	// Get all assets to analyze against
-	assets, err := c.assetRepo.FindAll()
+	assets, err := c.loadAssets()
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch assets: %w", err)
 	}

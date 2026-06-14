@@ -2,6 +2,7 @@ package classifier
 
 import (
 	"strings"
+	"sync"
 	"time"
 
 	assetdomain "github.com/helmedeiros/digital-asset-capitalization/internal/assets/domain"
@@ -12,6 +13,14 @@ import (
 // BusinessRulesClassifier implements TaskClassifier using business rules from the spec
 type BusinessRulesClassifier struct {
 	assetRepo assetports.AssetRepository
+
+	// loadOnce caches the FindAll() result for the lifetime of the
+	// classifier. Each CLI invocation builds a fresh chain, so the cache
+	// lives for one command. With #72's parallel classifier loop, this
+	// turns N concurrent FindAll() calls into a single coalesced load.
+	loadOnce     sync.Once
+	cachedAssets []*assetdomain.Asset
+	cachedErr    error
 }
 
 // NewBusinessRulesClassifier creates a new business rules classifier
@@ -19,6 +28,15 @@ func NewBusinessRulesClassifier(assetRepo assetports.AssetRepository) *BusinessR
 	return &BusinessRulesClassifier{
 		assetRepo: assetRepo,
 	}
+}
+
+// loadAssets returns the asset list, reading the repository exactly
+// once per classifier instance.
+func (c *BusinessRulesClassifier) loadAssets() ([]*assetdomain.Asset, error) {
+	c.loadOnce.Do(func() {
+		c.cachedAssets, c.cachedErr = c.assetRepo.FindAll()
+	})
+	return c.cachedAssets, c.cachedErr
 }
 
 // ClassifyTask determines the work type of a task based on business rules
@@ -101,8 +119,7 @@ func (c *BusinessRulesClassifier) isSpikeOrResearch(task *taskdomain.Task) bool 
 
 // findRelatedAsset attempts to find the asset related to this task
 func (c *BusinessRulesClassifier) findRelatedAsset(task *taskdomain.Task) (*assetdomain.Asset, error) {
-	// Get all assets to check against
-	assets, err := c.assetRepo.FindAll()
+	assets, err := c.loadAssets()
 	if err != nil {
 		return nil, err
 	}

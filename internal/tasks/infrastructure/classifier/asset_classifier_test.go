@@ -1,10 +1,13 @@
 package classifier
 
 import (
+	"sync"
+	"sync/atomic"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
+	"github.com/stretchr/testify/require"
 
 	assetdomain "github.com/helmedeiros/digital-asset-capitalization/internal/assets/domain"
 	taskdomain "github.com/helmedeiros/digital-asset-capitalization/internal/tasks/domain"
@@ -681,4 +684,50 @@ func TestContentBasedAssetClassifier_TitleWeighting(t *testing.T) {
 			mockRepo.AssertExpectations(t)
 		})
 	}
+}
+
+// countingAssetRepo is a minimal AssetRepository stub that records how
+// many times FindAll is called. Used to assert the per-classifier
+// sync.Once cache coalesces all reads into one, even under concurrent
+// callers. Hand-rolled because testify mock.Mock is not safe for
+// concurrent use.
+type countingAssetRepo struct {
+	calls  int64
+	assets []*assetdomain.Asset
+}
+
+func (r *countingAssetRepo) Save(*assetdomain.Asset) error { return nil }
+func (r *countingAssetRepo) FindAll() ([]*assetdomain.Asset, error) {
+	atomic.AddInt64(&r.calls, 1)
+	return r.assets, nil
+}
+func (r *countingAssetRepo) FindByID(string) (*assetdomain.Asset, error)   { return nil, nil }
+func (r *countingAssetRepo) FindByName(string) (*assetdomain.Asset, error) { return nil, nil }
+func (r *countingAssetRepo) Delete(string) error                           { return nil }
+
+// TestContentBasedAssetClassifier_LoadAssets_CoalescedAndRaceFree asserts
+// the sync.Once cache fires FindAll exactly once across many concurrent
+// ClassifyTaskAsset calls. Designed to run under -race; before the fix,
+// each call did its own assetRepo.FindAll() and the test would observe
+// `tasks` calls instead of 1.
+func TestContentBasedAssetClassifier_LoadAssets_CoalescedAndRaceFree(t *testing.T) {
+	repo := &countingAssetRepo{
+		assets: []*assetdomain.Asset{{Name: "Asset A", Keywords: []string{"foo"}}},
+	}
+	c := NewContentBasedAssetClassifier(repo)
+
+	const callers = 32
+	var wg sync.WaitGroup
+	wg.Add(callers)
+	for i := 0; i < callers; i++ {
+		go func() {
+			defer wg.Done()
+			_, err := c.ClassifyTaskAsset(&taskdomain.Task{Key: "TST-1", Summary: "do foo"})
+			require.NoError(t, err)
+		}()
+	}
+	wg.Wait()
+
+	assert.Equal(t, int64(1), atomic.LoadInt64(&repo.calls),
+		"sync.Once should coalesce all concurrent reads into one FindAll")
 }

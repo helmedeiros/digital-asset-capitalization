@@ -131,8 +131,10 @@ func TestBusinessRulesClassifier_ClassifyTask_SpikeOrResearch(t *testing.T) {
 }
 
 func TestBusinessRulesClassifier_ClassifyTask_WithinDevelopmentPeriod(t *testing.T) {
-	assetRepo := new(MockAssetRepository)
-	classifier := NewBusinessRulesClassifier(assetRepo)
+	// Each subtest builds a fresh classifier because the BusinessRules
+	// classifier caches its FindAll() result via sync.Once for the
+	// lifetime of the instance -- mirroring the production setup where
+	// one classifier is built per CLI invocation.
 
 	// Create test assets
 	now := time.Now()
@@ -180,6 +182,8 @@ func TestBusinessRulesClassifier_ClassifyTask_WithinDevelopmentPeriod(t *testing
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			assetRepo := new(MockAssetRepository)
+			classifier := NewBusinessRulesClassifier(assetRepo)
 			assetRepo.On("FindAll").Return(tt.assets, nil).Once()
 
 			workType, err := classifier.ClassifyTask(tt.task)
@@ -251,8 +255,8 @@ func TestBusinessRulesClassifier_ClassifyTask_NewAPIOrInventory(t *testing.T) {
 }
 
 func TestBusinessRulesClassifier_ClassifyTask_BugFixPastRollout(t *testing.T) {
-	assetRepo := new(MockAssetRepository)
-	classifier := NewBusinessRulesClassifier(assetRepo)
+	// Each subtest builds a fresh classifier because BusinessRulesClassifier
+	// caches its FindAll() result for the lifetime of the instance.
 
 	// Create test asset that was rolled out more than 6 months ago
 	now := time.Now()
@@ -295,6 +299,8 @@ func TestBusinessRulesClassifier_ClassifyTask_BugFixPastRollout(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			assetRepo := new(MockAssetRepository)
+			classifier := NewBusinessRulesClassifier(assetRepo)
 			assetRepo.On("FindAll").Return(tt.assets, nil).Once()
 
 			workType, err := classifier.ClassifyTask(tt.task)
@@ -307,8 +313,8 @@ func TestBusinessRulesClassifier_ClassifyTask_BugFixPastRollout(t *testing.T) {
 }
 
 func TestBusinessRulesClassifier_ClassifyTask_ContentFallback(t *testing.T) {
-	assetRepo := new(MockAssetRepository)
-	classifier := NewBusinessRulesClassifier(assetRepo)
+	// Each subtest builds a fresh classifier because BusinessRulesClassifier
+	// caches its FindAll() result for the lifetime of the instance.
 
 	tests := []struct {
 		name       string
@@ -355,6 +361,8 @@ func TestBusinessRulesClassifier_ClassifyTask_ContentFallback(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			assetRepo := new(MockAssetRepository)
+			classifier := NewBusinessRulesClassifier(assetRepo)
 			// For content fallback tests, asset lookup will be attempted but no assets found
 			assetRepo.On("FindAll").Return([]*assetdomain.Asset{}, nil).Once()
 
@@ -763,8 +771,8 @@ func TestBusinessRulesClassifier_TaskMatchesAsset_Comprehensive(t *testing.T) {
 }
 
 func TestBusinessRulesClassifier_FindRelatedAsset_EdgeCases(t *testing.T) {
-	assetRepo := new(MockAssetRepository)
-	classifier := NewBusinessRulesClassifier(assetRepo)
+	// Each subtest builds a fresh classifier because BusinessRulesClassifier
+	// caches its FindAll() result for the lifetime of the instance.
 
 	tests := []struct {
 		name          string
@@ -813,6 +821,8 @@ func TestBusinessRulesClassifier_FindRelatedAsset_EdgeCases(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			assetRepo := new(MockAssetRepository)
+			classifier := NewBusinessRulesClassifier(assetRepo)
 			assetRepo.On("FindAll").Return(tt.assets, tt.repoError).Once()
 
 			asset, err := classifier.findRelatedAsset(tt.task)
@@ -830,8 +840,8 @@ func TestBusinessRulesClassifier_FindRelatedAsset_EdgeCases(t *testing.T) {
 }
 
 func TestBusinessRulesClassifier_ClassifyTask_EdgeCases(t *testing.T) {
-	assetRepo := new(MockAssetRepository)
-	classifier := NewBusinessRulesClassifier(assetRepo)
+	// Each subtest builds a fresh classifier because BusinessRulesClassifier
+	// caches its FindAll() result for the lifetime of the instance.
 
 	tests := []struct {
 		name        string
@@ -868,6 +878,8 @@ func TestBusinessRulesClassifier_ClassifyTask_EdgeCases(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			assetRepo := new(MockAssetRepository)
+			classifier := NewBusinessRulesClassifier(assetRepo)
 			// Only set up mock if not testing spike/research
 			if !strings.Contains(strings.ToLower(tt.task.Summary+" "+tt.task.Description), "spike") &&
 				!containsLabel(tt.task.Labels, []string{"spike", "research", "poc"}) {
@@ -889,8 +901,8 @@ func TestBusinessRulesClassifier_ClassifyTask_EdgeCases(t *testing.T) {
 }
 
 func TestBusinessRulesClassifier_ClassifyTasks_EdgeCases(t *testing.T) {
-	assetRepo := new(MockAssetRepository)
-	classifier := NewBusinessRulesClassifier(assetRepo)
+	// Each subtest builds a fresh classifier because BusinessRulesClassifier
+	// caches its FindAll() result for the lifetime of the instance.
 
 	tests := []struct {
 		name        string
@@ -916,6 +928,8 @@ func TestBusinessRulesClassifier_ClassifyTasks_EdgeCases(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			assetRepo := new(MockAssetRepository)
+			classifier := NewBusinessRulesClassifier(assetRepo)
 			if tt.name == "repository error handled gracefully" {
 				assetRepo.On("FindAll").Return(nil, assert.AnError).Once()
 			}
