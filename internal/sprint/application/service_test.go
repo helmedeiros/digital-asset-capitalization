@@ -15,6 +15,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/helmedeiros/digital-asset-capitalization/internal/sprint/application/usecase"
 	"github.com/helmedeiros/digital-asset-capitalization/internal/sprint/domain"
 	"github.com/helmedeiros/digital-asset-capitalization/internal/sprint/domain/ports"
 )
@@ -536,4 +537,141 @@ func TestSprintServiceImpl_ListSprints_ErrorFromJiraPort(t *testing.T) {
 
 	assert.NoError(t, err)
 	assert.NotNil(t, result)
+}
+
+// jiraStubServer returns an httptest server that fakes the minimum JIRA
+// surface the SprintTimeAllocationUseCase touches: a /search endpoint
+// returning the given issues body, plus inert /board and /sprint
+// endpoints for the strategy-aware path.
+func jiraStubServer(searchBody map[string]interface{}) *httptest.Server {
+	return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case strings.Contains(r.URL.Path, "/search"):
+			w.WriteHeader(http.StatusOK)
+			json.NewEncoder(w).Encode(searchBody)
+		case strings.Contains(r.URL.Path, "/board") && !strings.Contains(r.URL.Path, "/sprint"):
+			w.WriteHeader(http.StatusOK)
+			json.NewEncoder(w).Encode(map[string]interface{}{
+				"values": []map[string]interface{}{
+					{"id": 1, "name": "Test Board", "type": "scrum"},
+				},
+			})
+		case strings.Contains(r.URL.Path, "/sprint"):
+			w.WriteHeader(http.StatusOK)
+			json.NewEncoder(w).Encode(map[string]interface{}{
+				"values": []map[string]interface{}{
+					{
+						"id":        "8802",
+						"name":      "Sprint 1",
+						"state":     "active",
+						"startDate": "2024-03-01T00:00:00.000Z",
+						"endDate":   "2024-03-15T00:00:00.000Z",
+						"goal":      "Sprint goal",
+					},
+				},
+				"isLast":     true,
+				"startAt":    0,
+				"maxResults": 50,
+			})
+		default:
+			w.WriteHeader(http.StatusNotFound)
+		}
+	}))
+}
+
+// issueWithStatus returns a JIRA search payload containing a single issue
+// in the given status assigned to the given user, matching the shape used
+// by the existing ProcessJiraIssuesWithStrategy test fixtures.
+func issueWithStatus(status string) map[string]interface{} {
+	return map[string]interface{}{
+		"issues": []map[string]interface{}{
+			{
+				"key": "TEST-123",
+				"fields": map[string]interface{}{
+					"summary": "Test Issue 1",
+					"assignee": map[string]interface{}{
+						"displayName": "Test User 1",
+					},
+					"status":            map[string]interface{}{"name": status},
+					"customfield_13192": 5.0,
+				},
+				"changelog": map[string]interface{}{
+					"histories": []map[string]interface{}{
+						{
+							"created": "2024-03-01T10:00:00.000+0000",
+							"items": []map[string]interface{}{
+								{
+									"field":      "status",
+									"fromString": "To Do",
+									"toString":   "In Progress",
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+}
+
+func TestSprintService_ProcessJiraIssuesWithOptions(t *testing.T) {
+	cleanup := setupTestEnv(t)
+	defer cleanup()
+
+	server := jiraStubServer(issueWithStatus(domain.StatusDone))
+	defer server.Close()
+	os.Setenv("JIRA_BASE_URL", server.URL)
+
+	service := NewSprintService(&mockJiraPort{})
+
+	t.Run("successful processing with no options", func(t *testing.T) {
+		result, err := service.ProcessJiraIssuesWithOptions("TEST", "Sprint 1", "", false)
+		require.NoError(t, err)
+		assert.NotEmpty(t, result)
+	})
+
+	t.Run("successful processing with WithHours option", func(t *testing.T) {
+		result, err := service.ProcessJiraIssuesWithOptions("TEST", "Sprint 1", "", true, usecase.WithHours(true))
+		require.NoError(t, err)
+		assert.NotEmpty(t, result)
+		// WithHours adds the engineering-hours column to the CSV header.
+		assert.Contains(t, result, "engineeringHours")
+	})
+
+	t.Run("invalid project returns error", func(t *testing.T) {
+		_, err := service.ProcessJiraIssuesWithOptions("INVALID", "Sprint 1", "", false)
+		assert.Error(t, err)
+	})
+}
+
+func TestSprintService_PushAllocationToJira(t *testing.T) {
+	cleanup := setupTestEnv(t)
+	defer cleanup()
+
+	// Empty issues list keeps the push loop a no-op — that's enough to walk
+	// the wiring (processor build, ProcessWithRecords, NewPushAllocationUseCase,
+	// Execute on an empty record set) without needing to stub the JIRA
+	// custom-field fetch/update endpoints that a non-empty path would call.
+	server := jiraStubServer(map[string]interface{}{"issues": []map[string]interface{}{}})
+	defer server.Close()
+	os.Setenv("JIRA_BASE_URL", server.URL)
+
+	service := NewSprintService(&mockJiraPort{})
+
+	t.Run("dry run with no issues returns empty push result", func(t *testing.T) {
+		_, pushResult, err := service.PushAllocationToJira("TEST", "Sprint 1", "", false, true)
+		require.NoError(t, err)
+		require.NotNil(t, pushResult)
+		assert.Equal(t, 0, pushResult.UpdatedCount)
+		assert.Equal(t, 0, pushResult.SkippedCount)
+		assert.Equal(t, 0, pushResult.ErrorCount)
+		assert.Empty(t, pushResult.Details)
+	})
+
+	t.Run("invalid project returns error from processor", func(t *testing.T) {
+		csvData, pushResult, err := service.PushAllocationToJira("INVALID", "Sprint 1", "", false, true)
+		assert.Error(t, err)
+		assert.Empty(t, csvData)
+		assert.Nil(t, pushResult)
+	})
 }
