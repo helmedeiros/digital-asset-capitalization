@@ -174,3 +174,85 @@ func TestStatusFormatter_AllBranches(t *testing.T) {
 		})
 	}
 }
+
+func TestMoneyFormatter_AllBranches(t *testing.T) {
+	t.Run("string passes through to Code wrapper", func(t *testing.T) {
+		got := MoneyFormatter("EUR 100")
+		containsRaw(t, got, "EUR 100")
+	})
+
+	t.Run("float64 renders as $N.NN", func(t *testing.T) {
+		got := MoneyFormatter(99.5)
+		containsRaw(t, got, "$99.50")
+	})
+
+	t.Run("float32 renders as $N.NN", func(t *testing.T) {
+		got := MoneyFormatter(float32(12.0))
+		containsRaw(t, got, "$12.00")
+	})
+
+	t.Run("default branch with currency-shaped string surfaces as Code", func(t *testing.T) {
+		// "$" in the fmt'd default value triggers the Code wrap.
+		got := MoneyFormatter([]string{"$50"})
+		containsRaw(t, got, "$50")
+	})
+
+	t.Run("default branch without currency falls through to DefaultFormatter", func(t *testing.T) {
+		got := MoneyFormatter(7)
+		require.NotEmpty(t, got)
+	})
+}
+
+func TestDefaultFormatter_AllTypeBranches(t *testing.T) {
+	t.Run("string returns unchanged", func(t *testing.T) {
+		assert.Equal(t, "raw", DefaultFormatter("raw"))
+	})
+
+	t.Run("ints render as %d", func(t *testing.T) {
+		assert.Equal(t, "42", DefaultFormatter(int(42)))
+		assert.Equal(t, "42", DefaultFormatter(int8(42)))
+		assert.Equal(t, "42", DefaultFormatter(int16(42)))
+		assert.Equal(t, "42", DefaultFormatter(int32(42)))
+		assert.Equal(t, "42", DefaultFormatter(int64(42)))
+	})
+
+	t.Run("uints render as %d", func(t *testing.T) {
+		assert.Equal(t, "42", DefaultFormatter(uint(42)))
+		assert.Equal(t, "42", DefaultFormatter(uint8(42)))
+		assert.Equal(t, "42", DefaultFormatter(uint16(42)))
+		assert.Equal(t, "42", DefaultFormatter(uint32(42)))
+		assert.Equal(t, "42", DefaultFormatter(uint64(42)))
+	})
+
+	t.Run("floats render with two decimal places", func(t *testing.T) {
+		assert.Equal(t, "3.14", DefaultFormatter(float32(3.14)))
+		assert.Equal(t, "3.14", DefaultFormatter(float64(3.14)))
+	})
+
+	t.Run("bool true renders as success-text 'true'", func(t *testing.T) {
+		containsRaw(t, DefaultFormatter(true), "true")
+	})
+
+	t.Run("bool false renders as error-text 'false'", func(t *testing.T) {
+		containsRaw(t, DefaultFormatter(false), "false")
+	})
+
+	t.Run("time.Time formats as YYYY-MM-DD HH:MM", func(t *testing.T) {
+		got := DefaultFormatter(time.Date(2026, 7, 9, 12, 30, 0, 0, time.UTC))
+		assert.Equal(t, "2026-07-09 12:30", got)
+	})
+
+	t.Run("[]string joins on comma", func(t *testing.T) {
+		assert.Equal(t, "a, b, c", DefaultFormatter([]string{"a", "b", "c"}))
+	})
+
+	t.Run("other slices join via reflection", func(t *testing.T) {
+		assert.Equal(t, "1, 2, 3", DefaultFormatter([]int{1, 2, 3}))
+	})
+
+	t.Run("unknown non-slice types fall through to %v", func(t *testing.T) {
+		// A map isn't a slice, doesn't match any case, prints via fmt.Sprintf.
+		got := DefaultFormatter(map[string]int{"x": 1})
+		require.NotEmpty(t, got)
+	})
+}
