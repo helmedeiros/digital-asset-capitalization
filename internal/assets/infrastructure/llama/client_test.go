@@ -5,6 +5,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -236,6 +237,41 @@ func TestGenerateEmbeddings(t *testing.T) {
 			assert.Len(t, result, tt.expectedCount)
 		})
 	}
+}
+
+func TestNewClientTimeout(t *testing.T) {
+	t.Run("applies configured timeout", func(t *testing.T) {
+		client, err := NewClient(Config{BaseURL: "http://example.invalid", Timeout: 7 * time.Second})
+		require.NoError(t, err)
+		assert.Equal(t, 7*time.Second, client.httpClient.Timeout)
+	})
+
+	t.Run("falls back to DefaultTimeout when unset", func(t *testing.T) {
+		client, err := NewClient(Config{BaseURL: "http://example.invalid"})
+		require.NoError(t, err)
+		assert.Equal(t, DefaultTimeout, client.httpClient.Timeout)
+	})
+
+	t.Run("falls back to DefaultTimeout for non-positive values", func(t *testing.T) {
+		client, err := NewClient(Config{BaseURL: "http://example.invalid", Timeout: -1 * time.Second})
+		require.NoError(t, err)
+		assert.Equal(t, DefaultTimeout, client.httpClient.Timeout)
+	})
+
+	t.Run("aborts requests that exceed the timeout", func(t *testing.T) {
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			time.Sleep(200 * time.Millisecond)
+			w.WriteHeader(http.StatusOK)
+		}))
+		defer server.Close()
+
+		client, err := NewClient(Config{BaseURL: server.URL, Timeout: 25 * time.Millisecond})
+		require.NoError(t, err)
+
+		_, err = client.GenerateEmbeddings("llama3", []string{"hello"})
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "failed to call Ollama embed")
+	})
 }
 
 func TestDefaultConfig(t *testing.T) {

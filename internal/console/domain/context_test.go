@@ -194,19 +194,21 @@ func TestContext_Variables(t *testing.T) {
 
 func TestContext_SessionManagement(t *testing.T) {
 	ctx := NewContext("test-session")
-	time.Sleep(10 * time.Millisecond)
 
-	// Test session duration
+	// Backdate StartTime/LastActivity so the assertions don't depend on
+	// time.Sleep firing in time — they only need the past to be strictly
+	// before time.Now().
+	past := time.Now().Add(-time.Hour)
+	ctx.StartTime = past
+	ctx.LastActivity = past
+
 	duration := ctx.GetSessionDuration()
 	assert.Greater(t, duration, time.Duration(0))
 
-	// Test expiration
-	assert.False(t, ctx.IsExpired(time.Hour))
+	assert.False(t, ctx.IsExpired(2*time.Hour))
 	assert.True(t, ctx.IsExpired(time.Nanosecond))
 
-	// Update activity
 	oldActivity := ctx.LastActivity
-	time.Sleep(10 * time.Millisecond)
 	ctx.SetVariable("test", "value")
 	assert.Greater(t, ctx.LastActivity, oldActivity)
 }

@@ -397,9 +397,9 @@ func TestGenerateDeploymentID(t *testing.T) {
 	assert.Contains(t, id, "dep-")
 	assert.Regexp(t, `^dep-\d{8}-\d{6}$`, id)
 
-	// Test uniqueness
+	// Test uniqueness: the inputs differ by a full second, which is plenty
+	// of resolution for the YYYYMMDD-HHMMSS-format ID — no clock wait needed.
 	id1 := generateDeploymentID(now)
-	time.Sleep(time.Millisecond)
 	id2 := generateDeploymentID(now.Add(time.Second))
 	assert.NotEqual(t, id1, id2)
 }

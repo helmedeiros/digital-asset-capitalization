@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/urfave/cli/v2"
+	"golang.org/x/sync/errgroup"
 
 	assetsapp "github.com/helmedeiros/digital-asset-capitalization/internal/assets/application"
 	assetsusecase "github.com/helmedeiros/digital-asset-capitalization/internal/assets/application/usecase"
@@ -866,28 +867,26 @@ For more information about a command:
 							enrichKeywords := ctx.Bool("keywords")
 							enrichFields := ctx.StringSlice("fields")
 							dryRun := ctx.Bool("dry-run")
-
-							// Note: These parameters will be used when we implement the full orchestration
-							_ = ctx.String("field-filter") // fieldFilter for future use
-							_ = ctx.Int("max-concurrent")  // maxConcurrent for future use
+							maxConcurrent := ctx.Int("max-concurrent")
+							if maxConcurrent < 1 {
+								maxConcurrent = 1
+							}
+							// field-filter is reserved for the future bulk use case path;
+							// the inline enrichment here always touches every synced asset.
+							_ = ctx.String("field-filter")
 
 							// Validate required parameters
 							if label == "" {
 								return fmt.Errorf("label is required")
 							}
 
-							// Import the usecase package
-							// Note: This will need proper dependency injection in a real implementation
 							fmt.Printf("Starting sync-and-enrich workflow...\n")
-							fmt.Printf("Space: %s, Label: %s, Keywords: %v, Fields: %v\n", spaceKey, label, enrichKeywords, enrichFields)
+							fmt.Printf("Space: %s, Label: %s, Keywords: %v, Fields: %v, MaxConcurrent: %d\n", spaceKey, label, enrichKeywords, enrichFields, maxConcurrent)
 
 							if dryRun {
 								fmt.Printf("DRY RUN: Would sync assets and enrich with keywords=%v, fields=%v\n", enrichKeywords, enrichFields)
 								return nil
 							}
-
-							// For now, call the individual operations in sequence
-							// TODO: Replace with proper orchestration use case
 
 							// Step 1: Sync assets
 							fmt.Printf("Step 1: Syncing assets from Confluence...\n")
@@ -900,28 +899,42 @@ For more information about a command:
 
 							// Step 2: Enrich keywords if requested
 							if enrichKeywords && len(result.SyncedAssets) > 0 {
-								fmt.Printf("Step 2: Generating keywords for synced assets...\n")
+								fmt.Printf("Step 2: Generating keywords for synced assets (max %d in flight)...\n", maxConcurrent)
+								eg := new(errgroup.Group)
+								eg.SetLimit(maxConcurrent)
 								for _, asset := range result.SyncedAssets {
-									if err := a.assetService.GenerateKeywords(asset.Name); err != nil {
-										fmt.Printf("Warning: Failed to generate keywords for %s: %v\n", asset.Name, err)
-									} else {
-										fmt.Printf("Generated keywords for: %s\n", asset.Name)
-									}
+									asset := asset
+									eg.Go(func() error {
+										if err := a.assetService.GenerateKeywords(asset.Name); err != nil {
+											fmt.Printf("Warning: Failed to generate keywords for %s: %v\n", asset.Name, err)
+										} else {
+											fmt.Printf("Generated keywords for: %s\n", asset.Name)
+										}
+										return nil
+									})
 								}
+								_ = eg.Wait()
 							}
 
 							// Step 3: Enrich fields if requested
 							if len(enrichFields) > 0 && len(result.SyncedAssets) > 0 {
-								fmt.Printf("Step 3: Enriching fields %v for synced assets...\n", enrichFields)
+								fmt.Printf("Step 3: Enriching fields %v for synced assets (max %d in flight)...\n", enrichFields, maxConcurrent)
+								eg := new(errgroup.Group)
+								eg.SetLimit(maxConcurrent)
 								for _, asset := range result.SyncedAssets {
 									for _, field := range enrichFields {
-										if err := a.assetService.EnrichAsset(asset.Name, field); err != nil {
-											fmt.Printf("Warning: Failed to enrich %s field for %s: %v\n", field, asset.Name, err)
-										} else {
-											fmt.Printf("Enriched %s field for: %s\n", field, asset.Name)
-										}
+										asset, field := asset, field
+										eg.Go(func() error {
+											if err := a.assetService.EnrichAsset(asset.Name, field); err != nil {
+												fmt.Printf("Warning: Failed to enrich %s field for %s: %v\n", field, asset.Name, err)
+											} else {
+												fmt.Printf("Enriched %s field for: %s\n", field, asset.Name)
+											}
+											return nil
+										})
 									}
 								}
+								_ = eg.Wait()
 							}
 
 							fmt.Printf("Sync-and-enrich workflow completed successfully!\n")

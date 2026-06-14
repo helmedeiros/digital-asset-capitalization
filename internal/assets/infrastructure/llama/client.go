@@ -10,9 +10,15 @@ import (
 	"os"
 	"regexp"
 	"strings"
+	"time"
 
 	"github.com/helmedeiros/digital-asset-capitalization/internal/assets/domain"
 )
+
+// DefaultTimeout is the default HTTP timeout for Ollama requests. It is
+// generous because LLM inference for large prompts can legitimately take
+// several minutes; a shorter value risks aborting valid in-flight requests.
+const DefaultTimeout = 5 * time.Minute
 
 // Client represents an Ollama API client
 type Client struct {
@@ -23,6 +29,7 @@ type Client struct {
 // Config holds the configuration for the Ollama client
 type Config struct {
 	BaseURL string
+	Timeout time.Duration
 }
 
 // DefaultConfig returns a default configuration for the Ollama client
@@ -33,6 +40,7 @@ func DefaultConfig() Config {
 	}
 	return Config{
 		BaseURL: baseURL,
+		Timeout: DefaultTimeout,
 	}
 }
 
@@ -42,19 +50,26 @@ func NewClient(config Config) (*Client, error) {
 		return nil, fmt.Errorf("OLLAMA_API_URL environment variable must be set")
 	}
 
+	timeout := config.Timeout
+	if timeout <= 0 {
+		timeout = DefaultTimeout
+	}
+
 	return &Client{
 		baseURL:    config.BaseURL,
-		httpClient: &http.Client{},
+		httpClient: &http.Client{Timeout: timeout},
 	}, nil
 }
 
+var (
+	htmlTagRE    = regexp.MustCompile("<[^>]*>")
+	whitespaceRE = regexp.MustCompile(`\s+`)
+)
+
 // cleanHTML removes HTML tags and normalizes whitespace
 func cleanHTML(content string) string {
-	// Remove HTML tags
-	re := regexp.MustCompile("<[^>]*>")
-	content = re.ReplaceAllString(content, "")
+	content = htmlTagRE.ReplaceAllString(content, "")
 
-	// Replace HTML entities
 	content = strings.ReplaceAll(content, "&nbsp;", " ")
 	content = strings.ReplaceAll(content, "&amp;", "&")
 	content = strings.ReplaceAll(content, "&lt;", "<")
@@ -62,12 +77,8 @@ func cleanHTML(content string) string {
 	content = strings.ReplaceAll(content, "&quot;", "\"")
 	content = strings.ReplaceAll(content, "&#39;", "'")
 
-	// Normalize whitespace
-	re = regexp.MustCompile(`\s+`)
-	content = re.ReplaceAllString(content, " ")
-	content = strings.TrimSpace(content)
-
-	return content
+	content = whitespaceRE.ReplaceAllString(content, " ")
+	return strings.TrimSpace(content)
 }
 
 // EnrichContent sends content to Ollama for enrichment
