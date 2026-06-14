@@ -16,7 +16,7 @@ import (
 
 // Handler manages the interactive console prompt
 type Handler struct {
-	consoleService *application.ConsoleService
+	consoleService ConsoleService
 	reader         *bufio.Reader
 	sessionContext *domain.Context
 	promptStyle    Style
