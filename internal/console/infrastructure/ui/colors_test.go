@@ -228,3 +228,55 @@ func TestGradient_StubFallsBackToStartColor(t *testing.T) {
 		t.Errorf("expected Gradient to begin with the start colour, got %q", got)
 	}
 }
+
+func TestPaletteFormat_AllColorTypesAndStyles(t *testing.T) {
+	palette := DefaultPalette()
+	text := "payload"
+
+	t.Run("color-type table including the fallthrough", func(t *testing.T) {
+		// One subtest per color type so the failure message names the
+		// branch that broke.
+		cases := []string{"primary", "secondary", ColorTypeSuccess, ColorTypeError, ColorTypeWarning, "info", "muted", "unknown-falls-back-to-foreground"}
+		for _, colorType := range cases {
+			t.Run(colorType, func(t *testing.T) {
+				got := palette.Format(text, colorType)
+				if !strings.Contains(got, text) {
+					t.Errorf("expected output to contain %q, got %q", text, got)
+				}
+				if !strings.HasSuffix(got, Reset) {
+					t.Errorf("expected output to end with Reset, got %q", got)
+				}
+			})
+		}
+	})
+
+	t.Run("each named style prepends its escape code", func(t *testing.T) {
+		cases := map[string]string{"bold": Bold, "dim": Dim, "italic": Italic}
+		for styleName, escape := range cases {
+			t.Run(styleName, func(t *testing.T) {
+				got := palette.Format(text, "primary", styleName)
+				if !strings.HasPrefix(got, escape) {
+					t.Errorf("expected output to begin with %q escape, got %q", styleName, got)
+				}
+			})
+		}
+	})
+
+	t.Run("unknown style names are silently ignored", func(t *testing.T) {
+		got := palette.Format(text, "primary", "neon-glow")
+		// Output still starts with the primary colour (not Bold/Dim/Italic)
+		// and ends with Reset.
+		assertWrapsWithReset(t, got, text)
+	})
+
+	t.Run("multiple styles stack in argument order", func(t *testing.T) {
+		got := palette.Format(text, "primary", "bold", "italic")
+		// Italic is appended last so it ends up at the very front.
+		if !strings.HasPrefix(got, Italic) {
+			t.Errorf("expected output to begin with Italic (the last style applied), got %q", got)
+		}
+		if !strings.Contains(got, Bold) {
+			t.Errorf("expected output to also contain Bold, got %q", got)
+		}
+	})
+}
