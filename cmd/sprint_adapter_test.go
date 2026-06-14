@@ -133,4 +133,3 @@ func TestSprintServiceAdapter_AllocateSprint(t *testing.T) {
 		assert.Equal(t, "sprint-bounded", m["calculation_type"])
 	})
 }
-
