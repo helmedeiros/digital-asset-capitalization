@@ -61,13 +61,15 @@ func NewClient(config Config) (*Client, error) {
 	}, nil
 }
 
+var (
+	htmlTagRE    = regexp.MustCompile("<[^>]*>")
+	whitespaceRE = regexp.MustCompile(`\s+`)
+)
+
 // cleanHTML removes HTML tags and normalizes whitespace
 func cleanHTML(content string) string {
-	// Remove HTML tags
-	re := regexp.MustCompile("<[^>]*>")
-	content = re.ReplaceAllString(content, "")
+	content = htmlTagRE.ReplaceAllString(content, "")
 
-	// Replace HTML entities
 	content = strings.ReplaceAll(content, "&nbsp;", " ")
 	content = strings.ReplaceAll(content, "&amp;", "&")
 	content = strings.ReplaceAll(content, "&lt;", "<")
@@ -75,12 +77,8 @@ func cleanHTML(content string) string {
 	content = strings.ReplaceAll(content, "&quot;", "\"")
 	content = strings.ReplaceAll(content, "&#39;", "'")
 
-	// Normalize whitespace
-	re = regexp.MustCompile(`\s+`)
-	content = re.ReplaceAllString(content, " ")
-	content = strings.TrimSpace(content)
-
-	return content
+	content = whitespaceRE.ReplaceAllString(content, " ")
+	return strings.TrimSpace(content)
 }
 
 // EnrichContent sends content to Ollama for enrichment
