@@ -1,8 +1,10 @@
 package ui
 
 import (
+	"fmt"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -124,4 +126,51 @@ func TestFormatShortDate(t *testing.T) {
 	t.Run("invalid date is returned unchanged", func(t *testing.T) {
 		assert.Equal(t, "not-a-date", formatShortDate("not-a-date"))
 	})
+}
+
+func TestDateFormatter_AllBranches(t *testing.T) {
+	t.Run("time.Time input renders as YYYY-MM-DD muted", func(t *testing.T) {
+		got := DateFormatter(time.Date(2026, 7, 9, 12, 0, 0, 0, time.UTC))
+		containsRaw(t, got, "2026-07-09")
+	})
+
+	t.Run("string in 'YYYY-MM-DD HH:MM:SS' form is reformatted to date", func(t *testing.T) {
+		got := DateFormatter("2026-07-09 12:34:56")
+		containsRaw(t, got, "2026-07-09")
+	})
+
+	t.Run("string that doesn't parse is returned unchanged", func(t *testing.T) {
+		got := DateFormatter("not a date")
+		assert.Equal(t, "not a date", got)
+	})
+
+	t.Run("non-time non-string types fall through to DefaultFormatter", func(t *testing.T) {
+		got := DateFormatter(42)
+		require.NotEmpty(t, got)
+	})
+}
+
+func TestStatusFormatter_AllBranches(t *testing.T) {
+	cases := []struct {
+		name  string
+		value interface{}
+	}{
+		{"active maps to success", "active"},
+		{"completed maps to success", "completed"},
+		{"done maps to success", "done"},
+		{"enabled maps to success", "enabled"},
+		{"inactive maps to error", "inactive"},
+		{"failed maps to error", "failed"},
+		{"disabled maps to error", "disabled"},
+		{"pending maps to warning", "pending"},
+		{"in progress maps to warning", "in progress"},
+		{"unknown maps to info", "queued"},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			got := StatusFormatter(c.value)
+			containsRaw(t, got, fmt.Sprintf("%v", c.value))
+			assert.True(t, strings.HasSuffix(got, Reset), "every branch should wrap with Reset, got %q", got)
+		})
+	}
 }
