@@ -8,6 +8,12 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// mutatedSentinel is the value the deep-copy tests below write into
+// returned snapshots; the assertions then check that the original
+// internal state still holds its real value. Hoisted to a constant so
+// `goconst` doesn't trip over the repetition.
+const mutatedSentinel = "Mutated"
+
 // baseTeams is the minimum TeamConfig seed every test below needs: two
 // projects so we can exercise both the "project exists" and "project
 // missing" branches of every setter without rebuilding the world per
@@ -142,7 +148,7 @@ func TestTeamConfig_BoardWorkStream_GettersAndSetters(t *testing.T) {
 	t.Run("GetBoardWorkStreams returns a *copy* -- mutating it doesn't leak", func(t *testing.T) {
 		got := tc.GetBoardWorkStreams("FN")
 		require.NotNil(t, got)
-		got[1] = "Mutated"
+		got[1] = mutatedSentinel
 		assert.Equal(t, "Pricing", tc.GetBoardWorkStream("FN", 1), "internal state should be untouched")
 	})
 
@@ -173,7 +179,7 @@ func TestTeamConfig_TeamTimeline_SetAndQuery(t *testing.T) {
 		all := tc.GetAllTeamTimelines()
 		require.Len(t, all, 1)
 		require.Len(t, all["FN"], 2)
-		all["FN"][0].Member = "Mutated"
+		all["FN"][0].Member = mutatedSentinel
 		got := tc.GetTeamTimeline("FN")
 		assert.Equal(t, "Alice", got[0].Member, "snapshot mutation should not leak back to internal state")
 	})
@@ -189,7 +195,7 @@ func TestTeamConfig_ToCompleteMapWithBoardWorkStreams_DeepCopy(t *testing.T) {
 
 	_, _, _, _, _, _, _, boardWS := tc.ToCompleteMapWithBoardWorkStreams()
 	require.NotNil(t, boardWS["FN"])
-	boardWS["FN"][1] = "Mutated"
+	boardWS["FN"][1] = mutatedSentinel
 	assert.Equal(t, "Pricing", tc.GetBoardWorkStream("FN", 1), "snapshot mutation should not leak back to internal state")
 }
 
