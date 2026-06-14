@@ -22,7 +22,7 @@ const (
 
 // EnhancedHandler provides a Claude Code-style console interface
 type EnhancedHandler struct {
-	consoleService *application.ConsoleService
+	consoleService ConsoleService
 	reader         *bufio.Reader
 	sessionContext *domain.Context
 	promptSession  *ui.PromptSession
