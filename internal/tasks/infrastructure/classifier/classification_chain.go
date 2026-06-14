@@ -3,12 +3,33 @@ package classifier
 import (
 	"fmt"
 	"log"
+	"runtime"
 	"strings"
+
+	"golang.org/x/sync/errgroup"
 
 	assetdomain "github.com/helmedeiros/digital-asset-capitalization/internal/assets/domain"
 	taskdomain "github.com/helmedeiros/digital-asset-capitalization/internal/tasks/domain"
 	"github.com/helmedeiros/digital-asset-capitalization/internal/tasks/domain/ports"
 )
+
+// classifyConcurrencyCap bounds the number of in-flight ClassifyTask
+// invocations during a parallel pass. CPU-bound classification scales
+// with NumCPU, while LLM-enabled runs would happily DOS the local Ollama
+// if uncapped; eight is a reasonable middle ground that helps real
+// workloads without being hostile to either case.
+const classifyConcurrencyCap = 8
+
+func classifyConcurrency() int {
+	n := runtime.NumCPU()
+	if n > classifyConcurrencyCap {
+		n = classifyConcurrencyCap
+	}
+	if n < 1 {
+		n = 1
+	}
+	return n
+}
 
 // ComprehensiveClassificationChain orchestrates multiple classifiers for comprehensive task classification
 type ComprehensiveClassificationChain struct {
@@ -460,23 +481,24 @@ func (c *ComprehensiveClassificationChainWithInheritance) ClassifyTasks(tasks []
 		}
 	}
 
-	// Classify non-subtasks first
-	for _, task := range nonSubtasks {
-		result, err := c.ClassifyTask(task)
-		if err != nil {
-			return nil, fmt.Errorf("failed to classify task %s: %w", task.Key, err)
-		}
-		results = append(results, result)
+	// Phase 1: classify non-subtasks in parallel. The phase ordering is
+	// load-bearing -- subtasks read parent classifications via taskLookup,
+	// which is populated above. Within a phase, ClassifyTask only reads
+	// the chain's shared state (taskLookup, the classifiers) and writes
+	// nothing, so the goroutines are race-free.
+	nonSubtaskResults, err := c.classifyParallel(nonSubtasks)
+	if err != nil {
+		return nil, err
 	}
+	results = append(results, nonSubtaskResults...)
 
-	// Then classify subtasks (which can inherit from the already classified parents)
-	for _, task := range subtasks {
-		result, err := c.ClassifyTask(task)
-		if err != nil {
-			return nil, fmt.Errorf("failed to classify task %s: %w", task.Key, err)
-		}
-		results = append(results, result)
+	// Phase 2: classify subtasks in parallel. Parent results are already
+	// resolved, and inheritFromParent reads taskLookup without mutating.
+	subtaskResults, err := c.classifyParallel(subtasks)
+	if err != nil {
+		return nil, err
 	}
+	results = append(results, subtaskResults...)
 
 	// Step 3: Run batched LLM classification if enabled
 	if c.llmEnabled && c.llmClassifier != nil {
@@ -484,6 +506,37 @@ func (c *ComprehensiveClassificationChainWithInheritance) ClassifyTasks(tasks []
 	}
 
 	return results, nil
+}
+
+// classifyParallel runs ClassifyTask over the given tasks with bounded
+// concurrency and returns results in input order. Errors are wrapped
+// with the offending task key and the first failure aborts the pass,
+// matching the previous sequential semantics.
+func (c *ComprehensiveClassificationChainWithInheritance) classifyParallel(tasks []*taskdomain.Task) ([]*ports.ComprehensiveClassificationResult, error) {
+	if len(tasks) == 0 {
+		return nil, nil
+	}
+
+	out := make([]*ports.ComprehensiveClassificationResult, len(tasks))
+	eg := new(errgroup.Group)
+	eg.SetLimit(classifyConcurrency())
+
+	for i, task := range tasks {
+		i, task := i, task
+		eg.Go(func() error {
+			result, err := c.ClassifyTask(task)
+			if err != nil {
+				return fmt.Errorf("failed to classify task %s: %w", task.Key, err)
+			}
+			out[i] = result
+			return nil
+		})
+	}
+
+	if err := eg.Wait(); err != nil {
+		return nil, err
+	}
+	return out, nil
 }
 
 // runBatchLLMClassification runs LLM classification for all tasks in batch and attaches results
