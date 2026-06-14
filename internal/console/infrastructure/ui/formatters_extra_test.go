@@ -256,3 +256,25 @@ func TestDefaultFormatter_AllTypeBranches(t *testing.T) {
 		require.NotEmpty(t, got)
 	})
 }
+
+func TestTable_AlignText(t *testing.T) {
+	tbl := &Table{}
+
+	t.Run("text wider than width is returned unchanged", func(t *testing.T) {
+		assert.Equal(t, "xxxxxxxx", tbl.alignText("xxxxxxxx", 4, "left"))
+	})
+
+	t.Run("right alignment prepends padding", func(t *testing.T) {
+		assert.Equal(t, "   abc", tbl.alignText("abc", 6, "right"))
+	})
+
+	t.Run("center alignment splits padding (extra goes to the right)", func(t *testing.T) {
+		// 6 - 3 = 3 -> 1 left, 2 right.
+		assert.Equal(t, " abc  ", tbl.alignText("abc", 6, "center"))
+	})
+
+	t.Run("left alignment (default) appends padding", func(t *testing.T) {
+		assert.Equal(t, "abc   ", tbl.alignText("abc", 6, "left"))
+		assert.Equal(t, "abc   ", tbl.alignText("abc", 6, ""), "unknown align defaults to left")
+	})
+}
