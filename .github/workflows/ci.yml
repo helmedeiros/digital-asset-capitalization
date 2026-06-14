@@ -31,10 +31,13 @@ jobs:
       - name: Install dependencies
         run: go mod download
 
-      - name: Run tests with coverage
+      - name: Run tests with coverage and race detector
         id: test
+        # -race catches data races on every PR; multiple were already
+        # found and fixed in recent work (#70, #71, #72, #73) that CI
+        # was missing because tests were not race-instrumented.
         run: |
-          go test -v -coverprofile=coverage.out ./...
+          go test -v -race -coverprofile=coverage.out ./...
           go tool cover -func=coverage.out | tee coverage.txt
           COVERAGE=$(go tool cover -func=coverage.out | grep total | awk '{print $3}' | sed 's/%//')
           echo "coverage=$COVERAGE" >> $GITHUB_OUTPUT
