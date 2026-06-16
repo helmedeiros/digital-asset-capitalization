@@ -231,20 +231,26 @@ func (s *MemoryStore) copyContext(original *domain.Context) *domain.Context {
 	return contextCopy
 }
 
-// cleanupRoutine runs periodically to clean up expired sessions
+// cleanupRoutine runs periodically to clean up expired sessions.
 func (s *MemoryStore) cleanupRoutine() {
 	ticker := time.NewTicker(5 * time.Minute)
 	defer ticker.Stop()
 
 	for range ticker.C {
-		s.mu.Lock()
-		now := time.Now()
-		for sessionID, sessionContext := range s.contexts {
-			if now.Sub(sessionContext.LastActivity) > s.sessionTTL {
-				delete(s.contexts, sessionID)
-			}
+		s.sweepExpired(time.Now())
+	}
+}
+
+// sweepExpired removes contexts older than sessionTTL. Extracted from
+// cleanupRoutine so the sweep logic is unit-testable without driving
+// a 5-minute ticker.
+func (s *MemoryStore) sweepExpired(now time.Time) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	for sessionID, sessionContext := range s.contexts {
+		if now.Sub(sessionContext.LastActivity) > s.sessionTTL {
+			delete(s.contexts, sessionID)
 		}
-		s.mu.Unlock()
 	}
 }
 
