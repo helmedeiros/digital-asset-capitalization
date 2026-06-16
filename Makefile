@@ -1,4 +1,4 @@
-.PHONY: test test-cover test-cover-detail test-race test-watch test-all test-all-detail install completion lint lint-fix check test-cover-gate pre-push build build-run
+.PHONY: test test-cover test-cover-detail test-race test-watch test-all test-all-detail install install-tools install-lint install-gotestsum completion lint lint-fix check test-cover-gate pre-push build build-run
 
 # Build the binary
 build:
@@ -21,44 +21,44 @@ test-cover-gate:
 pre-push: lint test-cover-gate
 
 # Run tests with gotestsum
-test:
+test: install-gotestsum
 	gotestsum --format testdox ./...
 
 # Run tests with coverage report (summary only)
-test-cover:
+test-cover: install-gotestsum
 	gotestsum -- -coverprofile=coverage.out ./... && \
 	grep -v "testutil" coverage.out > coverage.filtered.out && \
 	go tool cover -func=coverage.filtered.out | grep "total:" && \
 	rm coverage.out coverage.filtered.out
 
 # Run tests with detailed coverage report
-test-cover-detail:
+test-cover-detail: install-gotestsum
 	gotestsum -- -coverprofile=coverage.out ./... && \
 	grep -v "testutil" coverage.out > coverage.filtered.out && \
 	go tool cover -func=coverage.filtered.out && \
 	rm coverage.out coverage.filtered.out
 
 # Run tests with race detector
-test-race:
+test-race: install-gotestsum
 	gotestsum -- -race ./...
 
 # Run tests in watch mode
-test-watch:
+test-watch: install-gotestsum
 	gotestsum --watch ./...
 
 # Run tests with verbose output
-test-v:
+test-v: install-gotestsum
 	gotestsum -- -v ./...
 
 # Run tests with race detector and coverage (summary only)
-test-all:
+test-all: install-gotestsum
 	gotestsum -- -race -coverprofile=coverage.out ./... && \
 	grep -v "testutil" coverage.out > coverage.filtered.out && \
 	go tool cover -func=coverage.filtered.out | grep "total:" && \
 	rm coverage.out coverage.filtered.out
 
 # Run tests with race detector and detailed coverage
-test-all-detail:
+test-all-detail: install-gotestsum
 	gotestsum -- -race -coverprofile=coverage.out ./... && \
 	grep -v "testutil" coverage.out > coverage.filtered.out && \
 	go tool cover -func=coverage.filtered.out && \
@@ -86,10 +86,26 @@ completion:
 	@echo "To use it, copy to the fish completions directory:"
 	@echo "  cp completions/assetcap.fish ~/.config/fish/completions/"
 
-# Install golangci-lint if not present
+# Install every dev tool the Makefile depends on. Use this on fresh
+# clones so `make pre-push` works end-to-end.
+install-tools: install-lint install-gotestsum
+
+# Install gotestsum if not present. Used by `make test*` targets.
+install-gotestsum:
+	@command -v gotestsum >/dev/null 2>&1 || \
+		go install gotest.tools/gotestsum@latest
+
+# Install golangci-lint if not present, or if the installed version is
+# below the v2.x required by .golangci.yml. CI pins the same version
+# in .github/workflows/ci.yml — keep these two in sync.
+GOLANGCI_LINT_VERSION := v2.10.1
 install-lint:
-	@which golangci-lint > /dev/null || \
-		(curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b $(shell go env GOPATH)/bin v1.55.2)
+	@if ! command -v golangci-lint >/dev/null 2>&1 || \
+		! golangci-lint version 2>&1 | grep -q "version v2"; then \
+		echo "Installing golangci-lint $(GOLANGCI_LINT_VERSION)..."; \
+		curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | \
+			sh -s -- -b $(shell go env GOPATH)/bin $(GOLANGCI_LINT_VERSION); \
+	fi
 
 # Run linters
 lint: install-lint
