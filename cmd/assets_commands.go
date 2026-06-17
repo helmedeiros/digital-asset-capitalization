@@ -23,91 +23,27 @@ func (a *App) createAssetsCommand() *cli.Command {
 		Usage: "Manage digital assets",
 		Subcommands: []*cli.Command{
 			{
-				Name:  "create",
-				Usage: "Create a new asset",
-				Action: func(ctx *cli.Context) error {
-					name := ctx.String("name")
-					description := ctx.String("description")
-					if err := a.assetService.CreateAsset(name, description); err != nil {
-						return err
-					}
-					fmt.Printf("Created asset: %s\n", name)
-					return nil
-				},
+				Name:   "create",
+				Usage:  "Create a new asset",
+				Action: a.assetsCreateAction,
 				Flags: []cli.Flag{
-					&cli.StringFlag{
-						Name:     "name",
-						Usage:    "Asset name",
-						Required: true,
-					},
-					&cli.StringFlag{
-						Name:     "description",
-						Usage:    "Asset description",
-						Required: true,
-					},
+					&cli.StringFlag{Name: "name", Usage: "Asset name", Required: true},
+					&cli.StringFlag{Name: "description", Usage: "Asset description", Required: true},
 				},
 			},
 			{
-				Name:  "delete",
-				Usage: "Delete an existing asset",
-				Action: func(ctx *cli.Context) error {
-					name := ctx.String("name")
-					deletePage := ctx.Bool("delete-page")
-					if err := a.assetService.DeleteAsset(name, deletePage); err != nil {
-						return err
-					}
-					fmt.Printf("Deleted asset: %s\n", name)
-					if deletePage {
-						fmt.Printf("Confluence page also deleted.\n")
-					}
-					return nil
-				},
+				Name:   "delete",
+				Usage:  "Delete an existing asset",
+				Action: a.assetsDeleteAction,
 				Flags: []cli.Flag{
-					&cli.StringFlag{
-						Name:     "name",
-						Usage:    "Asset name",
-						Required: true,
-					},
-					&cli.BoolFlag{
-						Name:  "delete-page",
-						Usage: "Also delete the associated Confluence page",
-					},
+					&cli.StringFlag{Name: "name", Usage: "Asset name", Required: true},
+					&cli.BoolFlag{Name: "delete-page", Usage: "Also delete the associated Confluence page"},
 				},
 			},
 			{
-				Name:  "list",
-				Usage: "List all assets",
-				Action: func(_ *cli.Context) error {
-					assets, err := a.assetService.ListAssets()
-					if err != nil {
-						return err
-					}
-					if len(assets) == 0 {
-						fmt.Println("No assets found")
-						return nil
-					}
-					fmt.Println("Assets:")
-					for _, asset := range assets {
-						fmt.Printf("- %s:\n", asset.Name)
-						fmt.Printf("  Description: %s\n", asset.Description)
-						fmt.Printf("  Why: %s\n", asset.Why)
-						fmt.Printf("  Benefits: %s\n", asset.Benefits)
-						fmt.Printf("  How: %s\n", asset.How)
-						fmt.Printf("  Metrics: %s\n", asset.Metrics)
-						if asset.DocLink != "" {
-							fmt.Printf("  DocLink: %s\n", asset.DocLink)
-						}
-						// Show team information
-						if asset.OwningTeam != "" {
-							fmt.Printf("  👤 Owner: %s\n", asset.OwningTeam)
-						}
-						if len(asset.ContributingTeams) > 0 {
-							fmt.Printf("  🤝 Contributors: %s\n", strings.Join(asset.ContributingTeams, ", "))
-						}
-						fmt.Println()
-					}
-					return nil
-				},
+				Name:   "list",
+				Usage:  "List all assets",
+				Action: a.assetsListAction,
 			},
 			{
 				Name:  "sync",
@@ -274,93 +210,24 @@ func (a *App) createAssetsCommand() *cli.Command {
 				},
 			},
 			{
-				Name:  "update",
-				Usage: "Update an asset's description",
-				Action: func(ctx *cli.Context) error {
-					name := ctx.String("name")
-					description := ctx.String("description")
-					why := ctx.String("why")
-					benefits := ctx.String("benefits")
-					how := ctx.String("how")
-					metrics := ctx.String("metrics")
-					if err := a.assetService.UpdateAsset(name, description, why, benefits, how, metrics); err != nil {
-						return err
-					}
-					fmt.Printf("✓ Updated asset: %s\n", name)
-					return nil
-				},
+				Name:   "update",
+				Usage:  "Update an asset's description",
+				Action: a.assetsUpdateAction,
 				Flags: []cli.Flag{
-					&cli.StringFlag{
-						Name:     "name",
-						Usage:    "Asset name",
-						Required: true,
-					},
-					&cli.StringFlag{
-						Name:     "description",
-						Usage:    "New asset description",
-						Required: true,
-					},
-					&cli.StringFlag{
-						Name:     "why",
-						Usage:    "Why are we doing this?",
-						Required: true,
-					},
-					&cli.StringFlag{
-						Name:     "benefits",
-						Usage:    "Economic benefits",
-						Required: true,
-					},
-					&cli.StringFlag{
-						Name:     "how",
-						Usage:    "How it works?",
-						Required: true,
-					},
-					&cli.StringFlag{
-						Name:     "metrics",
-						Usage:    "How do we judge success?",
-						Required: true,
-					},
+					&cli.StringFlag{Name: "name", Usage: "Asset name", Required: true},
+					&cli.StringFlag{Name: "description", Usage: "New asset description", Required: true},
+					&cli.StringFlag{Name: "why", Usage: "Why are we doing this?", Required: true},
+					&cli.StringFlag{Name: "benefits", Usage: "Economic benefits", Required: true},
+					&cli.StringFlag{Name: "how", Usage: "How it works?", Required: true},
+					&cli.StringFlag{Name: "metrics", Usage: "How do we judge success?", Required: true},
 				},
 			},
 			{
-				Name:  "show",
-				Usage: "Show detailed information about an asset",
-				Action: func(ctx *cli.Context) error {
-					name := ctx.String("name")
-					asset, err := a.assetService.GetAsset(name)
-					if err != nil {
-						return err
-					}
-					fmt.Printf("Asset: %s\n", asset.Name)
-					fmt.Printf("Description: %s\n", asset.Description)
-					fmt.Printf("Why: %s\n", asset.Why)
-					fmt.Printf("Benefits: %s\n", asset.Benefits)
-					fmt.Printf("How: %s\n", asset.How)
-					fmt.Printf("Metrics: %s\n", asset.Metrics)
-					fmt.Printf("Created: %s\n", asset.CreatedAt.Format("2006-01-02 15:04:05"))
-					fmt.Printf("Updated: %s\n", asset.UpdatedAt.Format("2006-01-02 15:04:05"))
-					fmt.Printf("Task Count: %d\n", asset.AssociatedTaskCount)
-					if len(asset.Keywords) > 0 {
-						fmt.Printf("Keywords: %s\n", strings.Join(asset.Keywords, ", "))
-					}
-					if asset.DocLink != "" {
-						fmt.Printf("DocLink: %s\n", asset.DocLink)
-					}
-					// Show team information
-					if asset.OwningTeam != "" {
-						fmt.Printf("👤 Owner: %s\n", asset.OwningTeam)
-					}
-					if len(asset.ContributingTeams) > 0 {
-						fmt.Printf("🤝 Contributors: %s\n", strings.Join(asset.ContributingTeams, ", "))
-					}
-					return nil
-				},
+				Name:   "show",
+				Usage:  "Show detailed information about an asset",
+				Action: a.assetsShowAction,
 				Flags: []cli.Flag{
-					&cli.StringFlag{
-						Name:     "name",
-						Usage:    "Asset name",
-						Required: true,
-					},
+					&cli.StringFlag{Name: "name", Usage: "Asset name", Required: true},
 				},
 			},
 			{
@@ -448,52 +315,20 @@ func (a *App) createAssetsCommand() *cli.Command {
 				},
 			},
 			{
-				Name:  "enrich",
-				Usage: "Enrich asset fields using LLaMA 3",
-				Action: func(ctx *cli.Context) error {
-					name := ctx.String("name")
-					field := ctx.String("field")
-					if err := a.assetService.EnrichAsset(name, field); err != nil {
-						return err
-					}
-					fmt.Printf("Enriched %s field for asset: %s\n", field, name)
-					return nil
-				},
+				Name:   "enrich",
+				Usage:  "Enrich asset fields using LLaMA 3",
+				Action: a.assetsEnrichAction,
 				Flags: []cli.Flag{
-					&cli.StringFlag{
-						Name:     "name",
-						Usage:    "Asset name or ID",
-						Required: true,
-					},
-					&cli.StringFlag{
-						Name:     "field",
-						Usage:    "Field to enrich (e.g., description)",
-						Required: true,
-					},
+					&cli.StringFlag{Name: "name", Usage: "Asset name or ID", Required: true},
+					&cli.StringFlag{Name: "field", Usage: "Field to enrich (e.g., description)", Required: true},
 				},
 			},
 			{
-				Name:  "keywords",
-				Usage: "Generate keywords for an asset using LLaMA 3",
-				Action: func(ctx *cli.Context) error {
-					name := ctx.String("name")
-					// Check if asset exists
-					_, err := a.assetService.GetAsset(name)
-					if err != nil {
-						return fmt.Errorf("asset not found: %s", name)
-					}
-					if err := a.assetService.GenerateKeywords(name); err != nil {
-						return err
-					}
-					fmt.Printf("Generated keywords for asset: %s\n", name)
-					return nil
-				},
+				Name:   "keywords",
+				Usage:  "Generate keywords for an asset using LLaMA 3",
+				Action: a.assetsKeywordsAction,
 				Flags: []cli.Flag{
-					&cli.StringFlag{
-						Name:     "name",
-						Usage:    "Asset name or ID",
-						Required: true,
-					},
+					&cli.StringFlag{Name: "name", Usage: "Asset name or ID", Required: true},
 				},
 			},
 			{
@@ -941,4 +776,133 @@ func (a *App) createAssetsCommand() *cli.Command {
 			},
 		},
 	}
+}
+
+// assetsCreateAction backs `assetcap assets create`.
+func (a *App) assetsCreateAction(ctx *cli.Context) error {
+	name := ctx.String("name")
+	description := ctx.String("description")
+	if err := a.assetService.CreateAsset(name, description); err != nil {
+		return err
+	}
+	fmt.Printf("Created asset: %s\n", name)
+	return nil
+}
+
+// assetsDeleteAction backs `assetcap assets delete`.
+func (a *App) assetsDeleteAction(ctx *cli.Context) error {
+	name := ctx.String("name")
+	deletePage := ctx.Bool("delete-page")
+	if err := a.assetService.DeleteAsset(name, deletePage); err != nil {
+		return err
+	}
+	fmt.Printf("Deleted asset: %s\n", name)
+	if deletePage {
+		fmt.Printf("Confluence page also deleted.\n")
+	}
+	return nil
+}
+
+// assetsListAction backs `assetcap assets list`.
+func (a *App) assetsListAction(_ *cli.Context) error {
+	assets, err := a.assetService.ListAssets()
+	if err != nil {
+		return err
+	}
+	if len(assets) == 0 {
+		fmt.Println("No assets found")
+		return nil
+	}
+	fmt.Println("Assets:")
+	for _, asset := range assets {
+		fmt.Printf("- %s:\n", asset.Name)
+		fmt.Printf("  Description: %s\n", asset.Description)
+		fmt.Printf("  Why: %s\n", asset.Why)
+		fmt.Printf("  Benefits: %s\n", asset.Benefits)
+		fmt.Printf("  How: %s\n", asset.How)
+		fmt.Printf("  Metrics: %s\n", asset.Metrics)
+		if asset.DocLink != "" {
+			fmt.Printf("  DocLink: %s\n", asset.DocLink)
+		}
+		if asset.OwningTeam != "" {
+			fmt.Printf("  👤 Owner: %s\n", asset.OwningTeam)
+		}
+		if len(asset.ContributingTeams) > 0 {
+			fmt.Printf("  🤝 Contributors: %s\n", strings.Join(asset.ContributingTeams, ", "))
+		}
+		fmt.Println()
+	}
+	return nil
+}
+
+// assetsUpdateAction backs `assetcap assets update`.
+func (a *App) assetsUpdateAction(ctx *cli.Context) error {
+	name := ctx.String("name")
+	description := ctx.String("description")
+	why := ctx.String("why")
+	benefits := ctx.String("benefits")
+	how := ctx.String("how")
+	metrics := ctx.String("metrics")
+	if err := a.assetService.UpdateAsset(name, description, why, benefits, how, metrics); err != nil {
+		return err
+	}
+	fmt.Printf("✓ Updated asset: %s\n", name)
+	return nil
+}
+
+// assetsShowAction backs `assetcap assets show`.
+func (a *App) assetsShowAction(ctx *cli.Context) error {
+	name := ctx.String("name")
+	asset, err := a.assetService.GetAsset(name)
+	if err != nil {
+		return err
+	}
+	fmt.Printf("Asset: %s\n", asset.Name)
+	fmt.Printf("Description: %s\n", asset.Description)
+	fmt.Printf("Why: %s\n", asset.Why)
+	fmt.Printf("Benefits: %s\n", asset.Benefits)
+	fmt.Printf("How: %s\n", asset.How)
+	fmt.Printf("Metrics: %s\n", asset.Metrics)
+	fmt.Printf("Created: %s\n", asset.CreatedAt.Format("2006-01-02 15:04:05"))
+	fmt.Printf("Updated: %s\n", asset.UpdatedAt.Format("2006-01-02 15:04:05"))
+	fmt.Printf("Task Count: %d\n", asset.AssociatedTaskCount)
+	if len(asset.Keywords) > 0 {
+		fmt.Printf("Keywords: %s\n", strings.Join(asset.Keywords, ", "))
+	}
+	if asset.DocLink != "" {
+		fmt.Printf("DocLink: %s\n", asset.DocLink)
+	}
+	if asset.OwningTeam != "" {
+		fmt.Printf("👤 Owner: %s\n", asset.OwningTeam)
+	}
+	if len(asset.ContributingTeams) > 0 {
+		fmt.Printf("🤝 Contributors: %s\n", strings.Join(asset.ContributingTeams, ", "))
+	}
+	return nil
+}
+
+// assetsEnrichAction backs `assetcap assets enrich`.
+func (a *App) assetsEnrichAction(ctx *cli.Context) error {
+	name := ctx.String("name")
+	field := ctx.String("field")
+	if err := a.assetService.EnrichAsset(name, field); err != nil {
+		return err
+	}
+	fmt.Printf("Enriched %s field for asset: %s\n", field, name)
+	return nil
+}
+
+// assetsKeywordsAction backs `assetcap assets keywords`. Checks the
+// asset exists before invoking the generator so a typo produces a
+// clear error instead of a downstream stack from the LLM client.
+func (a *App) assetsKeywordsAction(ctx *cli.Context) error {
+	name := ctx.String("name")
+	if _, err := a.assetService.GetAsset(name); err != nil {
+		return fmt.Errorf("asset not found: %s", name)
+	}
+	if err := a.assetService.GenerateKeywords(name); err != nil {
+		return err
+	}
+	fmt.Printf("Generated keywords for asset: %s\n", name)
+	return nil
 }
