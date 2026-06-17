@@ -66,6 +66,7 @@ func (m *MockJiraPort) FetchCustomFields(_ string) (*ports.CustomFieldValues, er
 }
 
 func TestListSprintsUseCase_Execute(t *testing.T) {
+	t.Parallel()
 	t.Run("should list sprints for a project in Q2 2025", func(t *testing.T) {
 		// Given
 		mockJira := &MockJiraPort{
@@ -162,6 +163,7 @@ func TestListSprintsUseCase_Execute(t *testing.T) {
 }
 
 func TestListSprintsUseCase_parseYear(t *testing.T) {
+	t.Parallel()
 	u := NewListSprintsUseCase(nil)
 
 	start, end, err := u.parseYear("2025")
@@ -176,6 +178,7 @@ func TestListSprintsUseCase_parseYear(t *testing.T) {
 }
 
 func TestListSprintsUseCase_parseYear_ErrorBranch(t *testing.T) {
+	t.Parallel()
 	u := NewListSprintsUseCase(nil)
 
 	_, _, err := u.parseYear("")
@@ -184,6 +187,7 @@ func TestListSprintsUseCase_parseYear_ErrorBranch(t *testing.T) {
 }
 
 func TestListSprintsUseCase_parseQuarter_InvalidQuarter(t *testing.T) {
+	t.Parallel()
 	u := NewListSprintsUseCase(nil)
 
 	// Test invalid quarter number
@@ -203,6 +207,7 @@ func TestListSprintsUseCase_parseQuarter_InvalidQuarter(t *testing.T) {
 }
 
 func TestListSprintsUseCase_parseQuarter_InvalidQuarterNumber(t *testing.T) {
+	t.Parallel()
 	u := NewListSprintsUseCase(nil)
 	_, _, err := u.parseQuarter("QX 2025")
 	assert.Error(t, err)
@@ -210,6 +215,7 @@ func TestListSprintsUseCase_parseQuarter_InvalidQuarterNumber(t *testing.T) {
 }
 
 func TestListSprintsUseCase_parseQuarter_TooFewParts(t *testing.T) {
+	t.Parallel()
 	u := NewListSprintsUseCase(nil)
 	_, _, err := u.parseQuarter("Q2")
 	assert.Error(t, err)
@@ -217,6 +223,7 @@ func TestListSprintsUseCase_parseQuarter_TooFewParts(t *testing.T) {
 }
 
 func TestListSprintsUseCase_parseQuarter_TooManyParts(t *testing.T) {
+	t.Parallel()
 	u := NewListSprintsUseCase(nil)
 	_, _, err := u.parseQuarter("Q2 2025 extra")
 	assert.Error(t, err)
@@ -224,6 +231,7 @@ func TestListSprintsUseCase_parseQuarter_TooManyParts(t *testing.T) {
 }
 
 func TestListSprintsUseCase_parsePeriod_UnsupportedFormat(t *testing.T) {
+	t.Parallel()
 	u := NewListSprintsUseCase(nil)
 
 	// Test unsupported format
@@ -233,6 +241,7 @@ func TestListSprintsUseCase_parsePeriod_UnsupportedFormat(t *testing.T) {
 }
 
 func TestListSprintsUseCase_parsePeriod_FourCharNonYear(t *testing.T) {
+	t.Parallel()
 	u := NewListSprintsUseCase(nil)
 	_, _, err := u.parsePeriod("abcd")
 	assert.Error(t, err)
@@ -240,6 +249,7 @@ func TestListSprintsUseCase_parsePeriod_FourCharNonYear(t *testing.T) {
 }
 
 func TestListSprintsUseCase_filterSprintsByDateRange_InvalidDates(t *testing.T) {
+	t.Parallel()
 	u := NewListSprintsUseCase(nil)
 
 	sprints := []ports.Sprint{
@@ -274,6 +284,7 @@ func TestListSprintsUseCase_filterSprintsByDateRange_InvalidDates(t *testing.T) 
 }
 
 func TestListSprintsUseCase_Execute_EmptyProject(t *testing.T) {
+	t.Parallel()
 	mockJira := &MockJiraPort{}
 	u := NewListSprintsUseCase(mockJira)
 
@@ -283,6 +294,7 @@ func TestListSprintsUseCase_Execute_EmptyProject(t *testing.T) {
 }
 
 func TestListSprintsUseCase_Execute_EmptyPeriod(t *testing.T) {
+	t.Parallel()
 	mockJira := &MockJiraPort{}
 	u := NewListSprintsUseCase(mockJira)
 
@@ -292,6 +304,7 @@ func TestListSprintsUseCase_Execute_EmptyPeriod(t *testing.T) {
 }
 
 func TestListSprintsUseCase_Execute_JiraError(t *testing.T) {
+	t.Parallel()
 	mockJira := &MockJiraPort{
 		err: fmt.Errorf("jira api error"),
 	}
@@ -303,6 +316,7 @@ func TestListSprintsUseCase_Execute_JiraError(t *testing.T) {
 }
 
 func TestListSprintsUseCase_parseQuarter_EmptyQuarter(t *testing.T) {
+	t.Parallel()
 	u := NewListSprintsUseCase(nil)
 	_, _, err := u.parseQuarter("Q 2025")
 	assert.Error(t, err)
@@ -310,6 +324,7 @@ func TestListSprintsUseCase_parseQuarter_EmptyQuarter(t *testing.T) {
 }
 
 func TestListSprintsUseCase_parseQuarter_ValidQuarters(t *testing.T) {
+	t.Parallel()
 	u := NewListSprintsUseCase(nil)
 
 	tests := []struct {

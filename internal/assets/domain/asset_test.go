@@ -10,6 +10,7 @@ import (
 )
 
 func TestNewAsset(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name        string
 		assetName   string
@@ -81,6 +82,7 @@ func TestNewAsset(t *testing.T) {
 }
 
 func TestNewAssetDefaultStatus(t *testing.T) {
+	t.Parallel()
 	t.Run("NewAsset sets Planning status", func(t *testing.T) {
 		asset, err := NewAsset("test-asset", "Test description")
 		require.NoError(t, err)
@@ -97,6 +99,7 @@ func TestNewAssetDefaultStatus(t *testing.T) {
 }
 
 func TestUpdateDescription(t *testing.T) {
+	t.Parallel()
 	asset, err := NewAsset("test-asset", "Initial description")
 	require.NoError(t, err)
 
@@ -137,6 +140,7 @@ func TestUpdateDescription(t *testing.T) {
 }
 
 func TestUpdateDocumentation(t *testing.T) {
+	t.Parallel()
 	asset, err := NewAsset("test-asset", "Test description")
 	require.NoError(t, err)
 
@@ -153,6 +157,7 @@ func TestUpdateDocumentation(t *testing.T) {
 }
 
 func TestTaskCountOperations(t *testing.T) {
+	t.Parallel()
 	asset, err := NewAsset("test-asset", "Test description")
 	require.NoError(t, err)
 
@@ -173,6 +178,7 @@ func TestTaskCountOperations(t *testing.T) {
 }
 
 func TestGenerateID(t *testing.T) {
+	t.Parallel()
 	// Test that IDs follow cap-asset-* format
 	id1 := generateID("test-asset")
 	assert.Equal(t, "cap-asset-test-asset", id1, "Expected cap-asset-* format")
@@ -195,6 +201,7 @@ func TestGenerateID(t *testing.T) {
 }
 
 func TestDateStarted(t *testing.T) {
+	t.Parallel()
 	asset, err := NewAsset("test-asset", "Test description")
 	require.NoError(t, err)
 
@@ -211,6 +218,7 @@ func TestDateStarted(t *testing.T) {
 }
 
 func TestAsset_GetTaskCount(t *testing.T) {
+	t.Parallel()
 	asset, err := NewAsset("Test Asset", "Test Description")
 	require.NoError(t, err)
 
@@ -275,6 +283,7 @@ func TestAsset_GetTaskCount(t *testing.T) {
 }
 
 func TestAsset_GetVersion(t *testing.T) {
+	t.Parallel()
 	asset, err := NewAsset("Test Asset", "Test Description")
 	require.NoError(t, err)
 
@@ -329,6 +338,7 @@ func TestAsset_GetVersion(t *testing.T) {
 }
 
 func TestAsset_UnmarshalJSON(t *testing.T) {
+	t.Parallel()
 	t.Run("should unmarshal valid JSON correctly", func(t *testing.T) {
 		jsonData := `{
 			"id": "test-id-123",
@@ -439,6 +449,7 @@ func TestAsset_UnmarshalJSON(t *testing.T) {
 }
 
 func TestNewAsset_ErrorBranches(t *testing.T) {
+	t.Parallel()
 	_, err := NewAsset("", "desc")
 	if err == nil || err != ErrEmptyName {
 		t.Errorf("expected ErrEmptyName, got %v", err)
@@ -450,6 +461,7 @@ func TestNewAsset_ErrorBranches(t *testing.T) {
 }
 
 func TestAsset_DecrementTaskCount_ErrorBranch(t *testing.T) {
+	t.Parallel()
 	asset, err := NewAsset("name", "desc")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -462,6 +474,7 @@ func TestAsset_DecrementTaskCount_ErrorBranch(t *testing.T) {
 }
 
 func TestAsset_TeamManagement(t *testing.T) {
+	t.Parallel()
 	asset, err := NewAsset("test-asset", "Test description")
 	require.NoError(t, err)
 
@@ -609,6 +622,7 @@ func TestAsset_TeamManagement(t *testing.T) {
 }
 
 func TestAsset_GetID(t *testing.T) {
+	t.Parallel()
 	asset, err := NewAsset("Payment Gateway", "Processes payments")
 	require.NoError(t, err)
 	// GetID exists specifically because the mutex-protected accessor
@@ -619,6 +633,7 @@ func TestAsset_GetID(t *testing.T) {
 }
 
 func TestValidateAssetID(t *testing.T) {
+	t.Parallel()
 	cases := []struct {
 		name    string
 		id      string
@@ -647,6 +662,7 @@ func TestValidateAssetID(t *testing.T) {
 }
 
 func TestIsValidAssetID(t *testing.T) {
+	t.Parallel()
 	cases := []struct {
 		id   string
 		want bool

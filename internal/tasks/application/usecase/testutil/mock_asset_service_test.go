@@ -8,6 +8,7 @@ import (
 )
 
 func TestMockAssetService_DefaultBehavior(t *testing.T) {
+	t.Parallel()
 	mock := NewMockAssetService()
 
 	// Test default behavior (should not panic and return sensible defaults)
@@ -77,6 +78,7 @@ func TestMockAssetService_DefaultBehavior(t *testing.T) {
 }
 
 func TestMockAssetService_CustomBehavior(t *testing.T) {
+	t.Parallel()
 	mock := NewMockAssetService()
 
 	// Test custom behavior through function setters
@@ -142,6 +144,7 @@ func TestMockAssetService_CustomBehavior(t *testing.T) {
 }
 
 func TestMockAssetService_Reset(t *testing.T) {
+	t.Parallel()
 	mock := NewMockAssetService()
 
 	// Set custom functions
@@ -185,6 +188,7 @@ func TestMockAssetService_Reset(t *testing.T) {
 }
 
 func TestMockAssetService_PublishToConfluence(t *testing.T) {
+	t.Parallel()
 	mock := NewMockAssetService()
 
 	// Test default behavior (returns nil, nil)
@@ -198,6 +202,7 @@ func TestMockAssetService_PublishToConfluence(t *testing.T) {
 }
 
 func TestMockAssetService_UpdateConfluencePage(t *testing.T) {
+	t.Parallel()
 	mock := NewMockAssetService()
 
 	// Test default behavior (returns nil, nil)
@@ -211,6 +216,7 @@ func TestMockAssetService_UpdateConfluencePage(t *testing.T) {
 }
 
 func TestMockAssetService_TeamOperations(t *testing.T) {
+	t.Parallel()
 	mock := NewMockAssetService()
 
 	// Test default behavior for team operations

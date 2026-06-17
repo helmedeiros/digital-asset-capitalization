@@ -79,6 +79,7 @@ func newService(t *testing.T, repo ports.DeploymentRepository, resolver ports.As
 // ----- RecordDeploymentUseCase -----
 
 func TestRecordDeploymentUseCase_Execute(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 
 	t.Run("nil service is reported as not configured", func(t *testing.T) {
@@ -156,6 +157,7 @@ func mustNewDeployment(t *testing.T, key string, env domain.Environment) *domain
 }
 
 func TestGetDeploymentHistoryUseCase_Execute(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 
 	t.Run("nil service is reported as not configured", func(t *testing.T) {
@@ -222,6 +224,7 @@ func TestGetDeploymentHistoryUseCase_Execute(t *testing.T) {
 // ----- GetDeploymentsTimelineUseCase -----
 
 func TestGetDeploymentsTimelineUseCase_Execute(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 	from := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
 	to := time.Date(2026, 3, 1, 0, 0, 0, 0, time.UTC)

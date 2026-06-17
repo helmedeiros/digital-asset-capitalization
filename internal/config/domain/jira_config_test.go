@@ -8,6 +8,7 @@ import (
 )
 
 func TestNewJiraConfig(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name    string
 		baseURL string
@@ -85,6 +86,7 @@ func TestNewJiraConfig(t *testing.T) {
 }
 
 func TestJiraConfig_IsValid(t *testing.T) {
+	t.Parallel()
 	validConfig, err := NewJiraConfig("https://company.atlassian.net", "user@company.com", "token-123")
 	require.NoError(t, err)
 
@@ -92,6 +94,7 @@ func TestJiraConfig_IsValid(t *testing.T) {
 }
 
 func TestJiraConfig_AuthHeader(t *testing.T) {
+	t.Parallel()
 	config, err := NewJiraConfig("https://company.atlassian.net", "user@company.com", "token-123")
 	require.NoError(t, err)
 
@@ -101,6 +104,7 @@ func TestJiraConfig_AuthHeader(t *testing.T) {
 }
 
 func TestJiraConfig_String(t *testing.T) {
+	t.Parallel()
 	config, err := NewJiraConfig("https://company.atlassian.net", "user@company.com", "token-123")
 	require.NoError(t, err)
 

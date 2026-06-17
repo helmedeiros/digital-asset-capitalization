@@ -88,6 +88,7 @@ func (m *mockSelectionPort) SelectSprint(candidates []ports.SprintCandidate) (*s
 }
 
 func TestSprintResolver_ResolveSprint(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 
 	t.Run("empty sprint name should return error", func(t *testing.T) {
@@ -208,6 +209,7 @@ func TestSprintResolver_ResolveSprint(t *testing.T) {
 }
 
 func TestSprintResolver_NormalizeSprintName(t *testing.T) {
+	t.Parallel()
 	resolver := NewSprintResolver(nil, nil)
 
 	tests := []struct {
@@ -256,6 +258,7 @@ func TestSprintResolver_NormalizeSprintName(t *testing.T) {
 }
 
 func TestSprintResolver_RemoveEmojis(t *testing.T) {
+	t.Parallel()
 	resolver := NewSprintResolver(nil, nil)
 
 	tests := []struct {
@@ -299,6 +302,7 @@ func TestSprintResolver_RemoveEmojis(t *testing.T) {
 }
 
 func TestSprintResolver_CalculateSimilarity(t *testing.T) {
+	t.Parallel()
 	resolver := NewSprintResolver(nil, nil)
 
 	tests := []struct {
@@ -354,6 +358,7 @@ func TestSprintResolver_CalculateSimilarity(t *testing.T) {
 }
 
 func TestSprintResolver_FindSprintCandidates(t *testing.T) {
+	t.Parallel()
 	resolver := NewSprintResolver(nil, nil)
 
 	sprints := []sprintPorts.Sprint{
@@ -426,6 +431,7 @@ func TestSprintResolver_FindSprintCandidates(t *testing.T) {
 }
 
 func TestSprintResolver_LevenshteinDistance(t *testing.T) {
+	t.Parallel()
 	resolver := NewSprintResolver(nil, nil)
 
 	tests := []struct {

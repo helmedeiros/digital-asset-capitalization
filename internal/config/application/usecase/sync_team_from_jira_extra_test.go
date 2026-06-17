@@ -12,6 +12,7 @@ import (
 )
 
 func TestSyncTeamFromJira_Execute_InvalidProjectTeamDataAddsValidationError(t *testing.T) {
+	t.Parallel()
 	mockTeamSyncPort := &MockTeamSyncPort{}
 	mockConfigRepo := &MockConfigurationRepository{}
 
@@ -39,6 +40,7 @@ func TestSyncTeamFromJira_Execute_InvalidProjectTeamDataAddsValidationError(t *t
 }
 
 func TestSyncTeamFromJira_Execute_TimelineMaintenanceAddsAndRemovesMembers(t *testing.T) {
+	t.Parallel()
 	mockTeamSyncPort := &MockTeamSyncPort{}
 	mockConfigRepo := &MockConfigurationRepository{}
 

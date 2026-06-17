@@ -13,6 +13,7 @@ import (
 // covers the previously-untested branch where command.Validate() itself
 // fails (missing ID), so the executor is never reached.
 func TestExecuteCommandUseCase_ValidateCommand_DomainInvalidShortCircuits(t *testing.T) {
+	t.Parallel()
 	mockExecutor := new(MockCommandExecutor)
 	// Intentionally no .On("ValidateCommand") — the test asserts the
 	// short-circuit prevents that call.

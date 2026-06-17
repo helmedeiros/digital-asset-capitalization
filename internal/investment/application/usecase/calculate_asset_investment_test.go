@@ -93,6 +93,7 @@ func (m *mockInvestmentRepository) DeleteInvestment(_ context.Context, assetName
 }
 
 func TestCalculateAssetInvestmentUseCase_Execute(t *testing.T) {
+	t.Parallel()
 	// Set up mocks
 	costModelRepo := &mockCostModelRepository{
 		costModels: make(map[string]*domain.CostModel),
@@ -184,6 +185,7 @@ func TestCalculateAssetInvestmentUseCase_Execute(t *testing.T) {
 }
 
 func TestCalculateAssetInvestmentUseCase_Execute_CostModelNotFound(t *testing.T) {
+	t.Parallel()
 	// Set up mocks with empty cost model repo - it should fallback to default
 	costModelRepo := &mockCostModelRepository{
 		costModels: make(map[string]*domain.CostModel),
@@ -215,6 +217,7 @@ func TestCalculateAssetInvestmentUseCase_Execute_CostModelNotFound(t *testing.T)
 }
 
 func TestCalculateAssetInvestmentUseCase_Execute_EmptySprints(t *testing.T) {
+	t.Parallel()
 	costModelRepo := &mockCostModelRepository{
 		costModels: make(map[string]*domain.CostModel),
 	}
@@ -263,6 +266,7 @@ func TestCalculateAssetInvestmentUseCase_Execute_EmptySprints(t *testing.T) {
 // Additional comprehensive test cases
 
 func TestCalculateAssetInvestmentUseCase_Execute_WithInfrastructureCosts(t *testing.T) {
+	t.Parallel()
 	costModel, _ := domain.NewCostModel(domain.EUR, 8.0, 2.0)
 	costModel.InfrastructureCosts.CloudCostsPerMonth = 1000.0
 	costModel.InfrastructureCosts.ToolingCostsPerMonth = 500.0
@@ -329,6 +333,7 @@ func TestCalculateAssetInvestmentUseCase_Execute_WithInfrastructureCosts(t *test
 }
 
 func TestCalculateAssetInvestmentUseCase_Execute_WithDateRangeFiltering(t *testing.T) {
+	t.Parallel()
 	costModel, _ := domain.NewCostModel(domain.EUR, 8.0, 2.0)
 	costModel.SetDefaultRate(domain.Senior, 75.0)
 
@@ -409,6 +414,7 @@ func TestCalculateAssetInvestmentUseCase_Execute_WithDateRangeFiltering(t *testi
 }
 
 func TestCalculateAssetInvestmentUseCase_Execute_WithProvidedCostModel(t *testing.T) {
+	t.Parallel()
 	// Provide cost model in input instead of using repository
 	costModel, _ := domain.NewCostModel(domain.USD, 7.5, 1.8)
 	costModel.SetDefaultRate(domain.Staff, 90.0)
@@ -463,6 +469,7 @@ func TestCalculateAssetInvestmentUseCase_Execute_WithProvidedCostModel(t *testin
 }
 
 func TestCalculateAssetInvestmentUseCase_Execute_InvalidCostModel(t *testing.T) {
+	t.Parallel()
 	// Create invalid cost model
 	invalidCostModel := &domain.CostModel{
 		Currency:           domain.EUR,
@@ -503,6 +510,7 @@ func TestCalculateAssetInvestmentUseCase_Execute_InvalidCostModel(t *testing.T) 
 }
 
 func TestCalculateAssetInvestmentUseCase_Execute_MultipleEngineersAndTasks(t *testing.T) {
+	t.Parallel()
 	costModel, _ := domain.NewCostModel(domain.EUR, 8.0, 2.0)
 	costModel.SetDefaultRate(domain.Senior, 75.0)
 	costModel.SetDefaultRate(domain.Mid, 60.0)
@@ -630,6 +638,7 @@ func TestCalculateAssetInvestmentUseCase_Execute_MultipleEngineersAndTasks(t *te
 }
 
 func TestCalculateAssetInvestmentUseCase_Execute_AllocationProviderError(t *testing.T) {
+	t.Parallel()
 	costModel, _ := domain.NewCostModel(domain.EUR, 8.0, 2.0)
 	costModelRepo := &mockCostModelRepository{
 		costModels: map[string]*domain.CostModel{
@@ -681,6 +690,7 @@ func (m *mockTimeAllocationProviderWithError) GetTaskAllocations(_ context.Conte
 // Additional tests to improve coverage to 90%+
 
 func TestCalculateAssetInvestmentUseCase_InferEngineerLevel_AllCases(t *testing.T) {
+	t.Parallel()
 	costModel, _ := domain.NewCostModel(domain.EUR, 8.0, 2.0)
 
 	// Set up all default rates
@@ -722,6 +732,7 @@ func TestCalculateAssetInvestmentUseCase_InferEngineerLevel_AllCases(t *testing.
 }
 
 func TestCalculateAssetInvestmentUseCase_ContainsString_AllCases(t *testing.T) {
+	t.Parallel()
 	useCase := NewCalculateAssetInvestmentUseCase(&mockCostModelRepository{}, &mockTimeAllocationProvider{}, &mockInvestmentRepository{})
 
 	// Test string found
@@ -748,6 +759,7 @@ func TestCalculateAssetInvestmentUseCase_ContainsString_AllCases(t *testing.T) {
 }
 
 func TestCalculateAssetInvestmentUseCase_Execute_InfrastructureCostCalculationError(t *testing.T) {
+	t.Parallel()
 	// Create cost model that will cause infrastructure cost calculation error
 	costModel, _ := domain.NewCostModel(domain.EUR, 8.0, 2.0)
 	costModel.SetDefaultRate(domain.Senior, 75.0)
@@ -796,6 +808,7 @@ func TestCalculateAssetInvestmentUseCase_Execute_InfrastructureCostCalculationEr
 }
 
 func TestCalculateAssetInvestmentUseCase_Execute_SaveInvestmentError(t *testing.T) {
+	t.Parallel()
 	costModel, _ := domain.NewCostModel(domain.EUR, 8.0, 2.0)
 	costModel.SetDefaultRate(domain.Senior, 75.0)
 

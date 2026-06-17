@@ -40,6 +40,7 @@ func (m *MockCommandExecutor) GetAvailableCommands() []ports.CommandInfo {
 }
 
 func TestNewExecuteCommandUseCase(t *testing.T) {
+	t.Parallel()
 	mockExecutor := new(MockCommandExecutor)
 	useCase := NewExecuteCommandUseCase(mockExecutor)
 
@@ -48,6 +49,7 @@ func TestNewExecuteCommandUseCase(t *testing.T) {
 }
 
 func TestExecuteCommandUseCase_Execute_Success(t *testing.T) {
+	t.Parallel()
 	mockExecutor := new(MockCommandExecutor)
 	useCase := NewExecuteCommandUseCase(mockExecutor)
 	ctx := context.Background()
@@ -81,6 +83,7 @@ func TestExecuteCommandUseCase_Execute_Success(t *testing.T) {
 }
 
 func TestExecuteCommandUseCase_Execute_PreValidationFailure(t *testing.T) {
+	t.Parallel()
 	mockExecutor := new(MockCommandExecutor)
 	useCase := NewExecuteCommandUseCase(mockExecutor)
 	ctx := context.Background()
@@ -103,6 +106,7 @@ func TestExecuteCommandUseCase_Execute_PreValidationFailure(t *testing.T) {
 }
 
 func TestExecuteCommandUseCase_Execute_ValidationFailure(t *testing.T) {
+	t.Parallel()
 	mockExecutor := new(MockCommandExecutor)
 	useCase := NewExecuteCommandUseCase(mockExecutor)
 	ctx := context.Background()
@@ -129,6 +133,7 @@ func TestExecuteCommandUseCase_Execute_ValidationFailure(t *testing.T) {
 }
 
 func TestExecuteCommandUseCase_Execute_ExecutionFailure(t *testing.T) {
+	t.Parallel()
 	mockExecutor := new(MockCommandExecutor)
 	useCase := NewExecuteCommandUseCase(mockExecutor)
 	ctx := context.Background()
@@ -158,6 +163,7 @@ func TestExecuteCommandUseCase_Execute_ExecutionFailure(t *testing.T) {
 }
 
 func TestExecuteCommandUseCase_ValidateCommand(t *testing.T) {
+	t.Parallel()
 	mockExecutor := new(MockCommandExecutor)
 	useCase := NewExecuteCommandUseCase(mockExecutor)
 
@@ -215,6 +221,7 @@ func TestExecuteCommandUseCase_ValidateCommand(t *testing.T) {
 }
 
 func TestExecuteCommandUseCase_GetAvailableCommands(t *testing.T) {
+	t.Parallel()
 	mockExecutor := new(MockCommandExecutor)
 	useCase := NewExecuteCommandUseCase(mockExecutor)
 
@@ -240,6 +247,7 @@ func TestExecuteCommandUseCase_GetAvailableCommands(t *testing.T) {
 }
 
 func TestExecuteCommandUseCase_PreValidate(t *testing.T) {
+	t.Parallel()
 	mockExecutor := new(MockCommandExecutor)
 	useCase := NewExecuteCommandUseCase(mockExecutor)
 
@@ -306,6 +314,7 @@ func TestExecuteCommandUseCase_PreValidate(t *testing.T) {
 }
 
 func TestExecuteCommandUseCase_PostProcessResult(t *testing.T) {
+	t.Parallel()
 	mockExecutor := new(MockCommandExecutor)
 	useCase := NewExecuteCommandUseCase(mockExecutor)
 

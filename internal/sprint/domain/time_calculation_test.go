@@ -10,6 +10,7 @@ import (
 )
 
 func TestNewSprintBoundary(t *testing.T) {
+	t.Parallel()
 	start := time.Date(2024, 1, 15, 9, 0, 0, 0, time.UTC)
 	end := time.Date(2024, 1, 29, 18, 0, 0, 0, time.UTC)
 
@@ -21,6 +22,7 @@ func TestNewSprintBoundary(t *testing.T) {
 }
 
 func TestNewSprintBoundary_ValidationErrors(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name      string
 		startDate time.Time
@@ -70,6 +72,7 @@ func TestNewSprintBoundary_ValidationErrors(t *testing.T) {
 }
 
 func TestNewWorkTimeCalculator(t *testing.T) {
+	t.Parallel()
 	strategy := NewSprintBoundedTimeCalculator()
 	calculator := NewWorkTimeCalculator(strategy)
 
@@ -77,6 +80,7 @@ func TestNewWorkTimeCalculator(t *testing.T) {
 }
 
 func TestWorkTimeCalculator_SetStrategy(t *testing.T) {
+	t.Parallel()
 	strategy1 := NewSprintBoundedTimeCalculator()
 	strategy2 := NewLegacyTimeCalculator()
 
@@ -88,6 +92,7 @@ func TestWorkTimeCalculator_SetStrategy(t *testing.T) {
 }
 
 func TestCalendarToWorkingHours(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name     string
 		start    time.Time
@@ -177,6 +182,7 @@ func TestCalendarToWorkingHours(t *testing.T) {
 }
 
 func TestWorkTimeCalculator_CalculateWorkingHours(t *testing.T) {
+	t.Parallel()
 	// Create a mock issue
 	issue := JiraIssue{
 		Key: "TEST-1",

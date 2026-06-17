@@ -15,6 +15,7 @@ import (
 // on ConsoleService, but since it only touches ctx + cmd + result, we
 // can drive it directly off a zero-valued ConsoleService.
 func TestConsoleService_UpdateContextFromResult_AssetBranch(t *testing.T) {
+	t.Parallel()
 	svc := &ConsoleService{}
 	ctx := domain.NewContext("session-1")
 
@@ -40,6 +41,7 @@ func TestConsoleService_UpdateContextFromResult_AssetBranch(t *testing.T) {
 }
 
 func TestConsoleService_UpdateContextFromResult_AssetReadAlsoUpdates(t *testing.T) {
+	t.Parallel()
 	svc := &ConsoleService{}
 	ctx := domain.NewContext("s")
 
@@ -55,6 +57,7 @@ func TestConsoleService_UpdateContextFromResult_AssetReadAlsoUpdates(t *testing.
 }
 
 func TestConsoleService_UpdateContextFromResult_AssetNoUpdateOnUnknownAction(t *testing.T) {
+	t.Parallel()
 	svc := &ConsoleService{}
 	ctx := domain.NewContext("s")
 
@@ -70,6 +73,7 @@ func TestConsoleService_UpdateContextFromResult_AssetNoUpdateOnUnknownAction(t *
 }
 
 func TestConsoleService_UpdateContextFromResult_TaskBranch(t *testing.T) {
+	t.Parallel()
 	svc := &ConsoleService{}
 	ctx := domain.NewContext("s")
 
@@ -82,6 +86,7 @@ func TestConsoleService_UpdateContextFromResult_TaskBranch(t *testing.T) {
 }
 
 func TestConsoleService_UpdateContextFromResult_SprintBranch(t *testing.T) {
+	t.Parallel()
 	svc := &ConsoleService{}
 	ctx := domain.NewContext("s")
 
@@ -96,6 +101,7 @@ func TestConsoleService_UpdateContextFromResult_SprintBranch(t *testing.T) {
 }
 
 func TestConsoleService_UpdateContextFromResult_UnknownResourceIsNoop(t *testing.T) {
+	t.Parallel()
 	svc := &ConsoleService{}
 	before := domain.NewContext("s")
 	cmd := &domain.Command{

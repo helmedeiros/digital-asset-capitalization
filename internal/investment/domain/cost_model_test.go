@@ -6,6 +6,7 @@ import (
 )
 
 func TestNewCostModel(t *testing.T) {
+	t.Parallel()
 	costModel, err := NewCostModel(EUR, 8.0, 2.0)
 	if err != nil {
 		t.Fatalf("Expected no error, got %v", err)
@@ -33,6 +34,7 @@ func TestNewCostModel(t *testing.T) {
 }
 
 func TestNewCostModel_InvalidValues(t *testing.T) {
+	t.Parallel()
 	// Test invalid working hours
 	_, err := NewCostModel(EUR, 0, 2.0)
 	if err == nil {
@@ -47,6 +49,7 @@ func TestNewCostModel_InvalidValues(t *testing.T) {
 }
 
 func TestCostModel_AddEngineerRate(t *testing.T) {
+	t.Parallel()
 	costModel, _ := NewCostModel(EUR, 8.0, 2.0)
 
 	rate := EngineerRate{
@@ -76,6 +79,7 @@ func TestCostModel_AddEngineerRate(t *testing.T) {
 }
 
 func TestCostModel_SetDefaultRate(t *testing.T) {
+	t.Parallel()
 	costModel, _ := NewCostModel(EUR, 8.0, 2.0)
 
 	err := costModel.SetDefaultRate(Senior, 75.0)
@@ -94,6 +98,7 @@ func TestCostModel_SetDefaultRate(t *testing.T) {
 }
 
 func TestCostModel_GetEngineerRateOrDefault(t *testing.T) {
+	t.Parallel()
 	costModel, _ := NewCostModel(EUR, 8.0, 2.0)
 
 	// Set a default rate for senior level
@@ -121,6 +126,7 @@ func TestCostModel_GetEngineerRateOrDefault(t *testing.T) {
 }
 
 func TestCostModel_CalculateInfrastructureCostForPeriod(t *testing.T) {
+	t.Parallel()
 	costModel, _ := NewCostModel(EUR, 8.0, 2.0)
 	costModel.InfrastructureCosts.CloudCostsPerMonth = 1000.0
 	costModel.InfrastructureCosts.ToolingCostsPerMonth = 500.0
@@ -142,6 +148,7 @@ func TestCostModel_CalculateInfrastructureCostForPeriod(t *testing.T) {
 }
 
 func TestCostModel_GetTotalMonthlyCost(t *testing.T) {
+	t.Parallel()
 	costModel, _ := NewCostModel(EUR, 8.0, 2.0)
 	costModel.InfrastructureCosts.CloudCostsPerMonth = 1000.0
 	costModel.InfrastructureCosts.ToolingCostsPerMonth = 500.0
@@ -157,6 +164,7 @@ func TestCostModel_GetTotalMonthlyCost(t *testing.T) {
 // Additional test cases for complete coverage
 
 func TestCostModel_AddEngineerRate_NegativeRate(t *testing.T) {
+	t.Parallel()
 	costModel, _ := NewCostModel(EUR, 8.0, 2.0)
 
 	rate := EngineerRate{
@@ -176,6 +184,7 @@ func TestCostModel_AddEngineerRate_NegativeRate(t *testing.T) {
 }
 
 func TestCostModel_SetDefaultRate_NegativeRate(t *testing.T) {
+	t.Parallel()
 	costModel, _ := NewCostModel(EUR, 8.0, 2.0)
 
 	err := costModel.SetDefaultRate(Senior, -75.0)
@@ -188,6 +197,7 @@ func TestCostModel_SetDefaultRate_NegativeRate(t *testing.T) {
 }
 
 func TestCostModel_GetEngineerRate(t *testing.T) {
+	t.Parallel()
 	costModel, _ := NewCostModel(EUR, 8.0, 2.0)
 
 	// Add an engineer
@@ -218,6 +228,7 @@ func TestCostModel_GetEngineerRate(t *testing.T) {
 }
 
 func TestCostModel_GetEngineerRateOrDefault_NoDefault(t *testing.T) {
+	t.Parallel()
 	costModel, _ := NewCostModel(EUR, 8.0, 2.0)
 
 	// Test with no default and no specific rate
@@ -228,6 +239,7 @@ func TestCostModel_GetEngineerRateOrDefault_NoDefault(t *testing.T) {
 }
 
 func TestCostModel_CalculateInfrastructureCostForPeriod_InvalidDates(t *testing.T) {
+	t.Parallel()
 	costModel, _ := NewCostModel(EUR, 8.0, 2.0)
 
 	startDate := time.Date(2025, 1, 31, 0, 0, 0, 0, time.UTC)
@@ -243,6 +255,7 @@ func TestCostModel_CalculateInfrastructureCostForPeriod_InvalidDates(t *testing.
 }
 
 func TestCostModel_Validate(t *testing.T) {
+	t.Parallel()
 	costModel, _ := NewCostModel(EUR, 8.0, 2.0)
 
 	// Valid model should pass validation
@@ -276,6 +289,7 @@ func TestCostModel_Validate(t *testing.T) {
 }
 
 func TestEngineerLevel_Constants(t *testing.T) {
+	t.Parallel()
 	// Test that all constants are defined correctly
 	levels := []EngineerLevel{Junior, Mid, Senior, Staff, Principal}
 	expected := []string{"junior", "mid", "senior", "staff", "principal"}
@@ -288,6 +302,7 @@ func TestEngineerLevel_Constants(t *testing.T) {
 }
 
 func TestCurrency_Constants(t *testing.T) {
+	t.Parallel()
 	// Test that all currency constants are defined correctly
 	currencies := []Currency{EUR, USD, GBP}
 	expected := []string{"EUR", "USD", "GBP"}
@@ -300,6 +315,7 @@ func TestCurrency_Constants(t *testing.T) {
 }
 
 func TestInfrastructureCosts_ZeroCosts(t *testing.T) {
+	t.Parallel()
 	costModel, _ := NewCostModel(EUR, 8.0, 2.0)
 
 	// Test with zero infrastructure costs
@@ -316,6 +332,7 @@ func TestInfrastructureCosts_ZeroCosts(t *testing.T) {
 }
 
 func TestCostModel_InferEngineerLevel(t *testing.T) {
+	t.Parallel()
 	costModel, _ := NewCostModel(EUR, 8.0, 2.0)
 
 	// Set up default rates for testing

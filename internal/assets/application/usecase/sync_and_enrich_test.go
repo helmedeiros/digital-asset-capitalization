@@ -26,6 +26,7 @@ func (m *MockAssetService) SyncFromConfluence(spaceKey, label string, debug bool
 }
 
 func TestSyncAndEnrichUseCase_Execute(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name           string
 		input          SyncAndEnrichInput
@@ -216,6 +217,7 @@ func TestSyncAndEnrichUseCase_Execute(t *testing.T) {
 }
 
 func TestSyncAndEnrichUseCase_generateSummary(t *testing.T) {
+	t.Parallel()
 	useCase := &SyncAndEnrichUseCase{}
 
 	tests := []struct {

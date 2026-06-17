@@ -13,6 +13,7 @@ import (
 )
 
 func TestUpdateAssetUseCase(t *testing.T) {
+	t.Parallel()
 	// Create a mock repository
 	mockRepo := testutil.NewMockAssetRepository()
 	useCase := NewUpdateAssetUseCase(mockRepo)

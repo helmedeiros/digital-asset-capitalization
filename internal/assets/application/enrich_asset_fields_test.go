@@ -17,6 +17,7 @@ import (
 // covered the "description" branch, leaving why/benefits/how/metrics
 // unexecuted in both the read- and write-switch.
 func TestEnrichAsset_AllFieldBranches(t *testing.T) {
+	t.Parallel()
 	cases := []struct {
 		field  string
 		seed   string
@@ -68,6 +69,7 @@ func TestEnrichAsset_AllFieldBranches(t *testing.T) {
 // TestEnrichAsset_LlamaErrorWraps drives the EnrichContent failure
 // branch — the asset is loaded successfully but the LLM call errors.
 func TestEnrichAsset_LlamaErrorWraps(t *testing.T) {
+	t.Parallel()
 	asset := &domain.Asset{ID: "id-1", Name: "Search", Description: "x", Version: 1}
 	mockRepo := new(MockAssetRepository)
 	mockLlama := new(MockLlamaClient)
@@ -87,6 +89,7 @@ func TestEnrichAsset_LlamaErrorWraps(t *testing.T) {
 // failure branch — the asset and enrichment succeed but persistence
 // fails.
 func TestEnrichAsset_SaveErrorPropagates(t *testing.T) {
+	t.Parallel()
 	asset := &domain.Asset{ID: "id-1", Name: "Search", Description: "x", Version: 1}
 	mockRepo := new(MockAssetRepository)
 	mockLlama := new(MockLlamaClient)

@@ -8,6 +8,7 @@ import (
 )
 
 func TestExecutionError(t *testing.T) {
+	t.Parallel()
 	err := NewExecutionError("test command", "test reason", "test help")
 
 	assert.Equal(t, "test command", err.Command)
@@ -17,6 +18,7 @@ func TestExecutionError(t *testing.T) {
 }
 
 func TestValidationError(t *testing.T) {
+	t.Parallel()
 	// Test with field
 	err := NewValidationError("field", "message")
 	assert.Equal(t, "field", err.Field)
@@ -31,6 +33,7 @@ func TestValidationError(t *testing.T) {
 }
 
 func TestCommandInfo(t *testing.T) {
+	t.Parallel()
 	paramInfo := ParameterInfo{
 		Name:        "test-param",
 		Description: "Test parameter",
@@ -54,6 +57,7 @@ func TestCommandInfo(t *testing.T) {
 }
 
 func TestStoreError(t *testing.T) {
+	t.Parallel()
 	originalErr := errors.New("original error")
 	storeErr := NewStoreError("save", "session-123", originalErr)
 
@@ -70,6 +74,7 @@ func TestStoreError(t *testing.T) {
 }
 
 func TestContextStoreErrors(t *testing.T) {
+	t.Parallel()
 	assert.NotNil(t, ErrContextNotFound)
 	assert.Equal(t, "context not found", ErrContextNotFound.Error())
 

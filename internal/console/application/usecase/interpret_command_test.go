@@ -11,11 +11,13 @@ import (
 )
 
 func TestNewInterpretCommandUseCase(t *testing.T) {
+	t.Parallel()
 	useCase := NewInterpretCommandUseCase(nil)
 	require.NotNil(t, useCase)
 }
 
 func TestInterpretCommandUseCase_Execute_EmptyInput(t *testing.T) {
+	t.Parallel()
 	useCase := NewInterpretCommandUseCase(nil)
 	ctx := context.Background()
 	sessionContext := domain.NewContext("test-session")
@@ -33,6 +35,7 @@ func TestInterpretCommandUseCase_Execute_EmptyInput(t *testing.T) {
 }
 
 func TestInterpretCommandUseCase_Execute_ExitCommands(t *testing.T) {
+	t.Parallel()
 	useCase := NewInterpretCommandUseCase(nil)
 	ctx := context.Background()
 	sessionContext := domain.NewContext("test-session")
@@ -54,6 +57,7 @@ func TestInterpretCommandUseCase_Execute_ExitCommands(t *testing.T) {
 }
 
 func TestInterpretCommandUseCase_Execute_HelpCommands(t *testing.T) {
+	t.Parallel()
 	useCase := NewInterpretCommandUseCase(nil)
 	ctx := context.Background()
 	sessionContext := domain.NewContext("test-session")

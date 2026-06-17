@@ -149,6 +149,7 @@ func (m *MockUserInteraction) DisplayWarning(message string) {
 }
 
 func TestNewInitializeConfig(t *testing.T) {
+	t.Parallel()
 	repo := &MockConfigurationRepository{}
 	envProvider := &MockEnvironmentProvider{}
 	ui := &MockUserInteraction{}
@@ -162,6 +163,7 @@ func TestNewInitializeConfig(t *testing.T) {
 }
 
 func TestInitializeConfig_Execute(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name           string
 		setupMocks     func(*MockConfigurationRepository, *MockEnvironmentProvider, *MockUserInteraction)

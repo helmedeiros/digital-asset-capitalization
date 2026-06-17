@@ -12,6 +12,7 @@ import (
 )
 
 func TestJiraIssue_ParentHelpers(t *testing.T) {
+	t.Parallel()
 	t.Run("issue without parent", func(t *testing.T) {
 		i := &JiraIssue{Fields: JiraFields{Parent: nil}}
 		assert.False(t, i.HasParent())
@@ -26,6 +27,7 @@ func TestJiraIssue_ParentHelpers(t *testing.T) {
 }
 
 func TestJiraIssue_IsSubTask(t *testing.T) {
+	t.Parallel()
 	cases := []struct {
 		typeName string
 		want     bool
@@ -44,6 +46,7 @@ func TestJiraIssue_IsSubTask(t *testing.T) {
 }
 
 func TestJiraFields_UnmarshalJSON(t *testing.T) {
+	t.Parallel()
 	t.Run("populates standard and raw fields", func(t *testing.T) {
 		payload := []byte(`{
 			"summary": "Implement feature",
@@ -73,6 +76,7 @@ func TestJiraFields_UnmarshalJSON(t *testing.T) {
 }
 
 func TestJiraIssue_EnrichCustomFields(t *testing.T) {
+	t.Parallel()
 	t.Run("nil RawFields is a safe no-op", func(t *testing.T) {
 		i := &JiraIssue{Fields: JiraFields{RawFields: nil}}
 		i.EnrichCustomFields(sharedjira.CustomFieldIDs{
@@ -125,6 +129,7 @@ func TestJiraIssue_EnrichCustomFields(t *testing.T) {
 }
 
 func TestParseMultiSelectField(t *testing.T) {
+	t.Parallel()
 	cases := []struct {
 		name string
 		in   interface{}
@@ -159,6 +164,7 @@ func TestParseMultiSelectField(t *testing.T) {
 }
 
 func TestParseNumericField(t *testing.T) {
+	t.Parallel()
 	t.Run("float64 returns pointer to value", func(t *testing.T) {
 		got := parseNumericField(3.5)
 		require.NotNil(t, got)
@@ -175,6 +181,7 @@ func TestParseNumericField(t *testing.T) {
 }
 
 func TestParseSingleSelectField(t *testing.T) {
+	t.Parallel()
 	t.Run("object with value returns that string", func(t *testing.T) {
 		assert.Equal(t, "Pricing", parseSingleSelectField(map[string]interface{}{"value": "Pricing"}))
 	})
@@ -187,6 +194,7 @@ func TestParseSingleSelectField(t *testing.T) {
 }
 
 func TestTeam_IsTeamMember(t *testing.T) {
+	t.Parallel()
 	team := &Team{Team: []string{"Alice", "Bob"}}
 	assert.True(t, team.IsTeamMember("Alice"))
 	assert.True(t, team.IsTeamMember("Bob"))
@@ -195,6 +203,7 @@ func TestTeam_IsTeamMember(t *testing.T) {
 }
 
 func TestTeamMap_GetTeam(t *testing.T) {
+	t.Parallel()
 	tm := TeamMap{
 		"PROJ": Team{Team: []string{"Alice"}, ExcludedIssueTypes: []string{"Experiment"}},
 	}
@@ -215,6 +224,7 @@ func TestTeamMap_GetTeam(t *testing.T) {
 }
 
 func TestStatusChangePeriod_Duration(t *testing.T) {
+	t.Parallel()
 	start := time.Date(2026, 3, 1, 10, 0, 0, 0, time.UTC)
 
 	t.Run("zero end time returns zero duration", func(t *testing.T) {
@@ -249,6 +259,7 @@ func (f *fakeStatusChecker) IsWontDo(status, _, _ string) bool {
 }
 
 func TestStatusChangePeriod_IsWorkTimeWithStatusChecker(t *testing.T) {
+	t.Parallel()
 	scp := StatusChangePeriod{Status: "In Progress"}
 
 	t.Run("nil checker falls back to the pattern-matching path", func(t *testing.T) {
@@ -282,6 +293,7 @@ func TestStatusChangePeriod_IsWorkTimeWithStatusChecker(t *testing.T) {
 }
 
 func TestNewSprintBoundedTimeCalculatorWithStatusChecker(t *testing.T) {
+	t.Parallel()
 	checker := &fakeStatusChecker{}
 	calc := NewSprintBoundedTimeCalculatorWithStatusChecker(checker, "TEAM", "BOARD-1")
 	require.NotNil(t, calc)

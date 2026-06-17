@@ -8,6 +8,7 @@ import (
 )
 
 func TestSprintLockKey(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name     string
 		project  string
@@ -43,6 +44,7 @@ func TestSprintLockKey(t *testing.T) {
 }
 
 func TestNewSprintLock(t *testing.T) {
+	t.Parallel()
 	before := time.Now()
 	lock := NewSprintLock("COP", "Sprint 1", 5)
 	after := time.Now()
@@ -55,6 +57,7 @@ func TestNewSprintLock(t *testing.T) {
 }
 
 func TestSprintLock_Key(t *testing.T) {
+	t.Parallel()
 	lock := &SprintLock{
 		Project:   "COP",
 		Sprint:    "Sprint 1",

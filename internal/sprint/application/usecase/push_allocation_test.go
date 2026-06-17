@@ -88,6 +88,7 @@ func floatPtr(v float64) *float64 {
 }
 
 func TestPushAllocationUseCase_EmptyFieldsGetUpdated(t *testing.T) {
+	t.Parallel()
 	mock := &mockJiraPortForPush{
 		fetchResults: map[string]*ports.CustomFieldValues{
 			"COP-1": {},
@@ -115,6 +116,7 @@ func TestPushAllocationUseCase_EmptyFieldsGetUpdated(t *testing.T) {
 }
 
 func TestPushAllocationUseCase_NonEmptyFieldsSkipped(t *testing.T) {
+	t.Parallel()
 	mock := &mockJiraPortForPush{
 		fetchResults: map[string]*ports.CustomFieldValues{
 			"COP-2": {
@@ -148,6 +150,7 @@ func TestPushAllocationUseCase_NonEmptyFieldsSkipped(t *testing.T) {
 }
 
 func TestPushAllocationUseCase_DryRunDoesNotCallUpdate(t *testing.T) {
+	t.Parallel()
 	mock := &mockJiraPortForPush{
 		fetchResults: map[string]*ports.CustomFieldValues{
 			"COP-3": {},
@@ -178,6 +181,7 @@ func TestPushAllocationUseCase_DryRunDoesNotCallUpdate(t *testing.T) {
 }
 
 func TestPushAllocationUseCase_FetchErrorDoesNotStopProcessing(t *testing.T) {
+	t.Parallel()
 	mock := &mockJiraPortForPush{
 		fetchResults: map[string]*ports.CustomFieldValues{
 			"COP-5": {},
@@ -204,6 +208,7 @@ func TestPushAllocationUseCase_FetchErrorDoesNotStopProcessing(t *testing.T) {
 }
 
 func TestPushAllocationUseCase_PerFieldErrors(t *testing.T) {
+	t.Parallel()
 	mock := &mockJiraPortForPush{
 		fetchResults: map[string]*ports.CustomFieldValues{
 			"COP-6": {},
@@ -236,6 +241,7 @@ func TestPushAllocationUseCase_PerFieldErrors(t *testing.T) {
 }
 
 func TestPushAllocationUseCase_PartialUpdate(t *testing.T) {
+	t.Parallel()
 	mock := &mockJiraPortForPush{
 		fetchResults: map[string]*ports.CustomFieldValues{
 			"COP-7": {
@@ -265,6 +271,7 @@ func TestPushAllocationUseCase_PartialUpdate(t *testing.T) {
 }
 
 func TestPushAllocationUseCase_WorkStreamTitleCased(t *testing.T) {
+	t.Parallel()
 	mock := &mockJiraPortForPush{
 		fetchResults: map[string]*ports.CustomFieldValues{
 			"COP-8": {},
@@ -292,6 +299,7 @@ func TestPushAllocationUseCase_WorkStreamTitleCased(t *testing.T) {
 }
 
 func TestTitleCase(t *testing.T) {
+	t.Parallel()
 	assert.Equal(t, "Product", titleCase("product"))
 	assert.Equal(t, "Operational", titleCase("operational"))
 	assert.Equal(t, "Product", titleCase("Product"))
@@ -299,6 +307,7 @@ func TestTitleCase(t *testing.T) {
 }
 
 func TestPushAllocationUseCase_AllFieldsError(t *testing.T) {
+	t.Parallel()
 	mock := &mockJiraPortForPush{
 		fetchResults: map[string]*ports.CustomFieldValues{
 			"COP-9": {},

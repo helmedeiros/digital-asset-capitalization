@@ -30,6 +30,7 @@ func (s *stubAIInterpreter) AnalyzeIntent(context.Context, string) (*domain.Comm
 }
 
 func TestInterpretCommandUseCase_Execute_DelegatesToInterpreter(t *testing.T) {
+	t.Parallel()
 	wantCmd, _ := domain.NewCommand("s", "Show all assets", "list", 0.9)
 	wantCmd.SetIntent(domain.CommandTypeList, domain.ResourceTypeAsset, "")
 
@@ -59,6 +60,7 @@ func TestInterpretCommandUseCase_Execute_DelegatesToInterpreter(t *testing.T) {
 }
 
 func TestInterpretCommandUseCase_Execute_PropagatesInterpreterError(t *testing.T) {
+	t.Parallel()
 	interpreter := &stubAIInterpreter{
 		interpretFn: func(context.Context, string, *domain.Context) (*domain.Command, error) {
 			return nil, errors.New("model unavailable")
@@ -74,6 +76,7 @@ func TestInterpretCommandUseCase_Execute_PropagatesInterpreterError(t *testing.T
 }
 
 func TestInterpretCommandUseCase_Execute_SpecialCommandsBypassInterpreter(t *testing.T) {
+	t.Parallel()
 	// If the special-command handler returns non-nil, Interpret must
 	// not be called. We use an interpreter whose Interpret panics to
 	// guarantee that. "bye" is the special-command that's not yet

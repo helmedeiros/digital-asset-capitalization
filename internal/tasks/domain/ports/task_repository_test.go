@@ -150,6 +150,7 @@ func (m *mockRepository) UpdateLabels(_ context.Context, taskKey string, addLabe
 var _ TaskRepository = (*mockRepository)(nil)
 
 func TestRepositoryOperations(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 	repo := newMockRepository()
 

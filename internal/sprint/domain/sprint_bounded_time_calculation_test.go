@@ -11,6 +11,7 @@ import (
 
 // TestSprintBoundedTimeCalculation tests all scenarios for sprint-bounded time calculation
 func TestSprintBoundedTimeCalculation(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name                string
 		issue               JiraIssue
@@ -259,6 +260,7 @@ func TestSprintBoundedTimeCalculation(t *testing.T) {
 
 // TestSprintBoundaryValidation tests validation of sprint boundaries
 func TestSprintBoundaryValidation(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name           string
 		sprintBoundary SprintBoundary
@@ -314,6 +316,7 @@ func TestSprintBoundaryValidation(t *testing.T) {
 
 // TestTimeCalculationStrategy tests the strategy pattern implementation
 func TestTimeCalculationStrategy(t *testing.T) {
+	t.Parallel()
 	t.Run("Legacy strategy maintains backward compatibility", func(t *testing.T) {
 		issue := createIssueWithStatusChanges([]statusChange{
 			{timestamp: "2024-03-05T10:00:00.000Z", from: "To Do", to: StatusInProgress},

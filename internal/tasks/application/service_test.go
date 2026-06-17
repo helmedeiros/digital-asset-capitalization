@@ -18,6 +18,7 @@ import (
 )
 
 func TestTasksService_FetchTasks(t *testing.T) {
+	t.Parallel()
 	remoteRepo := testutil.NewMockTaskRepository()
 	localRepo := testutil.NewMockTaskRepository()
 	assetService := testutil.NewMockAssetService()
@@ -127,6 +128,7 @@ func TestTasksService_FetchTasks(t *testing.T) {
 }
 
 func TestTasksService_ClassifyTasks(t *testing.T) {
+	t.Parallel()
 	remoteRepo := testutil.NewMockTaskRepository()
 	localRepo := testutil.NewMockTaskRepository()
 	classifier := testutil.NewMockTaskClassifier()
@@ -327,6 +329,7 @@ func TestTasksService_ClassifyTasks(t *testing.T) {
 }
 
 func TestTaskService_GetTasksByAsset(t *testing.T) {
+	t.Parallel()
 	// Set up mock dependencies
 	jiraRepo := testutil.NewMockTaskRepository()
 	localRepo := testutil.NewMockTaskRepository()
@@ -420,6 +423,7 @@ func TestTaskService_GetTasksByAsset(t *testing.T) {
 }
 
 func TestTaskService_GetTasks(t *testing.T) {
+	t.Parallel()
 	// Create test tasks
 	expectedTasks := []*domain.Task{
 		{
@@ -504,6 +508,7 @@ func TestTaskService_GetTasks(t *testing.T) {
 }
 
 func TestTaskService_GetLocalRepository(t *testing.T) {
+	t.Parallel()
 	t.Run("should return the local repository", func(t *testing.T) {
 		// Set up mock dependencies
 		jiraRepo := testutil.NewMockTaskRepository()
@@ -666,6 +671,7 @@ func (s *TestableTaskServiceImpl) GetLocalRepository() ports.TaskRepository {
 }
 
 func TestTaskServiceImpl_GetTasks(t *testing.T) {
+	t.Parallel()
 	t.Run("should delegate to classify tasks use case", func(t *testing.T) {
 		// Set up mock dependencies
 		jiraRepo := testutil.NewMockTaskRepository()
@@ -727,6 +733,7 @@ func TestTaskServiceImpl_GetTasks(t *testing.T) {
 }
 
 func TestTaskService_GetTaskByKey(t *testing.T) {
+	t.Parallel()
 	t.Run("should return task when found", func(t *testing.T) {
 		// Set up mock dependencies
 		jiraRepo := testutil.NewMockTaskRepository()
@@ -811,6 +818,7 @@ func TestTaskService_GetTaskByKey(t *testing.T) {
 }
 
 func TestTaskService_FetchTaskByKey(t *testing.T) {
+	t.Parallel()
 	t.Run("should successfully fetch task by key", func(t *testing.T) {
 		// Set up mock dependencies
 		jiraRepo := testutil.NewMockTaskRepository()

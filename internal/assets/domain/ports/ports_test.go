@@ -10,6 +10,7 @@ import (
 )
 
 func TestBulkEnrichmentResult_Methods(t *testing.T) {
+	t.Parallel()
 	result := NewBulkEnrichmentResult()
 
 	// Test initial state
@@ -68,6 +69,7 @@ func TestInterfaceContracts(_ *testing.T) {
 }
 
 func TestBulkEnrichmentInput(t *testing.T) {
+	t.Parallel()
 	input := BulkEnrichmentInput{
 		AssetNames:    []string{"asset1", "asset2"},
 		FilterBy:      "test-filter",
@@ -89,6 +91,7 @@ func TestBulkEnrichmentInput(t *testing.T) {
 }
 
 func TestDummyImplementations(t *testing.T) {
+	t.Parallel()
 	// Test dummy implementations don't panic and return expected values
 	keywordsService := &dummyKeywordsService{}
 	keywords, err := keywordsService.GenerateKeywords(context.Background(), &domain.Asset{})

@@ -99,6 +99,7 @@ func (m *MockContextStore) CleanupExpired(ctx context.Context, timeout int) erro
 }
 
 func TestNewConsoleService(t *testing.T) {
+	t.Parallel()
 	service := NewConsoleService(nil, nil, nil)
 
 	require.NotNil(t, service)
@@ -107,6 +108,7 @@ func TestNewConsoleService(t *testing.T) {
 }
 
 func TestGenerateSessionID(t *testing.T) {
+	t.Parallel()
 	id1 := generateSessionID()
 
 	assert.NotEmpty(t, id1)
@@ -115,6 +117,7 @@ func TestGenerateSessionID(t *testing.T) {
 }
 
 func TestConsoleService_StartSession(t *testing.T) {
+	t.Parallel()
 	mockStore := &MockContextStore{}
 	service := NewConsoleService(nil, nil, mockStore)
 	ctx := context.Background()
@@ -131,6 +134,7 @@ func TestConsoleService_StartSession(t *testing.T) {
 }
 
 func TestProcessResult_Structure(t *testing.T) {
+	t.Parallel()
 	result := &ProcessResult{
 		Success:               true,
 		Command:               nil,
@@ -153,6 +157,7 @@ func TestProcessResult_Structure(t *testing.T) {
 }
 
 func TestConsoleService_EndSession(t *testing.T) {
+	t.Parallel()
 	mockStore := &MockContextStore{}
 	service := NewConsoleService(nil, nil, mockStore)
 	ctx := context.Background()
@@ -167,6 +172,7 @@ func TestConsoleService_EndSession(t *testing.T) {
 }
 
 func TestConsoleService_GetSessionContext(t *testing.T) {
+	t.Parallel()
 	mockStore := &MockContextStore{}
 	service := NewConsoleService(nil, nil, mockStore)
 	ctx := context.Background()
@@ -182,6 +188,7 @@ func TestConsoleService_GetSessionContext(t *testing.T) {
 }
 
 func TestConsoleService_ProcessInput_SessionNotFound(t *testing.T) {
+	t.Parallel()
 	mockStore := &MockContextStore{}
 	service := NewConsoleService(nil, nil, mockStore)
 	ctx := context.Background()
@@ -198,6 +205,7 @@ func TestConsoleService_ProcessInput_SessionNotFound(t *testing.T) {
 }
 
 func TestConsoleService_ProcessInput_LoadError(t *testing.T) {
+	t.Parallel()
 	mockStore := &MockContextStore{}
 	service := NewConsoleService(nil, nil, mockStore)
 	ctx := context.Background()
@@ -214,6 +222,7 @@ func TestConsoleService_ProcessInput_LoadError(t *testing.T) {
 }
 
 func TestConsoleService_StartSession_SaveError(t *testing.T) {
+	t.Parallel()
 	mockStore := &MockContextStore{}
 	service := NewConsoleService(nil, nil, mockStore)
 	ctx := context.Background()
@@ -230,6 +239,7 @@ func TestConsoleService_StartSession_SaveError(t *testing.T) {
 }
 
 func TestConsoleService_ProcessInput_ExpiredSession(t *testing.T) {
+	t.Parallel()
 	mockStore := &MockContextStore{}
 	service := NewConsoleService(nil, nil, mockStore)
 	ctx := context.Background()
@@ -249,6 +259,7 @@ func TestConsoleService_ProcessInput_ExpiredSession(t *testing.T) {
 }
 
 func TestConsoleService_ProcessInput_InterpretationError(t *testing.T) {
+	t.Parallel()
 	mockInterpreter := &MockAIInterpreter{}
 	mockStore := &MockContextStore{}
 	service := NewConsoleService(mockInterpreter, nil, mockStore)
@@ -271,6 +282,7 @@ func TestConsoleService_ProcessInput_InterpretationError(t *testing.T) {
 }
 
 func TestConsoleService_ProcessInput_ExecutionError(t *testing.T) {
+	t.Parallel()
 	mockInterpreter := &MockAIInterpreter{}
 	mockExecutor := &MockCommandExecutor{}
 	mockStore := &MockContextStore{}
@@ -299,6 +311,7 @@ func TestConsoleService_ProcessInput_ExecutionError(t *testing.T) {
 }
 
 func TestConsoleService_ProcessInput_SuccessfulExecution(t *testing.T) {
+	t.Parallel()
 	mockInterpreter := &MockAIInterpreter{}
 	mockExecutor := &MockCommandExecutor{}
 	mockStore := &MockContextStore{}
@@ -337,6 +350,7 @@ func TestConsoleService_ProcessInput_SuccessfulExecution(t *testing.T) {
 }
 
 func TestConsoleService_ProcessInput_ValidationError(t *testing.T) {
+	t.Parallel()
 	mockInterpreter := &MockAIInterpreter{}
 	mockExecutor := &MockCommandExecutor{}
 	mockStore := &MockContextStore{}
@@ -368,6 +382,7 @@ func TestConsoleService_ProcessInput_ValidationError(t *testing.T) {
 }
 
 func TestConsoleService_ProcessInput_ExecutionErrorType(t *testing.T) {
+	t.Parallel()
 	mockInterpreter := &MockAIInterpreter{}
 	mockExecutor := &MockCommandExecutor{}
 	mockStore := &MockContextStore{}
@@ -399,6 +414,7 @@ func TestConsoleService_ProcessInput_ExecutionErrorType(t *testing.T) {
 }
 
 func TestConsoleService_GetAvailableCommands(t *testing.T) {
+	t.Parallel()
 	mockExecutor := &MockCommandExecutor{}
 	service := NewConsoleService(nil, mockExecutor, nil)
 

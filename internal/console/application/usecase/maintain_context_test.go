@@ -66,6 +66,7 @@ func (m *MockContextStore) List(ctx context.Context) ([]string, error) {
 }
 
 func TestNewMaintainContextUseCase(t *testing.T) {
+	t.Parallel()
 	mockStore := new(MockContextStore)
 	useCase := NewMaintainContextUseCase(mockStore)
 
@@ -74,6 +75,7 @@ func TestNewMaintainContextUseCase(t *testing.T) {
 }
 
 func TestMaintainContextUseCase_UpdateContext(t *testing.T) {
+	t.Parallel()
 	mockStore := new(MockContextStore)
 	useCase := NewMaintainContextUseCase(mockStore)
 	ctx := context.Background()
@@ -107,6 +109,7 @@ func TestMaintainContextUseCase_UpdateContext(t *testing.T) {
 }
 
 func TestMaintainContextUseCase_UpdateContext_StoreError(t *testing.T) {
+	t.Parallel()
 	mockStore := new(MockContextStore)
 	useCase := NewMaintainContextUseCase(mockStore)
 	ctx := context.Background()
@@ -139,6 +142,7 @@ func TestMaintainContextUseCase_UpdateContext_StoreError(t *testing.T) {
 }
 
 func TestMaintainContextUseCase_UpdateContext_WithEmptyCommand(t *testing.T) {
+	t.Parallel()
 	mockStore := new(MockContextStore)
 	useCase := NewMaintainContextUseCase(mockStore)
 	ctx := context.Background()
@@ -163,6 +167,7 @@ func TestMaintainContextUseCase_UpdateContext_WithEmptyCommand(t *testing.T) {
 }
 
 func TestMaintainContextUseCase_UpdateContext_WithNilParameters(t *testing.T) {
+	t.Parallel()
 	mockStore := new(MockContextStore)
 	useCase := NewMaintainContextUseCase(mockStore)
 	ctx := context.Background()

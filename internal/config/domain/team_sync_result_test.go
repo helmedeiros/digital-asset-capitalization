@@ -8,6 +8,7 @@ import (
 )
 
 func TestNewTeamSyncResult(t *testing.T) {
+	t.Parallel()
 	members := []TeamMember{
 		{Name: "John Doe", Email: "john@example.com", DisplayName: "John Doe"},
 		{Name: "Jane Smith", Email: "jane@example.com", DisplayName: "Jane Smith"},
@@ -25,6 +26,7 @@ func TestNewTeamSyncResult(t *testing.T) {
 }
 
 func TestTeamSyncResult_AddError(t *testing.T) {
+	t.Parallel()
 	result := NewTeamSyncResult("TEST", []TeamMember{}, "jira")
 
 	result.AddError("Connection failed", "network")
@@ -39,6 +41,7 @@ func TestTeamSyncResult_AddError(t *testing.T) {
 }
 
 func TestTeamSyncResult_GetMemberNames(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name     string
 		members  []TeamMember
@@ -77,6 +80,7 @@ func TestTeamSyncResult_GetMemberNames(t *testing.T) {
 }
 
 func TestTeamSyncResult_Validate(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name    string
 		result  *TeamSyncResult
@@ -140,6 +144,7 @@ func TestTeamSyncResult_Validate(t *testing.T) {
 }
 
 func TestTeamSyncResult_String(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name     string
 		result   *TeamSyncResult

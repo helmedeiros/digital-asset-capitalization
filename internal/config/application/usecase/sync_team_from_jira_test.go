@@ -34,6 +34,7 @@ func (m *MockTeamSyncPort) GetAssignableUsers(projectKey string) ([]domain.TeamM
 }
 
 func TestNewSyncTeamFromJira(t *testing.T) {
+	t.Parallel()
 	mockTeamSyncPort := &MockTeamSyncPort{}
 	mockConfigRepo := &MockConfigurationRepository{}
 
@@ -45,6 +46,7 @@ func TestNewSyncTeamFromJira(t *testing.T) {
 }
 
 func TestSyncTeamFromJira_Execute_EmptyProjectKey(t *testing.T) {
+	t.Parallel()
 	mockTeamSyncPort := &MockTeamSyncPort{}
 	mockConfigRepo := &MockConfigurationRepository{}
 	useCase := NewSyncTeamFromJira(mockTeamSyncPort, mockConfigRepo)
@@ -57,6 +59,7 @@ func TestSyncTeamFromJira_Execute_EmptyProjectKey(t *testing.T) {
 }
 
 func TestSyncTeamFromJira_Execute_SuccessfulSync(t *testing.T) {
+	t.Parallel()
 	// Setup mocks
 	mockTeamSyncPort := &MockTeamSyncPort{}
 	mockConfigRepo := &MockConfigurationRepository{}
@@ -104,6 +107,7 @@ func TestSyncTeamFromJira_Execute_SuccessfulSync(t *testing.T) {
 }
 
 func TestSyncTeamFromJira_Execute_NoExistingConfig(t *testing.T) {
+	t.Parallel()
 	// Setup mocks
 	mockTeamSyncPort := &MockTeamSyncPort{}
 	mockConfigRepo := &MockConfigurationRepository{}
@@ -141,6 +145,7 @@ func TestSyncTeamFromJira_Execute_NoExistingConfig(t *testing.T) {
 }
 
 func TestSyncTeamFromJira_Execute_JiraError(t *testing.T) {
+	t.Parallel()
 	// Setup mocks
 	mockTeamSyncPort := &MockTeamSyncPort{}
 	mockConfigRepo := &MockConfigurationRepository{}
@@ -167,6 +172,7 @@ func TestSyncTeamFromJira_Execute_JiraError(t *testing.T) {
 }
 
 func TestSyncTeamFromJira_Execute_SaveConfigError(t *testing.T) {
+	t.Parallel()
 	// Setup mocks
 	mockTeamSyncPort := &MockTeamSyncPort{}
 	mockConfigRepo := &MockConfigurationRepository{}
@@ -201,6 +207,7 @@ func TestSyncTeamFromJira_Execute_SaveConfigError(t *testing.T) {
 }
 
 func TestFindAddedMembers(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name           string
 		currentMembers []string
@@ -236,6 +243,7 @@ func TestFindAddedMembers(t *testing.T) {
 }
 
 func TestFindRemovedMembers(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name           string
 		currentMembers []string

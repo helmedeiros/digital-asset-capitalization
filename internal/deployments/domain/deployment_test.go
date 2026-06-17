@@ -10,6 +10,7 @@ import (
 )
 
 func TestNewDeployment(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name        string
 		taskKeys    []string
@@ -76,6 +77,7 @@ func TestNewDeployment(t *testing.T) {
 }
 
 func TestDeployment_SetStatus(t *testing.T) {
+	t.Parallel()
 	deployment := &Deployment{
 		ID:          "dep-123",
 		TaskKeys:    []string{"TASK-1"},
@@ -98,6 +100,7 @@ func TestDeployment_SetStatus(t *testing.T) {
 }
 
 func TestDeployment_SetDeployedBy(t *testing.T) {
+	t.Parallel()
 	deployment := &Deployment{
 		ID:          "dep-123",
 		TaskKeys:    []string{"TASK-1"},
@@ -113,6 +116,7 @@ func TestDeployment_SetDeployedBy(t *testing.T) {
 }
 
 func TestDeployment_SetCommitSHA(t *testing.T) {
+	t.Parallel()
 	deployment := &Deployment{
 		ID:          "dep-123",
 		TaskKeys:    []string{"TASK-1"},
@@ -125,6 +129,7 @@ func TestDeployment_SetCommitSHA(t *testing.T) {
 }
 
 func TestDeployment_SetMetadata(t *testing.T) {
+	t.Parallel()
 	deployment := &Deployment{
 		ID:          "dep-123",
 		TaskKeys:    []string{"TASK-1"},
@@ -143,6 +148,7 @@ func TestDeployment_SetMetadata(t *testing.T) {
 }
 
 func TestDeployment_UpdateTimestamp(t *testing.T) {
+	t.Parallel()
 	deployment := &Deployment{
 		ID:          "dep-123",
 		TaskKeys:    []string{"TASK-1"},
@@ -158,6 +164,7 @@ func TestDeployment_UpdateTimestamp(t *testing.T) {
 }
 
 func TestDeployment_Validate(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name       string
 		deployment *Deployment
@@ -249,6 +256,7 @@ func TestDeployment_Validate(t *testing.T) {
 }
 
 func TestTimeRange_Validate(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name    string
 		tr      TimeRange
@@ -266,6 +274,7 @@ func TestTimeRange_Validate(t *testing.T) {
 }
 
 func TestTimeRange_ValidateSkipped(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name    string
 		tr      TimeRange
@@ -344,6 +353,7 @@ func TestTimeRange_ValidateSkipped(t *testing.T) {
 }
 
 func TestTimeRange_Contains(t *testing.T) {
+	t.Parallel()
 	tr := TimeRange{
 		From: time.Date(2025, 9, 1, 0, 0, 0, 0, time.UTC),
 		To:   time.Date(2025, 9, 30, 23, 59, 59, 0, time.UTC),
@@ -390,6 +400,7 @@ func TestTimeRange_Contains(t *testing.T) {
 }
 
 func TestGenerateDeploymentID(t *testing.T) {
+	t.Parallel()
 	// Test ID generation format
 	now := time.Now()
 	id := generateDeploymentID(now)
@@ -405,6 +416,7 @@ func TestGenerateDeploymentID(t *testing.T) {
 }
 
 func TestEnvironment_IsValid(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name     string
 		env      Environment
@@ -421,6 +433,7 @@ func TestEnvironment_IsValid(t *testing.T) {
 }
 
 func TestEnvironment_IsValidSkipped(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name     string
 		env      Environment
@@ -471,6 +484,7 @@ func TestEnvironment_IsValidSkipped(t *testing.T) {
 }
 
 func TestDeploymentStatus_IsValid(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name     string
 		status   DeploymentStatus
@@ -487,6 +501,7 @@ func TestDeploymentStatus_IsValid(t *testing.T) {
 }
 
 func TestDeploymentStatus_IsValidSkipped(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name     string
 		status   DeploymentStatus
@@ -537,6 +552,7 @@ func TestDeploymentStatus_IsValidSkipped(t *testing.T) {
 }
 
 func TestDeployment_AddTaskKey(t *testing.T) {
+	t.Parallel()
 	deployment := &Deployment{
 		ID:          "dep-123",
 		TaskKeys:    []string{"TASK-1"},
@@ -569,6 +585,7 @@ func TestDeployment_AddTaskKey(t *testing.T) {
 }
 
 func TestDeployment_IsProduction(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name        string
 		environment Environment
@@ -607,6 +624,7 @@ func TestDeployment_IsProduction(t *testing.T) {
 }
 
 func TestDeployment_IsSuccessful(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name     string
 		status   DeploymentStatus
@@ -645,6 +663,7 @@ func TestDeployment_IsSuccessful(t *testing.T) {
 }
 
 func TestTimeRange_IsValid(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name     string
 		tr       TimeRange

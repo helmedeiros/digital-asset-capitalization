@@ -171,6 +171,7 @@ func (m *MockTaskFetcher) FetchTasks(project, sprint string) ([]*domain.Task, er
 }
 
 func TestClassifyTasksUseCase_Execute(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 
 	tests := []struct {
@@ -314,6 +315,7 @@ func TestClassifyTasksUseCase_Execute(t *testing.T) {
 }
 
 func TestGetTasks(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 
 	t.Run("should return tasks from local repository when available", func(t *testing.T) {
@@ -495,6 +497,7 @@ func TestGetTasks(t *testing.T) {
 }
 
 func TestGetAllTasks(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 
 	t.Run("should return all tasks from local repository", func(t *testing.T) {
@@ -575,6 +578,7 @@ func TestGetAllTasks(t *testing.T) {
 }
 
 func TestGetLocalRepository(t *testing.T) {
+	t.Parallel()
 	t.Run("should return the local repository instance", func(t *testing.T) {
 		// Create mocks
 		mockLocalRepo := new(MockTaskRepository)
@@ -596,6 +600,7 @@ func TestGetLocalRepository(t *testing.T) {
 }
 
 func TestFormatWorkType(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name     string
 		workType domain.WorkType
@@ -637,6 +642,7 @@ func TestFormatWorkType(t *testing.T) {
 }
 
 func TestBuildLabelChanges(t *testing.T) {
+	t.Parallel()
 	// Create mocks for the use case (needed to call the method)
 	mockLocalRepo := new(MockTaskRepository)
 	mockRemoteRepo := new(MockTaskRepository)
@@ -805,6 +811,7 @@ func TestBuildLabelChanges(t *testing.T) {
 }
 
 func TestGetAssetLabel(t *testing.T) {
+	t.Parallel()
 	// Create mocks for the use case (needed to call the method)
 	mockLocalRepo := new(MockTaskRepository)
 	mockRemoteRepo := new(MockTaskRepository)
@@ -864,6 +871,7 @@ func TestGetAssetLabel(t *testing.T) {
 }
 
 func TestGetAssetLabel_WithAssetObject(t *testing.T) {
+	t.Parallel()
 	mockLocalRepo := new(MockTaskRepository)
 	mockRemoteRepo := new(MockTaskRepository)
 	mockClassifier := new(MockTaskClassifier)
@@ -902,6 +910,7 @@ func TestGetAssetLabel_WithAssetObject(t *testing.T) {
 }
 
 func TestFormatAssetLabel(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name     string
 		input    string
@@ -920,6 +929,7 @@ func TestFormatAssetLabel(t *testing.T) {
 }
 
 func TestClassifyTasksComprehensive(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 
 	t.Run("should use comprehensive classification when available", func(t *testing.T) {
@@ -1060,6 +1070,7 @@ func TestClassifyTasksComprehensive(t *testing.T) {
 }
 
 func TestClassifyTasksEdgeCases(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 
 	t.Run("should handle classification with empty tasks", func(t *testing.T) {
@@ -1320,6 +1331,7 @@ func TestClassifyTasksEdgeCases(t *testing.T) {
 }
 
 func TestPreviewClassificationsWithAssetSync(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 
 	t.Run("should trigger asset sync when unassigned tasks found in comprehensive preview", func(t *testing.T) {
@@ -1634,6 +1646,7 @@ func TestPreviewClassificationsWithAssetSync(t *testing.T) {
 }
 
 func TestAdditionalErrorHandlingAndEdgeCases(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 
 	t.Run("should handle UpdateWorkType error during classification", func(t *testing.T) {
@@ -2006,6 +2019,7 @@ func TestAdditionalErrorHandlingAndEdgeCases(t *testing.T) {
 }
 
 func TestSortingAndDisplayLogic(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 
 	t.Run("should sort tasks alphabetically during classification", func(t *testing.T) {
@@ -2296,6 +2310,7 @@ func (m *MockSprintLockRepository) SaveLock(ctx context.Context, lock *domain.Sp
 }
 
 func TestSprintLockBehavior(t *testing.T) {
+	t.Parallel()
 	tasks := []*domain.Task{
 		{Key: "TEST-1", Summary: "Task 1", Labels: []string{"cap-asset-test"}},
 	}

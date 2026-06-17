@@ -10,6 +10,7 @@ import (
 )
 
 func TestTeamResolverService_ResolveProjectIdentifier(t *testing.T) {
+	t.Parallel()
 	teams := map[string][]string{
 		"FN": {"Alice", "Bob"},
 		"AD": {"Carol", "Dave"},
@@ -75,6 +76,7 @@ func TestTeamResolverService_ResolveProjectIdentifier(t *testing.T) {
 }
 
 func TestTeamResolverService_ResolveMultipleIdentifiers(t *testing.T) {
+	t.Parallel()
 	teams := map[string][]string{
 		"FN": {"Alice", "Bob"},
 		"AD": {"Carol", "Dave"},
@@ -134,6 +136,7 @@ func TestTeamResolverService_ResolveMultipleIdentifiers(t *testing.T) {
 }
 
 func TestTeamResolverService_GetProjectWithNicknames(t *testing.T) {
+	t.Parallel()
 	teams := map[string][]string{
 		"FN": {"Alice", "Bob"},
 		"AD": {"Carol", "Dave"},
@@ -179,6 +182,7 @@ func TestTeamResolverService_GetProjectWithNicknames(t *testing.T) {
 }
 
 func TestTeamResolverService_GetAllMappings(t *testing.T) {
+	t.Parallel()
 	teams := map[string][]string{
 		"FN": {"Alice", "Bob"},
 		"AD": {"Carol", "Dave"},
@@ -204,6 +208,7 @@ func TestTeamResolverService_GetAllMappings(t *testing.T) {
 }
 
 func TestTeamResolverService_UpdateTeamConfig(t *testing.T) {
+	t.Parallel()
 	// Create initial config
 	teams1 := map[string][]string{
 		"FN": {"Alice", "Bob"},
