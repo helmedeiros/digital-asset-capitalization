@@ -1,0 +1,17 @@
+NAME:
+   AssetCap investment - Calculate investment costs for digital assets
+
+USAGE:
+   AssetCap investment [command options]
+
+COMMANDS:
+   calculate          Calculate investment for an asset across sprints
+   sprint             Calculate investment for a specific sprint
+   list               List all saved investment calculations
+   init-cost-model    Initialize cost model for a project
+   set-engineer-rate  Set hourly rate for a specific engineer
+   show-rates         Show current engineer rates for a project
+   help, h            Shows a list of commands or help for one command
+
+OPTIONS:
+   --help, -h  show help

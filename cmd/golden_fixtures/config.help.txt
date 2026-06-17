@@ -1,0 +1,21 @@
+NAME:
+   AssetCap config - Manage configuration settings
+
+USAGE:
+   AssetCap config [command options]
+
+COMMANDS:
+   init                  Initialize configuration
+   show                  Show current configuration
+   validate              Validate current configuration
+   sync-team             Synchronize team members from JIRA for a project
+   team-nicknames        Manage team nicknames
+   team-tribe            Manage team tribes (organizational groupings)
+   team-company          Manage team companies (organization ownership)
+   board-work-streams    Manage board-to-workstream mappings per project
+   excluded-issue-types  Manage excluded issue types for sprint allocation per project
+   team-timeline         Manage team member timeline (join/leave dates) for time-aware sprint allocation
+   help, h               Shows a list of commands or help for one command
+
+OPTIONS:
+   --help, -h  show help

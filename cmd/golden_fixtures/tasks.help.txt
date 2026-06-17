@@ -1,0 +1,16 @@
+NAME:
+   AssetCap tasks - Manage tasks from various platforms
+
+USAGE:
+   AssetCap tasks [command options]
+
+COMMANDS:
+   fetch     Fetch tasks from a platform (e.g., Jira)
+   show      Show tasks for a project and sprint
+   classify  Classify tasks for a specific project and sprint
+   inspect   Inspect a specific task by its key
+   migrate   Migrate sprint data from comma-separated strings to arrays
+   help, h   Shows a list of commands or help for one command
+
+OPTIONS:
+   --help, -h  show help

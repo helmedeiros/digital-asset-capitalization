@@ -1,0 +1,14 @@
+NAME:
+   AssetCap completion - Generate shell completion scripts
+
+USAGE:
+   AssetCap completion [command options]
+
+COMMANDS:
+   bash     Generate bash completion script
+   zsh      Generate zsh completion script
+   fish     Generate fish completion script
+   help, h  Shows a list of commands or help for one command
+
+OPTIONS:
+   --help, -h  show help
