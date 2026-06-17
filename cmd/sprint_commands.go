@@ -11,42 +11,18 @@ import (
 )
 
 // createSprintCommand builds the `sprint` CLI command with its
-// list/allocate subcommands. Extracted from cmd/main.go so that the
-// allocation flag surface and the team-identifier resolution live
-// next to each other rather than buried in the App.Run() literal.
+// list/allocate subcommands. The Action closures delegate to named
+// methods on *App so each handler is unit-testable against stub
+// services without going through the cli.App boot machinery.
 func (a *App) createSprintCommand() *cli.Command {
 	return &cli.Command{
 		Name:  "sprint",
 		Usage: "Manage sprint-related operations",
 		Subcommands: []*cli.Command{
 			{
-				Name:  "list",
-				Usage: "List sprints for a project and time period",
-				Action: func(ctx *cli.Context) error {
-					project := ctx.String("project")
-					period := ctx.String("period")
-
-					// Resolve team identifier to actual project code
-					if a.teamResolver != nil && project != "" {
-						resolvedProject, err := a.teamResolver.ResolveProjectIdentifier(project)
-						if err != nil {
-							return fmt.Errorf("unknown project or team nickname: %s", project)
-						}
-						project = resolvedProject
-					}
-
-					result, err := a.sprintService.ListSprints(project, period)
-					if err != nil {
-						return err
-					}
-
-					// Use the new formatter for colorful output
-					formatter := formatting.NewOutputFormatter()
-					output := formatter.FormatSprintList(project, period, result.Sprints, result.BoardInfo)
-					fmt.Print(output)
-
-					return nil
-				},
+				Name:   "list",
+				Usage:  "List sprints for a project and time period",
+				Action: a.sprintListAction,
 				Flags: []cli.Flag{
 					&cli.StringFlag{
 						Name:     "project",
@@ -63,68 +39,9 @@ func (a *App) createSprintCommand() *cli.Command {
 				},
 			},
 			{
-				Name:  "allocate",
-				Usage: "Calculate time allocation for JIRA issues in a sprint",
-				Action: func(ctx *cli.Context) error {
-					project := ctx.String("project")
-					sprint := ctx.String("sprint")
-					override := ctx.String("override")
-					sprintBounded := ctx.Bool("sprint-bounded")
-					workStreamsStr := ctx.String("work-streams")
-					withHours := ctx.Bool("with-hours")
-					apply := ctx.Bool("apply")
-					dryRun := ctx.Bool("dry-run")
-					force := ctx.Bool("force")
-
-					// Resolve team identifier to actual project code
-					if a.teamResolver != nil && project != "" {
-						resolvedProject, err := a.teamResolver.ResolveProjectIdentifier(project)
-						if err != nil {
-							return fmt.Errorf("unknown project or team nickname: %s", project)
-						}
-						project = resolvedProject
-					}
-
-					// Parse work streams
-					var workStreams []string
-					if workStreamsStr != "" {
-						for _, ws := range strings.Split(workStreamsStr, ",") {
-							trimmed := strings.TrimSpace(ws)
-							if trimmed != "" {
-								workStreams = append(workStreams, trimmed)
-							}
-						}
-					}
-
-					// Build options
-					var opts []sprintusecase.SprintAllocationOption
-					if len(workStreams) > 0 {
-						opts = append(opts, sprintusecase.WithWorkStreams(workStreams))
-					}
-					if withHours {
-						opts = append(opts, sprintusecase.WithHours(true))
-					}
-
-					// If --apply is set, use the push-to-JIRA flow
-					if apply {
-						return a.handleAllocateApply(project, sprint, override, sprintBounded, dryRun, force, opts)
-					}
-
-					if len(opts) > 0 || sprintBounded {
-						result, err := a.sprintService.ProcessJiraIssuesWithOptions(project, sprint, override, sprintBounded, opts...)
-						if err != nil {
-							return err
-						}
-						fmt.Print(result)
-					} else {
-						result, err := a.sprintService.ProcessJiraIssues(project, sprint, override)
-						if err != nil {
-							return err
-						}
-						fmt.Print(result)
-					}
-					return nil
-				},
+				Name:   "allocate",
+				Usage:  "Calculate time allocation for JIRA issues in a sprint",
+				Action: a.sprintAllocateAction,
 				Flags: []cli.Flag{
 					&cli.StringFlag{
 						Name:     "project",
@@ -178,4 +95,99 @@ func (a *App) createSprintCommand() *cli.Command {
 			},
 		},
 	}
+}
+
+// sprintListAction backs `assetcap sprint list`. Resolves a team
+// nickname through teamResolver (if configured), calls ListSprints on
+// the sprint service, and writes the formatted result to stdout.
+func (a *App) sprintListAction(ctx *cli.Context) error {
+	project := ctx.String("project")
+	period := ctx.String("period")
+
+	if a.teamResolver != nil && project != "" {
+		resolvedProject, err := a.teamResolver.ResolveProjectIdentifier(project)
+		if err != nil {
+			return fmt.Errorf("unknown project or team nickname: %s", project)
+		}
+		project = resolvedProject
+	}
+
+	result, err := a.sprintService.ListSprints(project, period)
+	if err != nil {
+		return err
+	}
+
+	formatter := formatting.NewOutputFormatter()
+	output := formatter.FormatSprintList(project, period, result.Sprints, result.BoardInfo)
+	fmt.Print(output)
+	return nil
+}
+
+// sprintAllocateAction backs `assetcap sprint allocate`. With --apply
+// it delegates to handleAllocateApply for the push-to-JIRA flow;
+// otherwise it returns the CSV-formatted allocation for the sprint.
+func (a *App) sprintAllocateAction(ctx *cli.Context) error {
+	project := ctx.String("project")
+	sprint := ctx.String("sprint")
+	override := ctx.String("override")
+	sprintBounded := ctx.Bool("sprint-bounded")
+	workStreamsStr := ctx.String("work-streams")
+	withHours := ctx.Bool("with-hours")
+	apply := ctx.Bool("apply")
+	dryRun := ctx.Bool("dry-run")
+	force := ctx.Bool("force")
+
+	if a.teamResolver != nil && project != "" {
+		resolvedProject, err := a.teamResolver.ResolveProjectIdentifier(project)
+		if err != nil {
+			return fmt.Errorf("unknown project or team nickname: %s", project)
+		}
+		project = resolvedProject
+	}
+
+	workStreams := parseCommaSeparated(workStreamsStr)
+
+	var opts []sprintusecase.SprintAllocationOption
+	if len(workStreams) > 0 {
+		opts = append(opts, sprintusecase.WithWorkStreams(workStreams))
+	}
+	if withHours {
+		opts = append(opts, sprintusecase.WithHours(true))
+	}
+
+	if apply {
+		return a.handleAllocateApply(project, sprint, override, sprintBounded, dryRun, force, opts)
+	}
+
+	if len(opts) > 0 || sprintBounded {
+		result, err := a.sprintService.ProcessJiraIssuesWithOptions(project, sprint, override, sprintBounded, opts...)
+		if err != nil {
+			return err
+		}
+		fmt.Print(result)
+		return nil
+	}
+
+	result, err := a.sprintService.ProcessJiraIssues(project, sprint, override)
+	if err != nil {
+		return err
+	}
+	fmt.Print(result)
+	return nil
+}
+
+// parseCommaSeparated splits a comma-separated string, trims each
+// element, and drops empties. Shared by allocate (work-streams) and
+// any future multi-value flag.
+func parseCommaSeparated(s string) []string {
+	if s == "" {
+		return nil
+	}
+	var out []string
+	for _, part := range strings.Split(s, ",") {
+		if trimmed := strings.TrimSpace(part); trimmed != "" {
+			out = append(out, trimmed)
+		}
+	}
+	return out
 }
