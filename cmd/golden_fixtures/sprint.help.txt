@@ -1,0 +1,13 @@
+NAME:
+   AssetCap sprint - Manage sprint-related operations
+
+USAGE:
+   AssetCap sprint [command options]
+
+COMMANDS:
+   list      List sprints for a project and time period
+   allocate  Calculate time allocation for JIRA issues in a sprint
+   help, h   Shows a list of commands or help for one command
+
+OPTIONS:
+   --help, -h  show help

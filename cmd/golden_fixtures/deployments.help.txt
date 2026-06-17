@@ -1,0 +1,16 @@
+NAME:
+   AssetCap deployments - Manage deployment tracking
+
+USAGE:
+   AssetCap deployments [command options]
+
+COMMANDS:
+   record    Record a new deployment
+   list      List deployments
+   history   Show deployment history for an asset
+   timeline  Show deployment timeline for a time range
+   mock      Generate mock deployment data for testing
+   help, h   Shows a list of commands or help for one command
+
+OPTIONS:
+   --help, -h  show help

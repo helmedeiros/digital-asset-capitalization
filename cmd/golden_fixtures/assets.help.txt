@@ -1,0 +1,26 @@
+NAME:
+   AssetCap assets - Manage digital assets
+
+USAGE:
+   AssetCap assets [command options]
+
+COMMANDS:
+   create             Create a new asset
+   delete             Delete an existing asset
+   list               List all assets
+   sync               Sync assets from Confluence
+   publish            Publish an asset to Confluence as a new page
+   update-confluence  Update an existing Confluence page with the asset's current content
+   update             Update an asset's description
+   show               Show detailed information about an asset
+   documentation      Manage asset documentation
+   tasks              Manage asset tasks
+   enrich             Enrich asset fields using LLaMA 3
+   keywords           Generate keywords for an asset using LLaMA 3
+   sync-and-enrich    Sync assets from Confluence and enrich them with keywords and fields using AI
+   sync-contributors  Synchronize asset contributors from JIRA task assignments with optional filtering
+   teams              Manage asset team assignments
+   help, h            Shows a list of commands or help for one command
+
+OPTIONS:
+   --help, -h  show help

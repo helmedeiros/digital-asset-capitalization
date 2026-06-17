@@ -1,0 +1,8 @@
+NAME:
+   AssetCap version - Show version information
+
+USAGE:
+   AssetCap version [command options]
+
+OPTIONS:
+   --help, -h  show help
