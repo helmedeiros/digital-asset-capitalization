@@ -263,13 +263,22 @@ func TestNewClientTimeout(t *testing.T) {
 	})
 
 	t.Run("aborts requests that exceed the timeout", func(t *testing.T) {
+		// The handler delays past the configured client timeout. Disable
+		// retries (MaxAttempts: 1) and tighten BackoffBase so the test
+		// reports the first-attempt timeout immediately rather than
+		// waiting through the default 500ms+1s retry backoff schedule.
 		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			time.Sleep(200 * time.Millisecond)
 			w.WriteHeader(http.StatusOK)
 		}))
 		defer server.Close()
 
-		client, err := NewClient(Config{BaseURL: server.URL, Timeout: 25 * time.Millisecond})
+		client, err := NewClient(Config{
+			BaseURL:     server.URL,
+			Timeout:     25 * time.Millisecond,
+			MaxAttempts: 1,
+			BackoffBase: time.Microsecond,
+		})
 		require.NoError(t, err)
 
 		_, err = client.GenerateEmbeddings("llama3", []string{"hello"})
