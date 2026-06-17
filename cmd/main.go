@@ -27,7 +27,6 @@ import (
 	investmentservice "github.com/helmedeiros/digital-asset-capitalization/internal/investment/application/service"
 	investmentdomain "github.com/helmedeiros/digital-asset-capitalization/internal/investment/domain"
 	investmentinfra "github.com/helmedeiros/digital-asset-capitalization/internal/investment/infrastructure"
-	"github.com/helmedeiros/digital-asset-capitalization/internal/shell/completion"
 	sprintapp "github.com/helmedeiros/digital-asset-capitalization/internal/sprint/application"
 	sprintusecase "github.com/helmedeiros/digital-asset-capitalization/internal/sprint/application/usecase"
 	sprintinfra "github.com/helmedeiros/digital-asset-capitalization/internal/sprint/infrastructure"
@@ -176,46 +175,8 @@ COMMANDS:
 For more information about a command:
    assetcap [command] --help`,
 		Commands: []*cli.Command{
-			{
-				Name:  "version",
-				Usage: "Show version information",
-				Action: func(_ *cli.Context) error {
-					fmt.Printf("AssetCap %s\n", version)
-					fmt.Printf("Commit: %s\n", commit)
-					fmt.Printf("Built: %s\n", date)
-					return nil
-				},
-			},
-			{
-				Name:  "completion",
-				Usage: "Generate shell completion scripts",
-				Subcommands: []*cli.Command{
-					{
-						Name:  "bash",
-						Usage: "Generate bash completion script",
-						Action: func(_ *cli.Context) error {
-							fmt.Println(completion.GetBashCompletion())
-							return nil
-						},
-					},
-					{
-						Name:  "zsh",
-						Usage: "Generate zsh completion script",
-						Action: func(_ *cli.Context) error {
-							fmt.Println(completion.GetZshCompletion())
-							return nil
-						},
-					},
-					{
-						Name:  "fish",
-						Usage: "Generate fish completion script",
-						Action: func(_ *cli.Context) error {
-							fmt.Println(completion.GetFishCompletion())
-							return nil
-						},
-					},
-				},
-			},
+			a.createVersionCommand(),
+			a.createCompletionCommand(),
 			{
 				Name:  "sprint",
 				Usage: "Manage sprint-related operations",
