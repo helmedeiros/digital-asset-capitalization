@@ -20,6 +20,8 @@ import (
 	"github.com/helmedeiros/digital-asset-capitalization/internal/config/application/usecase"
 	"github.com/helmedeiros/digital-asset-capitalization/internal/config/domain"
 	configinfra "github.com/helmedeiros/digital-asset-capitalization/internal/config/infrastructure"
+	deploymentsapp "github.com/helmedeiros/digital-asset-capitalization/internal/deployments/application"
+	deploymentports "github.com/helmedeiros/digital-asset-capitalization/internal/deployments/domain/ports"
 	investmentservice "github.com/helmedeiros/digital-asset-capitalization/internal/investment/application/service"
 	investmentinfra "github.com/helmedeiros/digital-asset-capitalization/internal/investment/infrastructure"
 	sprintapp "github.com/helmedeiros/digital-asset-capitalization/internal/sprint/application"
@@ -58,6 +60,8 @@ type App struct {
 	sprintService      sprintapp.SprintService
 	configService      ConfigService
 	investmentService  *investmentservice.InvestmentService
+	deploymentService  *deploymentsapp.DeploymentService
+	deploymentRepo     deploymentports.DeploymentRepository
 	teamResolver       *configapp.TeamResolverService
 	taskRepo           taskports.TaskRepository
 	taskClassifier     taskports.TaskClassifier
