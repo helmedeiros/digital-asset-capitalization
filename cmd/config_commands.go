@@ -24,129 +24,25 @@ func (a *App) createConfigCommand() *cli.Command {
 		Usage: "Manage configuration settings",
 		Subcommands: []*cli.Command{
 			{
-				Name:  "init",
-				Usage: "Initialize configuration",
-				Action: func(ctx *cli.Context) error {
-					if a.configService == nil {
-						return fmt.Errorf("configuration service not available")
-					}
-
-					interactive := !ctx.Bool("non-interactive")
-
-					// Set environment variables if provided via flags
-					jiraURL := ctx.String("jira-url")
-					jiraEmail := ctx.String("jira-email")
-					jiraToken := ctx.String("jira-token")
-
-					if jiraURL != "" {
-						os.Setenv("JIRA_BASE_URL", jiraURL)
-					}
-					if jiraEmail != "" {
-						os.Setenv("JIRA_EMAIL", jiraEmail)
-					}
-					if jiraToken != "" {
-						os.Setenv("JIRA_TOKEN", jiraToken)
-					}
-
-					result, err := a.configService.InitializeConfig(interactive)
-					if err != nil {
-						return err
-					}
-
-					fmt.Println(result.Message)
-					return nil
-				},
+				Name:   "init",
+				Usage:  "Initialize configuration",
+				Action: a.configInitAction,
 				Flags: []cli.Flag{
-					&cli.BoolFlag{
-						Name:  "non-interactive",
-						Usage: "Run in non-interactive mode (requires environment variables)",
-						Value: false,
-					},
-					&cli.StringFlag{
-						Name:  "jira-url",
-						Usage: "Jira base URL (e.g., https://company.atlassian.net)",
-					},
-					&cli.StringFlag{
-						Name:  "jira-email",
-						Usage: "Jira email address",
-					},
-					&cli.StringFlag{
-						Name:  "jira-token",
-						Usage: "Jira API token",
-					},
+					&cli.BoolFlag{Name: "non-interactive", Usage: "Run in non-interactive mode (requires environment variables)", Value: false},
+					&cli.StringFlag{Name: "jira-url", Usage: "Jira base URL (e.g., https://company.atlassian.net)"},
+					&cli.StringFlag{Name: "jira-email", Usage: "Jira email address"},
+					&cli.StringFlag{Name: "jira-token", Usage: "Jira API token"},
 				},
 			},
 			{
-				Name:  "show",
-				Usage: "Show current configuration",
-				Action: func(_ *cli.Context) error {
-					fmt.Println("Current Configuration:")
-					fmt.Println("=====================")
-
-					// Show environment variables (masked)
-					jiraURL := os.Getenv("JIRA_BASE_URL")
-					jiraEmail := os.Getenv("JIRA_EMAIL")
-					jiraToken := os.Getenv("JIRA_TOKEN")
-
-					fmt.Printf("JIRA_BASE_URL: %s\n", jiraURL)
-					fmt.Printf("JIRA_EMAIL: %s\n", jiraEmail)
-					if jiraToken != "" {
-						fmt.Printf("JIRA_TOKEN: %s\n", maskToken(jiraToken))
-					} else {
-						fmt.Printf("JIRA_TOKEN: <not set>\n")
-					}
-
-					// Show teams.json if it exists
-					teamsPath := filepath.Join(configDir, teamsFile)
-					if _, err := os.Stat(teamsPath); err == nil {
-						fmt.Printf("\nTeam Configuration: %s exists\n", teamsPath)
-					} else {
-						fmt.Printf("\nTeam Configuration: %s not found\n", teamsPath)
-					}
-
-					return nil
-				},
+				Name:   "show",
+				Usage:  "Show current configuration",
+				Action: a.configShowAction,
 			},
 			{
-				Name:  "validate",
-				Usage: "Validate current configuration",
-				Action: func(_ *cli.Context) error {
-					fmt.Println("Validating Configuration...")
-
-					var errors []string
-
-					// Check environment variables
-					jiraURL := os.Getenv("JIRA_BASE_URL")
-					jiraEmail := os.Getenv("JIRA_EMAIL")
-					jiraToken := os.Getenv("JIRA_TOKEN")
-
-					if jiraURL == "" {
-						errors = append(errors, "JIRA_BASE_URL is not set")
-					}
-					if jiraEmail == "" {
-						errors = append(errors, "JIRA_EMAIL is not set")
-					}
-					if jiraToken == "" {
-						errors = append(errors, "JIRA_TOKEN is not set")
-					}
-
-					// Check teams.json
-					teamsPath := filepath.Join(configDir, teamsFile)
-					if _, err := os.Stat(teamsPath); err != nil {
-						errors = append(errors, fmt.Sprintf("%s file not found", teamsPath))
-					}
-
-					if len(errors) > 0 {
-						fmt.Println("❌ Configuration validation failed:")
-						for _, err := range errors {
-							fmt.Printf("  - %s\n", err)
-						}
-						return fmt.Errorf("configuration validation failed")
-					}
-
-					fmt.Println("✅ Configuration is valid")
-					return nil
-				},
+				Name:   "validate",
+				Usage:  "Validate current configuration",
+				Action: a.configValidateAction,
 			},
 			{
 				Name:  "sync-team",
@@ -1031,4 +927,99 @@ func (a *App) createConfigCommand() *cli.Command {
 			},
 		},
 	}
+}
+
+// configInitAction backs `assetcap config init`. Pulls env-var
+// overrides off the flags before delegating to the configuration
+// service.
+func (a *App) configInitAction(ctx *cli.Context) error {
+	if a.configService == nil {
+		return fmt.Errorf("configuration service not available")
+	}
+
+	interactive := !ctx.Bool("non-interactive")
+
+	jiraURL := ctx.String("jira-url")
+	jiraEmail := ctx.String("jira-email")
+	jiraToken := ctx.String("jira-token")
+
+	if jiraURL != "" {
+		os.Setenv("JIRA_BASE_URL", jiraURL)
+	}
+	if jiraEmail != "" {
+		os.Setenv("JIRA_EMAIL", jiraEmail)
+	}
+	if jiraToken != "" {
+		os.Setenv("JIRA_TOKEN", jiraToken)
+	}
+
+	result, err := a.configService.InitializeConfig(interactive)
+	if err != nil {
+		return err
+	}
+
+	fmt.Println(result.Message)
+	return nil
+}
+
+// configShowAction backs `assetcap config show`. Prints the current
+// JIRA env vars (token masked) and reports whether the teams.json
+// file is present.
+func (a *App) configShowAction(_ *cli.Context) error {
+	fmt.Println("Current Configuration:")
+	fmt.Println("=====================")
+
+	jiraURL := os.Getenv("JIRA_BASE_URL")
+	jiraEmail := os.Getenv("JIRA_EMAIL")
+	jiraToken := os.Getenv("JIRA_TOKEN")
+
+	fmt.Printf("JIRA_BASE_URL: %s\n", jiraURL)
+	fmt.Printf("JIRA_EMAIL: %s\n", jiraEmail)
+	if jiraToken != "" {
+		fmt.Printf("JIRA_TOKEN: %s\n", maskToken(jiraToken))
+	} else {
+		fmt.Printf("JIRA_TOKEN: <not set>\n")
+	}
+
+	teamsPath := filepath.Join(configDir, teamsFile)
+	if _, err := os.Stat(teamsPath); err == nil {
+		fmt.Printf("\nTeam Configuration: %s exists\n", teamsPath)
+	} else {
+		fmt.Printf("\nTeam Configuration: %s not found\n", teamsPath)
+	}
+	return nil
+}
+
+// configValidateAction backs `assetcap config validate`. Returns an
+// error if any required env var is missing or teams.json is absent;
+// the human-readable list of problems goes to stdout for visibility.
+func (a *App) configValidateAction(_ *cli.Context) error {
+	fmt.Println("Validating Configuration...")
+
+	var problems []string
+	if os.Getenv("JIRA_BASE_URL") == "" {
+		problems = append(problems, "JIRA_BASE_URL is not set")
+	}
+	if os.Getenv("JIRA_EMAIL") == "" {
+		problems = append(problems, "JIRA_EMAIL is not set")
+	}
+	if os.Getenv("JIRA_TOKEN") == "" {
+		problems = append(problems, "JIRA_TOKEN is not set")
+	}
+
+	teamsPath := filepath.Join(configDir, teamsFile)
+	if _, err := os.Stat(teamsPath); err != nil {
+		problems = append(problems, fmt.Sprintf("%s file not found", teamsPath))
+	}
+
+	if len(problems) > 0 {
+		fmt.Println("❌ Configuration validation failed:")
+		for _, p := range problems {
+			fmt.Printf("  - %s\n", p)
+		}
+		return fmt.Errorf("configuration validation failed")
+	}
+
+	fmt.Println("✅ Configuration is valid")
+	return nil
 }
