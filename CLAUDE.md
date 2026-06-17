@@ -150,10 +150,47 @@ The `excluded_issue_types` field controls which JIRA issue types are skipped dur
 
 ## Testing
 
-- Domain layer: >90% coverage required
-- Application layer: >80% coverage required  
-- Infrastructure layer: >80% coverage required
-- Overall coverage: >70% required
+### Coverage targets
+
+- Domain layer: >90% (architectural requirement)
+- Application layer: >80% (architectural requirement)
+- Infrastructure layer: >80% (architectural requirement)
+- **Overall coverage: >78% enforced by `scripts/coverage-gate.sh`**
+
+The gate runs `go test -race` so a parallel-test data race fails the pre-push hook instead of failing CI later.
+
+### Test conventions established in this repo
+
+**`t.Parallel()`** — top-level `Test*` functions in `internal/*/domain/` and `internal/*/application/` opt in via `t.Parallel()`. Subtests usually share parent-scope state via closure and are kept serial; if you write a self-contained subtest, feel free to add `t.Parallel()` to it too. Avoid `t.Parallel()` in tests that mutate process state (`os.Setenv`, `os.Chdir`).
+
+**Example tests** — `Example*` functions in `<package>_test` external test packages double as runnable docs surfaced by `go doc`. The `// Output:` comment pins the formatted result. See `internal/investment/domain/example_test.go` for the pattern.
+
+**CLI golden fixtures** — `cmd/golden_help_test.go` snapshots every command group's `--help` against fixtures in `cmd/golden_fixtures/`. After an intentional CLI change, regenerate with:
+
+```bash
+go test ./cmd/ -update-golden -run TestHelpOutputsAreGolden
+```
+
+These live under `cmd/golden_fixtures/` rather than the Go-conventional `cmd/testdata/` because the repo's `.gitignore` excludes `testdata/` for runtime-generated files.
+
+**Benchmarks** — `*_benchmark_test.go` files hold `Benchmark*` functions for hot paths (cosine similarity, classifier inheritance, Confluence HTML rendering). They do not run under `go test ./...` (the `-bench` flag is opt-in). To compare two branches:
+
+```bash
+go test -bench=. -benchtime=2s -count=5 ./internal/tasks/infrastructure/classifier/ > new.txt
+# checkout old branch, repeat
+benchstat old.txt new.txt
+```
+
+**Stub vs testify mock** — testify mocks are NOT concurrent-safe. For tests that run in parallel or use `-race`, prefer small hand-rolled stubs implementing the port interface. See `internal/tasks/infrastructure/classifier/inherit_from_parent_test.go` for the stub pattern.
+
+## CLI command extraction pattern
+
+`cmd/main.go` used to be 3,374 lines of inline `urfave/cli` `Action` closures. It now holds the bootstrap (~455 lines); every command group lives in its own `cmd/<group>_commands.go` file behind a `(a *App) create<Group>Command() *cli.Command` method. When adding a new top-level command:
+
+1. Create `cmd/<name>_commands.go` with a `create<Name>Command()` method.
+2. Reference it from the `Commands` slice in `App.Run()` in `cmd/main.go`.
+3. Move any single-use imports (e.g. `errgroup`, package-specific domain types) into the new file. Imports shared with other command groups stay in `cmd/main.go`.
+4. Regenerate the golden help fixture: `go test ./cmd/ -update-golden`.
 
 ## Architecture Guidelines
 
