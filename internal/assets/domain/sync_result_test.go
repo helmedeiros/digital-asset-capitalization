@@ -7,6 +7,7 @@ import (
 )
 
 func TestNewSyncResult(t *testing.T) {
+	t.Parallel()
 	t.Run("should create valid SyncResult", func(t *testing.T) {
 		result := NewSyncResult()
 

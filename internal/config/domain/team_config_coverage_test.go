@@ -26,6 +26,7 @@ func baseTeams() map[string][]string {
 }
 
 func TestNewTeamConfigComplete(t *testing.T) {
+	t.Parallel()
 	t.Run("threads confluence maps through to the underlying config", func(t *testing.T) {
 		tc, err := NewTeamConfigComplete(
 			baseTeams(),
@@ -66,6 +67,7 @@ func TestNewTeamConfigComplete(t *testing.T) {
 }
 
 func TestNewTeamConfigWithExcludedTypes_ExcludedTypesBranch(t *testing.T) {
+	t.Parallel()
 	tc, err := NewTeamConfigWithExcludedTypes(
 		baseTeams(),
 		nil, nil, nil, nil, nil,
@@ -81,6 +83,7 @@ func TestNewTeamConfigWithExcludedTypes_ExcludedTypesBranch(t *testing.T) {
 }
 
 func TestTeamConfig_Confluence_GettersAndSetters(t *testing.T) {
+	t.Parallel()
 	t.Run("setters reject empty project key", func(t *testing.T) {
 		tc, err := NewTeamConfig(baseTeams())
 		require.NoError(t, err)
@@ -107,6 +110,7 @@ func TestTeamConfig_Confluence_GettersAndSetters(t *testing.T) {
 }
 
 func TestNewTeamConfigWithBoardWorkStreams(t *testing.T) {
+	t.Parallel()
 	tc, err := NewTeamConfigWithBoardWorkStreams(
 		baseTeams(),
 		nil, nil, nil, nil, nil, nil,
@@ -127,6 +131,7 @@ func TestNewTeamConfigWithBoardWorkStreams(t *testing.T) {
 }
 
 func TestTeamConfig_BoardWorkStream_GettersAndSetters(t *testing.T) {
+	t.Parallel()
 	tc, err := NewTeamConfig(baseTeams())
 	require.NoError(t, err)
 
@@ -159,6 +164,7 @@ func TestTeamConfig_BoardWorkStream_GettersAndSetters(t *testing.T) {
 }
 
 func TestTeamConfig_TeamTimeline_SetAndQuery(t *testing.T) {
+	t.Parallel()
 	tc, err := NewTeamConfig(baseTeams())
 	require.NoError(t, err)
 
@@ -186,6 +192,7 @@ func TestTeamConfig_TeamTimeline_SetAndQuery(t *testing.T) {
 }
 
 func TestTeamConfig_ToCompleteMapWithBoardWorkStreams_DeepCopy(t *testing.T) {
+	t.Parallel()
 	tc, err := NewTeamConfigWithBoardWorkStreams(
 		baseTeams(),
 		nil, nil, nil, nil, nil, nil,
@@ -200,6 +207,7 @@ func TestTeamConfig_ToCompleteMapWithBoardWorkStreams_DeepCopy(t *testing.T) {
 }
 
 func TestProjectTeamData_Validate(t *testing.T) {
+	t.Parallel()
 	t.Run("missing project key", func(t *testing.T) {
 		err := (&ProjectTeamData{Members: []TeamMember{{DisplayName: "Alice"}}}).Validate()
 		require.Error(t, err)

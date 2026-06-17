@@ -5,6 +5,7 @@ import "testing"
 // TestMinInt_BothBranches covers the b<=a branch that wasn't
 // exercised by the existing jira_config tests.
 func TestMinInt_BothBranches(t *testing.T) {
+	t.Parallel()
 	if got := minInt(1, 2); got != 1 {
 		t.Errorf("minInt(1,2) = %d, want 1", got)
 	}

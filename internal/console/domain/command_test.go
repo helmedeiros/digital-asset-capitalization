@@ -9,6 +9,7 @@ import (
 )
 
 func TestNewCommand(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name        string
 		sessionID   string
@@ -114,6 +115,7 @@ func TestNewCommand(t *testing.T) {
 }
 
 func TestCommand_Validate(t *testing.T) {
+	t.Parallel()
 	validCmd := &Command{
 		ID:          "cmd-123",
 		SessionID:   "session-123",
@@ -189,6 +191,7 @@ func TestCommand_Validate(t *testing.T) {
 }
 
 func TestCommand_ConfidenceMethods(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name                 string
 		confidence           float64
@@ -244,6 +247,7 @@ func TestCommand_ConfidenceMethods(t *testing.T) {
 }
 
 func TestCommand_Parameters(t *testing.T) {
+	t.Parallel()
 	cmd := &Command{}
 
 	// Test adding parameters
@@ -286,6 +290,7 @@ func TestCommand_Parameters(t *testing.T) {
 }
 
 func TestCommand_SetIntent(t *testing.T) {
+	t.Parallel()
 	cmd := &Command{}
 
 	cmd.SetIntent(CommandTypeCreate, ResourceTypeAsset, "Payment Processing")
@@ -296,6 +301,7 @@ func TestCommand_SetIntent(t *testing.T) {
 }
 
 func TestNewCommandResult(t *testing.T) {
+	t.Parallel()
 	output := map[string]string{"status": "success"}
 	duration := 100 * time.Millisecond
 

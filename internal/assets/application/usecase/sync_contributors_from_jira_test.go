@@ -84,6 +84,7 @@ func (m *MockAssetRepository) Delete(name string) error {
 }
 
 func TestSyncAssetContributorsFromJiraUseCase_Execute(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name           string
 		input          SyncContributorsInput
@@ -306,6 +307,7 @@ func TestSyncAssetContributorsFromJiraUseCase_Execute(t *testing.T) {
 }
 
 func TestSyncAssetContributorsFromJiraUseCase_ExtractAssetNameFromLabel(t *testing.T) {
+	t.Parallel()
 	uc := &SyncAssetContributorsFromJiraUseCase{}
 
 	tests := []struct {
@@ -327,6 +329,7 @@ func TestSyncAssetContributorsFromJiraUseCase_ExtractAssetNameFromLabel(t *testi
 }
 
 func TestSyncAssetContributorsFromJiraUseCase_GroupTasksByAsset(t *testing.T) {
+	t.Parallel()
 	uc := &SyncAssetContributorsFromJiraUseCase{}
 
 	tasks := []JiraTaskInfo{
@@ -354,6 +357,7 @@ func TestSyncAssetContributorsFromJiraUseCase_GroupTasksByAsset(t *testing.T) {
 }
 
 func TestSyncAssetContributorsFromJiraUseCase_ExtractTeamsFromTasks(t *testing.T) {
+	t.Parallel()
 	mockTeam := new(MockTeamConfigPort)
 	uc := &SyncAssetContributorsFromJiraUseCase{
 		teamConfig: mockTeam,
@@ -386,6 +390,7 @@ func TestSyncAssetContributorsFromJiraUseCase_ExtractTeamsFromTasks(t *testing.T
 }
 
 func TestSyncAssetContributorsFromJiraUseCase_FindNewAndRemovedTeams(t *testing.T) {
+	t.Parallel()
 	uc := &SyncAssetContributorsFromJiraUseCase{}
 
 	current := []string{"TeamA", "TeamB"}
@@ -399,6 +404,7 @@ func TestSyncAssetContributorsFromJiraUseCase_FindNewAndRemovedTeams(t *testing.
 }
 
 func TestSyncAssetContributorsFromJiraUseCase_MergeTeams(t *testing.T) {
+	t.Parallel()
 	uc := &SyncAssetContributorsFromJiraUseCase{}
 
 	foundTeams := []string{"TeamA", "TeamB", "OwningTeam", "TeamC"}
@@ -414,6 +420,7 @@ func TestSyncAssetContributorsFromJiraUseCase_MergeTeams(t *testing.T) {
 }
 
 func TestSyncAssetContributorsFromJiraUseCase_ConvertLabelToAssetName(t *testing.T) {
+	t.Parallel()
 	uc := &SyncAssetContributorsFromJiraUseCase{}
 
 	tests := []struct {
@@ -462,6 +469,7 @@ func TestSyncAssetContributorsFromJiraUseCase_ConvertLabelToAssetName(t *testing
 }
 
 func TestSyncAssetContributorsFromJiraUseCase_ProcessAssetContributors(t *testing.T) {
+	t.Parallel()
 	t.Run("should process asset contributors successfully", func(t *testing.T) {
 		mockAsset := new(MockAssetRepository)
 		mockTeam := new(MockTeamConfigPort)

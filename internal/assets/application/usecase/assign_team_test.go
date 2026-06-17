@@ -50,12 +50,14 @@ func (m *MockAssetRepositoryForTeams) Delete(name string) error {
 }
 
 func TestAssignTeamUseCase_NewAssignTeamUseCase(t *testing.T) {
+	t.Parallel()
 	mockRepo := &MockAssetRepositoryForTeams{}
 	useCase := NewAssignTeamUseCase(mockRepo)
 	assert.NotNil(t, useCase)
 }
 
 func TestAssignTeamUseCase_Execute(t *testing.T) {
+	t.Parallel()
 	t.Run("should assign owning team to asset successfully", func(t *testing.T) {
 		mockRepo := &MockAssetRepositoryForTeams{}
 		useCase := NewAssignTeamUseCase(mockRepo)
@@ -188,12 +190,14 @@ func TestAssignTeamUseCase_Execute(t *testing.T) {
 }
 
 func TestGetAssetTeamsUseCase_NewGetAssetTeamsUseCase(t *testing.T) {
+	t.Parallel()
 	mockRepo := &MockAssetRepositoryForTeams{}
 	useCase := NewGetAssetTeamsUseCase(mockRepo)
 	assert.NotNil(t, useCase)
 }
 
 func TestGetAssetTeamsUseCase_Execute(t *testing.T) {
+	t.Parallel()
 	t.Run("should return all asset teams", func(t *testing.T) {
 		mockRepo := &MockAssetRepositoryForTeams{}
 		useCase := NewGetAssetTeamsUseCase(mockRepo)
@@ -259,12 +263,14 @@ func TestGetAssetTeamsUseCase_Execute(t *testing.T) {
 }
 
 func TestGetAssetTeamInfoUseCase_NewGetAssetTeamInfoUseCase(t *testing.T) {
+	t.Parallel()
 	mockRepo := &MockAssetRepositoryForTeams{}
 	useCase := NewGetAssetTeamInfoUseCase(mockRepo)
 	assert.NotNil(t, useCase)
 }
 
 func TestGetAssetTeamInfoUseCase_Execute(t *testing.T) {
+	t.Parallel()
 	t.Run("should return team info for specific asset", func(t *testing.T) {
 		mockRepo := &MockAssetRepositoryForTeams{}
 		useCase := NewGetAssetTeamInfoUseCase(mockRepo)
@@ -309,12 +315,14 @@ func TestGetAssetTeamInfoUseCase_Execute(t *testing.T) {
 }
 
 func TestAddContributingTeamUseCase_NewAddContributingTeamUseCase(t *testing.T) {
+	t.Parallel()
 	mockRepo := &MockAssetRepositoryForTeams{}
 	useCase := NewAddContributingTeamUseCase(mockRepo)
 	assert.NotNil(t, useCase)
 }
 
 func TestAddContributingTeamUseCase_Execute(t *testing.T) {
+	t.Parallel()
 	t.Run("should add contributing team successfully", func(t *testing.T) {
 		mockRepo := &MockAssetRepositoryForTeams{}
 		useCase := NewAddContributingTeamUseCase(mockRepo)
@@ -382,12 +390,14 @@ func TestAddContributingTeamUseCase_Execute(t *testing.T) {
 }
 
 func TestRemoveContributingTeamUseCase_NewRemoveContributingTeamUseCase(t *testing.T) {
+	t.Parallel()
 	mockRepo := &MockAssetRepositoryForTeams{}
 	useCase := NewRemoveContributingTeamUseCase(mockRepo)
 	assert.NotNil(t, useCase)
 }
 
 func TestRemoveContributingTeamUseCase_Execute(t *testing.T) {
+	t.Parallel()
 	t.Run("should remove contributing team successfully", func(t *testing.T) {
 		mockRepo := &MockAssetRepositoryForTeams{}
 		useCase := NewRemoveContributingTeamUseCase(mockRepo)
@@ -459,6 +469,7 @@ func TestRemoveContributingTeamUseCase_Execute(t *testing.T) {
 }
 
 func TestParseTeamsInput(t *testing.T) {
+	t.Parallel()
 	t.Run("should parse comma-separated teams", func(t *testing.T) {
 		input := "team-alpha,team-beta,team-gamma"
 		teams := ParseTeamsInput(input)

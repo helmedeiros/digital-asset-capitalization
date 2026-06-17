@@ -15,6 +15,7 @@ import (
 )
 
 func TestFetchTasksUseCase(t *testing.T) {
+	t.Parallel()
 	// Create mock repositories
 	remoteRepo := testutil.NewMockTaskRepository()
 	localRepo := testutil.NewMockTaskRepository()
@@ -137,6 +138,7 @@ func TestFetchTasksUseCase(t *testing.T) {
 }
 
 func TestFetchTasksUseCase_ExecuteByKey(t *testing.T) {
+	t.Parallel()
 	// Create mock repositories
 	remoteRepo := testutil.NewMockTaskRepository()
 	localRepo := testutil.NewMockTaskRepository()
@@ -250,6 +252,7 @@ func TestFetchTasksUseCase_ExecuteByKey(t *testing.T) {
 }
 
 func TestFetchTasksUseCase_GetRemoteRepository(t *testing.T) {
+	t.Parallel()
 	// Create mock repositories
 	remoteRepo := testutil.NewMockTaskRepository()
 	localRepo := testutil.NewMockTaskRepository()
@@ -264,6 +267,7 @@ func TestFetchTasksUseCase_GetRemoteRepository(t *testing.T) {
 }
 
 func TestFetchTasksUseCase_EdgeCases(t *testing.T) {
+	t.Parallel()
 	t.Run("should handle nil task from remote repository", func(t *testing.T) {
 		// Create mock repositories
 		remoteRepo := testutil.NewMockTaskRepository()

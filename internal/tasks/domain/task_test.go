@@ -9,6 +9,7 @@ import (
 )
 
 func TestNewTask(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name     string
 		key      string
@@ -127,6 +128,7 @@ func TestNewTask(t *testing.T) {
 }
 
 func TestNewTaskWithSprints(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name     string
 		key      string
@@ -245,6 +247,7 @@ func TestNewTaskWithSprints(t *testing.T) {
 }
 
 func TestGetSprints(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name            string
 		task            *Task
@@ -295,6 +298,7 @@ func TestGetSprints(t *testing.T) {
 }
 
 func TestGetPrimarySprint(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name            string
 		task            *Task
@@ -337,6 +341,7 @@ func TestGetPrimarySprint(t *testing.T) {
 }
 
 func TestHasSprint(t *testing.T) {
+	t.Parallel()
 	task := &Task{
 		Sprints: []string{"Sprint 1", "Sprint 2", "Sprint 3"},
 		Sprint:  "Sprint 1, Sprint 2, Sprint 3",
@@ -383,6 +388,7 @@ func TestHasSprint(t *testing.T) {
 }
 
 func TestSetSprints(t *testing.T) {
+	t.Parallel()
 	task := &Task{
 		Key:     "TEST-1",
 		Version: 1,
@@ -398,6 +404,7 @@ func TestSetSprints(t *testing.T) {
 }
 
 func TestAddSprint(t *testing.T) {
+	t.Parallel()
 	task := &Task{
 		Key:     "TEST-1",
 		Sprints: []string{"Sprint 1"},
@@ -419,6 +426,7 @@ func TestAddSprint(t *testing.T) {
 }
 
 func TestRemoveSprint(t *testing.T) {
+	t.Parallel()
 	task := &Task{
 		Key:     "TEST-1",
 		Sprints: []string{"Sprint 1", "Sprint 2", "Sprint 3"},
@@ -440,6 +448,7 @@ func TestRemoveSprint(t *testing.T) {
 }
 
 func TestJSONMarshalUnmarshal(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name string
 		task *Task
@@ -494,6 +503,7 @@ func TestJSONMarshalUnmarshal(t *testing.T) {
 }
 
 func TestJSONBackwardCompatibility(t *testing.T) {
+	t.Parallel()
 	// Test unmarshaling legacy JSON format (only sprint field)
 	legacyJSON := `{
 		"key": "TEST-1",
@@ -525,6 +535,7 @@ func TestJSONBackwardCompatibility(t *testing.T) {
 }
 
 func TestJSONForwardCompatibility(t *testing.T) {
+	t.Parallel()
 	// Test marshaling new format and ensuring Sprint field is populated
 	task := &Task{
 		Key:     "TEST-1",
@@ -552,6 +563,7 @@ func TestJSONForwardCompatibility(t *testing.T) {
 }
 
 func TestUpdateStatus(t *testing.T) {
+	t.Parallel()
 	task, err := NewTask("TEST-1", "Test task", "TEST", "Sprint 1", "jira")
 	require.NoError(t, err)
 
@@ -613,6 +625,7 @@ func TestUpdateStatus(t *testing.T) {
 }
 
 func TestUpdateType(t *testing.T) {
+	t.Parallel()
 	task, err := NewTask("TEST-1", "Test task", "TEST", "Sprint 1", "jira")
 	require.NoError(t, err)
 
@@ -680,6 +693,7 @@ func TestUpdateType(t *testing.T) {
 }
 
 func TestUpdatePriority(t *testing.T) {
+	t.Parallel()
 	task, err := NewTask("TEST-1", "Test task", "TEST", "Sprint 1", "jira")
 	require.NoError(t, err)
 
@@ -747,6 +761,7 @@ func TestUpdatePriority(t *testing.T) {
 }
 
 func TestUpdateDescription(t *testing.T) {
+	t.Parallel()
 	task, err := NewTask("TEST-1", "Test task", "TEST", "Sprint 1", "jira")
 	require.NoError(t, err)
 
@@ -759,6 +774,7 @@ func TestUpdateDescription(t *testing.T) {
 }
 
 func TestStatusChecks(t *testing.T) {
+	t.Parallel()
 	task, err := NewTask("TEST-1", "Test task", "TEST", "Sprint 1", "jira")
 	require.NoError(t, err)
 
@@ -794,6 +810,7 @@ func TestStatusChecks(t *testing.T) {
 }
 
 func TestTask_UpdateWorkType(t *testing.T) {
+	t.Parallel()
 	task, err := NewTask("TEST-1", "Test Task", "TEST", "Sprint 1", "web")
 	require.NoError(t, err)
 
@@ -884,6 +901,7 @@ func TestTask_UpdateWorkType(t *testing.T) {
 }
 
 func TestNewTaskWithoutSprint(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name        string
 		key         string

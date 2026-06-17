@@ -9,6 +9,7 @@ import (
 )
 
 func TestNewContext(t *testing.T) {
+	t.Parallel()
 	sessionID := "test-session-123"
 	ctx := NewContext(sessionID)
 
@@ -26,6 +27,7 @@ func TestNewContext(t *testing.T) {
 }
 
 func TestContext_CommandManagement(t *testing.T) {
+	t.Parallel()
 	ctx := NewContext("test-session")
 
 	// Add commands
@@ -76,6 +78,7 @@ func TestContext_CommandManagement(t *testing.T) {
 }
 
 func TestContext_CommandResults(t *testing.T) {
+	t.Parallel()
 	ctx := NewContext("test-session")
 
 	result1 := CommandResult{
@@ -100,6 +103,7 @@ func TestContext_CommandResults(t *testing.T) {
 }
 
 func TestContext_EntityUpdates(t *testing.T) {
+	t.Parallel()
 	ctx := NewContext("test-session")
 
 	// Test asset context
@@ -130,6 +134,7 @@ func TestContext_EntityUpdates(t *testing.T) {
 }
 
 func TestContext_RecentEntityLimits(t *testing.T) {
+	t.Parallel()
 	ctx := NewContext("test-session")
 
 	// Add more than 5 assets
@@ -153,6 +158,7 @@ func TestContext_RecentEntityLimits(t *testing.T) {
 }
 
 func TestContext_ProjectSprintSpace(t *testing.T) {
+	t.Parallel()
 	ctx := NewContext("test-session")
 
 	ctx.SetCurrentProject("PROJECT1")
@@ -166,6 +172,7 @@ func TestContext_ProjectSprintSpace(t *testing.T) {
 }
 
 func TestContext_Variables(t *testing.T) {
+	t.Parallel()
 	ctx := NewContext("test-session")
 
 	// Set variables
@@ -193,6 +200,7 @@ func TestContext_Variables(t *testing.T) {
 }
 
 func TestContext_SessionManagement(t *testing.T) {
+	t.Parallel()
 	ctx := NewContext("test-session")
 
 	// Backdate StartTime/LastActivity so the assertions don't depend on
@@ -214,6 +222,7 @@ func TestContext_SessionManagement(t *testing.T) {
 }
 
 func TestContext_Clear(t *testing.T) {
+	t.Parallel()
 	ctx := NewContext("test-session")
 
 	// Populate context
@@ -246,6 +255,7 @@ func TestContext_Clear(t *testing.T) {
 }
 
 func TestContext_GetSummary(t *testing.T) {
+	t.Parallel()
 	ctx := NewContext("test-session-123")
 
 	// Add some data
@@ -270,6 +280,7 @@ func TestContext_GetSummary(t *testing.T) {
 }
 
 func TestContext_ThreadSafety(t *testing.T) {
+	t.Parallel()
 	ctx := NewContext("test-session")
 	done := make(chan bool, 3)
 

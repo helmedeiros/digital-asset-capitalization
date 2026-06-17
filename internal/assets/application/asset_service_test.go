@@ -204,6 +204,7 @@ func (m *MockAssetService) UpdateConfluencePage(_ context.Context, assetName str
 }
 
 func TestAssetService(t *testing.T) {
+	t.Parallel()
 	service := NewMockAssetService()
 
 	t.Run("CreateAsset", func(t *testing.T) {

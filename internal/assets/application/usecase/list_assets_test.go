@@ -11,6 +11,7 @@ import (
 )
 
 func TestListAssetsUseCase(t *testing.T) {
+	t.Parallel()
 	// Create a mock repository
 	mockRepo := testutil.NewMockAssetRepository()
 	useCase := NewListAssetsUseCase(mockRepo)

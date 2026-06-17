@@ -13,6 +13,7 @@ import (
 )
 
 func TestDecrementTaskCountUseCase(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name      string
 		assetName string

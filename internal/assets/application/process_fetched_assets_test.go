@@ -23,6 +23,7 @@ func validAsset() *domain.Asset {
 }
 
 func TestProcessFetchedAssets_BucketsByValidation(t *testing.T) {
+	t.Parallel()
 	mockRepo := new(MockAssetRepository)
 	// First asset is valid and new.
 	good := validAsset()
@@ -46,6 +47,7 @@ func TestProcessFetchedAssets_BucketsByValidation(t *testing.T) {
 }
 
 func TestProcessFetchedAssets_PreservesLocalMetadata(t *testing.T) {
+	t.Parallel()
 	mockRepo := new(MockAssetRepository)
 	fresh := validAsset() // Keywords/teams empty, AssociatedTaskCount=0.
 
@@ -71,6 +73,7 @@ func TestProcessFetchedAssets_PreservesLocalMetadata(t *testing.T) {
 }
 
 func TestProcessFetchedAssets_DoesNotOverwriteFreshMetadata(t *testing.T) {
+	t.Parallel()
 	mockRepo := new(MockAssetRepository)
 	fresh := validAsset()
 	fresh.Keywords = []string{"fresh"}
@@ -102,6 +105,7 @@ func TestProcessFetchedAssets_DoesNotOverwriteFreshMetadata(t *testing.T) {
 }
 
 func TestProcessFetchedAssets_SaveErrorWrapsAssetName(t *testing.T) {
+	t.Parallel()
 	mockRepo := new(MockAssetRepository)
 	fresh := validAsset()
 	mockRepo.On("FindByID", "asset-1").Return(nil, errors.New("not found")).Once()
@@ -115,6 +119,7 @@ func TestProcessFetchedAssets_SaveErrorWrapsAssetName(t *testing.T) {
 }
 
 func TestNotSyncedFromAsset_CapturesAvailableFields(t *testing.T) {
+	t.Parallel()
 	asset := &domain.Asset{
 		ID:          "id-1",
 		Name:        "X",
@@ -136,6 +141,7 @@ func TestNotSyncedFromAsset_CapturesAvailableFields(t *testing.T) {
 }
 
 func TestMergeLocalMetadata_NilOrEmptyFieldsOnExistingAreIgnored(t *testing.T) {
+	t.Parallel()
 	fresh := validAsset()
 	fresh.Keywords = []string{"kept"}
 	existing := validAsset() // No keywords/teams on existing either.

@@ -67,6 +67,7 @@ func (m *TestMockLlamaClient) Close() error {
 }
 
 func TestBulkEnrichKeywordsUseCase_Execute(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name           string
 		input          BulkEnrichKeywordsInput

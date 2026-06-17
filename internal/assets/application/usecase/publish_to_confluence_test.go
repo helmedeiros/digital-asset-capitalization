@@ -91,6 +91,7 @@ func (m *MockIDGenerator) GenerateID(name string) string {
 }
 
 func TestPublishToConfluenceUseCase_Execute(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 	launchDate := time.Date(2024, 3, 15, 0, 0, 0, 0, time.UTC)
 
@@ -356,6 +357,7 @@ func TestPublishToConfluenceUseCase_Execute(t *testing.T) {
 }
 
 func TestPublishToConfluenceUseCase_getAssetLabel(t *testing.T) {
+	t.Parallel()
 	mockIDGen := new(MockIDGenerator)
 	useCase := &PublishToConfluenceUseCase{
 		idGenerator: mockIDGen,

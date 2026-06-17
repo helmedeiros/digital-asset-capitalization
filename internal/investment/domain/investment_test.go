@@ -6,6 +6,7 @@ import (
 )
 
 func TestNewInvestment(t *testing.T) {
+	t.Parallel()
 	startDate := time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC)
 	endDate := time.Date(2025, 1, 31, 0, 0, 0, 0, time.UTC)
 
@@ -37,6 +38,7 @@ func TestNewInvestment(t *testing.T) {
 }
 
 func TestInvestment_AddEngineerInvestment(t *testing.T) {
+	t.Parallel()
 	investment := NewInvestment("Test", "PROJECT", []string{"Sprint1"}, time.Now(), time.Now(), EUR)
 
 	engineerInvestment := EngineerInvestment{
@@ -60,6 +62,7 @@ func TestInvestment_AddEngineerInvestment(t *testing.T) {
 }
 
 func TestInvestment_GetDurationInDays(t *testing.T) {
+	t.Parallel()
 	startDate := time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC)
 	endDate := time.Date(2025, 1, 15, 0, 0, 0, 0, time.UTC) // 14 days
 
@@ -72,6 +75,7 @@ func TestInvestment_GetDurationInDays(t *testing.T) {
 }
 
 func TestInvestment_GetEngineerCount(t *testing.T) {
+	t.Parallel()
 	investment := NewInvestment("Test", "PROJECT", []string{"Sprint1"}, time.Now(), time.Now(), EUR)
 
 	// Initially should be 0
@@ -88,6 +92,7 @@ func TestInvestment_GetEngineerCount(t *testing.T) {
 }
 
 func TestInvestment_CalculateTotalCost(t *testing.T) {
+	t.Parallel()
 	investment := NewInvestment("Test", "PROJECT", []string{"Sprint1"}, time.Now(), time.Now(), EUR)
 
 	investment.EngineerCosts = NewMoney(5000, EUR)
@@ -105,6 +110,7 @@ func TestInvestment_CalculateTotalCost(t *testing.T) {
 // Additional test cases for complete coverage
 
 func TestInvestment_AddTaskInvestment(t *testing.T) {
+	t.Parallel()
 	investment := NewInvestment("Test", "PROJECT", []string{"Sprint1"}, time.Now(), time.Now(), EUR)
 
 	task := TaskInvestment{
@@ -150,6 +156,7 @@ func TestInvestment_AddTaskInvestment(t *testing.T) {
 }
 
 func TestInvestment_SetInfrastructureCosts(t *testing.T) {
+	t.Parallel()
 	investment := NewInvestment("Test", "PROJECT", []string{"Sprint1"}, time.Now(), time.Now(), EUR)
 
 	infraCosts := NewMoney(2500, EUR)
@@ -161,6 +168,7 @@ func TestInvestment_SetInfrastructureCosts(t *testing.T) {
 }
 
 func TestInvestment_GetTaskCount(t *testing.T) {
+	t.Parallel()
 	investment := NewInvestment("Test", "PROJECT", []string{"Sprint1"}, time.Now(), time.Now(), EUR)
 
 	// Initially should be 0
@@ -182,6 +190,7 @@ func TestInvestment_GetTaskCount(t *testing.T) {
 }
 
 func TestMoney_Add_DifferentCurrencies(t *testing.T) {
+	t.Parallel()
 	money1 := NewMoney(100.0, EUR)
 	money2 := NewMoney(50.0, USD)
 
@@ -197,6 +206,7 @@ func TestMoney_Add_DifferentCurrencies(t *testing.T) {
 }
 
 func TestMoney_IsZero(t *testing.T) {
+	t.Parallel()
 	// Test zero money
 	zeroMoney := NewMoney(0, EUR)
 	if !zeroMoney.IsZero() {
@@ -211,6 +221,7 @@ func TestMoney_IsZero(t *testing.T) {
 }
 
 func TestEngineerTaskEffort_Structure(t *testing.T) {
+	t.Parallel()
 	effort := EngineerTaskEffort{
 		Allocation:   25.5,
 		Hours:        40.0,
@@ -231,6 +242,7 @@ func TestEngineerTaskEffort_Structure(t *testing.T) {
 }
 
 func TestTaskInvestment_Structure(t *testing.T) {
+	t.Parallel()
 	startDate := time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC)
 	endDate := time.Date(2025, 1, 15, 0, 0, 0, 0, time.UTC)
 
@@ -268,6 +280,7 @@ func TestTaskInvestment_Structure(t *testing.T) {
 }
 
 func TestEngineerInvestment_Structure(t *testing.T) {
+	t.Parallel()
 	engineer := EngineerInvestment{
 		Name:         "Jane Smith",
 		Level:        Staff,
@@ -294,6 +307,7 @@ func TestEngineerInvestment_Structure(t *testing.T) {
 }
 
 func TestNewInvestment_CalculatedAtSet(t *testing.T) {
+	t.Parallel()
 	before := time.Now()
 	investment := NewInvestment("Test", "PROJECT", []string{"Sprint1"}, time.Now(), time.Now(), EUR)
 	after := time.Now()

@@ -3,6 +3,7 @@ package domain
 import "testing"
 
 func TestNewMoney(t *testing.T) {
+	t.Parallel()
 	money := NewMoney(100.50, EUR)
 
 	if money.Amount != 100.50 {
@@ -15,6 +16,7 @@ func TestNewMoney(t *testing.T) {
 }
 
 func TestMoney_Add(t *testing.T) {
+	t.Parallel()
 	money1 := NewMoney(100.0, EUR)
 	money2 := NewMoney(50.0, EUR)
 
@@ -30,6 +32,7 @@ func TestMoney_Add(t *testing.T) {
 }
 
 func TestMoney_Multiply(t *testing.T) {
+	t.Parallel()
 	money := NewMoney(100.0, EUR)
 
 	result := money.Multiply(2.5)
@@ -44,6 +47,7 @@ func TestMoney_Multiply(t *testing.T) {
 }
 
 func TestMoney_String(t *testing.T) {
+	t.Parallel()
 	money := NewMoney(123.45, EUR)
 
 	str := money.String()
@@ -54,6 +58,7 @@ func TestMoney_String(t *testing.T) {
 }
 
 func TestCurrency_String(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		currency Currency
 		expected string

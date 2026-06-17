@@ -12,6 +12,7 @@ import (
 // cost model has no defaults configured. The existing test sets
 // defaults for every level, so this branch was untested.
 func TestInferEngineerLevel_FallbackRateRanges(t *testing.T) {
+	t.Parallel()
 	cm, err := NewCostModel(EUR, 8.0, 2.0)
 	require.NoError(t, err)
 	// No SetDefaultRate calls: forces the switch fallback for every input.
@@ -44,6 +45,7 @@ func TestInferEngineerLevel_FallbackRateRanges(t *testing.T) {
 // far outside their +/-10% tolerance — the loop completes without a
 // match and the rate-range switch decides instead.
 func TestInferEngineerLevel_OutsideToleranceFallsThrough(t *testing.T) {
+	t.Parallel()
 	cm, err := NewCostModel(EUR, 8.0, 2.0)
 	require.NoError(t, err)
 	// Configure ONLY the Senior default. A rate of 30 is well outside

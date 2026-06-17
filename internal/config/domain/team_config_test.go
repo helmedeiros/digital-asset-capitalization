@@ -9,6 +9,7 @@ import (
 )
 
 func TestNewTeamConfig(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name    string
 		teams   map[string][]string
@@ -86,6 +87,7 @@ func TestNewTeamConfig(t *testing.T) {
 }
 
 func TestTeamConfig_GetTeam(t *testing.T) {
+	t.Parallel()
 	teams := map[string][]string{
 		"FN": {"helio.medeiros", "julio.medeiros"},
 		"MZ": {"alice.smith", "bob.jones"},
@@ -108,6 +110,7 @@ func TestTeamConfig_GetTeam(t *testing.T) {
 }
 
 func TestTeamConfig_GetProjects(t *testing.T) {
+	t.Parallel()
 	teams := map[string][]string{
 		"FN": {"helio.medeiros", "julio.medeiros"},
 		"MZ": {"alice.smith", "bob.jones"},
@@ -123,6 +126,7 @@ func TestTeamConfig_GetProjects(t *testing.T) {
 }
 
 func TestTeamConfig_IsTeamMember(t *testing.T) {
+	t.Parallel()
 	teams := map[string][]string{
 		"FN": {"helio.medeiros", "julio.medeiros"},
 		"MZ": {"alice.smith", "bob.jones"},
@@ -147,6 +151,7 @@ func TestTeamConfig_IsTeamMember(t *testing.T) {
 }
 
 func TestTeamConfig_AddTeamMember(t *testing.T) {
+	t.Parallel()
 	teams := map[string][]string{
 		"FN": {"helio.medeiros"},
 	}
@@ -192,6 +197,7 @@ func TestTeamConfig_AddTeamMember(t *testing.T) {
 }
 
 func TestTeamConfig_RemoveTeamMember(t *testing.T) {
+	t.Parallel()
 	teams := map[string][]string{
 		"FN": {"helio.medeiros", "julio.medeiros"},
 	}
@@ -223,6 +229,7 @@ func TestTeamConfig_RemoveTeamMember(t *testing.T) {
 }
 
 func TestTeamConfig_IsEmpty(t *testing.T) {
+	t.Parallel()
 	t.Run("empty config", func(t *testing.T) {
 		config, err := NewTeamConfig(map[string][]string{})
 		require.NoError(t, err)
@@ -240,6 +247,7 @@ func TestTeamConfig_IsEmpty(t *testing.T) {
 }
 
 func TestTeamConfig_ToMap(t *testing.T) {
+	t.Parallel()
 	t.Run("should return empty map for empty config", func(t *testing.T) {
 		config, err := NewTeamConfig(map[string][]string{})
 		require.NoError(t, err)
@@ -352,6 +360,7 @@ func TestTeamConfig_ToMap(t *testing.T) {
 }
 
 func TestTeamConfig_SetTeam(t *testing.T) {
+	t.Parallel()
 	config, err := NewTeamConfig(map[string][]string{})
 	require.NoError(t, err)
 
@@ -416,6 +425,7 @@ func TestTeamConfig_SetTeam(t *testing.T) {
 // Tests for nickname functionality
 
 func TestNewTeamConfigWithNicknames(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name      string
 		teams     map[string][]string
@@ -485,6 +495,7 @@ func TestNewTeamConfigWithNicknames(t *testing.T) {
 }
 
 func TestTeamConfig_ResolveTeamIdentifier(t *testing.T) {
+	t.Parallel()
 	teams := map[string][]string{
 		"FN": {"Alice", "Bob"},
 		"AD": {"Carol", "Dave"},
@@ -568,6 +579,7 @@ func TestTeamConfig_ResolveTeamIdentifier(t *testing.T) {
 }
 
 func TestTeamConfig_SetNicknames(t *testing.T) {
+	t.Parallel()
 	teams := map[string][]string{
 		"FN": {"Alice", "Bob"},
 	}
@@ -624,6 +636,7 @@ func TestTeamConfig_SetNicknames(t *testing.T) {
 }
 
 func TestTeamConfig_GetNicknames(t *testing.T) {
+	t.Parallel()
 	teams := map[string][]string{
 		"FN": {"Alice", "Bob"},
 		"AD": {"Carol", "Dave"},
@@ -666,6 +679,7 @@ func TestTeamConfig_GetNicknames(t *testing.T) {
 }
 
 func TestTeamConfig_GetAllNicknameMappings(t *testing.T) {
+	t.Parallel()
 	teams := map[string][]string{
 		"FN": {"Alice", "Bob"},
 		"AD": {"Carol", "Dave"},
@@ -689,6 +703,7 @@ func TestTeamConfig_GetAllNicknameMappings(t *testing.T) {
 }
 
 func TestNewTeamConfigWithTribes(t *testing.T) {
+	t.Parallel()
 	teams := map[string][]string{
 		"FN":  {"alice", "bob"},
 		"COP": {"charlie"},
@@ -719,6 +734,7 @@ func TestNewTeamConfigWithTribes(t *testing.T) {
 }
 
 func TestNewTeamConfigWithTribes_IgnoresInvalidProjects(t *testing.T) {
+	t.Parallel()
 	teams := map[string][]string{
 		"FN": {"alice"},
 	}
@@ -738,6 +754,7 @@ func TestNewTeamConfigWithTribes_IgnoresInvalidProjects(t *testing.T) {
 }
 
 func TestGetTribe(t *testing.T) {
+	t.Parallel()
 	teams := map[string][]string{
 		"FN":  {"alice"},
 		"COP": {"bob"},
@@ -758,6 +775,7 @@ func TestGetTribe(t *testing.T) {
 }
 
 func TestSetTribe(t *testing.T) {
+	t.Parallel()
 	teams := map[string][]string{
 		"FN": {"alice"},
 	}
@@ -777,6 +795,7 @@ func TestSetTribe(t *testing.T) {
 }
 
 func TestSetTribe_Errors(t *testing.T) {
+	t.Parallel()
 	teams := map[string][]string{
 		"FN": {"alice"},
 	}
@@ -796,6 +815,7 @@ func TestSetTribe_Errors(t *testing.T) {
 }
 
 func TestToFullMap(t *testing.T) {
+	t.Parallel()
 	teams := map[string][]string{
 		"FN":  {"alice", "bob"},
 		"COP": {"charlie"},
@@ -834,6 +854,7 @@ func TestToFullMap(t *testing.T) {
 }
 
 func TestGetCompany(t *testing.T) {
+	t.Parallel()
 	teams := map[string][]string{
 		"FN":  {"alice", "bob"},
 		"COP": {"charlie"},
@@ -864,6 +885,7 @@ func TestGetCompany(t *testing.T) {
 }
 
 func TestSetCompany(t *testing.T) {
+	t.Parallel()
 	t.Run("sets company for existing project", func(t *testing.T) {
 		teams := map[string][]string{
 			"FN": {"alice", "bob"},
@@ -916,6 +938,7 @@ func TestSetCompany(t *testing.T) {
 }
 
 func TestNewTeamConfigFull(t *testing.T) {
+	t.Parallel()
 	t.Run("creates config with all fields", func(t *testing.T) {
 		teams := map[string][]string{
 			"FN":  {"alice", "bob"},
@@ -968,6 +991,7 @@ func TestNewTeamConfigFull(t *testing.T) {
 }
 
 func TestGetExcludedIssueTypes(t *testing.T) {
+	t.Parallel()
 	teams := map[string][]string{
 		"COP": {"alice"},
 		"FN":  {"bob"},
@@ -996,6 +1020,7 @@ func TestGetExcludedIssueTypes(t *testing.T) {
 }
 
 func TestSetExcludedIssueTypes(t *testing.T) {
+	t.Parallel()
 	t.Run("sets excluded types for existing project", func(t *testing.T) {
 		teams := map[string][]string{"COP": {"alice"}}
 		config, err := NewTeamConfig(teams)
@@ -1028,6 +1053,7 @@ func TestSetExcludedIssueTypes(t *testing.T) {
 }
 
 func TestNewTeamConfigWithExcludedTypes(t *testing.T) {
+	t.Parallel()
 	t.Run("creates config with excluded issue types", func(t *testing.T) {
 		teams := map[string][]string{
 			"COP": {"alice"},
@@ -1080,6 +1106,7 @@ func datePtr(year int, month time.Month, day int) *time.Time {
 }
 
 func TestTeamMemberPeriod_IsActiveAt(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name   string
 		period TeamMemberPeriod
@@ -1132,6 +1159,7 @@ func TestTeamMemberPeriod_IsActiveAt(t *testing.T) {
 }
 
 func TestTeamMemberPeriod_IsActiveDuring(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name   string
 		period TeamMemberPeriod
@@ -1198,6 +1226,7 @@ func TestTeamMemberPeriod_IsActiveDuring(t *testing.T) {
 }
 
 func TestTeamConfig_GetTeamForPeriod(t *testing.T) {
+	t.Parallel()
 	teams := map[string][]string{
 		"PROJECT-A": {"Alice", "Bob", "Charlie", "Dave"},
 		"PROJECT-B": {"Eve"},
@@ -1260,6 +1289,7 @@ func TestTeamConfig_GetTeamForPeriod(t *testing.T) {
 }
 
 func TestTeamConfig_AddMemberWithDates(t *testing.T) {
+	t.Parallel()
 	teams := map[string][]string{"PROJECT-A": {"Alice"}}
 	config, err := NewTeamConfig(teams)
 	require.NoError(t, err)
@@ -1298,6 +1328,7 @@ func TestTeamConfig_AddMemberWithDates(t *testing.T) {
 }
 
 func TestTeamConfig_SetMemberLeft(t *testing.T) {
+	t.Parallel()
 	teams := map[string][]string{"PROJECT-A": {"Alice"}}
 	timeline := map[string][]TeamMemberPeriod{
 		"PROJECT-A": {
@@ -1340,6 +1371,7 @@ func TestTeamConfig_SetMemberLeft(t *testing.T) {
 }
 
 func TestTeamConfig_DeriveActiveTeamFromTimeline(t *testing.T) {
+	t.Parallel()
 	teams := map[string][]string{"PROJECT-A": {"Alice", "Bob", "Charlie"}}
 	timeline := map[string][]TeamMemberPeriod{
 		"PROJECT-A": {
@@ -1357,6 +1389,7 @@ func TestTeamConfig_DeriveActiveTeamFromTimeline(t *testing.T) {
 }
 
 func TestTeamConfig_HasTeamTimeline(t *testing.T) {
+	t.Parallel()
 	teams := map[string][]string{
 		"PROJECT-A": {"Alice"},
 		"PROJECT-B": {"Bob"},
@@ -1374,6 +1407,7 @@ func TestTeamConfig_HasTeamTimeline(t *testing.T) {
 }
 
 func TestNewTeamConfigWithTimelines(t *testing.T) {
+	t.Parallel()
 	t.Run("creates config with timelines", func(t *testing.T) {
 		teams := map[string][]string{"PROJECT-A": {"Alice"}}
 		timeline := map[string][]TeamMemberPeriod{

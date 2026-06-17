@@ -12,6 +12,7 @@ import (
 // already present, and drop-tail when the list exceeds five.
 // It's exercised via the public UpdateTaskContext entry point.
 func TestAddRecentTask_MoveToFrontAndCapAtFive(t *testing.T) {
+	t.Parallel()
 	ctx := NewContext("session-1")
 
 	for _, key := range []string{"T-1", "T-2", "T-3", "T-4", "T-5"} {

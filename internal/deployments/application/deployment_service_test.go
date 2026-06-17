@@ -101,6 +101,7 @@ func (m *MockAssetResolver) ResolveAssetsForTask(ctx context.Context, taskKey st
 }
 
 func TestNewDeploymentService(t *testing.T) {
+	t.Parallel()
 	mockRepo := new(MockDeploymentRepository)
 	mockResolver := new(MockAssetResolver)
 
@@ -112,6 +113,7 @@ func TestNewDeploymentService(t *testing.T) {
 }
 
 func TestDeploymentService_RecordDeployment(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 
 	tests := []struct {
@@ -193,6 +195,7 @@ func TestDeploymentService_RecordDeployment(t *testing.T) {
 }
 
 func TestDeploymentService_UpdateDeploymentStatus(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 	deploymentID := "dep-123"
 
@@ -269,6 +272,7 @@ func TestDeploymentService_UpdateDeploymentStatus(t *testing.T) {
 }
 
 func TestDeploymentService_GetDeploymentByID(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 	deploymentID := "dep-123"
 
@@ -295,6 +299,7 @@ func TestDeploymentService_GetDeploymentByID(t *testing.T) {
 }
 
 func TestDeploymentService_GetDeploymentsByTask(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 	taskKey := "TASK-1"
 
@@ -343,6 +348,7 @@ func TestDeploymentService_GetDeploymentsByTask(t *testing.T) {
 }
 
 func TestDeploymentService_GetDeploymentsByAsset(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 	assetName := "TestAsset"
 
@@ -388,6 +394,7 @@ func TestDeploymentService_GetDeploymentsByAsset(t *testing.T) {
 }
 
 func TestDeploymentService_GetDeploymentsTimeline(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 	from := time.Date(2025, 9, 1, 0, 0, 0, 0, time.UTC)
 	to := time.Date(2025, 9, 30, 23, 59, 59, 0, time.UTC)
@@ -432,6 +439,7 @@ func TestDeploymentService_GetDeploymentsTimeline(t *testing.T) {
 }
 
 func TestDeploymentService_GetDeploymentStatistics(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 	from := time.Date(2025, 9, 1, 0, 0, 0, 0, time.UTC)
 	to := time.Date(2025, 9, 30, 23, 59, 59, 0, time.UTC)
@@ -477,6 +485,7 @@ func TestDeploymentService_GetDeploymentStatistics(t *testing.T) {
 }
 
 func TestDeploymentService_ListAllDeployments(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 
 	deployments := []*domain.Deployment{

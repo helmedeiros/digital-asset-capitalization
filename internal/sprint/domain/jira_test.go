@@ -7,6 +7,7 @@ import (
 )
 
 func TestJiraChangeItem_IsStatusChange(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name string
 		item JiraChangeItem
@@ -38,6 +39,7 @@ func TestJiraChangeItem_IsStatusChange(t *testing.T) {
 }
 
 func TestJiraIssue_GetStatusChanges(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name  string
 		issue JiraIssue
@@ -167,6 +169,7 @@ func TestJiraIssue_GetStatusChanges(t *testing.T) {
 }
 
 func TestJiraIssue_IsInProgress(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name  string
 		issue JiraIssue
@@ -233,6 +236,7 @@ func TestJiraIssue_IsInProgress(t *testing.T) {
 }
 
 func TestJiraIssue_IsDone(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name  string
 		issue JiraIssue
@@ -319,6 +323,7 @@ func TestJiraIssue_IsDone(t *testing.T) {
 }
 
 func TestJiraIssue_GetWorkType(t *testing.T) {
+	t.Parallel()
 	issue := &JiraIssue{Fields: JiraFields{Labels: []string{"cap-maintenance", "other"}}}
 	assert.Equal(t, "cap-maintenance", issue.GetWorkType())
 
@@ -333,6 +338,7 @@ func TestJiraIssue_GetWorkType(t *testing.T) {
 }
 
 func TestJiraIssue_GetAssetName(t *testing.T) {
+	t.Parallel()
 	issue := &JiraIssue{Fields: JiraFields{Labels: []string{"cap-asset-foo", "other"}}}
 	assert.Equal(t, "cap-asset-foo", issue.GetAssetName())
 

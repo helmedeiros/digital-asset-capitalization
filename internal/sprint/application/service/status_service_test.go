@@ -12,6 +12,7 @@ import (
 )
 
 func TestStatusService(t *testing.T) {
+	t.Parallel()
 	// Test data for isolated testing
 	testTeamConfigs := map[string]sharedDomain.TeamConfig{
 		"AD": {
@@ -132,6 +133,7 @@ func TestStatusService(t *testing.T) {
 }
 
 func TestNewStatusServiceWithPath(t *testing.T) {
+	t.Parallel()
 	tempDir := t.TempDir()
 
 	t.Run("with valid config file", func(t *testing.T) {
@@ -183,6 +185,7 @@ func TestNewStatusServiceWithPath(t *testing.T) {
 }
 
 func TestLoadTeamConfigs(t *testing.T) {
+	t.Parallel()
 	tempDir := t.TempDir()
 
 	t.Run("with valid file", func(t *testing.T) {
@@ -273,6 +276,7 @@ func TestLoadTeamConfigs(t *testing.T) {
 }
 
 func TestNewStatusService(t *testing.T) {
+	t.Parallel()
 	// NewStatusService delegates to NewStatusServiceWithPath("") which
 	// looks up the user's home directory. We don't care which path it
 	// finally settles on -- only that the delegation works without

@@ -75,6 +75,7 @@ func (m *mockInvestmentRepository) DeleteInvestment(_ context.Context, assetName
 }
 
 func TestInvestmentService_InitializeCostModel(t *testing.T) {
+	t.Parallel()
 	costModelRepo := &mockCostModelRepository{}
 	investmentRepo := &mockInvestmentRepository{}
 
@@ -103,6 +104,7 @@ func TestInvestmentService_InitializeCostModel(t *testing.T) {
 }
 
 func TestInvestmentService_GetCostModel(t *testing.T) {
+	t.Parallel()
 	costModelRepo := &mockCostModelRepository{
 		costModels: make(map[string]*domain.CostModel),
 	}
@@ -126,6 +128,7 @@ func TestInvestmentService_GetCostModel(t *testing.T) {
 }
 
 func TestInvestmentService_UpdateCostModel(t *testing.T) {
+	t.Parallel()
 	costModelRepo := &mockCostModelRepository{
 		costModels: make(map[string]*domain.CostModel),
 	}
@@ -156,6 +159,7 @@ func TestInvestmentService_UpdateCostModel(t *testing.T) {
 }
 
 func TestInvestmentService_ListInvestments(t *testing.T) {
+	t.Parallel()
 	investmentRepo := &mockInvestmentRepository{
 		investments: make(map[string]*domain.Investment),
 	}
@@ -188,6 +192,7 @@ func TestInvestmentService_ListInvestments(t *testing.T) {
 // Additional comprehensive test cases for service layer
 
 func TestInvestmentService_CalculateAssetInvestment(t *testing.T) {
+	t.Parallel()
 	costModel, _ := domain.NewCostModel(domain.EUR, 8.0, 2.0)
 	costModel.SetDefaultRate(domain.Senior, 75.0)
 
@@ -232,6 +237,7 @@ func TestInvestmentService_CalculateAssetInvestment(t *testing.T) {
 }
 
 func TestInvestmentService_CalculateSprintInvestment(t *testing.T) {
+	t.Parallel()
 	costModel, _ := domain.NewCostModel(domain.EUR, 8.0, 2.0)
 	costModel.SetDefaultRate(domain.Senior, 75.0)
 
@@ -284,6 +290,7 @@ func TestInvestmentService_CalculateSprintInvestment(t *testing.T) {
 }
 
 func TestInvestmentService_GetInvestment(t *testing.T) {
+	t.Parallel()
 	testInvestment := domain.NewInvestment("Test Asset", "TEST", []string{"Sprint1"}, time.Now(), time.Now(), domain.EUR)
 
 	investmentRepo := &mockInvestmentRepository{
@@ -307,6 +314,7 @@ func TestInvestmentService_GetInvestment(t *testing.T) {
 }
 
 func TestInvestmentService_GetInvestment_NotFound(t *testing.T) {
+	t.Parallel()
 	investmentRepo := &mockInvestmentRepository{
 		investments: make(map[string]*domain.Investment),
 	}
@@ -322,6 +330,7 @@ func TestInvestmentService_GetInvestment_NotFound(t *testing.T) {
 }
 
 func TestInvestmentService_DeleteInvestment(t *testing.T) {
+	t.Parallel()
 	testInvestment := domain.NewInvestment("Test Asset", "TEST", []string{"Sprint1"}, time.Now(), time.Now(), domain.EUR)
 
 	investmentRepo := &mockInvestmentRepository{
@@ -347,6 +356,7 @@ func TestInvestmentService_DeleteInvestment(t *testing.T) {
 }
 
 func TestInvestmentService_DeleteInvestment_NotFound(t *testing.T) {
+	t.Parallel()
 	investmentRepo := &mockInvestmentRepository{
 		investments: make(map[string]*domain.Investment),
 	}
@@ -362,6 +372,7 @@ func TestInvestmentService_DeleteInvestment_NotFound(t *testing.T) {
 }
 
 func TestInvestmentService_InitializeCostModel_AlreadyExists(t *testing.T) {
+	t.Parallel()
 	existingModel, _ := domain.NewCostModel(domain.USD, 8.0, 2.5)
 
 	costModelRepo := &mockCostModelRepository{
@@ -389,6 +400,7 @@ func TestInvestmentService_InitializeCostModel_AlreadyExists(t *testing.T) {
 }
 
 func TestInvestmentService_GetCostModel_NotFound(t *testing.T) {
+	t.Parallel()
 	costModelRepo := &mockCostModelRepository{
 		costModels: make(map[string]*domain.CostModel),
 	}
@@ -404,6 +416,7 @@ func TestInvestmentService_GetCostModel_NotFound(t *testing.T) {
 }
 
 func TestInvestmentService_UpdateCostModel_InvalidModel(t *testing.T) {
+	t.Parallel()
 	costModelRepo := &mockCostModelRepository{
 		costModels: make(map[string]*domain.CostModel),
 	}
@@ -426,6 +439,7 @@ func TestInvestmentService_UpdateCostModel_InvalidModel(t *testing.T) {
 }
 
 func TestInvestmentService_ListInvestments_EmptyProject(t *testing.T) {
+	t.Parallel()
 	investmentRepo := &mockInvestmentRepository{
 		investments: make(map[string]*domain.Investment),
 	}
@@ -484,6 +498,7 @@ func (m *mockCostModelRepositoryWithErrors) SaveCostModel(ctx context.Context, p
 }
 
 func TestInvestmentService_InitializeCostModel_GetDefaultError(t *testing.T) {
+	t.Parallel()
 	costModelRepo := &mockCostModelRepositoryWithErrors{
 		mockCostModelRepository: &mockCostModelRepository{},
 		shouldFailGetDefault:    true,
@@ -505,6 +520,7 @@ func TestInvestmentService_InitializeCostModel_GetDefaultError(t *testing.T) {
 }
 
 func TestInvestmentService_InitializeCostModel_SaveError(t *testing.T) {
+	t.Parallel()
 	costModelRepo := &mockCostModelRepositoryWithErrors{
 		mockCostModelRepository: &mockCostModelRepository{},
 		shouldFailSave:          true,

@@ -54,6 +54,7 @@ func (m *MockConfigurationRepository) InitializeConfigDirectory() error {
 }
 
 func TestNewConfigService(t *testing.T) {
+	t.Parallel()
 	repo := &MockConfigurationRepository{}
 	service := NewConfigService(repo)
 
@@ -62,6 +63,7 @@ func TestNewConfigService(t *testing.T) {
 }
 
 func TestConfigService_GetJiraConfig(t *testing.T) {
+	t.Parallel()
 	t.Run("should return jira config successfully", func(t *testing.T) {
 		repo := &MockConfigurationRepository{}
 		service := NewConfigService(repo)
@@ -98,6 +100,7 @@ func TestConfigService_GetJiraConfig(t *testing.T) {
 }
 
 func TestConfigService_GetTeamConfig(t *testing.T) {
+	t.Parallel()
 	t.Run("should return team config successfully", func(t *testing.T) {
 		repo := &MockConfigurationRepository{}
 		service := NewConfigService(repo)
@@ -134,6 +137,7 @@ func TestConfigService_GetTeamConfig(t *testing.T) {
 }
 
 func TestConfigService_GetTeamMapForSprint(t *testing.T) {
+	t.Parallel()
 	t.Run("should convert team config to sprint format successfully", func(t *testing.T) {
 		repo := &MockConfigurationRepository{}
 		service := NewConfigService(repo)
@@ -229,6 +233,7 @@ func TestConfigService_GetTeamMapForSprint(t *testing.T) {
 }
 
 func TestConfigService_GetTeamForProject(t *testing.T) {
+	t.Parallel()
 	t.Run("should return team members for existing project", func(t *testing.T) {
 		repo := &MockConfigurationRepository{}
 		service := NewConfigService(repo)
@@ -271,6 +276,7 @@ func TestConfigService_GetTeamForProject(t *testing.T) {
 }
 
 func TestConfigService_IsTeamMember(t *testing.T) {
+	t.Parallel()
 	t.Run("should return true for existing team member", func(t *testing.T) {
 		repo := &MockConfigurationRepository{}
 		service := NewConfigService(repo)
@@ -330,6 +336,7 @@ func TestConfigService_IsTeamMember(t *testing.T) {
 }
 
 func TestConfigService_ConfigExists(t *testing.T) {
+	t.Parallel()
 	t.Run("should return true when config exists", func(t *testing.T) {
 		repo := &MockConfigurationRepository{}
 		service := NewConfigService(repo)
@@ -358,6 +365,7 @@ func TestConfigService_ConfigExists(t *testing.T) {
 }
 
 func TestConfigService_InitializeConfigDirectory(t *testing.T) {
+	t.Parallel()
 	t.Run("should initialize directory successfully", func(t *testing.T) {
 		repo := &MockConfigurationRepository{}
 		service := NewConfigService(repo)
@@ -385,6 +393,7 @@ func TestConfigService_InitializeConfigDirectory(t *testing.T) {
 }
 
 func TestConfigService_SetTribeForProject(t *testing.T) {
+	t.Parallel()
 	t.Run("should set tribe for existing project successfully", func(t *testing.T) {
 		repo := &MockConfigurationRepository{}
 		service := NewConfigService(repo)
@@ -458,6 +467,7 @@ func TestConfigService_SetTribeForProject(t *testing.T) {
 }
 
 func TestConfigService_GetTribeForProject(t *testing.T) {
+	t.Parallel()
 	t.Run("should return tribe for project with tribe set", func(t *testing.T) {
 		repo := &MockConfigurationRepository{}
 		service := NewConfigService(repo)
@@ -516,6 +526,7 @@ func TestConfigService_GetTribeForProject(t *testing.T) {
 }
 
 func TestConfigService_SetCompanyForProject(t *testing.T) {
+	t.Parallel()
 	t.Run("should set company for existing project successfully", func(t *testing.T) {
 		repo := &MockConfigurationRepository{}
 		service := NewConfigService(repo)
@@ -589,6 +600,7 @@ func TestConfigService_SetCompanyForProject(t *testing.T) {
 }
 
 func TestConfigService_GetCompanyForProject(t *testing.T) {
+	t.Parallel()
 	t.Run("should return company for project with company set", func(t *testing.T) {
 		repo := &MockConfigurationRepository{}
 		service := NewConfigService(repo)
@@ -648,6 +660,7 @@ func TestConfigService_GetCompanyForProject(t *testing.T) {
 }
 
 func TestConfigService_SetExcludedIssueTypesForProject(t *testing.T) {
+	t.Parallel()
 	t.Run("should set excluded issue types successfully", func(t *testing.T) {
 		repo := &MockConfigurationRepository{}
 		svc := NewConfigService(repo)
@@ -715,6 +728,7 @@ func TestConfigService_SetExcludedIssueTypesForProject(t *testing.T) {
 }
 
 func TestConfigService_GetExcludedIssueTypesForProject(t *testing.T) {
+	t.Parallel()
 	t.Run("should return excluded types for project", func(t *testing.T) {
 		repo := &MockConfigurationRepository{}
 		svc := NewConfigService(repo)
@@ -766,6 +780,7 @@ func TestConfigService_GetExcludedIssueTypesForProject(t *testing.T) {
 }
 
 func TestConfigService_GetTeamMapForSprintWithDates(t *testing.T) {
+	t.Parallel()
 	date := func(year int, month time.Month, day int) time.Time {
 		return time.Date(year, month, day, 0, 0, 0, 0, time.UTC)
 	}
@@ -854,6 +869,7 @@ func TestConfigService_GetTeamMapForSprintWithDates(t *testing.T) {
 }
 
 func TestConfigService_GetBoardWorkStream(t *testing.T) {
+	t.Parallel()
 	t.Run("returns workstream for known board", func(t *testing.T) {
 		repo := &MockConfigurationRepository{}
 		service := NewConfigService(repo)
@@ -894,6 +910,7 @@ func TestConfigService_GetBoardWorkStream(t *testing.T) {
 }
 
 func TestConfigService_GetBoardsForWorkStream(t *testing.T) {
+	t.Parallel()
 	t.Run("returns matching boards (case-insensitive)", func(t *testing.T) {
 		repo := &MockConfigurationRepository{}
 		service := NewConfigService(repo)
@@ -926,6 +943,7 @@ func TestConfigService_GetBoardsForWorkStream(t *testing.T) {
 }
 
 func TestConfigService_SetBoardWorkStreams(t *testing.T) {
+	t.Parallel()
 	t.Run("happy path saves through to repository", func(t *testing.T) {
 		repo := &MockConfigurationRepository{}
 		service := NewConfigService(repo)
@@ -978,6 +996,7 @@ func TestConfigService_SetBoardWorkStreams(t *testing.T) {
 }
 
 func TestConfigService_SetBoardWorkStream(t *testing.T) {
+	t.Parallel()
 	t.Run("creates a new mapping if none exists", func(t *testing.T) {
 		repo := &MockConfigurationRepository{}
 		service := NewConfigService(repo)

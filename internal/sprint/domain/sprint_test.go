@@ -6,6 +6,7 @@ import (
 )
 
 func TestSprint_IsActive(t *testing.T) {
+	t.Parallel()
 	now := time.Now()
 	yesterday := now.AddDate(0, 0, -1).Format("2006-01-02")
 	tomorrow := now.AddDate(0, 0, 1).Format("2006-01-02")
@@ -68,6 +69,7 @@ func TestSprint_IsActive(t *testing.T) {
 }
 
 func TestSprint_IsCompleted(t *testing.T) {
+	t.Parallel()
 	now := time.Now()
 	yesterday := now.AddDate(0, 0, -1).Format("2006-01-02")
 	tomorrow := now.AddDate(0, 0, 1).Format("2006-01-02")
@@ -126,6 +128,7 @@ func TestSprint_IsCompleted(t *testing.T) {
 }
 
 func TestSprint_GetDuration(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name     string
 		sprint   Sprint
@@ -160,6 +163,7 @@ func TestSprint_GetDuration(t *testing.T) {
 }
 
 func TestSprint_GetRemainingTime(t *testing.T) {
+	t.Parallel()
 	now := time.Now()
 	yesterday := now.AddDate(0, 0, -1).Format("2006-01-02")
 	tomorrow := now.AddDate(0, 0, 1).Format("2006-01-02")
@@ -206,6 +210,7 @@ func TestSprint_GetRemainingTime(t *testing.T) {
 }
 
 func TestTeam_IsExcludedIssueType(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name      string
 		team      Team

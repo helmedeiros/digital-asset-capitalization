@@ -7,6 +7,7 @@ import (
 )
 
 func TestStatusMapper(t *testing.T) {
+	t.Parallel()
 	// Test data
 	teamConfigs := map[string]TeamConfig{
 		"AD": {
@@ -194,6 +195,7 @@ func TestStatusMapper(t *testing.T) {
 }
 
 func TestNewStatusMapper(t *testing.T) {
+	t.Parallel()
 	t.Run("should create mapper with valid configs", func(t *testing.T) {
 		configs := map[string]TeamConfig{
 			"TEST": {
@@ -227,6 +229,7 @@ func TestNewStatusMapper(t *testing.T) {
 }
 
 func TestStatusType(t *testing.T) {
+	t.Parallel()
 	t.Run("constants are properly defined", func(t *testing.T) {
 		assert.Equal(t, StatusType("done"), StatusTypeDone)
 		assert.Equal(t, StatusType("in_progress"), StatusTypeInProgress)
@@ -237,6 +240,7 @@ func TestStatusType(t *testing.T) {
 }
 
 func TestBoardConfig(t *testing.T) {
+	t.Parallel()
 	t.Run("should create board config with all fields", func(t *testing.T) {
 		config := BoardConfig{
 			ID:   "123",
@@ -256,6 +260,7 @@ func TestBoardConfig(t *testing.T) {
 }
 
 func TestTeamConfig(t *testing.T) {
+	t.Parallel()
 	t.Run("should create team config with all fields", func(t *testing.T) {
 		config := TeamConfig{
 			Team:      []string{"user1@example.com", "user2@example.com"},

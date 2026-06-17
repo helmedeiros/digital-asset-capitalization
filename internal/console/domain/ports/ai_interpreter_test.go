@@ -9,6 +9,7 @@ import (
 )
 
 func TestNewInterpretationError(t *testing.T) {
+	t.Parallel()
 	err := NewInterpretationError("show me everything", "ambiguous", []string{"assets list", "tasks list"})
 	require.NotNil(t, err)
 	assert.Equal(t, "show me everything", err.Input)
@@ -17,6 +18,7 @@ func TestNewInterpretationError(t *testing.T) {
 }
 
 func TestInterpretationError_Error(t *testing.T) {
+	t.Parallel()
 	err := NewInterpretationError("anything", "the reason text", nil)
 	assert.Equal(t, "the reason text", err.Error())
 

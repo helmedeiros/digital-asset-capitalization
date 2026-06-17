@@ -68,6 +68,7 @@ func teamConfigWithNicknames(t *testing.T) *configdomain.TeamConfig {
 }
 
 func TestAssetServiceImpl_getConfluenceParentPageForTeam(t *testing.T) {
+	t.Parallel()
 	t.Run("empty team name short-circuits to empty string", func(t *testing.T) {
 		s := &AssetServiceImpl{}
 		assert.Equal(t, "", s.getConfluenceParentPageForTeam(""))
@@ -104,6 +105,7 @@ func TestAssetServiceImpl_getConfluenceParentPageForTeam(t *testing.T) {
 }
 
 func TestAssetServiceImpl_resolveTeamIdentifier(t *testing.T) {
+	t.Parallel()
 	t.Run("nil configService returns the identifier unchanged", func(t *testing.T) {
 		s := &AssetServiceImpl{}
 		assert.Equal(t, "fortuna", s.resolveTeamIdentifier("fortuna"))
@@ -135,6 +137,7 @@ func TestAssetServiceImpl_resolveTeamIdentifier(t *testing.T) {
 }
 
 func TestAssetServiceImpl_getTribeAndCompanyForTeam(t *testing.T) {
+	t.Parallel()
 	// Pin the getTribeForTeam / getCompanyForTeam branches at the same
 	// time -- they're structurally identical to getConfluenceParentPageForTeam
 	// and the existing test surface already partly covers them, but the
