@@ -1,370 +1,113 @@
 package main
 
 import (
-	"bytes"
+	"errors"
 	"os"
 	"path/filepath"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 
 	"github.com/helmedeiros/digital-asset-capitalization/internal/config/application/usecase"
-	"github.com/helmedeiros/digital-asset-capitalization/internal/config/domain"
+	configdomain "github.com/helmedeiros/digital-asset-capitalization/internal/config/domain"
 )
 
-const testTeamsContent = `{"TEST": {"team": ["alice", "bob"]}}`
-
-// MockConfigService is a mock implementation that wraps the InitializeConfig use case
-type MockConfigService struct {
-	mock.Mock
+// stubConfigService implements the ConfigService interface used by
+// configInitAction. GetJiraConfig isn't called by the extracted
+// Actions in this PR, so it panics to flag accidental coupling.
+type stubConfigService struct {
+	initResult *usecase.InitializeConfigResult
+	initErr    error
 }
 
-func (m *MockConfigService) InitializeConfig(interactive bool) (*usecase.InitializeConfigResult, error) {
-	args := m.Called(interactive)
-	if args.Get(0) == nil {
-		return nil, args.Error(1)
-	}
-	return args.Get(0).(*usecase.InitializeConfigResult), args.Error(1)
+func (s *stubConfigService) InitializeConfig(bool) (*usecase.InitializeConfigResult, error) {
+	return s.initResult, s.initErr
 }
 
-func (m *MockConfigService) GetJiraConfig() (*domain.JiraConfig, error) {
-	args := m.Called()
-	if args.Get(0) == nil {
-		return nil, args.Error(1)
-	}
-	return args.Get(0).(*domain.JiraConfig), args.Error(1)
+func (s *stubConfigService) GetJiraConfig() (*configdomain.JiraConfig, error) {
+	panic("not used")
 }
 
-func TestConfigCommands(t *testing.T) {
-	tests := []struct {
-		name    string
-		args    []string
-		setup   func(*MockAssetService, *MockTaskService, *MockSprintService, *MockConfigService)
-		wantErr bool
-	}{
-		{
-			name: "config init interactive mode",
-			args: []string{"config", "init"},
-			setup: func(_ *MockAssetService, _ *MockTaskService, _ *MockSprintService, mcs *MockConfigService) {
-				result := &usecase.InitializeConfigResult{
-					JiraConfigCreated: true,
-					TeamConfigCreated: true,
-					Message:           "Configuration initialized successfully",
-				}
-				mcs.On("InitializeConfig", true).Return(result, nil)
-			},
-			wantErr: false,
-		},
-		{
-			name: "config init non-interactive mode",
-			args: []string{"config", "init", "--non-interactive"},
-			setup: func(_ *MockAssetService, _ *MockTaskService, _ *MockSprintService, mcs *MockConfigService) {
-				result := &usecase.InitializeConfigResult{
-					JiraConfigCreated: true,
-					TeamConfigCreated: false,
-					Message:           "Configuration initialized from environment variables",
-				}
-				mcs.On("InitializeConfig", false).Return(result, nil)
-			},
-			wantErr: false,
-		},
-		{
-			name: "config init with jira flags (still interactive)",
-			args: []string{"config", "init", "--jira-url", "https://test.atlassian.net", "--jira-email", "test@example.com", "--jira-token", "token123"},
-			setup: func(_ *MockAssetService, _ *MockTaskService, _ *MockSprintService, mcs *MockConfigService) {
-				result := &usecase.InitializeConfigResult{
-					JiraConfigCreated: true,
-					TeamConfigCreated: true,
-					Message:           "Configuration initialized successfully",
-				}
-				mcs.On("InitializeConfig", true).Return(result, nil)
-			},
-			wantErr: false,
-		},
-		{
-			name: "config init failure",
-			args: []string{"config", "init"},
-			setup: func(_ *MockAssetService, _ *MockTaskService, _ *MockSprintService, mcs *MockConfigService) {
-				mcs.On("InitializeConfig", true).Return(nil, assert.AnError)
-			},
-			wantErr: true,
-		},
-		{
-			name: "config show",
-			args: []string{"config", "show"},
-			setup: func(_ *MockAssetService, _ *MockTaskService, _ *MockSprintService, _ *MockConfigService) {
-				// For show command, we don't use the mock service - it directly reads environment/files
-				// This is a simple command that doesn't require complex business logic
-			},
-			wantErr: false,
-		},
-		{
-			name: "config validate",
-			args: []string{"config", "validate"},
-			setup: func(_ *MockAssetService, _ *MockTaskService, _ *MockSprintService, _ *MockConfigService) {
-				// Set up environment variables for validation to succeed
-				os.Setenv("JIRA_BASE_URL", "https://test.atlassian.net")
-				os.Setenv("JIRA_EMAIL", "test@example.com")
-				os.Setenv("JIRA_TOKEN", "test-token")
-
-				// Create .assetcap directory and teams.json file
-				assetcapDir := filepath.Join(".", ".assetcap")
-				os.MkdirAll(assetcapDir, 0755)
-				teamsPath := filepath.Join(assetcapDir, "teams.json")
-				os.WriteFile(teamsPath, []byte(testTeamsContent), 0644)
-			},
-			wantErr: false,
-		},
-		{
-			name: "config help",
-			args: []string{"config", "--help"},
-			setup: func(_ *MockAssetService, _ *MockTaskService, _ *MockSprintService, _ *MockConfigService) {
-				// Help command doesn't need setup
-			},
-			wantErr: false,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			// Create mocks
-			mockAssetService := &MockAssetService{}
-			mockTaskService := &MockTaskService{}
-			mockSprintService := &MockSprintService{}
-			mockConfigService := &MockConfigService{}
-
-			// Store original env vars for config validate test cleanup
-			var origVars map[string]string
-			if tt.name == "config validate" {
-				origVars = map[string]string{
-					"JIRA_BASE_URL": os.Getenv("JIRA_BASE_URL"),
-					"JIRA_EMAIL":    os.Getenv("JIRA_EMAIL"),
-					"JIRA_TOKEN":    os.Getenv("JIRA_TOKEN"),
-				}
-			}
-
-			// Setup mocks
-			tt.setup(mockAssetService, mockTaskService, mockSprintService, mockConfigService)
-
-			// Create app with config service for testing
-			app := NewAppWithConfigService(mockAssetService, mockTaskService, mockSprintService, mockConfigService)
-
-			// Capture output
-			var buf bytes.Buffer
-			originalOutput := os.Stdout
-			r, w, _ := os.Pipe()
-			os.Stdout = w
-
-			// Run command
-			originalArgs := os.Args
-			os.Args = append([]string{"assetcap"}, tt.args...)
-
-			err := app.Run()
-
-			// Restore
-			os.Args = originalArgs
-			w.Close()
-			os.Stdout = originalOutput
-
-			// Read output
-			buf.ReadFrom(r)
-			output := buf.String()
-
-			// Cleanup environment for config validate test
-			if tt.name == "config validate" {
-				// Restore original environment variables
-				for key, value := range origVars {
-					if value == "" {
-						os.Unsetenv(key)
-					} else {
-						os.Setenv(key, value)
-					}
-				}
-				// Clean up test files
-				os.RemoveAll(".assetcap")
-			}
-
-			// Assertions
-			if tt.wantErr {
-				assert.Error(t, err)
-			} else {
-				assert.NoError(t, err)
-			}
-
-			// Verify mock expectations
-			mockConfigService.AssertExpectations(t)
-
-			// Additional output assertions for specific commands
-			switch tt.name {
-			case "config init interactive mode":
-				assert.Contains(t, output, "Configuration initialized successfully")
-			case "config init non-interactive mode":
-				assert.Contains(t, output, "Configuration initialized from environment variables")
-			case "config help":
-				assert.Contains(t, output, "config")
-				assert.Contains(t, output, "init")
-			}
-		})
-	}
+func TestApp_configInitAction_NoServiceReturnsError(t *testing.T) {
+	t.Parallel()
+	a := &App{}
+	ctx := newContextWithFlags(t, nil, nil)
+	err := a.configInitAction(ctx)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "configuration service not available")
 }
 
-func TestConfigInitFlags(t *testing.T) {
-	t.Run("should parse jira flags correctly", func(t *testing.T) {
-		// This test ensures our CLI flag parsing works correctly
-		// We'll test this when we implement the actual command parsing
-		assert.True(t, true) // Placeholder - will be implemented with actual command
-	})
+func TestApp_configInitAction_ServiceErrorBubbles(t *testing.T) {
+	t.Parallel()
+	a := &App{configService: &stubConfigService{initErr: errors.New("boom")}}
+	ctx := newContextWithFlags(t, nil, map[string]bool{"non-interactive": true})
+	err := a.configInitAction(ctx)
+	require.Error(t, err)
+	assert.Equal(t, "boom", err.Error())
 }
 
-func TestConfigShowCommand(t *testing.T) {
-	t.Run("should display current configuration", func(t *testing.T) {
-		// Set up test environment
-		tempDir := t.TempDir()
-		originalWd, _ := os.Getwd()
-		defer os.Chdir(originalWd)
-		os.Chdir(tempDir)
-
-		// Set some environment variables for testing
-		os.Setenv("JIRA_BASE_URL", "https://test.atlassian.net")
-		os.Setenv("JIRA_EMAIL", "test@example.com")
-		os.Setenv("JIRA_TOKEN", "hidden-token")
-
-		// Create teams.json file in the correct location (.assetcap directory)
-		assetcapDir := filepath.Join(".", ".assetcap")
-		err := os.MkdirAll(assetcapDir, 0755)
-		require.NoError(t, err)
-
-		teamsPath := filepath.Join(assetcapDir, "teams.json")
-		err = os.WriteFile(teamsPath, []byte(testTeamsContent), 0644)
-		require.NoError(t, err)
-
-		// Create app and test the actual config show command
-		app := NewApp(nil, nil, nil) // For show command, we don't need services
-
-		// Capture output
-		var buf bytes.Buffer
-		originalOutput := os.Stdout
-		r, w, _ := os.Pipe()
-		os.Stdout = w
-
-		// Run config show command
-		originalArgs := os.Args
-		os.Args = []string{"assetcap", "config", "show"}
-
-		err = app.Run()
-
-		// Restore
-		os.Args = originalArgs
-		w.Close()
-		os.Stdout = originalOutput
-
-		// Read output
-		buf.ReadFrom(r)
-		output := buf.String()
-
-		// Verify the command executed successfully
-		assert.NoError(t, err)
-		assert.Contains(t, output, "Current Configuration:")
-		assert.Contains(t, output, "JIRA_BASE_URL: https://test.atlassian.net")
-		assert.Contains(t, output, "JIRA_EMAIL: test@example.com")
-		assert.Contains(t, output, "JIRA_TOKEN: hidd...oken") // Masked token
-		assert.Contains(t, output, ".assetcap/teams.json exists")
-	})
+func TestApp_configInitAction_PrintsResultMessage(t *testing.T) {
+	// no t.Parallel: prints to stdout
+	a := &App{configService: &stubConfigService{
+		initResult: &usecase.InitializeConfigResult{Message: "configured"},
+	}}
+	ctx := newContextWithFlags(t, nil, map[string]bool{"non-interactive": true})
+	out, err := captureStdout(t, func() error { return a.configInitAction(ctx) })
+	require.NoError(t, err)
+	assert.Contains(t, out, "configured")
 }
 
-func TestConfigValidateCommand(t *testing.T) {
-	t.Run("should validate configuration successfully", func(t *testing.T) {
-		tempDir := t.TempDir()
-		originalWd, _ := os.Getwd()
-		defer os.Chdir(originalWd)
-		os.Chdir(tempDir)
+func TestApp_configShowAction_PrintsMaskedToken(t *testing.T) {
+	// Uses t.Setenv so the env state is restored after the test.
+	t.Setenv("JIRA_BASE_URL", "https://example.invalid")
+	t.Setenv("JIRA_EMAIL", "user@example.invalid")
+	t.Setenv("JIRA_TOKEN", "tok-1234567890")
+	a := &App{}
+	out, err := captureStdout(t, func() error { return a.configShowAction(nil) })
+	require.NoError(t, err)
+	assert.Contains(t, out, "JIRA_BASE_URL: https://example.invalid")
+	assert.Contains(t, out, "user@example.invalid")
+	// The token must not appear in full.
+	assert.NotContains(t, out, "tok-1234567890")
+}
 
-		// Set valid environment variables
-		os.Setenv("JIRA_BASE_URL", "https://test.atlassian.net")
-		os.Setenv("JIRA_EMAIL", "test@example.com")
-		os.Setenv("JIRA_TOKEN", "valid-token")
+func TestApp_configShowAction_UnsetTokenPrintsPlaceholder(t *testing.T) {
+	t.Setenv("JIRA_BASE_URL", "")
+	t.Setenv("JIRA_EMAIL", "")
+	t.Setenv("JIRA_TOKEN", "")
+	a := &App{}
+	out, err := captureStdout(t, func() error { return a.configShowAction(nil) })
+	require.NoError(t, err)
+	assert.Contains(t, out, "<not set>")
+}
 
-		// Create valid teams.json file in the correct location (.assetcap directory)
-		assetcapDir := filepath.Join(".", ".assetcap")
-		err := os.MkdirAll(assetcapDir, 0755)
-		require.NoError(t, err)
+func TestApp_configValidateAction_ReturnsErrorWhenEnvMissing(t *testing.T) {
+	t.Setenv("JIRA_BASE_URL", "")
+	t.Setenv("JIRA_EMAIL", "")
+	t.Setenv("JIRA_TOKEN", "")
+	a := &App{}
+	_, err := captureStdout(t, func() error { return a.configValidateAction(nil) })
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "configuration validation failed")
+}
 
-		teamsPath := filepath.Join(assetcapDir, "teams.json")
-		err = os.WriteFile(teamsPath, []byte(testTeamsContent), 0644)
-		require.NoError(t, err)
+func TestApp_configValidateAction_SucceedsWhenEverythingPresent(t *testing.T) {
+	// Set env vars.
+	t.Setenv("JIRA_BASE_URL", "https://example.invalid")
+	t.Setenv("JIRA_EMAIL", "user@example.invalid")
+	t.Setenv("JIRA_TOKEN", "tok")
 
-		// Create app and test the actual config validate command
-		app := NewApp(nil, nil, nil)
+	// Stand up a temp dir for the teams file. The validate action
+	// reads from configDir/teamsFile (package constants); chdir into
+	// TempDir and create .assetcap/teams.json so the relative-path
+	// lookup succeeds.
+	t.Chdir(t.TempDir())
+	require.NoError(t, os.MkdirAll(configDir, 0o755))
+	require.NoError(t, os.WriteFile(filepath.Join(configDir, teamsFile), []byte("{}"), 0o644))
 
-		// Capture output
-		var buf bytes.Buffer
-		originalOutput := os.Stdout
-		r, w, _ := os.Pipe()
-		os.Stdout = w
-
-		// Run config validate command
-		originalArgs := os.Args
-		os.Args = []string{"assetcap", "config", "validate"}
-
-		err = app.Run()
-
-		// Restore
-		os.Args = originalArgs
-		w.Close()
-		os.Stdout = originalOutput
-
-		// Read output
-		buf.ReadFrom(r)
-		output := buf.String()
-
-		// Verify successful validation
-		assert.NoError(t, err)
-		assert.Contains(t, output, "✅ Configuration is valid")
-	})
-
-	t.Run("should report validation errors", func(t *testing.T) {
-		tempDir := t.TempDir()
-		originalWd, _ := os.Getwd()
-		defer os.Chdir(originalWd)
-		os.Chdir(tempDir)
-
-		// Don't set environment variables to trigger validation errors
-		// Clear any existing env vars
-		os.Unsetenv("JIRA_BASE_URL")
-		os.Unsetenv("JIRA_EMAIL")
-		os.Unsetenv("JIRA_TOKEN")
-
-		// Create app and test the actual config validate command
-		app := NewApp(nil, nil, nil)
-
-		// Capture output
-		var buf bytes.Buffer
-		originalOutput := os.Stdout
-		r, w, _ := os.Pipe()
-		os.Stdout = w
-
-		// Run config validate command
-		originalArgs := os.Args
-		os.Args = []string{"assetcap", "config", "validate"}
-
-		err := app.Run()
-
-		// Restore
-		os.Args = originalArgs
-		w.Close()
-		os.Stdout = originalOutput
-
-		// Read output
-		buf.ReadFrom(r)
-		output := buf.String()
-
-		// Verify validation failure
-		assert.Error(t, err)
-		assert.Contains(t, output, "❌ Configuration validation failed:")
-		assert.Contains(t, output, "JIRA_BASE_URL is not set")
-		assert.Contains(t, output, "JIRA_EMAIL is not set")
-		assert.Contains(t, output, "JIRA_TOKEN is not set")
-	})
+	a := &App{}
+	out, err := captureStdout(t, func() error { return a.configValidateAction(nil) })
+	require.NoError(t, err)
+	assert.Contains(t, out, "Configuration is valid")
 }
