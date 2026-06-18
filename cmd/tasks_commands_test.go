@@ -10,7 +10,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	assetsapp "github.com/helmedeiros/digital-asset-capitalization/internal/assets/application"
 	assetdomain "github.com/helmedeiros/digital-asset-capitalization/internal/assets/domain"
 	taskdomain "github.com/helmedeiros/digital-asset-capitalization/internal/tasks/domain"
 	taskports "github.com/helmedeiros/digital-asset-capitalization/internal/tasks/domain/ports"
@@ -68,40 +67,8 @@ func (s *stubAssetServiceForTasks) GetAsset(string) (*assetdomain.Asset, error) 
 	return s.asset, s.assetErr
 }
 
-// unimplementedAssetService satisfies the AssetService interface by
-// panicking on every method. Embed it to opt-in only specific methods.
-type unimplementedAssetService struct{}
-
-func (unimplementedAssetService) CreateAsset(string, string) error            { panic("not used") }
-func (unimplementedAssetService) ListAssets() ([]*assetdomain.Asset, error)   { panic("not used") }
-func (unimplementedAssetService) GetAsset(string) (*assetdomain.Asset, error) { panic("not used") }
-func (unimplementedAssetService) DeleteAsset(string, bool) error              { panic("not used") }
-func (unimplementedAssetService) UpdateAsset(string, string, string, string, string, string) error {
-	panic("not used")
-}
-func (unimplementedAssetService) UpdateDocumentation(string) error { panic("not used") }
-func (unimplementedAssetService) IncrementTaskCount(string) error  { panic("not used") }
-func (unimplementedAssetService) DecrementTaskCount(string) error  { panic("not used") }
-func (unimplementedAssetService) SyncFromConfluence(string, string, bool) (*assetdomain.SyncResult, error) {
-	panic("not used")
-}
-func (unimplementedAssetService) EnrichAsset(string, string) error          { panic("not used") }
-func (unimplementedAssetService) GenerateKeywords(string) error             { panic("not used") }
-func (unimplementedAssetService) AssignTeam(string, string, []string) error { panic("not used") }
-func (unimplementedAssetService) GetAssetTeams() ([]assetsapp.AssetTeamInfo, error) {
-	panic("not used")
-}
-func (unimplementedAssetService) GetAssetTeamInfo(string) (*assetsapp.AssetTeamInfo, error) {
-	panic("not used")
-}
-func (unimplementedAssetService) AddContributingTeam(string, string) error    { panic("not used") }
-func (unimplementedAssetService) RemoveContributingTeam(string, string) error { panic("not used") }
-func (unimplementedAssetService) PublishToConfluence(context.Context, string, string, string, bool, bool) (*assetsapp.PublishToConfluenceResult, error) {
-	panic("not used")
-}
-func (unimplementedAssetService) UpdateConfluencePage(context.Context, string, bool, bool) (*assetsapp.PublishToConfluenceResult, error) {
-	panic("not used")
-}
+// unimplementedAssetService is defined in assets_commands_test.go and
+// shared across tests in this package.
 
 func TestApp_tasksFetchAction_KeyConflictsWithProjectSprint(t *testing.T) {
 	t.Parallel()
