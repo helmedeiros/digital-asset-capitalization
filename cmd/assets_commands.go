@@ -235,27 +235,11 @@ func (a *App) createAssetsCommand() *cli.Command {
 				Usage: "Manage asset documentation",
 				Subcommands: []*cli.Command{
 					{
-						Name:  "update",
-						Usage: "Mark asset documentation as updated",
-						Action: func(ctx *cli.Context) error {
-							assetName := ctx.String("asset")
-							// First check if the asset exists
-							_, err := a.assetService.GetAsset(assetName)
-							if err != nil {
-								return err
-							}
-							if err := a.assetService.UpdateDocumentation(assetName); err != nil {
-								return err
-							}
-							fmt.Printf("Marked documentation as updated for asset %s\n", assetName)
-							return nil
-						},
+						Name:   "update",
+						Usage:  "Mark asset documentation as updated",
+						Action: a.assetsDocUpdateAction,
 						Flags: []cli.Flag{
-							&cli.StringFlag{
-								Name:     "asset",
-								Usage:    "Asset name",
-								Required: true,
-							},
+							&cli.StringFlag{Name: "asset", Usage: "Asset name", Required: true},
 						},
 					},
 				},
@@ -265,51 +249,19 @@ func (a *App) createAssetsCommand() *cli.Command {
 				Usage: "Manage asset tasks",
 				Subcommands: []*cli.Command{
 					{
-						Name:  "increment",
-						Usage: "Increment task count for an asset",
-						Action: func(ctx *cli.Context) error {
-							assetName := ctx.String("asset")
-							// First check if the asset exists
-							_, err := a.assetService.GetAsset(assetName)
-							if err != nil {
-								return err
-							}
-							if err := a.assetService.IncrementTaskCount(assetName); err != nil {
-								return err
-							}
-							fmt.Printf("Incremented task count for asset %s\n", assetName)
-							return nil
-						},
+						Name:   "increment",
+						Usage:  "Increment task count for an asset",
+						Action: a.assetsTasksIncrementAction,
 						Flags: []cli.Flag{
-							&cli.StringFlag{
-								Name:     "asset",
-								Usage:    "Asset name",
-								Required: true,
-							},
+							&cli.StringFlag{Name: "asset", Usage: "Asset name", Required: true},
 						},
 					},
 					{
-						Name:  "decrement",
-						Usage: "Decrement task count for an asset",
-						Action: func(ctx *cli.Context) error {
-							assetName := ctx.String("asset")
-							// First check if the asset exists
-							_, err := a.assetService.GetAsset(assetName)
-							if err != nil {
-								return err
-							}
-							if err := a.assetService.DecrementTaskCount(assetName); err != nil {
-								return err
-							}
-							fmt.Printf("Decremented task count for asset %s\n", assetName)
-							return nil
-						},
+						Name:   "decrement",
+						Usage:  "Decrement task count for an asset",
+						Action: a.assetsTasksDecrementAction,
 						Flags: []cli.Flag{
-							&cli.StringFlag{
-								Name:     "asset",
-								Usage:    "Asset name",
-								Required: true,
-							},
+							&cli.StringFlag{Name: "asset", Usage: "Asset name", Required: true},
 						},
 					},
 				},
@@ -607,169 +559,44 @@ func (a *App) createAssetsCommand() *cli.Command {
 				Usage: "Manage asset team assignments",
 				Subcommands: []*cli.Command{
 					{
-						Name:  "assign",
-						Usage: "Assign teams to an asset",
-						Action: func(ctx *cli.Context) error {
-							assetName := ctx.String("asset")
-							owningTeam := ctx.String("owner")
-							contributingTeamsInput := ctx.String("contributors")
-
-							// Parse contributing teams from comma-separated string
-							var contributingTeams []string
-							if contributingTeamsInput != "" {
-								teams := strings.Split(contributingTeamsInput, ",")
-								for _, team := range teams {
-									if trimmed := strings.TrimSpace(team); trimmed != "" {
-										contributingTeams = append(contributingTeams, trimmed)
-									}
-								}
-							}
-
-							if err := a.assetService.AssignTeam(assetName, owningTeam, contributingTeams); err != nil {
-								return err
-							}
-
-							fmt.Printf("✓ Successfully assigned teams to asset '%s'\n", assetName)
-							if owningTeam != "" {
-								fmt.Printf("  Owner: %s\n", owningTeam)
-							}
-							if len(contributingTeams) > 0 {
-								fmt.Printf("  Contributors: %s\n", strings.Join(contributingTeams, ", "))
-							}
-							return nil
-						},
+						Name:   "assign",
+						Usage:  "Assign teams to an asset",
+						Action: a.assetsTeamsAssignAction,
 						Flags: []cli.Flag{
-							&cli.StringFlag{
-								Name:     "asset",
-								Usage:    "Asset name",
-								Required: true,
-							},
-							&cli.StringFlag{
-								Name:  "owner",
-								Usage: "Owning team",
-							},
-							&cli.StringFlag{
-								Name:  "contributors",
-								Usage: "Contributing teams (comma-separated)",
-							},
+							&cli.StringFlag{Name: "asset", Usage: "Asset name", Required: true},
+							&cli.StringFlag{Name: "owner", Usage: "Owning team"},
+							&cli.StringFlag{Name: "contributors", Usage: "Contributing teams (comma-separated)"},
 						},
 					},
 					{
-						Name:  "list",
-						Usage: "List asset team assignments",
-						Action: func(_ *cli.Context) error {
-							assetTeams, err := a.assetService.GetAssetTeams()
-							if err != nil {
-								return err
-							}
-
-							if len(assetTeams) == 0 {
-								fmt.Println("No team assignments found")
-								return nil
-							}
-
-							fmt.Println("Asset Team Assignments:")
-							fmt.Println("═══════════════════════════════════════")
-							for _, info := range assetTeams {
-								fmt.Printf("📦 %s\n", info.AssetName)
-								if info.OwningTeam != "" {
-									fmt.Printf("  👤 Owner: %s\n", info.OwningTeam)
-								}
-								if len(info.ContributingTeams) > 0 {
-									fmt.Printf("  🤝 Contributors: %s\n", strings.Join(info.ContributingTeams, ", "))
-								}
-								fmt.Println()
-							}
-							return nil
+						Name:   "list",
+						Usage:  "List asset team assignments",
+						Action: a.assetsTeamsListAction,
+					},
+					{
+						Name:   "show",
+						Usage:  "Show team assignments for a specific asset",
+						Action: a.assetsTeamsShowAction,
+						Flags: []cli.Flag{
+							&cli.StringFlag{Name: "asset", Usage: "Asset name", Required: true},
 						},
 					},
 					{
-						Name:  "show",
-						Usage: "Show team assignments for a specific asset",
-						Action: func(ctx *cli.Context) error {
-							assetName := ctx.String("asset")
-
-							info, err := a.assetService.GetAssetTeamInfo(assetName)
-							if err != nil {
-								return err
-							}
-
-							fmt.Printf("Team Assignments for '%s':\n", info.AssetName)
-							fmt.Println("─────────────────────────────────")
-							if info.OwningTeam != "" {
-								fmt.Printf("👤 Owner: %s\n", info.OwningTeam)
-							} else {
-								fmt.Println("👤 Owner: Not assigned")
-							}
-
-							if len(info.ContributingTeams) > 0 {
-								fmt.Printf("🤝 Contributors: %s\n", strings.Join(info.ContributingTeams, ", "))
-							} else {
-								fmt.Println("🤝 Contributors: None")
-							}
-
-							return nil
-						},
+						Name:   "add-contributor",
+						Usage:  "Add a contributing team to an asset",
+						Action: a.assetsTeamsAddContributorAction,
 						Flags: []cli.Flag{
-							&cli.StringFlag{
-								Name:     "asset",
-								Usage:    "Asset name",
-								Required: true,
-							},
+							&cli.StringFlag{Name: "asset", Usage: "Asset name", Required: true},
+							&cli.StringFlag{Name: "team", Usage: "Team name to add as contributor", Required: true},
 						},
 					},
 					{
-						Name:  "add-contributor",
-						Usage: "Add a contributing team to an asset",
-						Action: func(ctx *cli.Context) error {
-							assetName := ctx.String("asset")
-							teamName := ctx.String("team")
-
-							if err := a.assetService.AddContributingTeam(assetName, teamName); err != nil {
-								return err
-							}
-
-							fmt.Printf("✓ Added '%s' as contributor to asset '%s'\n", teamName, assetName)
-							return nil
-						},
+						Name:   "remove-contributor",
+						Usage:  "Remove a contributing team from an asset",
+						Action: a.assetsTeamsRemoveContributorAction,
 						Flags: []cli.Flag{
-							&cli.StringFlag{
-								Name:     "asset",
-								Usage:    "Asset name",
-								Required: true,
-							},
-							&cli.StringFlag{
-								Name:     "team",
-								Usage:    "Team name to add as contributor",
-								Required: true,
-							},
-						},
-					},
-					{
-						Name:  "remove-contributor",
-						Usage: "Remove a contributing team from an asset",
-						Action: func(ctx *cli.Context) error {
-							assetName := ctx.String("asset")
-							teamName := ctx.String("team")
-
-							if err := a.assetService.RemoveContributingTeam(assetName, teamName); err != nil {
-								return err
-							}
-
-							fmt.Printf("✓ Removed '%s' as contributor from asset '%s'\n", teamName, assetName)
-							return nil
-						},
-						Flags: []cli.Flag{
-							&cli.StringFlag{
-								Name:     "asset",
-								Usage:    "Asset name",
-								Required: true,
-							},
-							&cli.StringFlag{
-								Name:     "team",
-								Usage:    "Team name to remove as contributor",
-								Required: true,
-							},
+							&cli.StringFlag{Name: "asset", Usage: "Asset name", Required: true},
+							&cli.StringFlag{Name: "team", Usage: "Team name to remove as contributor", Required: true},
 						},
 					},
 				},
@@ -904,5 +731,139 @@ func (a *App) assetsKeywordsAction(ctx *cli.Context) error {
 		return err
 	}
 	fmt.Printf("Generated keywords for asset: %s\n", name)
+	return nil
+}
+
+// assetsDocUpdateAction backs `assetcap assets documentation update`.
+// Pre-checks the asset exists so a typo produces a clear "not found"
+// instead of a misleading downstream error.
+func (a *App) assetsDocUpdateAction(ctx *cli.Context) error {
+	assetName := ctx.String("asset")
+	if _, err := a.assetService.GetAsset(assetName); err != nil {
+		return err
+	}
+	if err := a.assetService.UpdateDocumentation(assetName); err != nil {
+		return err
+	}
+	fmt.Printf("Marked documentation as updated for asset %s\n", assetName)
+	return nil
+}
+
+// assetsTasksIncrementAction backs `assetcap assets tasks increment`.
+func (a *App) assetsTasksIncrementAction(ctx *cli.Context) error {
+	assetName := ctx.String("asset")
+	if _, err := a.assetService.GetAsset(assetName); err != nil {
+		return err
+	}
+	if err := a.assetService.IncrementTaskCount(assetName); err != nil {
+		return err
+	}
+	fmt.Printf("Incremented task count for asset %s\n", assetName)
+	return nil
+}
+
+// assetsTasksDecrementAction backs `assetcap assets tasks decrement`.
+func (a *App) assetsTasksDecrementAction(ctx *cli.Context) error {
+	assetName := ctx.String("asset")
+	if _, err := a.assetService.GetAsset(assetName); err != nil {
+		return err
+	}
+	if err := a.assetService.DecrementTaskCount(assetName); err != nil {
+		return err
+	}
+	fmt.Printf("Decremented task count for asset %s\n", assetName)
+	return nil
+}
+
+// assetsTeamsAssignAction backs `assetcap assets teams assign`.
+func (a *App) assetsTeamsAssignAction(ctx *cli.Context) error {
+	assetName := ctx.String("asset")
+	owningTeam := ctx.String("owner")
+	contributingTeams := parseCommaSeparated(ctx.String("contributors"))
+
+	if err := a.assetService.AssignTeam(assetName, owningTeam, contributingTeams); err != nil {
+		return err
+	}
+
+	fmt.Printf("✓ Successfully assigned teams to asset '%s'\n", assetName)
+	if owningTeam != "" {
+		fmt.Printf("  Owner: %s\n", owningTeam)
+	}
+	if len(contributingTeams) > 0 {
+		fmt.Printf("  Contributors: %s\n", strings.Join(contributingTeams, ", "))
+	}
+	return nil
+}
+
+// assetsTeamsListAction backs `assetcap assets teams list`.
+func (a *App) assetsTeamsListAction(_ *cli.Context) error {
+	assetTeams, err := a.assetService.GetAssetTeams()
+	if err != nil {
+		return err
+	}
+
+	if len(assetTeams) == 0 {
+		fmt.Println("No team assignments found")
+		return nil
+	}
+
+	fmt.Println("Asset Team Assignments:")
+	fmt.Println("═══════════════════════════════════════")
+	for _, info := range assetTeams {
+		fmt.Printf("📦 %s\n", info.AssetName)
+		if info.OwningTeam != "" {
+			fmt.Printf("  👤 Owner: %s\n", info.OwningTeam)
+		}
+		if len(info.ContributingTeams) > 0 {
+			fmt.Printf("  🤝 Contributors: %s\n", strings.Join(info.ContributingTeams, ", "))
+		}
+		fmt.Println()
+	}
+	return nil
+}
+
+// assetsTeamsShowAction backs `assetcap assets teams show`.
+func (a *App) assetsTeamsShowAction(ctx *cli.Context) error {
+	assetName := ctx.String("asset")
+	info, err := a.assetService.GetAssetTeamInfo(assetName)
+	if err != nil {
+		return err
+	}
+
+	fmt.Printf("Team Assignments for '%s':\n", info.AssetName)
+	fmt.Println("─────────────────────────────────")
+	if info.OwningTeam != "" {
+		fmt.Printf("👤 Owner: %s\n", info.OwningTeam)
+	} else {
+		fmt.Println("👤 Owner: Not assigned")
+	}
+
+	if len(info.ContributingTeams) > 0 {
+		fmt.Printf("🤝 Contributors: %s\n", strings.Join(info.ContributingTeams, ", "))
+	} else {
+		fmt.Println("🤝 Contributors: None")
+	}
+	return nil
+}
+
+// assetsTeamsAddContributorAction backs `assetcap assets teams add-contributor`.
+func (a *App) assetsTeamsAddContributorAction(ctx *cli.Context) error {
+	assetName := ctx.String("asset")
+	teamName := ctx.String("team")
+	if err := a.assetService.AddContributingTeam(assetName, teamName); err != nil {
+		return err
+	}
+	fmt.Printf("✓ Added '%s' as contributor to asset '%s'\n", teamName, assetName)
+	return nil
+}
+
+// assetsTeamsRemoveContributorAction backs `assetcap assets teams remove-contributor`.
+func (a *App) assetsTeamsRemoveContributorAction(ctx *cli.Context) error {
+	assetName := ctx.String("asset")
+	teamName := ctx.String("team")
+	if err := a.assetService.RemoveContributingTeam(assetName, teamName); err != nil {
+		return err
+	}
+	fmt.Printf("✓ Removed '%s' as contributor from asset '%s'\n", teamName, assetName)
 	return nil
 }
