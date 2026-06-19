@@ -59,6 +59,7 @@ type App struct {
 	taskService        tasksapp.TaskService
 	sprintService      sprintapp.SprintService
 	configService      ConfigService
+	teamConfigService  TeamConfigService
 	investmentService  *investmentservice.InvestmentService
 	deploymentService  *deploymentsapp.DeploymentService
 	deploymentRepo     deploymentports.DeploymentRepository
@@ -72,6 +73,19 @@ type App struct {
 type ConfigService interface {
 	InitializeConfig(interactive bool) (*usecase.InitializeConfigResult, error)
 	GetJiraConfig() (*domain.JiraConfig, error)
+}
+
+// TeamConfigService is the subset of *service.ConfigService that the
+// team-tribe / team-company subcommand Actions call. Pulling it out
+// as an interface lets tests inject a stub without standing up the
+// JSON file repository, and decouples the cmd/ Actions from a
+// concrete service type.
+type TeamConfigService interface {
+	GetTeamConfig() (*domain.TeamConfig, error)
+	SetTribeForProject(project, tribe string) error
+	GetTribeForProject(project string) (string, error)
+	SetCompanyForProject(project, company string) error
+	GetCompanyForProject(project string) (string, error)
 }
 
 // configServiceImpl implements ConfigService
