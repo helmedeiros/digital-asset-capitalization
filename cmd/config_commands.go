@@ -189,130 +189,27 @@ func (a *App) createConfigCommand() *cli.Command {
 				Usage: "Manage board-to-workstream mappings per project",
 				Subcommands: []*cli.Command{
 					{
-						Name:  "set",
-						Usage: "Set work stream for a board in a project",
-						Action: func(ctx *cli.Context) error {
-							project := ctx.String("project")
-							boardID := ctx.Int("board")
-							workStream := ctx.String("work-stream")
-
-							if project == "" {
-								return fmt.Errorf("project is required")
-							}
-							if boardID == 0 {
-								return fmt.Errorf("board ID is required")
-							}
-							if workStream == "" {
-								return fmt.Errorf("work-stream is required")
-							}
-
-							configRepo := configinfra.NewFileRepository(configDir)
-							configSvc := service.NewConfigService(configRepo)
-
-							if err := configSvc.SetBoardWorkStream(project, boardID, workStream); err != nil {
-								return fmt.Errorf("failed to set board work stream: %v", err)
-							}
-
-							fmt.Printf("Set board %d -> '%s' for project '%s'\n", boardID, workStream, project)
-							return nil
-						},
+						Name:   "set",
+						Usage:  "Set work stream for a board in a project",
+						Action: a.configBoardWorkStreamsSetAction,
 						Flags: []cli.Flag{
-							&cli.StringFlag{
-								Name:     "project",
-								Aliases:  []string{"p"},
-								Usage:    "Project key (e.g., COP)",
-								Required: true,
-							},
-							&cli.IntFlag{
-								Name:     "board",
-								Aliases:  []string{"b"},
-								Usage:    "Board ID (e.g., 5119)",
-								Required: true,
-							},
-							&cli.StringFlag{
-								Name:     "work-stream",
-								Aliases:  []string{"ws"},
-								Usage:    "Work stream name (e.g., Product, Operational)",
-								Required: true,
-							},
+							&cli.StringFlag{Name: "project", Aliases: []string{"p"}, Usage: "Project key (e.g., COP)", Required: true},
+							&cli.IntFlag{Name: "board", Aliases: []string{"b"}, Usage: "Board ID (e.g., 5119)", Required: true},
+							&cli.StringFlag{Name: "work-stream", Aliases: []string{"ws"}, Usage: "Work stream name (e.g., Product, Operational)", Required: true},
 						},
 					},
 					{
-						Name:  "show",
-						Usage: "Show board-to-workstream mappings for a specific project",
-						Action: func(ctx *cli.Context) error {
-							project := ctx.String("project")
-							if project == "" {
-								return fmt.Errorf("project is required")
-							}
-
-							configRepo := configinfra.NewFileRepository(configDir)
-							configSvc := service.NewConfigService(configRepo)
-
-							teamConfig, err := configSvc.GetTeamConfig()
-							if err != nil {
-								return fmt.Errorf("failed to load team config: %v", err)
-							}
-
-							mapping := teamConfig.GetBoardWorkStreams(project)
-							if len(mapping) == 0 {
-								fmt.Printf("Project '%s' has no board-to-workstream mappings\n", project)
-							} else {
-								fmt.Printf("Board Work Streams for '%s':\n", project)
-								for boardID, ws := range mapping {
-									fmt.Printf("  Board %d -> %s\n", boardID, ws)
-								}
-							}
-							return nil
-						},
+						Name:   "show",
+						Usage:  "Show board-to-workstream mappings for a specific project",
+						Action: a.configBoardWorkStreamsShowAction,
 						Flags: []cli.Flag{
-							&cli.StringFlag{
-								Name:     "project",
-								Aliases:  []string{"p"},
-								Usage:    "Project key (e.g., COP)",
-								Required: true,
-							},
+							&cli.StringFlag{Name: "project", Aliases: []string{"p"}, Usage: "Project key (e.g., COP)", Required: true},
 						},
 					},
 					{
-						Name:  "list",
-						Usage: "List board-to-workstream mappings for all projects",
-						Action: func(_ *cli.Context) error {
-							configRepo := configinfra.NewFileRepository(configDir)
-							configSvc := service.NewConfigService(configRepo)
-
-							teamConfig, err := configSvc.GetTeamConfig()
-							if err != nil {
-								return fmt.Errorf("failed to load team config: %v", err)
-							}
-
-							projects := teamConfig.GetProjects()
-							if len(projects) == 0 {
-								fmt.Println("No teams configured")
-								return nil
-							}
-
-							fmt.Println("Board Work Streams:")
-							fmt.Println("===================")
-
-							found := false
-							for _, project := range projects {
-								mapping := teamConfig.GetBoardWorkStreams(project)
-								if len(mapping) > 0 {
-									fmt.Printf("  %s:\n", project)
-									for boardID, ws := range mapping {
-										fmt.Printf("    Board %d -> %s\n", boardID, ws)
-									}
-									found = true
-								}
-							}
-
-							if !found {
-								fmt.Println("  No board-to-workstream mappings configured")
-							}
-
-							return nil
-						},
+						Name:   "list",
+						Usage:  "List board-to-workstream mappings for all projects",
+						Action: a.configBoardWorkStreamsListAction,
 					},
 				},
 			},
@@ -956,6 +853,86 @@ func (a *App) configExcludedIssueTypesShowAction(ctx *cli.Context) error {
 		fmt.Printf("Project '%s' has no excluded issue types\n", project)
 	} else {
 		fmt.Printf("Project '%s' excludes: %s\n", project, strings.Join(types, ", "))
+	}
+	return nil
+}
+
+// configBoardWorkStreamsSetAction backs `assetcap config board-work-streams set`.
+func (a *App) configBoardWorkStreamsSetAction(ctx *cli.Context) error {
+	project := ctx.String("project")
+	boardID := ctx.Int("board")
+	workStream := ctx.String("work-stream")
+	if project == "" {
+		return fmt.Errorf("project is required")
+	}
+	if boardID == 0 {
+		return fmt.Errorf("board ID is required")
+	}
+	if workStream == "" {
+		return fmt.Errorf("work-stream is required")
+	}
+	a.ensureTeamConfigService()
+	if err := a.teamConfigService.SetBoardWorkStream(project, boardID, workStream); err != nil {
+		return fmt.Errorf("failed to set board work stream: %v", err)
+	}
+	fmt.Printf("Set board %d -> '%s' for project '%s'\n", boardID, workStream, project)
+	return nil
+}
+
+// configBoardWorkStreamsShowAction backs `assetcap config board-work-streams show`.
+func (a *App) configBoardWorkStreamsShowAction(ctx *cli.Context) error {
+	project := ctx.String("project")
+	if project == "" {
+		return fmt.Errorf("project is required")
+	}
+	a.ensureTeamConfigService()
+	teamConfig, err := a.teamConfigService.GetTeamConfig()
+	if err != nil {
+		return fmt.Errorf("failed to load team config: %v", err)
+	}
+	mapping := teamConfig.GetBoardWorkStreams(project)
+	if len(mapping) == 0 {
+		fmt.Printf("Project '%s' has no board-to-workstream mappings\n", project)
+	} else {
+		fmt.Printf("Board Work Streams for '%s':\n", project)
+		for boardID, ws := range mapping {
+			fmt.Printf("  Board %d -> %s\n", boardID, ws)
+		}
+	}
+	return nil
+}
+
+// configBoardWorkStreamsListAction backs `assetcap config board-work-streams list`.
+func (a *App) configBoardWorkStreamsListAction(_ *cli.Context) error {
+	a.ensureTeamConfigService()
+	teamConfig, err := a.teamConfigService.GetTeamConfig()
+	if err != nil {
+		return fmt.Errorf("failed to load team config: %v", err)
+	}
+
+	projects := teamConfig.GetProjects()
+	if len(projects) == 0 {
+		fmt.Println("No teams configured")
+		return nil
+	}
+
+	fmt.Println("Board Work Streams:")
+	fmt.Println("===================")
+
+	found := false
+	for _, project := range projects {
+		mapping := teamConfig.GetBoardWorkStreams(project)
+		if len(mapping) > 0 {
+			fmt.Printf("  %s:\n", project)
+			for boardID, ws := range mapping {
+				fmt.Printf("    Board %d -> %s\n", boardID, ws)
+			}
+			found = true
+		}
+	}
+
+	if !found {
+		fmt.Println("  No board-to-workstream mappings configured")
 	}
 	return nil
 }

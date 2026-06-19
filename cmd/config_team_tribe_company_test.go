@@ -40,6 +40,9 @@ func (s *stubTeamConfigService) SetCompanyForProject(string, string) error {
 func (s *stubTeamConfigService) GetCompanyForProject(string) (string, error) {
 	return s.company, s.companyErr
 }
+func (s *stubTeamConfigService) SetBoardWorkStream(string, int, string) error {
+	return nil
+}
 
 // SetExcludedIssueTypesForProject and GetExcludedIssueTypesForProject
 // satisfy the TeamConfigService interface (their dedicated tests use
