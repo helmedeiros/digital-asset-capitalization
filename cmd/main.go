@@ -55,18 +55,20 @@ var (
 
 // App holds all the application dependencies
 type App struct {
-	assetService       assetsapp.AssetService
-	taskService        tasksapp.TaskService
-	sprintService      sprintapp.SprintService
-	configService      ConfigService
-	teamConfigService  TeamConfigService
-	investmentService  *investmentservice.InvestmentService
-	deploymentService  *deploymentsapp.DeploymentService
-	deploymentRepo     deploymentports.DeploymentRepository
-	teamResolver       *configapp.TeamResolverService
-	taskRepo           taskports.TaskRepository
-	taskClassifier     taskports.TaskClassifier
-	allocationLockRepo taskports.SprintLockRepository
+	assetService           assetsapp.AssetService
+	taskService            tasksapp.TaskService
+	sprintService          sprintapp.SprintService
+	configService          ConfigService
+	teamConfigService      TeamConfigService
+	syncTeamService        SyncTeamFromJiraService
+	syncTeamServiceFactory func() (SyncTeamFromJiraService, error)
+	investmentService      *investmentservice.InvestmentService
+	deploymentService      *deploymentsapp.DeploymentService
+	deploymentRepo         deploymentports.DeploymentRepository
+	teamResolver           *configapp.TeamResolverService
+	taskRepo               taskports.TaskRepository
+	taskClassifier         taskports.TaskClassifier
+	allocationLockRepo     taskports.SprintLockRepository
 }
 
 // ConfigService interface for configuration operations
@@ -91,6 +93,14 @@ type TeamConfigService interface {
 	SetExcludedIssueTypesForProject(project string, types []string) error
 	GetExcludedIssueTypesForProject(project string) ([]string, error)
 	SetBoardWorkStream(project string, boardID int, workStream string) error
+}
+
+// SyncTeamFromJiraService is the subset of *usecase.SyncTeamFromJira
+// that the `config sync-team` Action needs. Pulling it out as an
+// interface lets tests inject a stub without standing up the JIRA
+// adapter (which depends on env vars and reaches the network).
+type SyncTeamFromJiraService interface {
+	Execute(projectKey string) (*domain.TeamSyncResult, error)
 }
 
 // configServiceImpl implements ConfigService
