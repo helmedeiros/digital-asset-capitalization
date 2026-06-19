@@ -321,146 +321,33 @@ func (a *App) createConfigCommand() *cli.Command {
 				Usage: "Manage excluded issue types for sprint allocation per project",
 				Subcommands: []*cli.Command{
 					{
-						Name:  "set",
-						Usage: "Set excluded issue types for a project (comma-separated)",
-						Action: func(ctx *cli.Context) error {
-							project := ctx.String("project")
-							typesStr := ctx.String("types")
-
-							if project == "" {
-								return fmt.Errorf("project is required")
-							}
-							if typesStr == "" {
-								return fmt.Errorf("types is required")
-							}
-
-							types := strings.Split(typesStr, ",")
-							for i, t := range types {
-								types[i] = strings.TrimSpace(t)
-							}
-
-							configRepo := configinfra.NewFileRepository(configDir)
-							configSvc := service.NewConfigService(configRepo)
-
-							if err := configSvc.SetExcludedIssueTypesForProject(project, types); err != nil {
-								return fmt.Errorf("failed to set excluded issue types: %v", err)
-							}
-
-							fmt.Printf("Set excluded issue types for project '%s': %s\n", project, strings.Join(types, ", "))
-							return nil
-						},
+						Name:   "set",
+						Usage:  "Set excluded issue types for a project (comma-separated)",
+						Action: a.configExcludedIssueTypesSetAction,
 						Flags: []cli.Flag{
-							&cli.StringFlag{
-								Name:     "project",
-								Aliases:  []string{"p"},
-								Usage:    "Project key (e.g., COP)",
-								Required: true,
-							},
-							&cli.StringFlag{
-								Name:     "types",
-								Aliases:  []string{"t"},
-								Usage:    "Comma-separated issue types to exclude (e.g., 'Experiment,Spike')",
-								Required: true,
-							},
+							&cli.StringFlag{Name: "project", Aliases: []string{"p"}, Usage: "Project key (e.g., COP)", Required: true},
+							&cli.StringFlag{Name: "types", Aliases: []string{"t"}, Usage: "Comma-separated issue types to exclude (e.g., 'Experiment,Spike')", Required: true},
 						},
 					},
 					{
-						Name:  "clear",
-						Usage: "Clear excluded issue types for a project",
-						Action: func(ctx *cli.Context) error {
-							project := ctx.String("project")
-							if project == "" {
-								return fmt.Errorf("project is required")
-							}
-
-							configRepo := configinfra.NewFileRepository(configDir)
-							configSvc := service.NewConfigService(configRepo)
-
-							if err := configSvc.SetExcludedIssueTypesForProject(project, nil); err != nil {
-								return fmt.Errorf("failed to clear excluded issue types: %v", err)
-							}
-
-							fmt.Printf("Cleared excluded issue types for project '%s'\n", project)
-							return nil
-						},
+						Name:   "clear",
+						Usage:  "Clear excluded issue types for a project",
+						Action: a.configExcludedIssueTypesClearAction,
 						Flags: []cli.Flag{
-							&cli.StringFlag{
-								Name:     "project",
-								Aliases:  []string{"p"},
-								Usage:    "Project key (e.g., COP)",
-								Required: true,
-							},
+							&cli.StringFlag{Name: "project", Aliases: []string{"p"}, Usage: "Project key (e.g., COP)", Required: true},
 						},
 					},
 					{
-						Name:  "list",
-						Usage: "List excluded issue types for all projects",
-						Action: func(_ *cli.Context) error {
-							configRepo := configinfra.NewFileRepository(configDir)
-							configSvc := service.NewConfigService(configRepo)
-
-							teamConfig, err := configSvc.GetTeamConfig()
-							if err != nil {
-								return fmt.Errorf("failed to load team config: %v", err)
-							}
-
-							projects := teamConfig.GetProjects()
-							if len(projects) == 0 {
-								fmt.Println("No teams configured")
-								return nil
-							}
-
-							fmt.Println("Excluded Issue Types:")
-							fmt.Println("=====================")
-
-							found := false
-							for _, project := range projects {
-								types := teamConfig.GetExcludedIssueTypes(project)
-								if len(types) > 0 {
-									fmt.Printf("  %s: %s\n", project, strings.Join(types, ", "))
-									found = true
-								}
-							}
-
-							if !found {
-								fmt.Println("  No excluded issue types configured for any project")
-							}
-
-							return nil
-						},
+						Name:   "list",
+						Usage:  "List excluded issue types for all projects",
+						Action: a.configExcludedIssueTypesListAction,
 					},
 					{
-						Name:  "show",
-						Usage: "Show excluded issue types for a specific project",
-						Action: func(ctx *cli.Context) error {
-							project := ctx.String("project")
-							if project == "" {
-								return fmt.Errorf("project is required")
-							}
-
-							configRepo := configinfra.NewFileRepository(configDir)
-							configSvc := service.NewConfigService(configRepo)
-
-							types, err := configSvc.GetExcludedIssueTypesForProject(project)
-							if err != nil {
-								return fmt.Errorf("failed to get excluded issue types: %v", err)
-							}
-
-							if len(types) == 0 {
-								fmt.Printf("Project '%s' has no excluded issue types\n", project)
-							} else {
-								fmt.Printf("Project '%s' excludes: %s\n", project, strings.Join(types, ", "))
-							}
-
-							return nil
-						},
+						Name:   "show",
+						Usage:  "Show excluded issue types for a specific project",
+						Action: a.configExcludedIssueTypesShowAction,
 						Flags: []cli.Flag{
-							&cli.StringFlag{
-								Name:     "project",
-								Aliases:  []string{"p"},
-								Usage:    "Project key (e.g., COP)",
-								Required: true,
-							},
+							&cli.StringFlag{Name: "project", Aliases: []string{"p"}, Usage: "Project key (e.g., COP)", Required: true},
 						},
 					},
 				},
@@ -983,6 +870,92 @@ func (a *App) configTeamCompanyShowAction(ctx *cli.Context) error {
 		fmt.Printf("Project '%s' has no company assigned\n", project)
 	} else {
 		fmt.Printf("Project '%s' belongs to company: %s\n", project, company)
+	}
+	return nil
+}
+
+// configExcludedIssueTypesSetAction backs `assetcap config excluded-issue-types set`.
+func (a *App) configExcludedIssueTypesSetAction(ctx *cli.Context) error {
+	project := ctx.String("project")
+	typesStr := ctx.String("types")
+	if project == "" {
+		return fmt.Errorf("project is required")
+	}
+	if typesStr == "" {
+		return fmt.Errorf("types is required")
+	}
+	types := parseCommaSeparated(typesStr)
+	a.ensureTeamConfigService()
+	if err := a.teamConfigService.SetExcludedIssueTypesForProject(project, types); err != nil {
+		return fmt.Errorf("failed to set excluded issue types: %v", err)
+	}
+	fmt.Printf("Set excluded issue types for project '%s': %s\n", project, strings.Join(types, ", "))
+	return nil
+}
+
+// configExcludedIssueTypesClearAction backs `assetcap config excluded-issue-types clear`.
+func (a *App) configExcludedIssueTypesClearAction(ctx *cli.Context) error {
+	project := ctx.String("project")
+	if project == "" {
+		return fmt.Errorf("project is required")
+	}
+	a.ensureTeamConfigService()
+	if err := a.teamConfigService.SetExcludedIssueTypesForProject(project, nil); err != nil {
+		return fmt.Errorf("failed to clear excluded issue types: %v", err)
+	}
+	fmt.Printf("Cleared excluded issue types for project '%s'\n", project)
+	return nil
+}
+
+// configExcludedIssueTypesListAction backs `assetcap config excluded-issue-types list`.
+// Walks every project the team config knows about and renders the
+// ones with non-empty excluded-types lists.
+func (a *App) configExcludedIssueTypesListAction(_ *cli.Context) error {
+	a.ensureTeamConfigService()
+	teamConfig, err := a.teamConfigService.GetTeamConfig()
+	if err != nil {
+		return fmt.Errorf("failed to load team config: %v", err)
+	}
+
+	projects := teamConfig.GetProjects()
+	if len(projects) == 0 {
+		fmt.Println("No teams configured")
+		return nil
+	}
+
+	fmt.Println("Excluded Issue Types:")
+	fmt.Println("=====================")
+
+	found := false
+	for _, project := range projects {
+		types := teamConfig.GetExcludedIssueTypes(project)
+		if len(types) > 0 {
+			fmt.Printf("  %s: %s\n", project, strings.Join(types, ", "))
+			found = true
+		}
+	}
+
+	if !found {
+		fmt.Println("  No excluded issue types configured for any project")
+	}
+	return nil
+}
+
+// configExcludedIssueTypesShowAction backs `assetcap config excluded-issue-types show`.
+func (a *App) configExcludedIssueTypesShowAction(ctx *cli.Context) error {
+	project := ctx.String("project")
+	if project == "" {
+		return fmt.Errorf("project is required")
+	}
+	a.ensureTeamConfigService()
+	types, err := a.teamConfigService.GetExcludedIssueTypesForProject(project)
+	if err != nil {
+		return fmt.Errorf("failed to get excluded issue types: %v", err)
+	}
+	if len(types) == 0 {
+		fmt.Printf("Project '%s' has no excluded issue types\n", project)
+	} else {
+		fmt.Printf("Project '%s' excludes: %s\n", project, strings.Join(types, ", "))
 	}
 	return nil
 }
