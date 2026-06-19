@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/urfave/cli/v2"
 
@@ -23,6 +24,7 @@ import (
 	deploymentsapp "github.com/helmedeiros/digital-asset-capitalization/internal/deployments/application"
 	deploymentports "github.com/helmedeiros/digital-asset-capitalization/internal/deployments/domain/ports"
 	investmentservice "github.com/helmedeiros/digital-asset-capitalization/internal/investment/application/service"
+	investmentdomain "github.com/helmedeiros/digital-asset-capitalization/internal/investment/domain"
 	investmentinfra "github.com/helmedeiros/digital-asset-capitalization/internal/investment/infrastructure"
 	sprintapp "github.com/helmedeiros/digital-asset-capitalization/internal/sprint/application"
 	sprintusecase "github.com/helmedeiros/digital-asset-capitalization/internal/sprint/application/usecase"
@@ -62,7 +64,7 @@ type App struct {
 	teamConfigService      TeamConfigService
 	syncTeamService        SyncTeamFromJiraService
 	syncTeamServiceFactory func() (SyncTeamFromJiraService, error)
-	investmentService      *investmentservice.InvestmentService
+	investmentService      InvestmentService
 	deploymentService      *deploymentsapp.DeploymentService
 	deploymentRepo         deploymentports.DeploymentRepository
 	teamResolver           *configapp.TeamResolverService
@@ -101,6 +103,20 @@ type TeamConfigService interface {
 // adapter (which depends on env vars and reaches the network).
 type SyncTeamFromJiraService interface {
 	Execute(projectKey string) (*domain.TeamSyncResult, error)
+}
+
+// InvestmentService is the subset of
+// *investmentservice.InvestmentService that the `investment`
+// subcommand Actions call. Extracting it as an interface lets tests
+// drive each Action against a stub instead of standing up the full
+// cost-model / allocation / repository wiring.
+type InvestmentService interface {
+	CalculateAssetInvestment(ctx context.Context, assetName, project string, sprints []string) (*investmentdomain.Investment, error)
+	CalculateSprintInvestment(ctx context.Context, project, sprint string, startDate, endDate time.Time) (*investmentdomain.Investment, error)
+	ListInvestments(ctx context.Context, project string) ([]*investmentdomain.Investment, error)
+	InitializeCostModel(ctx context.Context, project string) (*investmentdomain.CostModel, error)
+	GetCostModel(ctx context.Context, project string) (*investmentdomain.CostModel, error)
+	UpdateCostModel(ctx context.Context, project string, model *investmentdomain.CostModel) error
 }
 
 // configServiceImpl implements ConfigService
