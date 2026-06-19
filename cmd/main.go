@@ -13,6 +13,7 @@ import (
 	"github.com/urfave/cli/v2"
 
 	assetsapp "github.com/helmedeiros/digital-asset-capitalization/internal/assets/application"
+	assetsusecase "github.com/helmedeiros/digital-asset-capitalization/internal/assets/application/usecase"
 	assetsinfra "github.com/helmedeiros/digital-asset-capitalization/internal/assets/infrastructure"
 	assetid "github.com/helmedeiros/digital-asset-capitalization/internal/assets/infrastructure/id"
 	"github.com/helmedeiros/digital-asset-capitalization/internal/assets/infrastructure/llama"
@@ -57,20 +58,22 @@ var (
 
 // App holds all the application dependencies
 type App struct {
-	assetService           assetsapp.AssetService
-	taskService            tasksapp.TaskService
-	sprintService          sprintapp.SprintService
-	configService          ConfigService
-	teamConfigService      TeamConfigService
-	syncTeamService        SyncTeamFromJiraService
-	syncTeamServiceFactory func() (SyncTeamFromJiraService, error)
-	investmentService      InvestmentService
-	deploymentService      *deploymentsapp.DeploymentService
-	deploymentRepo         deploymentports.DeploymentRepository
-	teamResolver           *configapp.TeamResolverService
-	taskRepo               taskports.TaskRepository
-	taskClassifier         taskports.TaskClassifier
-	allocationLockRepo     taskports.SprintLockRepository
+	assetService                   assetsapp.AssetService
+	taskService                    tasksapp.TaskService
+	sprintService                  sprintapp.SprintService
+	configService                  ConfigService
+	teamConfigService              TeamConfigService
+	syncTeamService                SyncTeamFromJiraService
+	syncTeamServiceFactory         func() (SyncTeamFromJiraService, error)
+	syncContributorsService        SyncAssetContributorsService
+	syncContributorsServiceFactory func() (SyncAssetContributorsService, error)
+	investmentService              InvestmentService
+	deploymentService              *deploymentsapp.DeploymentService
+	deploymentRepo                 deploymentports.DeploymentRepository
+	teamResolver                   *configapp.TeamResolverService
+	taskRepo                       taskports.TaskRepository
+	taskClassifier                 taskports.TaskClassifier
+	allocationLockRepo             taskports.SprintLockRepository
 }
 
 // ConfigService interface for configuration operations
@@ -103,6 +106,16 @@ type TeamConfigService interface {
 // adapter (which depends on env vars and reaches the network).
 type SyncTeamFromJiraService interface {
 	Execute(projectKey string) (*domain.TeamSyncResult, error)
+}
+
+// SyncAssetContributorsService is the subset of
+// *assetsusecase.SyncAssetContributorsFromJiraUseCase that the
+// `assets sync-contributors` Action calls. Extracting it as an
+// interface lets tests drive the Action against a stub instead of
+// constructing the full JIRA query adapter + team-config adapter +
+// asset repository graph.
+type SyncAssetContributorsService interface {
+	Execute(ctx context.Context, input assetsusecase.SyncContributorsInput) (*assetsusecase.SyncContributorsResult, error)
 }
 
 // InvestmentService is the subset of
