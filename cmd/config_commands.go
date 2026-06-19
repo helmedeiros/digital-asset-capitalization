@@ -105,104 +105,25 @@ func (a *App) createConfigCommand() *cli.Command {
 				Usage: "Manage team nicknames",
 				Subcommands: []*cli.Command{
 					{
-						Name:  "add",
-						Usage: "Add nicknames for a project",
-						Action: func(ctx *cli.Context) error {
-							project := ctx.String("project")
-							nickname := ctx.String("nickname")
-
-							if project == "" {
-								return fmt.Errorf("project is required")
-							}
-							if nickname == "" {
-								return fmt.Errorf("nickname is required")
-							}
-
-							// Split comma-separated nicknames
-							nicknames := strings.Split(nickname, ",")
-							for i, nick := range nicknames {
-								nicknames[i] = strings.TrimSpace(nick)
-							}
-
-							fmt.Printf("⚠️  Note: Nickname management requires implementation of team config update functionality\n")
-							fmt.Printf("Would add nickname(s) %s for project %s\n",
-								strings.Join(nicknames, ", "), project)
-
-							return nil
-						},
+						Name:   "add",
+						Usage:  "Add nicknames for a project",
+						Action: a.configTeamNicknamesAddAction,
 						Flags: []cli.Flag{
-							&cli.StringFlag{
-								Name:     "project",
-								Usage:    "Project key (e.g., FN)",
-								Required: true,
-							},
-							&cli.StringFlag{
-								Name:     "nickname",
-								Usage:    "Comma-separated nicknames (e.g., 'Pricing,Fintech')",
-								Required: true,
-							},
+							&cli.StringFlag{Name: "project", Usage: "Project key (e.g., FN)", Required: true},
+							&cli.StringFlag{Name: "nickname", Usage: "Comma-separated nicknames (e.g., 'Pricing,Fintech')", Required: true},
 						},
 					},
 					{
-						Name:  "list",
-						Usage: "List all team nicknames",
-						Action: func(_ *cli.Context) error {
-							if a.teamResolver == nil {
-								return fmt.Errorf("team resolver not available")
-							}
-
-							mappings := a.teamResolver.GetAllMappings()
-							if len(mappings) == 0 {
-								fmt.Println("No team nicknames configured")
-								return nil
-							}
-
-							fmt.Println("Team Nicknames:")
-							fmt.Println("================")
-
-							// Group by project
-							projectMap := make(map[string][]string)
-							for nickname, project := range mappings {
-								projectMap[project] = append(projectMap[project], nickname)
-							}
-
-							for project, nicks := range projectMap {
-								fmt.Printf("%s: %s\n", project, strings.Join(nicks, ", "))
-							}
-
-							return nil
-						},
+						Name:   "list",
+						Usage:  "List all team nicknames",
+						Action: a.configTeamNicknamesListAction,
 					},
 					{
-						Name:  "show",
-						Usage: "Show nicknames for a specific project",
-						Action: func(ctx *cli.Context) error {
-							project := ctx.String("project")
-							if project == "" {
-								return fmt.Errorf("project is required")
-							}
-
-							if a.teamResolver == nil {
-								return fmt.Errorf("team resolver not available")
-							}
-
-							// Resolve project to ensure it exists
-							resolvedProject, err := a.teamResolver.ResolveProjectIdentifier(project)
-							if err != nil {
-								return fmt.Errorf("unknown project: %s", project)
-							}
-
-							displayName := a.teamResolver.GetProjectWithNicknames(resolvedProject)
-							fmt.Printf("Project: %s\n", displayName)
-
-							return nil
-						},
+						Name:   "show",
+						Usage:  "Show nicknames for a specific project",
+						Action: a.configTeamNicknamesShowAction,
 						Flags: []cli.Flag{
-							&cli.StringFlag{
-								Name:     "project",
-								Usage:    "Project key or nickname (e.g., FN or Pricing)",
-								Required: true,
-							},
+							&cli.StringFlag{Name: "project", Usage: "Project key or nickname (e.g., FN or Pricing)", Required: true},
 						},
 					},
 				},
@@ -1021,5 +942,77 @@ func (a *App) configValidateAction(_ *cli.Context) error {
 	}
 
 	fmt.Println("✅ Configuration is valid")
+	return nil
+}
+
+// configTeamNicknamesAddAction backs `assetcap config team-nicknames add`.
+// Currently informational only — full nickname-management requires a
+// team-config update path that hasn't been wired through yet. The
+// flag validation and the comma-split shape are real, though, so the
+// action does light parsing and surfaces the input back to the user.
+func (a *App) configTeamNicknamesAddAction(ctx *cli.Context) error {
+	project := ctx.String("project")
+	nickname := ctx.String("nickname")
+	if project == "" {
+		return fmt.Errorf("project is required")
+	}
+	if nickname == "" {
+		return fmt.Errorf("nickname is required")
+	}
+	nicknames := parseCommaSeparated(nickname)
+	fmt.Printf("⚠️  Note: Nickname management requires implementation of team config update functionality\n")
+	fmt.Printf("Would add nickname(s) %s for project %s\n",
+		strings.Join(nicknames, ", "), project)
+	return nil
+}
+
+// configTeamNicknamesListAction backs `assetcap config team-nicknames list`.
+// Reads the in-memory mapping the teamResolver loads at startup; an
+// unconfigured resolver is a hard error since there's no recovery
+// path without it.
+func (a *App) configTeamNicknamesListAction(_ *cli.Context) error {
+	if a.teamResolver == nil {
+		return fmt.Errorf("team resolver not available")
+	}
+
+	mappings := a.teamResolver.GetAllMappings()
+	if len(mappings) == 0 {
+		fmt.Println("No team nicknames configured")
+		return nil
+	}
+
+	fmt.Println("Team Nicknames:")
+	fmt.Println("================")
+
+	projectMap := make(map[string][]string)
+	for nickname, project := range mappings {
+		projectMap[project] = append(projectMap[project], nickname)
+	}
+
+	for project, nicks := range projectMap {
+		fmt.Printf("%s: %s\n", project, strings.Join(nicks, ", "))
+	}
+	return nil
+}
+
+// configTeamNicknamesShowAction backs `assetcap config team-nicknames show`.
+// Resolves the identifier so a nickname argument expands to the
+// canonical project before display.
+func (a *App) configTeamNicknamesShowAction(ctx *cli.Context) error {
+	project := ctx.String("project")
+	if project == "" {
+		return fmt.Errorf("project is required")
+	}
+	if a.teamResolver == nil {
+		return fmt.Errorf("team resolver not available")
+	}
+
+	resolvedProject, err := a.teamResolver.ResolveProjectIdentifier(project)
+	if err != nil {
+		return fmt.Errorf("unknown project: %s", project)
+	}
+
+	displayName := a.teamResolver.GetProjectWithNicknames(resolvedProject)
+	fmt.Printf("Project: %s\n", displayName)
 	return nil
 }
