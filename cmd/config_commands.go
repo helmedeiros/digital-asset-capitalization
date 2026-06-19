@@ -254,172 +254,31 @@ func (a *App) createConfigCommand() *cli.Command {
 				Usage: "Manage team member timeline (join/leave dates) for time-aware sprint allocation",
 				Subcommands: []*cli.Command{
 					{
-						Name:  "show",
-						Usage: "Show team timeline for a project",
-						Action: func(ctx *cli.Context) error {
-							project := ctx.String("project")
-							if project == "" {
-								return fmt.Errorf("project is required")
-							}
-
-							configRepo := configinfra.NewFileRepository(configDir)
-							configSvc := service.NewConfigService(configRepo)
-
-							teamConfig, err := configSvc.GetTeamConfig()
-							if err != nil {
-								return fmt.Errorf("failed to load team config: %v", err)
-							}
-
-							timeline := teamConfig.GetTeamTimeline(project)
-							if len(timeline) == 0 {
-								fmt.Printf("Project '%s' has no team timeline configured\n", project)
-								fmt.Println("Using flat team list for all sprints")
-								members, exists := teamConfig.GetTeam(project)
-								if exists {
-									fmt.Printf("Current team: %s\n", strings.Join(members, ", "))
-								}
-								return nil
-							}
-
-							fmt.Printf("Team Timeline for '%s':\n", project)
-							fmt.Println("===========================")
-							for _, p := range timeline {
-								status := "active"
-								leftStr := ""
-								if p.Left != nil {
-									status = "departed"
-									leftStr = p.Left.Format("2006-01-02")
-								}
-								fmt.Printf("  %-25s joined: %s  left: %-12s [%s]\n",
-									p.Member, p.Joined.Format("2006-01-02"), leftStr, status)
-							}
-
-							active := teamConfig.DeriveActiveTeamFromTimeline(project)
-							fmt.Printf("\nActive members (%d): %s\n", len(active), strings.Join(active, ", "))
-
-							return nil
-						},
+						Name:   "show",
+						Usage:  "Show team timeline for a project",
+						Action: a.configTeamTimelineShowAction,
 						Flags: []cli.Flag{
-							&cli.StringFlag{
-								Name:     "project",
-								Aliases:  []string{"p"},
-								Usage:    "Project key",
-								Required: true,
-							},
+							&cli.StringFlag{Name: "project", Aliases: []string{"p"}, Usage: "Project key", Required: true},
 						},
 					},
 					{
-						Name:  "add",
-						Usage: "Add a member to the team timeline with a join date",
-						Action: func(ctx *cli.Context) error {
-							project := ctx.String("project")
-							member := ctx.String("member")
-							joinedStr := ctx.String("joined")
-
-							if project == "" || member == "" || joinedStr == "" {
-								return fmt.Errorf("project, member, and joined date are required")
-							}
-
-							joined, err := time.Parse("2006-01-02", joinedStr)
-							if err != nil {
-								return fmt.Errorf("invalid date format, use YYYY-MM-DD: %v", err)
-							}
-
-							configRepo := configinfra.NewFileRepository(configDir)
-							configSvc := service.NewConfigService(configRepo)
-
-							teamConfig, err := configSvc.GetTeamConfig()
-							if err != nil {
-								return fmt.Errorf("failed to load team config: %v", err)
-							}
-
-							if err := teamConfig.AddMemberWithDates(project, member, joined); err != nil {
-								return fmt.Errorf("failed to add member: %v", err)
-							}
-
-							if err := configSvc.SaveTeamConfig(teamConfig); err != nil {
-								return fmt.Errorf("failed to save team config: %v", err)
-							}
-
-							fmt.Printf("Added '%s' to project '%s' timeline (joined: %s)\n", member, project, joinedStr)
-							return nil
-						},
+						Name:   "add",
+						Usage:  "Add a member to the team timeline with a join date",
+						Action: a.configTeamTimelineAddAction,
 						Flags: []cli.Flag{
-							&cli.StringFlag{
-								Name:     "project",
-								Aliases:  []string{"p"},
-								Usage:    "Project key",
-								Required: true,
-							},
-							&cli.StringFlag{
-								Name:     "member",
-								Aliases:  []string{"m"},
-								Usage:    "Team member name",
-								Required: true,
-							},
-							&cli.StringFlag{
-								Name:     "joined",
-								Aliases:  []string{"j"},
-								Usage:    "Join date (YYYY-MM-DD)",
-								Required: true,
-							},
+							&cli.StringFlag{Name: "project", Aliases: []string{"p"}, Usage: "Project key", Required: true},
+							&cli.StringFlag{Name: "member", Aliases: []string{"m"}, Usage: "Team member name", Required: true},
+							&cli.StringFlag{Name: "joined", Aliases: []string{"j"}, Usage: "Join date (YYYY-MM-DD)", Required: true},
 						},
 					},
 					{
-						Name:  "remove",
-						Usage: "Set a member's departure date in the team timeline",
-						Action: func(ctx *cli.Context) error {
-							project := ctx.String("project")
-							member := ctx.String("member")
-							leftStr := ctx.String("left")
-
-							if project == "" || member == "" || leftStr == "" {
-								return fmt.Errorf("project, member, and left date are required")
-							}
-
-							left, err := time.Parse("2006-01-02", leftStr)
-							if err != nil {
-								return fmt.Errorf("invalid date format, use YYYY-MM-DD: %v", err)
-							}
-
-							configRepo := configinfra.NewFileRepository(configDir)
-							configSvc := service.NewConfigService(configRepo)
-
-							teamConfig, err := configSvc.GetTeamConfig()
-							if err != nil {
-								return fmt.Errorf("failed to load team config: %v", err)
-							}
-
-							if err := teamConfig.SetMemberLeft(project, member, left); err != nil {
-								return fmt.Errorf("failed to set departure: %v", err)
-							}
-
-							if err := configSvc.SaveTeamConfig(teamConfig); err != nil {
-								return fmt.Errorf("failed to save team config: %v", err)
-							}
-
-							fmt.Printf("Set '%s' departure from project '%s' (left: %s)\n", member, project, leftStr)
-							return nil
-						},
+						Name:   "remove",
+						Usage:  "Set a member's departure date in the team timeline",
+						Action: a.configTeamTimelineRemoveAction,
 						Flags: []cli.Flag{
-							&cli.StringFlag{
-								Name:     "project",
-								Aliases:  []string{"p"},
-								Usage:    "Project key",
-								Required: true,
-							},
-							&cli.StringFlag{
-								Name:     "member",
-								Aliases:  []string{"m"},
-								Usage:    "Team member name",
-								Required: true,
-							},
-							&cli.StringFlag{
-								Name:     "left",
-								Aliases:  []string{"l"},
-								Usage:    "Departure date (YYYY-MM-DD)",
-								Required: true,
-							},
+							&cli.StringFlag{Name: "project", Aliases: []string{"p"}, Usage: "Project key", Required: true},
+							&cli.StringFlag{Name: "member", Aliases: []string{"m"}, Usage: "Team member name", Required: true},
+							&cli.StringFlag{Name: "left", Aliases: []string{"l"}, Usage: "Departure date (YYYY-MM-DD)", Required: true},
 						},
 					},
 				},
@@ -934,5 +793,113 @@ func (a *App) configBoardWorkStreamsListAction(_ *cli.Context) error {
 	if !found {
 		fmt.Println("  No board-to-workstream mappings configured")
 	}
+	return nil
+}
+
+// configTeamTimelineShowAction backs `assetcap config team-timeline show`.
+// Falls back to the flat team list when no per-member timeline is
+// configured, so a fresh project doesn't surprise the user with an
+// empty-looking output.
+func (a *App) configTeamTimelineShowAction(ctx *cli.Context) error {
+	project := ctx.String("project")
+	if project == "" {
+		return fmt.Errorf("project is required")
+	}
+	a.ensureTeamConfigService()
+	teamConfig, err := a.teamConfigService.GetTeamConfig()
+	if err != nil {
+		return fmt.Errorf("failed to load team config: %v", err)
+	}
+
+	timeline := teamConfig.GetTeamTimeline(project)
+	if len(timeline) == 0 {
+		fmt.Printf("Project '%s' has no team timeline configured\n", project)
+		fmt.Println("Using flat team list for all sprints")
+		members, exists := teamConfig.GetTeam(project)
+		if exists {
+			fmt.Printf("Current team: %s\n", strings.Join(members, ", "))
+		}
+		return nil
+	}
+
+	fmt.Printf("Team Timeline for '%s':\n", project)
+	fmt.Println("===========================")
+	for _, p := range timeline {
+		status := "active"
+		leftStr := ""
+		if p.Left != nil {
+			status = "departed"
+			leftStr = p.Left.Format("2006-01-02")
+		}
+		fmt.Printf("  %-25s joined: %s  left: %-12s [%s]\n",
+			p.Member, p.Joined.Format("2006-01-02"), leftStr, status)
+	}
+
+	active := teamConfig.DeriveActiveTeamFromTimeline(project)
+	fmt.Printf("\nActive members (%d): %s\n", len(active), strings.Join(active, ", "))
+	return nil
+}
+
+// configTeamTimelineAddAction backs `assetcap config team-timeline add`.
+func (a *App) configTeamTimelineAddAction(ctx *cli.Context) error {
+	project := ctx.String("project")
+	member := ctx.String("member")
+	joinedStr := ctx.String("joined")
+	if project == "" || member == "" || joinedStr == "" {
+		return fmt.Errorf("project, member, and joined date are required")
+	}
+
+	joined, err := time.Parse("2006-01-02", joinedStr)
+	if err != nil {
+		return fmt.Errorf("invalid date format, use YYYY-MM-DD: %v", err)
+	}
+
+	a.ensureTeamConfigService()
+	teamConfig, err := a.teamConfigService.GetTeamConfig()
+	if err != nil {
+		return fmt.Errorf("failed to load team config: %v", err)
+	}
+
+	if err := teamConfig.AddMemberWithDates(project, member, joined); err != nil {
+		return fmt.Errorf("failed to add member: %v", err)
+	}
+
+	if err := a.teamConfigService.SaveTeamConfig(teamConfig); err != nil {
+		return fmt.Errorf("failed to save team config: %v", err)
+	}
+
+	fmt.Printf("Added '%s' to project '%s' timeline (joined: %s)\n", member, project, joinedStr)
+	return nil
+}
+
+// configTeamTimelineRemoveAction backs `assetcap config team-timeline remove`.
+func (a *App) configTeamTimelineRemoveAction(ctx *cli.Context) error {
+	project := ctx.String("project")
+	member := ctx.String("member")
+	leftStr := ctx.String("left")
+	if project == "" || member == "" || leftStr == "" {
+		return fmt.Errorf("project, member, and left date are required")
+	}
+
+	left, err := time.Parse("2006-01-02", leftStr)
+	if err != nil {
+		return fmt.Errorf("invalid date format, use YYYY-MM-DD: %v", err)
+	}
+
+	a.ensureTeamConfigService()
+	teamConfig, err := a.teamConfigService.GetTeamConfig()
+	if err != nil {
+		return fmt.Errorf("failed to load team config: %v", err)
+	}
+
+	if err := teamConfig.SetMemberLeft(project, member, left); err != nil {
+		return fmt.Errorf("failed to set departure: %v", err)
+	}
+
+	if err := a.teamConfigService.SaveTeamConfig(teamConfig); err != nil {
+		return fmt.Errorf("failed to save team config: %v", err)
+	}
+
+	fmt.Printf("Set '%s' departure from project '%s' (left: %s)\n", member, project, leftStr)
 	return nil
 }
