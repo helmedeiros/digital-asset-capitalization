@@ -152,88 +152,9 @@ func (a *App) createAssetsCommand() *cli.Command {
 				},
 			},
 			{
-				Name:  "sync-and-enrich",
-				Usage: "Sync assets from Confluence and enrich them with keywords and fields using AI",
-				Action: func(ctx *cli.Context) error {
-					spaceKey := ctx.String("space")
-					label := ctx.String("label")
-					debug := ctx.Bool("debug")
-					enrichKeywords := ctx.Bool("keywords")
-					enrichFields := ctx.StringSlice("fields")
-					dryRun := ctx.Bool("dry-run")
-					maxConcurrent := ctx.Int("max-concurrent")
-					if maxConcurrent < 1 {
-						maxConcurrent = 1
-					}
-					// field-filter is reserved for the future bulk use case path;
-					// the inline enrichment here always touches every synced asset.
-					_ = ctx.String("field-filter")
-
-					// Validate required parameters
-					if label == "" {
-						return fmt.Errorf("label is required")
-					}
-
-					fmt.Printf("Starting sync-and-enrich workflow...\n")
-					fmt.Printf("Space: %s, Label: %s, Keywords: %v, Fields: %v, MaxConcurrent: %d\n", spaceKey, label, enrichKeywords, enrichFields, maxConcurrent)
-
-					if dryRun {
-						fmt.Printf("DRY RUN: Would sync assets and enrich with keywords=%v, fields=%v\n", enrichKeywords, enrichFields)
-						return nil
-					}
-
-					// Step 1: Sync assets
-					fmt.Printf("Step 1: Syncing assets from Confluence...\n")
-					result, err := a.assetService.SyncFromConfluence(spaceKey, label, debug)
-					if err != nil {
-						return fmt.Errorf("failed to sync assets: %w", err)
-					}
-
-					fmt.Printf("Synced %d assets\n", len(result.SyncedAssets))
-
-					// Step 2: Enrich keywords if requested
-					if enrichKeywords && len(result.SyncedAssets) > 0 {
-						fmt.Printf("Step 2: Generating keywords for synced assets (max %d in flight)...\n", maxConcurrent)
-						eg := new(errgroup.Group)
-						eg.SetLimit(maxConcurrent)
-						for _, asset := range result.SyncedAssets {
-							asset := asset
-							eg.Go(func() error {
-								if err := a.assetService.GenerateKeywords(asset.Name); err != nil {
-									fmt.Printf("Warning: Failed to generate keywords for %s: %v\n", asset.Name, err)
-								} else {
-									fmt.Printf("Generated keywords for: %s\n", asset.Name)
-								}
-								return nil
-							})
-						}
-						_ = eg.Wait()
-					}
-
-					// Step 3: Enrich fields if requested
-					if len(enrichFields) > 0 && len(result.SyncedAssets) > 0 {
-						fmt.Printf("Step 3: Enriching fields %v for synced assets (max %d in flight)...\n", enrichFields, maxConcurrent)
-						eg := new(errgroup.Group)
-						eg.SetLimit(maxConcurrent)
-						for _, asset := range result.SyncedAssets {
-							for _, field := range enrichFields {
-								asset, field := asset, field
-								eg.Go(func() error {
-									if err := a.assetService.EnrichAsset(asset.Name, field); err != nil {
-										fmt.Printf("Warning: Failed to enrich %s field for %s: %v\n", field, asset.Name, err)
-									} else {
-										fmt.Printf("Enriched %s field for: %s\n", field, asset.Name)
-									}
-									return nil
-								})
-							}
-						}
-						_ = eg.Wait()
-					}
-
-					fmt.Printf("Sync-and-enrich workflow completed successfully!\n")
-					return nil
-				},
+				Name:   "sync-and-enrich",
+				Usage:  "Sync assets from Confluence and enrich them with keywords and fields using AI",
+				Action: a.assetsSyncAndEnrichAction,
 				Flags: []cli.Flag{
 					&cli.StringFlag{
 						Name:     "space",
@@ -854,5 +775,86 @@ func (a *App) assetsSyncContributorsAction(ctx *cli.Context) error {
 		}
 	}
 
+	return nil
+}
+
+// assetsSyncAndEnrichAction backs `assetcap assets sync-and-enrich`.
+// The errgroup-based fan-out is the original inline implementation
+// lifted verbatim into a named method, with concurrency capped at
+// max-concurrent (clamped to >= 1).
+func (a *App) assetsSyncAndEnrichAction(ctx *cli.Context) error {
+	spaceKey := ctx.String("space")
+	label := ctx.String("label")
+	debug := ctx.Bool("debug")
+	enrichKeywords := ctx.Bool("keywords")
+	enrichFields := ctx.StringSlice("fields")
+	dryRun := ctx.Bool("dry-run")
+	maxConcurrent := ctx.Int("max-concurrent")
+	if maxConcurrent < 1 {
+		maxConcurrent = 1
+	}
+	// field-filter is reserved for the future bulk use case path;
+	// the inline enrichment here always touches every synced asset.
+	_ = ctx.String("field-filter")
+
+	if label == "" {
+		return fmt.Errorf("label is required")
+	}
+
+	fmt.Printf("Starting sync-and-enrich workflow...\n")
+	fmt.Printf("Space: %s, Label: %s, Keywords: %v, Fields: %v, MaxConcurrent: %d\n", spaceKey, label, enrichKeywords, enrichFields, maxConcurrent)
+
+	if dryRun {
+		fmt.Printf("DRY RUN: Would sync assets and enrich with keywords=%v, fields=%v\n", enrichKeywords, enrichFields)
+		return nil
+	}
+
+	fmt.Printf("Step 1: Syncing assets from Confluence...\n")
+	result, err := a.assetService.SyncFromConfluence(spaceKey, label, debug)
+	if err != nil {
+		return fmt.Errorf("failed to sync assets: %w", err)
+	}
+
+	fmt.Printf("Synced %d assets\n", len(result.SyncedAssets))
+
+	if enrichKeywords && len(result.SyncedAssets) > 0 {
+		fmt.Printf("Step 2: Generating keywords for synced assets (max %d in flight)...\n", maxConcurrent)
+		eg := new(errgroup.Group)
+		eg.SetLimit(maxConcurrent)
+		for _, asset := range result.SyncedAssets {
+			asset := asset
+			eg.Go(func() error {
+				if err := a.assetService.GenerateKeywords(asset.Name); err != nil {
+					fmt.Printf("Warning: Failed to generate keywords for %s: %v\n", asset.Name, err)
+				} else {
+					fmt.Printf("Generated keywords for: %s\n", asset.Name)
+				}
+				return nil
+			})
+		}
+		_ = eg.Wait()
+	}
+
+	if len(enrichFields) > 0 && len(result.SyncedAssets) > 0 {
+		fmt.Printf("Step 3: Enriching fields %v for synced assets (max %d in flight)...\n", enrichFields, maxConcurrent)
+		eg := new(errgroup.Group)
+		eg.SetLimit(maxConcurrent)
+		for _, asset := range result.SyncedAssets {
+			for _, field := range enrichFields {
+				asset, field := asset, field
+				eg.Go(func() error {
+					if err := a.assetService.EnrichAsset(asset.Name, field); err != nil {
+						fmt.Printf("Warning: Failed to enrich %s field for %s: %v\n", field, asset.Name, err)
+					} else {
+						fmt.Printf("Enriched %s field for: %s\n", field, asset.Name)
+					}
+					return nil
+				})
+			}
+		}
+		_ = eg.Wait()
+	}
+
+	fmt.Printf("Sync-and-enrich workflow completed successfully!\n")
 	return nil
 }
