@@ -89,6 +89,7 @@ type TeamConfigService interface {
 	GetCompanyForProject(project string) (string, error)
 	SetExcludedIssueTypesForProject(project string, types []string) error
 	GetExcludedIssueTypesForProject(project string) ([]string, error)
+	SetBoardWorkStream(project string, boardID int, workStream string) error
 }
 
 // configServiceImpl implements ConfigService
