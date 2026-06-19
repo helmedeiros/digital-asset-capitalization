@@ -133,128 +133,25 @@ func (a *App) createConfigCommand() *cli.Command {
 				Usage: "Manage team tribes (organizational groupings)",
 				Subcommands: []*cli.Command{
 					{
-						Name:  "set",
-						Usage: "Set the tribe for a project/team",
-						Action: func(ctx *cli.Context) error {
-							project := ctx.String("project")
-							tribe := ctx.String("tribe")
-
-							if project == "" {
-								return fmt.Errorf("project is required")
-							}
-							if tribe == "" {
-								return fmt.Errorf("tribe is required")
-							}
-
-							// Create config service to save tribe
-							configRepo := configinfra.NewFileRepository(configDir)
-							configSvc := service.NewConfigService(configRepo)
-
-							if err := configSvc.SetTribeForProject(project, tribe); err != nil {
-								return fmt.Errorf("failed to set tribe: %v", err)
-							}
-
-							fmt.Printf("✅ Set tribe '%s' for project '%s'\n", tribe, project)
-							return nil
-						},
+						Name:   "set",
+						Usage:  "Set the tribe for a project/team",
+						Action: a.configTeamTribeSetAction,
 						Flags: []cli.Flag{
-							&cli.StringFlag{
-								Name:     "project",
-								Aliases:  []string{"p"},
-								Usage:    "Project key (e.g., FN, COP)",
-								Required: true,
-							},
-							&cli.StringFlag{
-								Name:     "tribe",
-								Aliases:  []string{"t"},
-								Usage:    "Tribe name (e.g., 'Engineering', 'Platform')",
-								Required: true,
-							},
+							&cli.StringFlag{Name: "project", Aliases: []string{"p"}, Usage: "Project key (e.g., FN, COP)", Required: true},
+							&cli.StringFlag{Name: "tribe", Aliases: []string{"t"}, Usage: "Tribe name (e.g., 'Engineering', 'Platform')", Required: true},
 						},
 					},
 					{
-						Name:  "list",
-						Usage: "List all team tribes",
-						Action: func(_ *cli.Context) error {
-							configRepo := configinfra.NewFileRepository(configDir)
-							configSvc := service.NewConfigService(configRepo)
-
-							teamConfig, err := configSvc.GetTeamConfig()
-							if err != nil {
-								return fmt.Errorf("failed to load team config: %v", err)
-							}
-
-							projects := teamConfig.GetProjects()
-							if len(projects) == 0 {
-								fmt.Println("No teams configured")
-								return nil
-							}
-
-							fmt.Println("Team Tribes:")
-							fmt.Println("=============")
-
-							// Group by tribe
-							tribeProjects := make(map[string][]string)
-							noTribe := []string{}
-
-							for _, project := range projects {
-								tribe := teamConfig.GetTribe(project)
-								if tribe != "" {
-									tribeProjects[tribe] = append(tribeProjects[tribe], project)
-								} else {
-									noTribe = append(noTribe, project)
-								}
-							}
-
-							for tribe, projs := range tribeProjects {
-								fmt.Printf("\n%s:\n", tribe)
-								for _, p := range projs {
-									fmt.Printf("  - %s\n", p)
-								}
-							}
-
-							if len(noTribe) > 0 {
-								fmt.Printf("\n(No tribe assigned):\n")
-								for _, p := range noTribe {
-									fmt.Printf("  - %s\n", p)
-								}
-							}
-
-							return nil
-						},
+						Name:   "list",
+						Usage:  "List all team tribes",
+						Action: a.configTeamTribeListAction,
 					},
 					{
-						Name:  "show",
-						Usage: "Show the tribe for a specific project",
-						Action: func(ctx *cli.Context) error {
-							project := ctx.String("project")
-							if project == "" {
-								return fmt.Errorf("project is required")
-							}
-
-							configRepo := configinfra.NewFileRepository(configDir)
-							configSvc := service.NewConfigService(configRepo)
-
-							tribe, err := configSvc.GetTribeForProject(project)
-							if err != nil {
-								return fmt.Errorf("failed to get tribe: %v", err)
-							}
-
-							if tribe == "" {
-								fmt.Printf("Project '%s' has no tribe assigned\n", project)
-							} else {
-								fmt.Printf("Project '%s' belongs to tribe: %s\n", project, tribe)
-							}
-
-							return nil
-						},
+						Name:   "show",
+						Usage:  "Show the tribe for a specific project",
+						Action: a.configTeamTribeShowAction,
 						Flags: []cli.Flag{
-							&cli.StringFlag{
-								Name:     "project",
-								Aliases:  []string{"p"},
-								Usage:    "Project key (e.g., FN)",
-								Required: true,
-							},
+							&cli.StringFlag{Name: "project", Aliases: []string{"p"}, Usage: "Project key (e.g., FN)", Required: true},
 						},
 					},
 				},
@@ -264,128 +161,25 @@ func (a *App) createConfigCommand() *cli.Command {
 				Usage: "Manage team companies (organization ownership)",
 				Subcommands: []*cli.Command{
 					{
-						Name:  "set",
-						Usage: "Set the company for a project/team",
-						Action: func(ctx *cli.Context) error {
-							project := ctx.String("project")
-							company := ctx.String("company")
-
-							if project == "" {
-								return fmt.Errorf("project is required")
-							}
-							if company == "" {
-								return fmt.Errorf("company is required")
-							}
-
-							// Create config service to save company
-							configRepo := configinfra.NewFileRepository(configDir)
-							configSvc := service.NewConfigService(configRepo)
-
-							if err := configSvc.SetCompanyForProject(project, company); err != nil {
-								return fmt.Errorf("failed to set company: %v", err)
-							}
-
-							fmt.Printf("✅ Set company '%s' for project '%s'\n", company, project)
-							return nil
-						},
+						Name:   "set",
+						Usage:  "Set the company for a project/team",
+						Action: a.configTeamCompanySetAction,
 						Flags: []cli.Flag{
-							&cli.StringFlag{
-								Name:     "project",
-								Aliases:  []string{"p"},
-								Usage:    "Project key (e.g., FN, COP)",
-								Required: true,
-							},
-							&cli.StringFlag{
-								Name:     "company",
-								Aliases:  []string{"c"},
-								Usage:    "Company name (e.g., 'ACME Corp', 'Partner Co')",
-								Required: true,
-							},
+							&cli.StringFlag{Name: "project", Aliases: []string{"p"}, Usage: "Project key (e.g., FN, COP)", Required: true},
+							&cli.StringFlag{Name: "company", Aliases: []string{"c"}, Usage: "Company name (e.g., 'ACME Corp', 'Partner Co')", Required: true},
 						},
 					},
 					{
-						Name:  "list",
-						Usage: "List all team companies",
-						Action: func(_ *cli.Context) error {
-							configRepo := configinfra.NewFileRepository(configDir)
-							configSvc := service.NewConfigService(configRepo)
-
-							teamConfig, err := configSvc.GetTeamConfig()
-							if err != nil {
-								return fmt.Errorf("failed to load team config: %v", err)
-							}
-
-							projects := teamConfig.GetProjects()
-							if len(projects) == 0 {
-								fmt.Println("No teams configured")
-								return nil
-							}
-
-							fmt.Println("Team Companies:")
-							fmt.Println("===============")
-
-							// Group by company
-							companyProjects := make(map[string][]string)
-							noCompany := []string{}
-
-							for _, project := range projects {
-								company := teamConfig.GetCompany(project)
-								if company != "" {
-									companyProjects[company] = append(companyProjects[company], project)
-								} else {
-									noCompany = append(noCompany, project)
-								}
-							}
-
-							for company, projs := range companyProjects {
-								fmt.Printf("\n%s:\n", company)
-								for _, p := range projs {
-									fmt.Printf("  - %s\n", p)
-								}
-							}
-
-							if len(noCompany) > 0 {
-								fmt.Printf("\n(No company assigned):\n")
-								for _, p := range noCompany {
-									fmt.Printf("  - %s\n", p)
-								}
-							}
-
-							return nil
-						},
+						Name:   "list",
+						Usage:  "List all team companies",
+						Action: a.configTeamCompanyListAction,
 					},
 					{
-						Name:  "show",
-						Usage: "Show the company for a specific project",
-						Action: func(ctx *cli.Context) error {
-							project := ctx.String("project")
-							if project == "" {
-								return fmt.Errorf("project is required")
-							}
-
-							configRepo := configinfra.NewFileRepository(configDir)
-							configSvc := service.NewConfigService(configRepo)
-
-							company, err := configSvc.GetCompanyForProject(project)
-							if err != nil {
-								return fmt.Errorf("failed to get company: %v", err)
-							}
-
-							if company == "" {
-								fmt.Printf("Project '%s' has no company assigned\n", project)
-							} else {
-								fmt.Printf("Project '%s' belongs to company: %s\n", project, company)
-							}
-
-							return nil
-						},
+						Name:   "show",
+						Usage:  "Show the company for a specific project",
+						Action: a.configTeamCompanyShowAction,
 						Flags: []cli.Flag{
-							&cli.StringFlag{
-								Name:     "project",
-								Aliases:  []string{"p"},
-								Usage:    "Project key (e.g., FN)",
-								Required: true,
-							},
+							&cli.StringFlag{Name: "project", Aliases: []string{"p"}, Usage: "Project key (e.g., FN)", Required: true},
 						},
 					},
 				},
@@ -1014,5 +808,181 @@ func (a *App) configTeamNicknamesShowAction(ctx *cli.Context) error {
 
 	displayName := a.teamResolver.GetProjectWithNicknames(resolvedProject)
 	fmt.Printf("Project: %s\n", displayName)
+	return nil
+}
+
+// ensureTeamConfigService lazily constructs the file-backed
+// *service.ConfigService and stashes it on App so that subsequent
+// Action invocations (and tests, which can pre-seed the field) share
+// the same instance. Mirrors ensureDeploymentService.
+func (a *App) ensureTeamConfigService() {
+	if a.teamConfigService != nil {
+		return
+	}
+	configRepo := configinfra.NewFileRepository(configDir)
+	a.teamConfigService = service.NewConfigService(configRepo)
+}
+
+// configTeamTribeSetAction backs `assetcap config team-tribe set`.
+func (a *App) configTeamTribeSetAction(ctx *cli.Context) error {
+	project := ctx.String("project")
+	tribe := ctx.String("tribe")
+	if project == "" {
+		return fmt.Errorf("project is required")
+	}
+	if tribe == "" {
+		return fmt.Errorf("tribe is required")
+	}
+	a.ensureTeamConfigService()
+	if err := a.teamConfigService.SetTribeForProject(project, tribe); err != nil {
+		return fmt.Errorf("failed to set tribe: %v", err)
+	}
+	fmt.Printf("✅ Set tribe '%s' for project '%s'\n", tribe, project)
+	return nil
+}
+
+// configTeamTribeListAction backs `assetcap config team-tribe list`.
+// Groups projects by tribe, then renders an "(No tribe assigned)"
+// bucket for projects without one.
+func (a *App) configTeamTribeListAction(_ *cli.Context) error {
+	a.ensureTeamConfigService()
+	teamConfig, err := a.teamConfigService.GetTeamConfig()
+	if err != nil {
+		return fmt.Errorf("failed to load team config: %v", err)
+	}
+
+	projects := teamConfig.GetProjects()
+	if len(projects) == 0 {
+		fmt.Println("No teams configured")
+		return nil
+	}
+
+	fmt.Println("Team Tribes:")
+	fmt.Println("=============")
+
+	tribeProjects := make(map[string][]string)
+	noTribe := []string{}
+	for _, project := range projects {
+		tribe := teamConfig.GetTribe(project)
+		if tribe != "" {
+			tribeProjects[tribe] = append(tribeProjects[tribe], project)
+		} else {
+			noTribe = append(noTribe, project)
+		}
+	}
+
+	for tribe, projs := range tribeProjects {
+		fmt.Printf("\n%s:\n", tribe)
+		for _, p := range projs {
+			fmt.Printf("  - %s\n", p)
+		}
+	}
+
+	if len(noTribe) > 0 {
+		fmt.Printf("\n(No tribe assigned):\n")
+		for _, p := range noTribe {
+			fmt.Printf("  - %s\n", p)
+		}
+	}
+	return nil
+}
+
+// configTeamTribeShowAction backs `assetcap config team-tribe show`.
+func (a *App) configTeamTribeShowAction(ctx *cli.Context) error {
+	project := ctx.String("project")
+	if project == "" {
+		return fmt.Errorf("project is required")
+	}
+	a.ensureTeamConfigService()
+	tribe, err := a.teamConfigService.GetTribeForProject(project)
+	if err != nil {
+		return fmt.Errorf("failed to get tribe: %v", err)
+	}
+	if tribe == "" {
+		fmt.Printf("Project '%s' has no tribe assigned\n", project)
+	} else {
+		fmt.Printf("Project '%s' belongs to tribe: %s\n", project, tribe)
+	}
+	return nil
+}
+
+// configTeamCompanySetAction backs `assetcap config team-company set`.
+func (a *App) configTeamCompanySetAction(ctx *cli.Context) error {
+	project := ctx.String("project")
+	company := ctx.String("company")
+	if project == "" {
+		return fmt.Errorf("project is required")
+	}
+	if company == "" {
+		return fmt.Errorf("company is required")
+	}
+	a.ensureTeamConfigService()
+	if err := a.teamConfigService.SetCompanyForProject(project, company); err != nil {
+		return fmt.Errorf("failed to set company: %v", err)
+	}
+	fmt.Printf("✅ Set company '%s' for project '%s'\n", company, project)
+	return nil
+}
+
+// configTeamCompanyListAction backs `assetcap config team-company list`.
+func (a *App) configTeamCompanyListAction(_ *cli.Context) error {
+	a.ensureTeamConfigService()
+	teamConfig, err := a.teamConfigService.GetTeamConfig()
+	if err != nil {
+		return fmt.Errorf("failed to load team config: %v", err)
+	}
+
+	projects := teamConfig.GetProjects()
+	if len(projects) == 0 {
+		fmt.Println("No teams configured")
+		return nil
+	}
+
+	fmt.Println("Team Companies:")
+	fmt.Println("===============")
+
+	companyProjects := make(map[string][]string)
+	noCompany := []string{}
+	for _, project := range projects {
+		company := teamConfig.GetCompany(project)
+		if company != "" {
+			companyProjects[company] = append(companyProjects[company], project)
+		} else {
+			noCompany = append(noCompany, project)
+		}
+	}
+
+	for company, projs := range companyProjects {
+		fmt.Printf("\n%s:\n", company)
+		for _, p := range projs {
+			fmt.Printf("  - %s\n", p)
+		}
+	}
+
+	if len(noCompany) > 0 {
+		fmt.Printf("\n(No company assigned):\n")
+		for _, p := range noCompany {
+			fmt.Printf("  - %s\n", p)
+		}
+	}
+	return nil
+}
+
+// configTeamCompanyShowAction backs `assetcap config team-company show`.
+func (a *App) configTeamCompanyShowAction(ctx *cli.Context) error {
+	project := ctx.String("project")
+	if project == "" {
+		return fmt.Errorf("project is required")
+	}
+	a.ensureTeamConfigService()
+	company, err := a.teamConfigService.GetCompanyForProject(project)
+	if err != nil {
+		return fmt.Errorf("failed to get company: %v", err)
+	}
+	if company == "" {
+		fmt.Printf("Project '%s' has no company assigned\n", project)
+	} else {
+		fmt.Printf("Project '%s' belongs to company: %s\n", project, company)
+	}
 	return nil
 }
