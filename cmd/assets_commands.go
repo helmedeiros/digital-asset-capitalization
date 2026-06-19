@@ -274,125 +274,9 @@ func (a *App) createAssetsCommand() *cli.Command {
 				},
 			},
 			{
-				Name:  "sync-contributors",
-				Usage: "Synchronize asset contributors from JIRA task assignments with optional filtering",
-				Action: func(ctx *cli.Context) error {
-					dryRun := ctx.Bool("dry-run")
-					maxResults := ctx.Int("max-results")
-					projectKey := ctx.String("project")
-					sprintName := ctx.String("sprint")
-					teamName := ctx.String("team")
-					assetName := ctx.String("asset")
-
-					// Create JIRA query adapter
-					jiraQueryAdapter, err := assetsinfra.NewJiraQueryAdapter(a.configService)
-					if err != nil {
-						return fmt.Errorf("failed to create JIRA query adapter: %v", err)
-					}
-
-					// Create team config adapter
-					configRepo := configinfra.NewFileRepository(configDir)
-					teamConfigAdapter := assetsinfra.NewTeamConfigAdapter(configRepo)
-
-					// Create asset repository
-					repoConfig := assetsinfra.RepositoryConfig{
-						Directory: assetsDir,
-						Filename:  assetsFile,
-						FileMode:  0644,
-						DirMode:   0755,
-					}
-					assetRepo := assetsinfra.NewJSONRepository(repoConfig)
-
-					// Create use case
-					syncUseCase := assetsusecase.NewSyncAssetContributorsFromJiraUseCase(
-						assetRepo,
-						jiraQueryAdapter,
-						teamConfigAdapter,
-					)
-
-					// Execute sync
-					input := assetsusecase.SyncContributorsInput{
-						DryRun:     dryRun,
-						MaxResults: maxResults,
-						ProjectKey: projectKey,
-						SprintName: sprintName,
-						TeamName:   teamName,
-						AssetName:  assetName,
-					}
-
-					result, err := syncUseCase.Execute(context.Background(), input)
-					if err != nil {
-						return fmt.Errorf("failed to sync contributors: %v", err)
-					}
-
-					// Display results with context
-					if projectKey != "" || sprintName != "" || teamName != "" || assetName != "" {
-						fmt.Printf("🎯 Filtered sync")
-						if projectKey != "" {
-							fmt.Printf(" project:%s", projectKey)
-						}
-						if sprintName != "" {
-							fmt.Printf(" sprint:%s", sprintName)
-						}
-						if teamName != "" {
-							fmt.Printf(" team:%s", teamName)
-						}
-						if assetName != "" {
-							fmt.Printf(" asset:%s", assetName)
-						}
-						fmt.Println()
-					}
-
-					fmt.Printf("🔍 Analyzed %d JIRA tasks with asset labels\n", result.TotalTasks)
-					fmt.Printf("📦 Processed %d assets\n", len(result.AssetsProcessed))
-
-					if dryRun {
-						fmt.Println("\n🔍 DRY RUN - No changes were made")
-					} else {
-						fmt.Printf("✅ Updated %d assets\n", result.AssetsUpdated)
-					}
-
-					// Show details for each asset
-					for _, assetResult := range result.AssetsProcessed {
-						fmt.Printf("\n📦 %s (analyzed %d tasks)\n", assetResult.AssetName, assetResult.TasksAnalyzed)
-
-						if assetResult.Error != "" {
-							fmt.Printf("  ❌ Error: %s\n", assetResult.Error)
-							continue
-						}
-
-						if len(assetResult.TeamsFound) > 0 {
-							fmt.Printf("  🔍 Teams found: %s\n", strings.Join(assetResult.TeamsFound, ", "))
-						}
-
-						if len(assetResult.CurrentContributors) > 0 {
-							fmt.Printf("  👥 Current contributors: %s\n", strings.Join(assetResult.CurrentContributors, ", "))
-						}
-
-						if len(assetResult.NewContributors) > 0 {
-							fmt.Printf("  ➕ New contributors: %s\n", strings.Join(assetResult.NewContributors, ", "))
-						}
-
-						if len(assetResult.RemovedContributors) > 0 {
-							fmt.Printf("  ➖ Removed contributors: %s\n", strings.Join(assetResult.RemovedContributors, ", "))
-						}
-
-						if assetResult.Updated {
-							fmt.Printf("  ✅ Updated\n")
-						} else if !dryRun {
-							fmt.Printf("  ⏸️  No changes needed\n")
-						}
-					}
-
-					if len(result.Errors) > 0 {
-						fmt.Printf("\n⚠️  Errors encountered:\n")
-						for _, error := range result.Errors {
-							fmt.Printf("  - %s\n", error)
-						}
-					}
-
-					return nil
-				},
+				Name:   "sync-contributors",
+				Usage:  "Synchronize asset contributors from JIRA task assignments with optional filtering",
+				Action: a.assetsSyncContributorsAction,
 				Flags: []cli.Flag{
 					&cli.BoolFlag{
 						Name:  "dry-run",
@@ -833,5 +717,142 @@ func (a *App) assetsUpdateConfluenceAction(ctx *cli.Context) error {
 	fmt.Printf("  Page ID: %s\n", result.PageID)
 	fmt.Printf("  Space: %s\n", result.SpaceKey)
 	fmt.Printf("  URL: %s\n", result.PageURL)
+	return nil
+}
+
+// ensureSyncContributorsService lazily builds the JIRA + team-config
+// + asset-repo + use-case graph via a.syncContributorsServiceFactory
+// (which tests can override) and stashes the result on App. Mirrors
+// ensureSyncTeamService; exposes the construction error because
+// *assetsinfra.JiraQueryAdapter requires env vars and can fail.
+func (a *App) ensureSyncContributorsService() error {
+	if a.syncContributorsService != nil {
+		return nil
+	}
+	factory := a.syncContributorsServiceFactory
+	if factory == nil {
+		factory = a.defaultSyncContributorsServiceFactory
+	}
+	svc, err := factory()
+	if err != nil {
+		return err
+	}
+	a.syncContributorsService = svc
+	return nil
+}
+
+// defaultSyncContributorsServiceFactory wires the JIRA query
+// adapter + team-config adapter + JSON asset repository + the use
+// case the same way the original inline Action did.
+func (a *App) defaultSyncContributorsServiceFactory() (SyncAssetContributorsService, error) {
+	jiraQueryAdapter, err := assetsinfra.NewJiraQueryAdapter(a.configService)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create JIRA query adapter: %v", err)
+	}
+	configRepo := configinfra.NewFileRepository(configDir)
+	teamConfigAdapter := assetsinfra.NewTeamConfigAdapter(configRepo)
+	assetRepo := assetsinfra.NewJSONRepository(assetsinfra.RepositoryConfig{
+		Directory: assetsDir,
+		Filename:  assetsFile,
+		FileMode:  0644,
+		DirMode:   0755,
+	})
+	return assetsusecase.NewSyncAssetContributorsFromJiraUseCase(
+		assetRepo,
+		jiraQueryAdapter,
+		teamConfigAdapter,
+	), nil
+}
+
+// assetsSyncContributorsAction backs `assetcap assets sync-contributors`.
+func (a *App) assetsSyncContributorsAction(ctx *cli.Context) error {
+	dryRun := ctx.Bool("dry-run")
+	projectKey := ctx.String("project")
+	sprintName := ctx.String("sprint")
+	teamName := ctx.String("team")
+	assetName := ctx.String("asset")
+
+	if err := a.ensureSyncContributorsService(); err != nil {
+		return err
+	}
+
+	input := assetsusecase.SyncContributorsInput{
+		DryRun:     dryRun,
+		MaxResults: ctx.Int("max-results"),
+		ProjectKey: projectKey,
+		SprintName: sprintName,
+		TeamName:   teamName,
+		AssetName:  assetName,
+	}
+
+	result, err := a.syncContributorsService.Execute(context.Background(), input)
+	if err != nil {
+		return fmt.Errorf("failed to sync contributors: %v", err)
+	}
+
+	if projectKey != "" || sprintName != "" || teamName != "" || assetName != "" {
+		fmt.Printf("🎯 Filtered sync")
+		if projectKey != "" {
+			fmt.Printf(" project:%s", projectKey)
+		}
+		if sprintName != "" {
+			fmt.Printf(" sprint:%s", sprintName)
+		}
+		if teamName != "" {
+			fmt.Printf(" team:%s", teamName)
+		}
+		if assetName != "" {
+			fmt.Printf(" asset:%s", assetName)
+		}
+		fmt.Println()
+	}
+
+	fmt.Printf("🔍 Analyzed %d JIRA tasks with asset labels\n", result.TotalTasks)
+	fmt.Printf("📦 Processed %d assets\n", len(result.AssetsProcessed))
+
+	if dryRun {
+		fmt.Println("\n🔍 DRY RUN - No changes were made")
+	} else {
+		fmt.Printf("✅ Updated %d assets\n", result.AssetsUpdated)
+	}
+
+	for _, assetResult := range result.AssetsProcessed {
+		fmt.Printf("\n📦 %s (analyzed %d tasks)\n", assetResult.AssetName, assetResult.TasksAnalyzed)
+
+		if assetResult.Error != "" {
+			fmt.Printf("  ❌ Error: %s\n", assetResult.Error)
+			continue
+		}
+
+		if len(assetResult.TeamsFound) > 0 {
+			fmt.Printf("  🔍 Teams found: %s\n", strings.Join(assetResult.TeamsFound, ", "))
+		}
+
+		if len(assetResult.CurrentContributors) > 0 {
+			fmt.Printf("  👥 Current contributors: %s\n", strings.Join(assetResult.CurrentContributors, ", "))
+		}
+
+		if len(assetResult.NewContributors) > 0 {
+			fmt.Printf("  ➕ New contributors: %s\n", strings.Join(assetResult.NewContributors, ", "))
+		}
+
+		if len(assetResult.RemovedContributors) > 0 {
+			fmt.Printf("  ➖ Removed contributors: %s\n", strings.Join(assetResult.RemovedContributors, ", "))
+		}
+
+		if assetResult.Updated {
+			fmt.Printf("  ✅ Updated\n")
+		} else if !dryRun {
+			fmt.Printf("  ⏸️  No changes needed\n")
+		}
+	}
+
+	if len(result.Errors) > 0 {
+		fmt.Printf("\n⚠️  Errors encountered:\n")
+		for _, syncErr := range result.Errors {
+			fmt.Printf("  - %s\n", syncErr)
+		}
+	}
+
 	return nil
 }
