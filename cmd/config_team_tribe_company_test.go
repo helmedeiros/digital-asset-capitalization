@@ -30,7 +30,8 @@ type stubTeamConfigService struct {
 func (s *stubTeamConfigService) GetTeamConfig() (*configdomain.TeamConfig, error) {
 	return s.teamConfig, s.teamConfigErr
 }
-func (s *stubTeamConfigService) SetTribeForProject(string, string) error { return s.setTribeErr }
+func (s *stubTeamConfigService) SaveTeamConfig(*configdomain.TeamConfig) error { return nil }
+func (s *stubTeamConfigService) SetTribeForProject(string, string) error       { return s.setTribeErr }
 func (s *stubTeamConfigService) GetTribeForProject(string) (string, error) {
 	return s.tribe, s.tribeErr
 }

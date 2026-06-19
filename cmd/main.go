@@ -83,6 +83,7 @@ type ConfigService interface {
 // more Actions get extracted.
 type TeamConfigService interface {
 	GetTeamConfig() (*domain.TeamConfig, error)
+	SaveTeamConfig(*domain.TeamConfig) error
 	SetTribeForProject(project, tribe string) error
 	GetTribeForProject(project string) (string, error)
 	SetCompanyForProject(project, company string) error
