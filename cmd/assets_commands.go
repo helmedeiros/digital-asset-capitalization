@@ -46,167 +46,35 @@ func (a *App) createAssetsCommand() *cli.Command {
 				Action: a.assetsListAction,
 			},
 			{
-				Name:  "sync",
-				Usage: "Sync assets from Confluence",
-				Action: func(ctx *cli.Context) error {
-					space := ctx.String("space")
-					label := ctx.String("label")
-					debug := ctx.Bool("debug")
-
-					result, err := a.assetService.SyncFromConfluence(space, label, debug)
-					if err != nil {
-						if strings.Contains(err.Error(), "no assets found with label") {
-							fmt.Println(err)
-							return nil
-						}
-						return err
-					}
-
-					totalAssets := len(result.SyncedAssets) + len(result.NotSyncedAssets)
-					fmt.Printf("Successfully synced %d/%d assets from Confluence\n", len(result.SyncedAssets), totalAssets)
-
-					if len(result.NotSyncedAssets) > 0 {
-						fmt.Printf("\nWarning: %d assets could not be synced due to missing information:\n", len(result.NotSyncedAssets))
-						for _, asset := range result.NotSyncedAssets {
-							fmt.Printf("\n- %s:\n", asset.Name)
-							fmt.Printf("  Missing fields: %s\n", strings.Join(asset.MissingFields, ", "))
-							fmt.Println("  Available fields:")
-							for field, value := range asset.AvailableFields {
-								if value != "" {
-									fmt.Printf("    %s: %s\n", field, value)
-								}
-							}
-						}
-					}
-
-					return nil
-				},
+				Name:   "sync",
+				Usage:  "Sync assets from Confluence",
+				Action: a.assetsSyncAction,
 				Flags: []cli.Flag{
-					&cli.StringFlag{
-						Name:     "space",
-						Usage:    "Confluence space key(s). Single: 'MZN', Multiple: 'MZN,CAP,DOC', All: '*' or omit",
-						Required: false,
-					},
-					&cli.StringFlag{
-						Name:     "label",
-						Usage:    "Filter pages by label (e.g. cap-asset)",
-						Required: true,
-					},
-					&cli.BoolFlag{
-						Name:  "debug",
-						Usage: "Enable debug logging",
-						Value: false,
-					},
+					&cli.StringFlag{Name: "space", Usage: "Confluence space key(s). Single: 'MZN', Multiple: 'MZN,CAP,DOC', All: '*' or omit", Required: false},
+					&cli.StringFlag{Name: "label", Usage: "Filter pages by label (e.g. cap-asset)", Required: true},
+					&cli.BoolFlag{Name: "debug", Usage: "Enable debug logging", Value: false},
 				},
 			},
 			{
-				Name:  "publish",
-				Usage: "Publish an asset to Confluence as a new page",
-				Action: func(ctx *cli.Context) error {
-					name := ctx.String("name")
-					space := ctx.String("space")
-					parentPage := ctx.String("parent-page")
-					dryRun := ctx.Bool("dry-run")
-					debug := ctx.Bool("debug")
-
-					result, err := a.assetService.PublishToConfluence(context.Background(), name, space, parentPage, dryRun, debug)
-					if err != nil {
-						return err
-					}
-
-					if dryRun {
-						fmt.Printf("DRY RUN: Would create page for asset '%s' in space '%s'\n", result.AssetName, result.SpaceKey)
-						fmt.Printf("Labels to add: %v\n", result.Labels)
-						fmt.Printf("\nPreview of page content:\n")
-						fmt.Println("────────────────────────────────────────")
-						fmt.Println(result.Preview)
-						fmt.Println("────────────────────────────────────────")
-						return nil
-					}
-
-					fmt.Printf("Successfully published asset '%s' to Confluence\n", result.AssetName)
-					fmt.Printf("  Page ID: %s\n", result.PageID)
-					fmt.Printf("  Space: %s\n", result.SpaceKey)
-					fmt.Printf("  URL: %s\n", result.PageURL)
-					fmt.Printf("  Labels: %v\n", result.Labels)
-					if result.DocLinkSaved {
-						fmt.Printf("  DocLink updated in asset\n")
-					}
-					return nil
-				},
+				Name:   "publish",
+				Usage:  "Publish an asset to Confluence as a new page",
+				Action: a.assetsPublishAction,
 				Flags: []cli.Flag{
-					&cli.StringFlag{
-						Name:     "name",
-						Usage:    "Asset name to publish",
-						Required: true,
-					},
-					&cli.StringFlag{
-						Name:     "space",
-						Usage:    "Confluence space key (e.g., Conversion)",
-						Required: true,
-					},
-					&cli.StringFlag{
-						Name:  "parent-page",
-						Usage: "Parent page ID to create under (overrides team config)",
-					},
-					&cli.BoolFlag{
-						Name:  "dry-run",
-						Usage: "Preview without creating the page",
-						Value: false,
-					},
-					&cli.BoolFlag{
-						Name:  "debug",
-						Usage: "Enable debug output",
-						Value: false,
-					},
+					&cli.StringFlag{Name: "name", Usage: "Asset name to publish", Required: true},
+					&cli.StringFlag{Name: "space", Usage: "Confluence space key (e.g., Conversion)", Required: true},
+					&cli.StringFlag{Name: "parent-page", Usage: "Parent page ID to create under (overrides team config)"},
+					&cli.BoolFlag{Name: "dry-run", Usage: "Preview without creating the page", Value: false},
+					&cli.BoolFlag{Name: "debug", Usage: "Enable debug output", Value: false},
 				},
 			},
 			{
-				Name:  "update-confluence",
-				Usage: "Update an existing Confluence page with the asset's current content",
-				Action: func(ctx *cli.Context) error {
-					name := ctx.String("name")
-					dryRun := ctx.Bool("dry-run")
-					debug := ctx.Bool("debug")
-
-					result, err := a.assetService.UpdateConfluencePage(context.Background(), name, dryRun, debug)
-					if err != nil {
-						return err
-					}
-
-					if dryRun {
-						fmt.Printf("DRY RUN: Would update page for asset '%s'\n", result.AssetName)
-						fmt.Printf("  Page ID: %s\n", result.PageID)
-						fmt.Printf("  Space: %s\n", result.SpaceKey)
-						fmt.Printf("\nPreview of page content:\n")
-						fmt.Println("────────────────────────────────────────")
-						fmt.Println(result.Preview)
-						fmt.Println("────────────────────────────────────────")
-						return nil
-					}
-
-					fmt.Printf("Successfully updated Confluence page for asset '%s'\n", result.AssetName)
-					fmt.Printf("  Page ID: %s\n", result.PageID)
-					fmt.Printf("  Space: %s\n", result.SpaceKey)
-					fmt.Printf("  URL: %s\n", result.PageURL)
-					return nil
-				},
+				Name:   "update-confluence",
+				Usage:  "Update an existing Confluence page with the asset's current content",
+				Action: a.assetsUpdateConfluenceAction,
 				Flags: []cli.Flag{
-					&cli.StringFlag{
-						Name:     "name",
-						Usage:    "Asset name to update",
-						Required: true,
-					},
-					&cli.BoolFlag{
-						Name:  "dry-run",
-						Usage: "Preview without updating the page",
-						Value: false,
-					},
-					&cli.BoolFlag{
-						Name:  "debug",
-						Usage: "Enable debug output",
-						Value: false,
-					},
+					&cli.StringFlag{Name: "name", Usage: "Asset name to update", Required: true},
+					&cli.BoolFlag{Name: "dry-run", Usage: "Preview without updating the page", Value: false},
+					&cli.BoolFlag{Name: "debug", Usage: "Enable debug output", Value: false},
 				},
 			},
 			{
@@ -865,5 +733,105 @@ func (a *App) assetsTeamsRemoveContributorAction(ctx *cli.Context) error {
 		return err
 	}
 	fmt.Printf("✓ Removed '%s' as contributor from asset '%s'\n", teamName, assetName)
+	return nil
+}
+
+// assetsSyncAction backs `assetcap assets sync`. Special-cases the
+// "no assets found with label" service error as an informational
+// success (since that's expected when running against an empty space)
+// while surfacing every other error to the caller.
+func (a *App) assetsSyncAction(ctx *cli.Context) error {
+	space := ctx.String("space")
+	label := ctx.String("label")
+	debug := ctx.Bool("debug")
+
+	result, err := a.assetService.SyncFromConfluence(space, label, debug)
+	if err != nil {
+		if strings.Contains(err.Error(), "no assets found with label") {
+			fmt.Println(err)
+			return nil
+		}
+		return err
+	}
+
+	totalAssets := len(result.SyncedAssets) + len(result.NotSyncedAssets)
+	fmt.Printf("Successfully synced %d/%d assets from Confluence\n", len(result.SyncedAssets), totalAssets)
+
+	if len(result.NotSyncedAssets) > 0 {
+		fmt.Printf("\nWarning: %d assets could not be synced due to missing information:\n", len(result.NotSyncedAssets))
+		for _, asset := range result.NotSyncedAssets {
+			fmt.Printf("\n- %s:\n", asset.Name)
+			fmt.Printf("  Missing fields: %s\n", strings.Join(asset.MissingFields, ", "))
+			fmt.Println("  Available fields:")
+			for field, value := range asset.AvailableFields {
+				if value != "" {
+					fmt.Printf("    %s: %s\n", field, value)
+				}
+			}
+		}
+	}
+	return nil
+}
+
+// assetsPublishAction backs `assetcap assets publish`.
+func (a *App) assetsPublishAction(ctx *cli.Context) error {
+	name := ctx.String("name")
+	space := ctx.String("space")
+	parentPage := ctx.String("parent-page")
+	dryRun := ctx.Bool("dry-run")
+	debug := ctx.Bool("debug")
+
+	result, err := a.assetService.PublishToConfluence(context.Background(), name, space, parentPage, dryRun, debug)
+	if err != nil {
+		return err
+	}
+
+	if dryRun {
+		fmt.Printf("DRY RUN: Would create page for asset '%s' in space '%s'\n", result.AssetName, result.SpaceKey)
+		fmt.Printf("Labels to add: %v\n", result.Labels)
+		fmt.Printf("\nPreview of page content:\n")
+		fmt.Println("────────────────────────────────────────")
+		fmt.Println(result.Preview)
+		fmt.Println("────────────────────────────────────────")
+		return nil
+	}
+
+	fmt.Printf("Successfully published asset '%s' to Confluence\n", result.AssetName)
+	fmt.Printf("  Page ID: %s\n", result.PageID)
+	fmt.Printf("  Space: %s\n", result.SpaceKey)
+	fmt.Printf("  URL: %s\n", result.PageURL)
+	fmt.Printf("  Labels: %v\n", result.Labels)
+	if result.DocLinkSaved {
+		fmt.Printf("  DocLink updated in asset\n")
+	}
+	return nil
+}
+
+// assetsUpdateConfluenceAction backs `assetcap assets update-confluence`.
+func (a *App) assetsUpdateConfluenceAction(ctx *cli.Context) error {
+	name := ctx.String("name")
+	dryRun := ctx.Bool("dry-run")
+	debug := ctx.Bool("debug")
+
+	result, err := a.assetService.UpdateConfluencePage(context.Background(), name, dryRun, debug)
+	if err != nil {
+		return err
+	}
+
+	if dryRun {
+		fmt.Printf("DRY RUN: Would update page for asset '%s'\n", result.AssetName)
+		fmt.Printf("  Page ID: %s\n", result.PageID)
+		fmt.Printf("  Space: %s\n", result.SpaceKey)
+		fmt.Printf("\nPreview of page content:\n")
+		fmt.Println("────────────────────────────────────────")
+		fmt.Println(result.Preview)
+		fmt.Println("────────────────────────────────────────")
+		return nil
+	}
+
+	fmt.Printf("Successfully updated Confluence page for asset '%s'\n", result.AssetName)
+	fmt.Printf("  Page ID: %s\n", result.PageID)
+	fmt.Printf("  Space: %s\n", result.SpaceKey)
+	fmt.Printf("  URL: %s\n", result.PageURL)
 	return nil
 }
