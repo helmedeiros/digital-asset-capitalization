@@ -76,16 +76,19 @@ type ConfigService interface {
 }
 
 // TeamConfigService is the subset of *service.ConfigService that the
-// team-tribe / team-company subcommand Actions call. Pulling it out
-// as an interface lets tests inject a stub without standing up the
-// JSON file repository, and decouples the cmd/ Actions from a
-// concrete service type.
+// team-tribe / team-company / excluded-issue-types subcommand Actions
+// call. Pulling it out as an interface lets tests inject a stub
+// without standing up the JSON file repository, and decouples the
+// cmd/ Actions from a concrete service type. Grows incrementally as
+// more Actions get extracted.
 type TeamConfigService interface {
 	GetTeamConfig() (*domain.TeamConfig, error)
 	SetTribeForProject(project, tribe string) error
 	GetTribeForProject(project string) (string, error)
 	SetCompanyForProject(project, company string) error
 	GetCompanyForProject(project string) (string, error)
+	SetExcludedIssueTypesForProject(project string, types []string) error
+	GetExcludedIssueTypesForProject(project string) ([]string, error)
 }
 
 // configServiceImpl implements ConfigService

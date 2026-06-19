@@ -41,6 +41,19 @@ func (s *stubTeamConfigService) GetCompanyForProject(string) (string, error) {
 	return s.company, s.companyErr
 }
 
+// SetExcludedIssueTypesForProject and GetExcludedIssueTypesForProject
+// satisfy the TeamConfigService interface (their dedicated tests use
+// the fakeTeamConfigWithExcluded embedder in
+// config_excluded_issue_types_test.go). The base stub returns zero
+// values so it stays usable by every other Action test without
+// pulling in fields they don't care about.
+func (s *stubTeamConfigService) SetExcludedIssueTypesForProject(string, []string) error {
+	return nil
+}
+func (s *stubTeamConfigService) GetExcludedIssueTypesForProject(string) ([]string, error) {
+	return nil, nil
+}
+
 // teamConfigWith creates a real *TeamConfig with the supplied per-
 // project tribe and company assignments. Empty maps are fine; the
 // resulting config has projects but no annotations.
