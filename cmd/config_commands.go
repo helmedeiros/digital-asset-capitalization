@@ -45,52 +45,9 @@ func (a *App) createConfigCommand() *cli.Command {
 				Action: a.configValidateAction,
 			},
 			{
-				Name:  "sync-team",
-				Usage: "Synchronize team members from JIRA for a project",
-				Action: func(ctx *cli.Context) error {
-					projectKey := ctx.String("project")
-					if projectKey == "" {
-						return fmt.Errorf("project key is required")
-					}
-
-					// Create JIRA team sync adapter
-					teamSyncAdapter, err := configinfra.NewJiraTeamSyncAdapter(a.configService)
-					if err != nil {
-						return fmt.Errorf("failed to create team sync adapter: %v", err)
-					}
-
-					// Create team sync use case
-					configRepo := configinfra.NewFileRepository(configDir)
-					syncTeamUseCase := usecase.NewSyncTeamFromJira(teamSyncAdapter, configRepo)
-
-					// Execute team synchronization
-					result, err := syncTeamUseCase.Execute(projectKey)
-					if err != nil {
-						return fmt.Errorf("failed to sync team: %v", err)
-					}
-
-					// Display results
-					fmt.Printf("✅ Team synchronization completed for project %s\n", projectKey)
-					fmt.Printf("Source: %s\n", result.Source)
-					fmt.Printf("Total members: %d\n", result.TotalMembers)
-
-					if len(result.AddedMembers) > 0 {
-						fmt.Printf("Added members: %s\n", strings.Join(result.AddedMembers, ", "))
-					}
-
-					if len(result.RemovedMembers) > 0 {
-						fmt.Printf("Removed members: %s\n", strings.Join(result.RemovedMembers, ", "))
-					}
-
-					if result.HasErrors() {
-						fmt.Printf("⚠️  Warnings/Errors:\n")
-						for _, syncErr := range result.Errors {
-							fmt.Printf("  - %s (%s)\n", syncErr.Message, syncErr.Type)
-						}
-					}
-
-					return nil
-				},
+				Name:   "sync-team",
+				Usage:  "Synchronize team members from JIRA for a project",
+				Action: a.configSyncTeamAction,
 				Flags: []cli.Flag{
 					&cli.StringFlag{
 						Name:     "project",
@@ -901,5 +858,76 @@ func (a *App) configTeamTimelineRemoveAction(ctx *cli.Context) error {
 	}
 
 	fmt.Printf("Set '%s' departure from project '%s' (left: %s)\n", member, project, leftStr)
+	return nil
+}
+
+// ensureSyncTeamService lazily constructs the JIRA-backed
+// SyncTeamFromJira use case via a.syncTeamServiceFactory (which
+// tests can override) and stashes the result on App. Mirrors
+// ensureTeamConfigService, but exposes the construction error
+// because *configinfra.JiraTeamSyncAdapter requires env vars and
+// can fail.
+func (a *App) ensureSyncTeamService() error {
+	if a.syncTeamService != nil {
+		return nil
+	}
+	factory := a.syncTeamServiceFactory
+	if factory == nil {
+		factory = a.defaultSyncTeamServiceFactory
+	}
+	svc, err := factory()
+	if err != nil {
+		return err
+	}
+	a.syncTeamService = svc
+	return nil
+}
+
+// defaultSyncTeamServiceFactory wires the JIRA adapter + file
+// repository + use case the same way the original inline Action did.
+func (a *App) defaultSyncTeamServiceFactory() (SyncTeamFromJiraService, error) {
+	teamSyncAdapter, err := configinfra.NewJiraTeamSyncAdapter(a.configService)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create team sync adapter: %v", err)
+	}
+	configRepo := configinfra.NewFileRepository(configDir)
+	return usecase.NewSyncTeamFromJira(teamSyncAdapter, configRepo), nil
+}
+
+// configSyncTeamAction backs `assetcap config sync-team`.
+func (a *App) configSyncTeamAction(ctx *cli.Context) error {
+	projectKey := ctx.String("project")
+	if projectKey == "" {
+		return fmt.Errorf("project key is required")
+	}
+
+	if err := a.ensureSyncTeamService(); err != nil {
+		return err
+	}
+
+	result, err := a.syncTeamService.Execute(projectKey)
+	if err != nil {
+		return fmt.Errorf("failed to sync team: %v", err)
+	}
+
+	fmt.Printf("✅ Team synchronization completed for project %s\n", projectKey)
+	fmt.Printf("Source: %s\n", result.Source)
+	fmt.Printf("Total members: %d\n", result.TotalMembers)
+
+	if len(result.AddedMembers) > 0 {
+		fmt.Printf("Added members: %s\n", strings.Join(result.AddedMembers, ", "))
+	}
+
+	if len(result.RemovedMembers) > 0 {
+		fmt.Printf("Removed members: %s\n", strings.Join(result.RemovedMembers, ", "))
+	}
+
+	if result.HasErrors() {
+		fmt.Printf("⚠️  Warnings/Errors:\n")
+		for _, syncErr := range result.Errors {
+			fmt.Printf("  - %s (%s)\n", syncErr.Message, syncErr.Type)
+		}
+	}
+
 	return nil
 }
