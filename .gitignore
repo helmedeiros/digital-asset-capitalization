@@ -14,3 +14,17 @@ commit_*.txt
 commit_*.tmp
 *.commit-msg
 assetcap
+
+# OS-generated files
+.DS_Store
+.DS_Store?
+Thumbs.db
+ehthumbs.db
+
+# Editor swap and backup files
+*.swp
+*.swo
+*~
+
+# Go debugger binaries
+__debug_bin*
