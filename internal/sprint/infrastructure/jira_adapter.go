@@ -450,9 +450,14 @@ func (a *JiraAdapter) getIssuesForBoardByDateRange(project string, boardID int, 
 	startStr := start.Format("2006-01-02")
 	endStr := end.Format("2006-01-02")
 
-	// Query issues updated during the sprint period, filtered by board membership
-	query := fmt.Sprintf("project = %s AND updatedDate >= '%s' AND updatedDate <= '%s'",
-		project, startStr, endStr)
+	// Query issues that had activity, were resolved, or changed status during the sprint period,
+	// filtered by board membership. Using OR on resolved and status-changed keeps tickets in the window
+	// even when a later touch (e.g. a label change) pushes their updatedDate past the sprint end, or when
+	// a "Done" workflow does not populate resolutiondate.
+	query := fmt.Sprintf(
+		"project = %s AND ((updatedDate >= '%s' AND updatedDate <= '%s') OR (resolved >= '%s' AND resolved <= '%s') OR (status changed DURING ('%s', '%s')))",
+		project, startStr, endStr, startStr, endStr, startStr, endStr,
+	)
 	encodedQuery := url.QueryEscape(query)
 	fields := a.buildFieldsParam()
 
