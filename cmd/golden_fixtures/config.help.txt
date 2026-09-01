@@ -12,6 +12,7 @@ COMMANDS:
    team-nicknames        Manage team nicknames
    team-tribe            Manage team tribes (organizational groupings)
    team-company          Manage team companies (organization ownership)
+   team-confluence       Manage team Confluence spaces (asset documentation source)
    board-work-streams    Manage board-to-workstream mappings per project
    excluded-issue-types  Manage excluded issue types for sprint allocation per project
    team-timeline         Manage team member timeline (join/leave dates) for time-aware sprint allocation

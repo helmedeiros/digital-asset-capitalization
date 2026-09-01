@@ -95,6 +95,8 @@ type TeamConfigService interface {
 	GetTribeForProject(project string) (string, error)
 	SetCompanyForProject(project, company string) error
 	GetCompanyForProject(project string) (string, error)
+	SetConfluenceSpaceForProject(project, space string) error
+	GetConfluenceSpaceForProject(project string) (string, error)
 	SetExcludedIssueTypesForProject(project string, types []string) error
 	GetExcludedIssueTypesForProject(project string) ([]string, error)
 	SetBoardWorkStream(project string, boardID int, workStream string) error

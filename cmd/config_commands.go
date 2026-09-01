@@ -142,6 +142,34 @@ func (a *App) createConfigCommand() *cli.Command {
 				},
 			},
 			{
+				Name:  "team-confluence",
+				Usage: "Manage team Confluence spaces (asset documentation source)",
+				Subcommands: []*cli.Command{
+					{
+						Name:   "set",
+						Usage:  "Set the Confluence space key for a project/team",
+						Action: a.configTeamConfluenceSetAction,
+						Flags: []cli.Flag{
+							&cli.StringFlag{Name: "project", Aliases: []string{"p"}, Usage: "Project key (e.g., FN, COP)", Required: true},
+							&cli.StringFlag{Name: "space", Aliases: []string{"s"}, Usage: "Confluence space key (e.g., 'MZN', 'CAP')", Required: true},
+						},
+					},
+					{
+						Name:   "list",
+						Usage:  "List all team Confluence spaces",
+						Action: a.configTeamConfluenceListAction,
+					},
+					{
+						Name:   "show",
+						Usage:  "Show the Confluence space for a specific project",
+						Action: a.configTeamConfluenceShowAction,
+						Flags: []cli.Flag{
+							&cli.StringFlag{Name: "project", Aliases: []string{"p"}, Usage: "Project key (e.g., FN)", Required: true},
+						},
+					},
+				},
+			},
+			{
 				Name:  "board-work-streams",
 				Usage: "Manage board-to-workstream mappings per project",
 				Subcommands: []*cli.Command{
@@ -583,6 +611,75 @@ func (a *App) configTeamCompanyShowAction(ctx *cli.Context) error {
 		fmt.Printf("Project '%s' has no company assigned\n", project)
 	} else {
 		fmt.Printf("Project '%s' belongs to company: %s\n", project, company)
+	}
+	return nil
+}
+
+// configTeamConfluenceSetAction backs `assetcap config team-confluence set`.
+func (a *App) configTeamConfluenceSetAction(ctx *cli.Context) error {
+	project := ctx.String("project")
+	space := ctx.String("space")
+	if project == "" {
+		return fmt.Errorf("project is required")
+	}
+	if space == "" {
+		return fmt.Errorf("space is required")
+	}
+	a.ensureTeamConfigService()
+	if err := a.teamConfigService.SetConfluenceSpaceForProject(project, space); err != nil {
+		return fmt.Errorf("failed to set confluence space: %v", err)
+	}
+	fmt.Printf("✅ Set confluence space '%s' for project '%s'\n", space, project)
+	return nil
+}
+
+// configTeamConfluenceListAction backs `assetcap config team-confluence list`.
+func (a *App) configTeamConfluenceListAction(_ *cli.Context) error {
+	a.ensureTeamConfigService()
+	teamConfig, err := a.teamConfigService.GetTeamConfig()
+	if err != nil {
+		return fmt.Errorf("failed to load team config: %v", err)
+	}
+
+	projects := teamConfig.GetProjects()
+	if len(projects) == 0 {
+		fmt.Println("No teams configured")
+		return nil
+	}
+
+	fmt.Println("Team Confluence Spaces:")
+	fmt.Println("=======================")
+
+	found := false
+	for _, project := range projects {
+		space := teamConfig.GetConfluenceSpace(project)
+		if space != "" {
+			fmt.Printf("  %s: %s\n", project, space)
+			found = true
+		}
+	}
+
+	if !found {
+		fmt.Println("  No confluence spaces configured for any project")
+	}
+	return nil
+}
+
+// configTeamConfluenceShowAction backs `assetcap config team-confluence show`.
+func (a *App) configTeamConfluenceShowAction(ctx *cli.Context) error {
+	project := ctx.String("project")
+	if project == "" {
+		return fmt.Errorf("project is required")
+	}
+	a.ensureTeamConfigService()
+	space, err := a.teamConfigService.GetConfluenceSpaceForProject(project)
+	if err != nil {
+		return fmt.Errorf("failed to get confluence space: %v", err)
+	}
+	if space == "" {
+		fmt.Printf("Project '%s' has no confluence space assigned\n", project)
+	} else {
+		fmt.Printf("Project '%s' uses confluence space: %s\n", project, space)
 	}
 	return nil
 }

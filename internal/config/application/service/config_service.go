@@ -188,6 +188,34 @@ func (s *ConfigService) GetCompanyForProject(project string) (string, error) {
 	return config.GetCompany(project), nil
 }
 
+// SetConfluenceSpaceForProject sets the Confluence space for a specific project and saves the configuration
+func (s *ConfigService) SetConfluenceSpaceForProject(project, space string) error {
+	config, err := s.GetTeamConfig()
+	if err != nil {
+		return fmt.Errorf("failed to load team configuration: %w", err)
+	}
+
+	if err := config.SetConfluenceSpace(project, space); err != nil {
+		return fmt.Errorf("failed to set confluence space: %w", err)
+	}
+
+	if err := s.SaveTeamConfig(config); err != nil {
+		return fmt.Errorf("failed to save team configuration: %w", err)
+	}
+
+	return nil
+}
+
+// GetConfluenceSpaceForProject returns the Confluence space for a specific project
+func (s *ConfigService) GetConfluenceSpaceForProject(project string) (string, error) {
+	config, err := s.GetTeamConfig()
+	if err != nil {
+		return "", fmt.Errorf("failed to load team configuration: %w", err)
+	}
+
+	return config.GetConfluenceSpace(project), nil
+}
+
 // SetExcludedIssueTypesForProject sets the excluded issue types for a project and saves
 func (s *ConfigService) SetExcludedIssueTypesForProject(project string, types []string) error {
 	config, err := s.GetTeamConfig()

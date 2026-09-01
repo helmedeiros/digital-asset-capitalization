@@ -659,6 +659,138 @@ func TestConfigService_GetCompanyForProject(t *testing.T) {
 	})
 }
 
+func TestConfigService_SetConfluenceSpaceForProject(t *testing.T) {
+	t.Parallel()
+	t.Run("should set confluence space for existing project successfully", func(t *testing.T) {
+		repo := &MockConfigurationRepository{}
+		service := NewConfigService(repo)
+
+		teams := map[string][]string{
+			"FN": {"alice", "bob"},
+		}
+		teamConfig, err := domain.NewTeamConfig(teams)
+		require.NoError(t, err)
+
+		repo.On("LoadTeamConfig").Return(teamConfig, nil)
+		repo.On("SaveTeamConfig", mock.AnythingOfType("*domain.TeamConfig")).Return(nil)
+
+		err = service.SetConfluenceSpaceForProject("FN", "MZN")
+
+		require.NoError(t, err)
+		repo.AssertExpectations(t)
+	})
+
+	t.Run("should return error when project does not exist", func(t *testing.T) {
+		repo := &MockConfigurationRepository{}
+		service := NewConfigService(repo)
+
+		teams := map[string][]string{
+			"FN": {"alice", "bob"},
+		}
+		teamConfig, err := domain.NewTeamConfig(teams)
+		require.NoError(t, err)
+
+		repo.On("LoadTeamConfig").Return(teamConfig, nil)
+
+		err = service.SetConfluenceSpaceForProject("NONEXISTENT", "MZN")
+
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "failed to set confluence space")
+		repo.AssertExpectations(t)
+	})
+
+	t.Run("should return error when load fails", func(t *testing.T) {
+		repo := &MockConfigurationRepository{}
+		service := NewConfigService(repo)
+
+		repo.On("LoadTeamConfig").Return(nil, errors.New("repository error"))
+
+		err := service.SetConfluenceSpaceForProject("FN", "MZN")
+
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "failed to load team configuration")
+		repo.AssertExpectations(t)
+	})
+
+	t.Run("should return error when save fails", func(t *testing.T) {
+		repo := &MockConfigurationRepository{}
+		service := NewConfigService(repo)
+
+		teams := map[string][]string{
+			"FN": {"alice", "bob"},
+		}
+		teamConfig, err := domain.NewTeamConfig(teams)
+		require.NoError(t, err)
+
+		repo.On("LoadTeamConfig").Return(teamConfig, nil)
+		repo.On("SaveTeamConfig", mock.AnythingOfType("*domain.TeamConfig")).Return(errors.New("save error"))
+
+		err = service.SetConfluenceSpaceForProject("FN", "MZN")
+
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "failed to save team configuration")
+		repo.AssertExpectations(t)
+	})
+}
+
+func TestConfigService_GetConfluenceSpaceForProject(t *testing.T) {
+	t.Parallel()
+	t.Run("should return confluence space for project with space set", func(t *testing.T) {
+		repo := &MockConfigurationRepository{}
+		service := NewConfigService(repo)
+
+		teams := map[string][]string{
+			"FN": {"alice", "bob"},
+		}
+		confluenceSpaces := map[string]string{
+			"FN": "MZN",
+		}
+		teamConfig, err := domain.NewTeamConfigComplete(teams, nil, nil, nil, confluenceSpaces, nil)
+		require.NoError(t, err)
+
+		repo.On("LoadTeamConfig").Return(teamConfig, nil)
+
+		space, err := service.GetConfluenceSpaceForProject("FN")
+
+		require.NoError(t, err)
+		assert.Equal(t, "MZN", space)
+		repo.AssertExpectations(t)
+	})
+
+	t.Run("should return empty string for project without confluence space", func(t *testing.T) {
+		repo := &MockConfigurationRepository{}
+		service := NewConfigService(repo)
+
+		teams := map[string][]string{
+			"FN": {"alice", "bob"},
+		}
+		teamConfig, err := domain.NewTeamConfig(teams)
+		require.NoError(t, err)
+
+		repo.On("LoadTeamConfig").Return(teamConfig, nil)
+
+		space, err := service.GetConfluenceSpaceForProject("FN")
+
+		require.NoError(t, err)
+		assert.Equal(t, "", space)
+		repo.AssertExpectations(t)
+	})
+
+	t.Run("should return error when load fails", func(t *testing.T) {
+		repo := &MockConfigurationRepository{}
+		service := NewConfigService(repo)
+
+		repo.On("LoadTeamConfig").Return(nil, errors.New("repository error"))
+
+		space, err := service.GetConfluenceSpaceForProject("FN")
+
+		require.Error(t, err)
+		assert.Equal(t, "", space)
+		assert.Contains(t, err.Error(), "failed to load team configuration")
+		repo.AssertExpectations(t)
+	})
+}
+
 func TestConfigService_SetExcludedIssueTypesForProject(t *testing.T) {
 	t.Parallel()
 	t.Run("should set excluded issue types successfully", func(t *testing.T) {
