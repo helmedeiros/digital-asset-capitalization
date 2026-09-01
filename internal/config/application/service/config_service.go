@@ -216,6 +216,34 @@ func (s *ConfigService) GetConfluenceSpaceForProject(project string) (string, er
 	return config.GetConfluenceSpace(project), nil
 }
 
+// SetConfluenceParentPageForProject sets the Confluence parent page ID for a specific project and saves the configuration
+func (s *ConfigService) SetConfluenceParentPageForProject(project, pageID string) error {
+	config, err := s.GetTeamConfig()
+	if err != nil {
+		return fmt.Errorf("failed to load team configuration: %w", err)
+	}
+
+	if err := config.SetConfluenceParentPage(project, pageID); err != nil {
+		return fmt.Errorf("failed to set confluence parent page: %w", err)
+	}
+
+	if err := s.SaveTeamConfig(config); err != nil {
+		return fmt.Errorf("failed to save team configuration: %w", err)
+	}
+
+	return nil
+}
+
+// GetConfluenceParentPageForProject returns the Confluence parent page ID for a specific project
+func (s *ConfigService) GetConfluenceParentPageForProject(project string) (string, error) {
+	config, err := s.GetTeamConfig()
+	if err != nil {
+		return "", fmt.Errorf("failed to load team configuration: %w", err)
+	}
+
+	return config.GetConfluenceParentPage(project), nil
+}
+
 // SetExcludedIssueTypesForProject sets the excluded issue types for a project and saves
 func (s *ConfigService) SetExcludedIssueTypesForProject(project string, types []string) error {
 	config, err := s.GetTeamConfig()

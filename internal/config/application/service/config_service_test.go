@@ -791,6 +791,138 @@ func TestConfigService_GetConfluenceSpaceForProject(t *testing.T) {
 	})
 }
 
+func TestConfigService_SetConfluenceParentPageForProject(t *testing.T) {
+	t.Parallel()
+	t.Run("should set confluence parent page for existing project successfully", func(t *testing.T) {
+		repo := &MockConfigurationRepository{}
+		service := NewConfigService(repo)
+
+		teams := map[string][]string{
+			"FN": {"alice", "bob"},
+		}
+		teamConfig, err := domain.NewTeamConfig(teams)
+		require.NoError(t, err)
+
+		repo.On("LoadTeamConfig").Return(teamConfig, nil)
+		repo.On("SaveTeamConfig", mock.AnythingOfType("*domain.TeamConfig")).Return(nil)
+
+		err = service.SetConfluenceParentPageForProject("FN", "123456789")
+
+		require.NoError(t, err)
+		repo.AssertExpectations(t)
+	})
+
+	t.Run("should return error when project does not exist", func(t *testing.T) {
+		repo := &MockConfigurationRepository{}
+		service := NewConfigService(repo)
+
+		teams := map[string][]string{
+			"FN": {"alice", "bob"},
+		}
+		teamConfig, err := domain.NewTeamConfig(teams)
+		require.NoError(t, err)
+
+		repo.On("LoadTeamConfig").Return(teamConfig, nil)
+
+		err = service.SetConfluenceParentPageForProject("NONEXISTENT", "123456789")
+
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "failed to set confluence parent page")
+		repo.AssertExpectations(t)
+	})
+
+	t.Run("should return error when load fails", func(t *testing.T) {
+		repo := &MockConfigurationRepository{}
+		service := NewConfigService(repo)
+
+		repo.On("LoadTeamConfig").Return(nil, errors.New("repository error"))
+
+		err := service.SetConfluenceParentPageForProject("FN", "123456789")
+
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "failed to load team configuration")
+		repo.AssertExpectations(t)
+	})
+
+	t.Run("should return error when save fails", func(t *testing.T) {
+		repo := &MockConfigurationRepository{}
+		service := NewConfigService(repo)
+
+		teams := map[string][]string{
+			"FN": {"alice", "bob"},
+		}
+		teamConfig, err := domain.NewTeamConfig(teams)
+		require.NoError(t, err)
+
+		repo.On("LoadTeamConfig").Return(teamConfig, nil)
+		repo.On("SaveTeamConfig", mock.AnythingOfType("*domain.TeamConfig")).Return(errors.New("save error"))
+
+		err = service.SetConfluenceParentPageForProject("FN", "123456789")
+
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "failed to save team configuration")
+		repo.AssertExpectations(t)
+	})
+}
+
+func TestConfigService_GetConfluenceParentPageForProject(t *testing.T) {
+	t.Parallel()
+	t.Run("should return confluence parent page for project with page set", func(t *testing.T) {
+		repo := &MockConfigurationRepository{}
+		service := NewConfigService(repo)
+
+		teams := map[string][]string{
+			"FN": {"alice", "bob"},
+		}
+		confluenceParentPages := map[string]string{
+			"FN": "123456789",
+		}
+		teamConfig, err := domain.NewTeamConfigComplete(teams, nil, nil, nil, nil, confluenceParentPages)
+		require.NoError(t, err)
+
+		repo.On("LoadTeamConfig").Return(teamConfig, nil)
+
+		pageID, err := service.GetConfluenceParentPageForProject("FN")
+
+		require.NoError(t, err)
+		assert.Equal(t, "123456789", pageID)
+		repo.AssertExpectations(t)
+	})
+
+	t.Run("should return empty string for project without confluence parent page", func(t *testing.T) {
+		repo := &MockConfigurationRepository{}
+		service := NewConfigService(repo)
+
+		teams := map[string][]string{
+			"FN": {"alice", "bob"},
+		}
+		teamConfig, err := domain.NewTeamConfig(teams)
+		require.NoError(t, err)
+
+		repo.On("LoadTeamConfig").Return(teamConfig, nil)
+
+		pageID, err := service.GetConfluenceParentPageForProject("FN")
+
+		require.NoError(t, err)
+		assert.Equal(t, "", pageID)
+		repo.AssertExpectations(t)
+	})
+
+	t.Run("should return error when load fails", func(t *testing.T) {
+		repo := &MockConfigurationRepository{}
+		service := NewConfigService(repo)
+
+		repo.On("LoadTeamConfig").Return(nil, errors.New("repository error"))
+
+		pageID, err := service.GetConfluenceParentPageForProject("FN")
+
+		require.Error(t, err)
+		assert.Equal(t, "", pageID)
+		assert.Contains(t, err.Error(), "failed to load team configuration")
+		repo.AssertExpectations(t)
+	})
+}
+
 func TestConfigService_SetExcludedIssueTypesForProject(t *testing.T) {
 	t.Parallel()
 	t.Run("should set excluded issue types successfully", func(t *testing.T) {

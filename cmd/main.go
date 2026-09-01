@@ -97,6 +97,8 @@ type TeamConfigService interface {
 	GetCompanyForProject(project string) (string, error)
 	SetConfluenceSpaceForProject(project, space string) error
 	GetConfluenceSpaceForProject(project string) (string, error)
+	SetConfluenceParentPageForProject(project, pageID string) error
+	GetConfluenceParentPageForProject(project string) (string, error)
 	SetExcludedIssueTypesForProject(project string, types []string) error
 	GetExcludedIssueTypesForProject(project string) ([]string, error)
 	SetBoardWorkStream(project string, boardID int, workStream string) error

@@ -170,6 +170,34 @@ func (a *App) createConfigCommand() *cli.Command {
 				},
 			},
 			{
+				Name:  "team-confluence-parent-page",
+				Usage: "Manage team Confluence parent page IDs (asset hierarchy root)",
+				Subcommands: []*cli.Command{
+					{
+						Name:   "set",
+						Usage:  "Set the Confluence parent page ID for a project/team",
+						Action: a.configTeamConfluenceParentPageSetAction,
+						Flags: []cli.Flag{
+							&cli.StringFlag{Name: "project", Aliases: []string{"p"}, Usage: "Project key (e.g., FN, COP)", Required: true},
+							&cli.StringFlag{Name: "page-id", Aliases: []string{"id"}, Usage: "Confluence page ID (e.g., '123456789')", Required: true},
+						},
+					},
+					{
+						Name:   "list",
+						Usage:  "List all team Confluence parent page IDs",
+						Action: a.configTeamConfluenceParentPageListAction,
+					},
+					{
+						Name:   "show",
+						Usage:  "Show the Confluence parent page ID for a specific project",
+						Action: a.configTeamConfluenceParentPageShowAction,
+						Flags: []cli.Flag{
+							&cli.StringFlag{Name: "project", Aliases: []string{"p"}, Usage: "Project key (e.g., FN)", Required: true},
+						},
+					},
+				},
+			},
+			{
 				Name:  "board-work-streams",
 				Usage: "Manage board-to-workstream mappings per project",
 				Subcommands: []*cli.Command{
@@ -680,6 +708,75 @@ func (a *App) configTeamConfluenceShowAction(ctx *cli.Context) error {
 		fmt.Printf("Project '%s' has no confluence space assigned\n", project)
 	} else {
 		fmt.Printf("Project '%s' uses confluence space: %s\n", project, space)
+	}
+	return nil
+}
+
+// configTeamConfluenceParentPageSetAction backs `assetcap config team-confluence-parent-page set`.
+func (a *App) configTeamConfluenceParentPageSetAction(ctx *cli.Context) error {
+	project := ctx.String("project")
+	pageID := ctx.String("page-id")
+	if project == "" {
+		return fmt.Errorf("project is required")
+	}
+	if pageID == "" {
+		return fmt.Errorf("page-id is required")
+	}
+	a.ensureTeamConfigService()
+	if err := a.teamConfigService.SetConfluenceParentPageForProject(project, pageID); err != nil {
+		return fmt.Errorf("failed to set confluence parent page: %v", err)
+	}
+	fmt.Printf("✅ Set confluence parent page '%s' for project '%s'\n", pageID, project)
+	return nil
+}
+
+// configTeamConfluenceParentPageListAction backs `assetcap config team-confluence-parent-page list`.
+func (a *App) configTeamConfluenceParentPageListAction(_ *cli.Context) error {
+	a.ensureTeamConfigService()
+	teamConfig, err := a.teamConfigService.GetTeamConfig()
+	if err != nil {
+		return fmt.Errorf("failed to load team config: %v", err)
+	}
+
+	projects := teamConfig.GetProjects()
+	if len(projects) == 0 {
+		fmt.Println("No teams configured")
+		return nil
+	}
+
+	fmt.Println("Team Confluence Parent Pages:")
+	fmt.Println("==============================")
+
+	found := false
+	for _, project := range projects {
+		pageID := teamConfig.GetConfluenceParentPage(project)
+		if pageID != "" {
+			fmt.Printf("  %s: %s\n", project, pageID)
+			found = true
+		}
+	}
+
+	if !found {
+		fmt.Println("  No confluence parent pages configured for any project")
+	}
+	return nil
+}
+
+// configTeamConfluenceParentPageShowAction backs `assetcap config team-confluence-parent-page show`.
+func (a *App) configTeamConfluenceParentPageShowAction(ctx *cli.Context) error {
+	project := ctx.String("project")
+	if project == "" {
+		return fmt.Errorf("project is required")
+	}
+	a.ensureTeamConfigService()
+	pageID, err := a.teamConfigService.GetConfluenceParentPageForProject(project)
+	if err != nil {
+		return fmt.Errorf("failed to get confluence parent page: %v", err)
+	}
+	if pageID == "" {
+		fmt.Printf("Project '%s' has no confluence parent page assigned\n", project)
+	} else {
+		fmt.Printf("Project '%s' uses confluence parent page: %s\n", project, pageID)
 	}
 	return nil
 }
