@@ -3,6 +3,7 @@ package classifier
 import (
 	"fmt"
 	"strings"
+	"unicode"
 	"sync"
 
 	assetdomain "github.com/helmedeiros/digital-asset-capitalization/internal/assets/domain"
@@ -87,6 +88,20 @@ func (c *ContentBasedAssetClassifier) sharedNameWords() map[string]bool {
 		c.cachedSharedWords = shared
 	})
 	return c.cachedSharedWords
+}
+
+// tokenizeWords splits text into a set of lowercase whole words, breaking on
+// any non-letter/non-digit rune. Used for whole-word matching so that, e.g.,
+// the word "rates" doesn't match inside "orchestrates".
+func tokenizeWords(text string) map[string]bool {
+	fields := strings.FieldsFunc(text, func(r rune) bool {
+		return !unicode.IsLetter(r) && !unicode.IsDigit(r)
+	})
+	words := make(map[string]bool, len(fields))
+	for _, f := range fields {
+		words[strings.ToLower(f)] = true
+	}
+	return words
 }
 
 // ClassifyTaskAsset determines which asset a task belongs to based on content analysis
@@ -353,11 +368,17 @@ func (c *ContentBasedAssetClassifier) calculateAssetMatchScore(task *taskdomain.
 	// several asset names) are skipped: they'd give every asset sharing
 	// the word the same credit for any ticket that merely mentions it,
 	// which is noise, not a distinguishing signal.
+	//
+	// Matching uses whole words (tokenizeWords), not strings.Contains:
+	// a raw substring check matches "rates" inside "orchestrates", or
+	// "over" inside "moreover", which has nothing to do with the asset.
 	sharedWords := c.sharedNameWords()
+	contentWords := tokenizeWords(taskContent)
+	epicWords := tokenizeWords(epicContent)
 	assetWords := strings.Fields(assetNameLower)
 	partialMatches := 0
 	for _, word := range assetWords {
-		if len(word) > 3 && !sharedWords[word] && (strings.Contains(taskContent, word) || strings.Contains(epicContent, word)) {
+		if len(word) > 3 && !sharedWords[word] && (contentWords[word] || epicWords[word]) {
 			partialMatches++
 		}
 	}
