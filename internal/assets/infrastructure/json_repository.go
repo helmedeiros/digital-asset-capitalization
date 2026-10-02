@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sort"
 	"sync"
 
 	"github.com/helmedeiros/digital-asset-capitalization/internal/assets/domain"
@@ -108,6 +109,15 @@ func (r *JSONRepository) FindAll() ([]*domain.Asset, error) {
 	for _, asset := range assets {
 		result = append(result, asset)
 	}
+
+	// Go's map iteration order is randomized per process, so without this
+	// sort the asset list (and therefore which asset wins a tied
+	// classification score) would differ between separate CLI invocations
+	// -- e.g. a dry-run preview and the --apply run right after it could
+	// disagree on a tied match, even though nothing about the data changed.
+	sort.Slice(result, func(i, j int) bool {
+		return result[i].Name < result[j].Name
+	})
 
 	return result, nil
 }
