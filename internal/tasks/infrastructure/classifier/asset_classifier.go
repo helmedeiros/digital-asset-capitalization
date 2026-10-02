@@ -23,6 +23,15 @@ type ContentBasedAssetClassifier struct {
 	loadOnce     sync.Once
 	cachedAssets []*assetdomain.Asset
 	cachedErr    error
+
+	// sharedWordsOnce/cachedSharedWords cache which name-words are common to
+	// 2+ assets (e.g. "pricing" appearing in several asset names). Such a
+	// word gives every asset that shares it the same partial-name-match
+	// credit for any ticket that merely mentions the generic word, so it
+	// carries no real distinguishing signal and is excluded from partial
+	// matching below.
+	sharedWordsOnce   sync.Once
+	cachedSharedWords map[string]bool
 }
 
 // NewContentBasedAssetClassifier creates a new content-based asset classifier
@@ -33,12 +42,51 @@ func NewContentBasedAssetClassifier(assetRepo assetports.AssetRepository) ports.
 }
 
 // loadAssets returns the asset list, reading the repository exactly
-// once per classifier instance.
+// once per classifier instance. A nil repository (some unit tests build a
+// ContentBasedAssetClassifier directly to isolate a single scoring method,
+// without wiring one up) yields an empty list rather than panicking.
 func (c *ContentBasedAssetClassifier) loadAssets() ([]*assetdomain.Asset, error) {
 	c.loadOnce.Do(func() {
+		if c.assetRepo == nil {
+			return
+		}
 		c.cachedAssets, c.cachedErr = c.assetRepo.FindAll()
 	})
 	return c.cachedAssets, c.cachedErr
+}
+
+// sharedNameWords returns the set of name-words (len > 3) that appear in
+// 2 or more distinct assets' names, computed once per classifier instance.
+func (c *ContentBasedAssetClassifier) sharedNameWords() map[string]bool {
+	c.sharedWordsOnce.Do(func() {
+		assets, err := c.loadAssets()
+		if err != nil {
+			c.cachedSharedWords = map[string]bool{}
+			return
+		}
+
+		wordAssetCount := make(map[string]map[string]bool)
+		for _, asset := range assets {
+			for _, word := range strings.Fields(strings.ToLower(asset.Name)) {
+				if len(word) <= 3 {
+					continue
+				}
+				if wordAssetCount[word] == nil {
+					wordAssetCount[word] = make(map[string]bool)
+				}
+				wordAssetCount[word][asset.Name] = true
+			}
+		}
+
+		shared := make(map[string]bool)
+		for word, names := range wordAssetCount {
+			if len(names) >= 2 {
+				shared[word] = true
+			}
+		}
+		c.cachedSharedWords = shared
+	})
+	return c.cachedSharedWords
 }
 
 // ClassifyTaskAsset determines which asset a task belongs to based on content analysis
@@ -300,11 +348,16 @@ func (c *ContentBasedAssetClassifier) calculateAssetMatchScore(task *taskdomain.
 		matchTypes++
 	}
 
-	// 5. Check for partial asset name matches (lower priority)
+	// 5. Check for partial asset name matches (lower priority).
+	// Words shared with another asset's name (e.g. "pricing" appearing in
+	// several asset names) are skipped: they'd give every asset sharing
+	// the word the same credit for any ticket that merely mentions it,
+	// which is noise, not a distinguishing signal.
+	sharedWords := c.sharedNameWords()
 	assetWords := strings.Fields(assetNameLower)
 	partialMatches := 0
 	for _, word := range assetWords {
-		if len(word) > 3 && (strings.Contains(taskContent, word) || strings.Contains(epicContent, word)) {
+		if len(word) > 3 && !sharedWords[word] && (strings.Contains(taskContent, word) || strings.Contains(epicContent, word)) {
 			partialMatches++
 		}
 	}
