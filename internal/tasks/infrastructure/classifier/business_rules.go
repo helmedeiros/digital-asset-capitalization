@@ -89,7 +89,13 @@ func (c *BusinessRulesClassifier) ClassifyTasks(tasks []*taskdomain.Task) (map[s
 
 // isSpikeOrResearch checks if task is labeled as spike or research
 func (c *BusinessRulesClassifier) isSpikeOrResearch(task *taskdomain.Task) bool {
-	content := strings.ToLower(task.Summary + " " + task.Description)
+	// Scoped to the summary only (not description): a description often
+	// contains boilerplate acceptance-criteria wording (e.g. a routine
+	// "investigate the monitoring/alerting setup" checklist item) on an
+	// otherwise clear rollout/build ticket, and a single incidental word
+	// there shouldn't override the ticket's actual nature. The title is
+	// what the author chose to describe the ticket's primary intent.
+	content := strings.ToLower(task.Summary)
 
 	// Check labels
 	for _, label := range task.Labels {
@@ -348,12 +354,17 @@ func (c *BusinessRulesClassifier) classifyByContent(task *taskdomain.Task) taskd
 		}
 	}
 
-	// Return the category with the most matches
+	// Return the category with the most matches. A tie between development
+	// and maintenance counts as development: a ticket can score one word
+	// from each list (e.g. "add" for new functionality alongside "update"
+	// describing a minor side effect) while still being primarily new
+	// work, not upkeep. Ties should not be silently resolved in favor of
+	// the less common category.
 	if discoveryCount > developmentCount && discoveryCount > maintenanceCount {
 		return taskdomain.WorkTypeDiscovery
 	}
 
-	if developmentCount > maintenanceCount {
+	if developmentCount >= maintenanceCount {
 		return taskdomain.WorkTypeDevelopment
 	}
 
