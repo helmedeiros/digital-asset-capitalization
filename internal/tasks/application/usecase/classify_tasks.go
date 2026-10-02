@@ -190,9 +190,14 @@ func (uc *ClassifyTasksUseCase) Execute(ctx context.Context, input domain.Classi
 	}
 
 	// Phase 3: apply label updates to JIRA (or just narrate when in
-	// local-only mode). Errors here abort the run; previously persisted
+	// local-only mode). A single task's JIRA update can fail for reasons
+	// specific to that one issue (e.g. its screen configuration rejects
+	// the labels field) that have nothing to do with the rest of the
+	// batch, so a failure here is recorded and the loop continues rather
+	// than abandoning every task still to come. Previously persisted
 	// local state stays correct because of phase 2.
 	successCount := 0
+	var failures []string
 	for _, result := range classificationResults {
 		task := result.Task
 		workType := result.WorkType
@@ -211,8 +216,9 @@ func (uc *ClassifyTasksUseCase) Execute(ctx context.Context, input domain.Classi
 			}
 
 			if err := uc.remoteRepo.UpdateLabels(ctx, task.Key, addLabels, removeLabels); err != nil {
-				fmt.Printf(" ❌ Failed to update JIRA\n")
-				return fmt.Errorf("failed to apply labels to task %s: %w", task.Key, err)
+				fmt.Printf(" ❌ Failed to update JIRA: %v\n", err)
+				failures = append(failures, fmt.Sprintf("%s: %v", task.Key, err))
+				continue
 			}
 			fmt.Printf(" ✅ Applied to JIRA\n")
 		} else {
@@ -222,10 +228,23 @@ func (uc *ClassifyTasksUseCase) Execute(ctx context.Context, input domain.Classi
 	}
 
 	fmt.Printf("\n✅ Successfully processed %d tasks\n", successCount)
+	if len(failures) > 0 {
+		fmt.Printf("⚠️  %d task(s) failed to update in JIRA:\n", len(failures))
+		for _, f := range failures {
+			fmt.Printf("    - %s\n", f)
+		}
+	}
 	if input.Apply {
-		fmt.Printf("🎯 All work type and asset labels have been written to JIRA\n")
+		if len(failures) > 0 {
+			fmt.Printf("🎯 Work type and asset labels have been written to JIRA for %d of %d tasks\n", successCount, len(classificationResults))
+		} else {
+			fmt.Printf("🎯 All work type and asset labels have been written to JIRA\n")
+		}
 
-		// Save sprint lock after successful apply
+		// Save sprint lock after apply, even with partial failures: the
+		// tasks that did succeed are already live on JIRA, and a locked
+		// sprint can still be revisited with --force once the few
+		// failures are investigated.
 		if uc.lockRepo != nil {
 			lock := domain.NewSprintLock(input.Project, input.Sprint, successCount)
 			if lockErr := uc.lockRepo.SaveLock(ctx, lock); lockErr != nil {
@@ -234,6 +253,10 @@ func (uc *ClassifyTasksUseCase) Execute(ctx context.Context, input domain.Classi
 		}
 	} else {
 		fmt.Printf("💾 Classifications saved locally (use --apply to write to JIRA)\n")
+	}
+
+	if len(failures) > 0 {
+		return fmt.Errorf("failed to apply labels to %d task(s): %s", len(failures), strings.Join(failures, "; "))
 	}
 
 	return nil

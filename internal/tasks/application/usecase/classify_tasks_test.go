@@ -1334,7 +1334,59 @@ func TestClassifyTasksEdgeCases(t *testing.T) {
 
 		// Assert
 		assert.Error(t, err)
-		assert.Contains(t, err.Error(), "failed to apply labels to task TEST-1")
+		assert.Contains(t, err.Error(), "TEST-1")
+		assert.Contains(t, err.Error(), "update error")
+		localRepo.AssertExpectations(t)
+		remoteRepo.AssertExpectations(t)
+		classifier.AssertExpectations(t)
+	})
+
+	t.Run("should continue applying remaining tasks after one JIRA update fails", func(t *testing.T) {
+		// A single task's JIRA update can fail for reasons specific to
+		// that one issue (e.g. a screen configuration that rejects the
+		// labels field) with no bearing on the rest of the batch, so the
+		// loop must still apply every other task rather than abandoning
+		// them.
+		localRepo := new(MockTaskRepository)
+		remoteRepo := new(MockTaskRepository)
+		classifier := new(MockTaskClassifier)
+		userInput := new(MockUserInput)
+
+		assetService := testutil.NewMockAssetService()
+		uc := NewClassifyTasksUseCase(localRepo, remoteRepo, classifier, userInput, assetService, nil)
+
+		input := domain.ClassifyTasksInput{
+			Project: testProject,
+			Sprint:  testSprint,
+			DryRun:  false,
+			Apply:   true,
+		}
+
+		tasks := []*domain.Task{
+			{Key: "TEST-1", Summary: "Task 1"},
+			{Key: "TEST-2", Summary: "Task 2"},
+			{Key: "TEST-3", Summary: "Task 3"},
+		}
+		workTypes := map[string]domain.WorkType{
+			"TEST-1": domain.WorkTypeDevelopment,
+			"TEST-2": domain.WorkTypeDevelopment,
+			"TEST-3": domain.WorkTypeDevelopment,
+		}
+
+		localRepo.On("FindByProjectAndSprint", ctx, testProject, testSprint).Return(tasks, nil)
+		classifier.On("ClassifyTasks", tasks).Return(workTypes, nil)
+		localRepo.On("Save", ctx, mock.Anything).Return(nil)
+		remoteRepo.On("UpdateLabels", ctx, "TEST-1", []string{"cap-development"}, []string(nil)).Return(nil)
+		remoteRepo.On("UpdateLabels", ctx, "TEST-2", []string{"cap-development"}, []string(nil)).
+			Return(fmt.Errorf("status 400: labels field not on screen"))
+		remoteRepo.On("UpdateLabels", ctx, "TEST-3", []string{"cap-development"}, []string(nil)).Return(nil)
+
+		err := uc.Execute(ctx, input)
+
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "TEST-2")
+		// TEST-1 and TEST-3 must still have been attempted despite TEST-2's
+		// failure landing between them.
 		localRepo.AssertExpectations(t)
 		remoteRepo.AssertExpectations(t)
 		classifier.AssertExpectations(t)
