@@ -102,6 +102,10 @@ type TeamConfigService interface {
 	SetExcludedIssueTypesForProject(project string, types []string) error
 	GetExcludedIssueTypesForProject(project string) ([]string, error)
 	SetBoardWorkStream(project string, boardID int, workStream string) error
+	SetCapExLabelForProject(project, label string) error
+	GetCapExLabelForProject(project string) (string, error)
+	SetOpExLabelForProject(project, label string) error
+	GetOpExLabelForProject(project string) (string, error)
 }
 
 // SyncTeamFromJiraService is the subset of *usecase.SyncTeamFromJira
@@ -140,6 +144,33 @@ type InvestmentService interface {
 type configServiceImpl struct {
 	initializeConfig *usecase.InitializeConfig
 	configService    *service.ConfigService
+}
+
+// capitalizationLabelProviderAdapter implements
+// tasksusecase.CapitalizationLabelProvider over the shared config service,
+// so tasks classify --apply can look up each project's configured real
+// accounting label (e.g. an IAS38-style CapEx/OpEx label) from team
+// configuration. Lookup failures (e.g. no team config yet) are treated as
+// "not configured" rather than propagated, since an optional label lookup
+// shouldn't block classification.
+type capitalizationLabelProviderAdapter struct {
+	configService *service.ConfigService
+}
+
+func (a capitalizationLabelProviderAdapter) GetCapExLabel(project string) string {
+	label, err := a.configService.GetCapExLabelForProject(project)
+	if err != nil {
+		return ""
+	}
+	return label
+}
+
+func (a capitalizationLabelProviderAdapter) GetOpExLabel(project string) string {
+	label, err := a.configService.GetOpExLabelForProject(project)
+	if err != nil {
+		return ""
+	}
+	return label
 }
 
 func (c *configServiceImpl) InitializeConfig(interactive bool) (*usecase.InitializeConfigResult, error) {
@@ -429,6 +460,12 @@ func initializeApp() (*App, error) {
 
 	// Initialize task service with SprintResolver
 	taskService := tasksapp.NewTasksService(jiraRepo, localRepo, taskClassifier, userInput, assetService, sprintResolver, sprintLockStorage)
+
+	// Wire up the per-project real accounting label lookup (e.g. an
+	// IAS38-style CapEx/OpEx label), configured via
+	// `config team-capitalization-labels`. Projects that haven't
+	// configured one simply get no extra label on classification.
+	taskService.SetCapitalizationLabelProvider(capitalizationLabelProviderAdapter{configService: sharedConfigService})
 
 	// Initialize config service for CLI
 	configService := &configServiceImpl{

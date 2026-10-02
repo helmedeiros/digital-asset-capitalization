@@ -244,6 +244,64 @@ func (s *ConfigService) GetConfluenceParentPageForProject(project string) (strin
 	return config.GetConfluenceParentPage(project), nil
 }
 
+// SetCapExLabelForProject sets the real accounting label for capitalizable
+// (development) work for a project and saves
+func (s *ConfigService) SetCapExLabelForProject(project, label string) error {
+	config, err := s.GetTeamConfig()
+	if err != nil {
+		return fmt.Errorf("failed to load team configuration: %w", err)
+	}
+
+	if err := config.SetCapExLabel(project, label); err != nil {
+		return fmt.Errorf("failed to set capex label: %w", err)
+	}
+
+	if err := s.SaveTeamConfig(config); err != nil {
+		return fmt.Errorf("failed to save team configuration: %w", err)
+	}
+
+	return nil
+}
+
+// GetCapExLabelForProject returns the configured CapEx label for a project
+func (s *ConfigService) GetCapExLabelForProject(project string) (string, error) {
+	config, err := s.GetTeamConfig()
+	if err != nil {
+		return "", fmt.Errorf("failed to load team configuration: %w", err)
+	}
+
+	return config.GetCapExLabel(project), nil
+}
+
+// SetOpExLabelForProject sets the real accounting label for non-capitalizable
+// (discovery/maintenance) work for a project and saves
+func (s *ConfigService) SetOpExLabelForProject(project, label string) error {
+	config, err := s.GetTeamConfig()
+	if err != nil {
+		return fmt.Errorf("failed to load team configuration: %w", err)
+	}
+
+	if err := config.SetOpExLabel(project, label); err != nil {
+		return fmt.Errorf("failed to set opex label: %w", err)
+	}
+
+	if err := s.SaveTeamConfig(config); err != nil {
+		return fmt.Errorf("failed to save team configuration: %w", err)
+	}
+
+	return nil
+}
+
+// GetOpExLabelForProject returns the configured OpEx label for a project
+func (s *ConfigService) GetOpExLabelForProject(project string) (string, error) {
+	config, err := s.GetTeamConfig()
+	if err != nil {
+		return "", fmt.Errorf("failed to load team configuration: %w", err)
+	}
+
+	return config.GetOpExLabel(project), nil
+}
+
 // SetExcludedIssueTypesForProject sets the excluded issue types for a project and saves
 func (s *ConfigService) SetExcludedIssueTypesForProject(project string, types []string) error {
 	config, err := s.GetTeamConfig()

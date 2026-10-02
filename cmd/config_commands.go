@@ -198,6 +198,35 @@ func (a *App) createConfigCommand() *cli.Command {
 				},
 			},
 			{
+				Name:  "team-capitalization-labels",
+				Usage: "Manage the real accounting labels (e.g. an IAS38-style CapEx/OpEx tag) a project writes to JIRA on classification",
+				Subcommands: []*cli.Command{
+					{
+						Name:   "set",
+						Usage:  "Set the CapEx and/or OpEx accounting label for a project/team",
+						Action: a.configTeamCapitalizationLabelsSetAction,
+						Flags: []cli.Flag{
+							&cli.StringFlag{Name: "project", Aliases: []string{"p"}, Usage: "Project key (e.g., FN, COP)", Required: true},
+							&cli.StringFlag{Name: "capex-label", Usage: "Label written for capitalizable (development) work, e.g. 'IAS38-CapEx'"},
+							&cli.StringFlag{Name: "opex-label", Usage: "Label written for non-capitalizable (discovery/maintenance) work, e.g. 'IAS38-OpEx'"},
+						},
+					},
+					{
+						Name:   "list",
+						Usage:  "List all configured capitalization labels",
+						Action: a.configTeamCapitalizationLabelsListAction,
+					},
+					{
+						Name:   "show",
+						Usage:  "Show the capitalization labels for a specific project",
+						Action: a.configTeamCapitalizationLabelsShowAction,
+						Flags: []cli.Flag{
+							&cli.StringFlag{Name: "project", Aliases: []string{"p"}, Usage: "Project key (e.g., FN)", Required: true},
+						},
+					},
+				},
+			},
+			{
 				Name:  "board-work-streams",
 				Usage: "Manage board-to-workstream mappings per project",
 				Subcommands: []*cli.Command{
@@ -777,6 +806,89 @@ func (a *App) configTeamConfluenceParentPageShowAction(ctx *cli.Context) error {
 		fmt.Printf("Project '%s' has no confluence parent page assigned\n", project)
 	} else {
 		fmt.Printf("Project '%s' uses confluence parent page: %s\n", project, pageID)
+	}
+	return nil
+}
+
+// configTeamCapitalizationLabelsSetAction backs `assetcap config team-capitalization-labels set`.
+func (a *App) configTeamCapitalizationLabelsSetAction(ctx *cli.Context) error {
+	project := ctx.String("project")
+	capExLabel := ctx.String("capex-label")
+	opExLabel := ctx.String("opex-label")
+	if project == "" {
+		return fmt.Errorf("project is required")
+	}
+	if capExLabel == "" && opExLabel == "" {
+		return fmt.Errorf("at least one of capex-label or opex-label is required")
+	}
+	a.ensureTeamConfigService()
+	if capExLabel != "" {
+		if err := a.teamConfigService.SetCapExLabelForProject(project, capExLabel); err != nil {
+			return fmt.Errorf("failed to set capex label: %v", err)
+		}
+		fmt.Printf("✅ Set CapEx label '%s' for project '%s'\n", capExLabel, project)
+	}
+	if opExLabel != "" {
+		if err := a.teamConfigService.SetOpExLabelForProject(project, opExLabel); err != nil {
+			return fmt.Errorf("failed to set opex label: %v", err)
+		}
+		fmt.Printf("✅ Set OpEx label '%s' for project '%s'\n", opExLabel, project)
+	}
+	return nil
+}
+
+// configTeamCapitalizationLabelsListAction backs `assetcap config team-capitalization-labels list`.
+func (a *App) configTeamCapitalizationLabelsListAction(_ *cli.Context) error {
+	a.ensureTeamConfigService()
+	teamConfig, err := a.teamConfigService.GetTeamConfig()
+	if err != nil {
+		return fmt.Errorf("failed to load team config: %v", err)
+	}
+
+	projects := teamConfig.GetProjects()
+	if len(projects) == 0 {
+		fmt.Println("No teams configured")
+		return nil
+	}
+
+	fmt.Println("Team Capitalization Labels:")
+	fmt.Println("============================")
+
+	found := false
+	for _, project := range projects {
+		capExLabel := teamConfig.GetCapExLabel(project)
+		opExLabel := teamConfig.GetOpExLabel(project)
+		if capExLabel != "" || opExLabel != "" {
+			fmt.Printf("  %s: capex=%q opex=%q\n", project, capExLabel, opExLabel)
+			found = true
+		}
+	}
+
+	if !found {
+		fmt.Println("  No capitalization labels configured for any project")
+	}
+	return nil
+}
+
+// configTeamCapitalizationLabelsShowAction backs `assetcap config team-capitalization-labels show`.
+func (a *App) configTeamCapitalizationLabelsShowAction(ctx *cli.Context) error {
+	project := ctx.String("project")
+	if project == "" {
+		return fmt.Errorf("project is required")
+	}
+	a.ensureTeamConfigService()
+	capExLabel, err := a.teamConfigService.GetCapExLabelForProject(project)
+	if err != nil {
+		return fmt.Errorf("failed to get capex label: %v", err)
+	}
+	opExLabel, err := a.teamConfigService.GetOpExLabelForProject(project)
+	if err != nil {
+		return fmt.Errorf("failed to get opex label: %v", err)
+	}
+	if capExLabel == "" && opExLabel == "" {
+		fmt.Printf("Project '%s' has no capitalization labels configured\n", project)
+	} else {
+		fmt.Printf("Project '%s' capitalization labels: capex=%q opex=%q\n", project, capExLabel, opExLabel)
 	}
 	return nil
 }

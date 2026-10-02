@@ -12,14 +12,30 @@ import (
 	"github.com/helmedeiros/digital-asset-capitalization/internal/tasks/domain/ports"
 )
 
+// CapitalizationLabelProvider looks up the real accounting labels a company
+// configures per project (e.g. "IAS38-CapEx" / "IAS38-OpEx") for the
+// capitalizable/non-capitalizable split. That label vocabulary is company
+// configuration data -- it lives in team config (teams.json), never as a
+// hardcoded string in this framework -- so implementations read it from
+// wherever that configuration is stored. An empty return value means the
+// project hasn't configured one, and no label is written for it.
+type CapitalizationLabelProvider interface {
+	// GetCapExLabel returns the label for capitalizable (development) work.
+	GetCapExLabel(project string) string
+	// GetOpExLabel returns the label for non-capitalizable (discovery and
+	// maintenance) work.
+	GetOpExLabel(project string) string
+}
+
 // ClassifyTasksUseCase handles the classification of tasks for a project/sprint
 type ClassifyTasksUseCase struct {
-	localRepo    ports.TaskRepository
-	remoteRepo   ports.TaskRepository
-	classifier   ports.TaskClassifier
-	userInput    ports.UserInput
-	assetService assetsapp.AssetService
-	lockRepo     ports.SprintLockRepository
+	localRepo        ports.TaskRepository
+	remoteRepo       ports.TaskRepository
+	classifier       ports.TaskClassifier
+	userInput        ports.UserInput
+	assetService     assetsapp.AssetService
+	lockRepo         ports.SprintLockRepository
+	capLabelProvider CapitalizationLabelProvider
 }
 
 // NewClassifyTasksUseCase creates a new instance of ClassifyTasksUseCase
@@ -39,6 +55,15 @@ func NewClassifyTasksUseCase(
 		assetService: assetService,
 		lockRepo:     lockRepo,
 	}
+}
+
+// SetCapitalizationLabelProvider configures the per-project real accounting
+// label lookup. Optional: when never called, no project has a configured
+// label and classification behaves exactly as it did before this existed
+// (only the internal cap-development/cap-maintenance/cap-discovery label is
+// written).
+func (uc *ClassifyTasksUseCase) SetCapitalizationLabelProvider(provider CapitalizationLabelProvider) {
+	uc.capLabelProvider = provider
 }
 
 // Execute runs the task classification process
@@ -173,7 +198,12 @@ func (uc *ClassifyTasksUseCase) Execute(ctx context.Context, input domain.Classi
 		workType := result.WorkType
 
 		if input.Apply {
-			addLabels, removeLabels := uc.buildLabelChanges(task.Labels, workType, result.Asset)
+			var capExLabel, opExLabel string
+			if uc.capLabelProvider != nil {
+				capExLabel = uc.capLabelProvider.GetCapExLabel(input.Project)
+				opExLabel = uc.capLabelProvider.GetOpExLabel(input.Project)
+			}
+			addLabels, removeLabels := uc.buildLabelChanges(task.Labels, workType, result.Asset, capExLabel, opExLabel)
 
 			fmt.Printf("  🏷️  %s → %s", task.Key, workType)
 			if result.Asset != nil && result.Asset.Asset != nil {
@@ -462,10 +492,31 @@ func formatWorkType(workType domain.WorkType) string {
 	}
 }
 
-// buildLabelChanges computes which cap-prefixed labels to add and remove
-// so that JIRA's update operations only touch cap-prefixed labels
-func (uc *ClassifyTasksUseCase) buildLabelChanges(existingLabels []string, workType domain.WorkType, assetResult *ports.AssetClassificationResult) (addLabels, removeLabels []string) {
+// buildLabelChanges computes which cap-prefixed labels (and, when the
+// project has configured one, a real accounting label) to add and remove so
+// that JIRA's update operations only touch labels this tool owns.
+//
+// capExLabel/opExLabel are the project's configured real accounting labels
+// (e.g. "IAS38-CapEx" / "IAS38-OpEx") for capitalizable/non-capitalizable
+// work, looked up from team configuration -- never hardcoded here, since
+// that vocabulary is company-specific data, not framework behavior. Pass ""
+// for either when the project hasn't configured one; no label is added for
+// an empty value.
+func (uc *ClassifyTasksUseCase) buildLabelChanges(existingLabels []string, workType domain.WorkType, assetResult *ports.AssetClassificationResult, capExLabel, opExLabel string) (addLabels, removeLabels []string) {
 	preserveExistingAsset := assetResult != nil && assetResult.Reason == "existing asset label preserved" && assetResult.Confidence >= 0.95
+
+	// A human/finance-reviewed accounting label is treated as final: once
+	// one of the project's configured labels is present, this tool never
+	// adds, removes, or replaces it, even on re-classification.
+	hasExistingAccountingLabel := false
+	if capExLabel != "" || opExLabel != "" {
+		for _, label := range existingLabels {
+			if label == capExLabel || label == opExLabel {
+				hasExistingAccountingLabel = true
+				break
+			}
+		}
+	}
 
 	// Collect old cap work-type and asset labels to remove
 	for _, label := range existingLabels {
@@ -479,6 +530,18 @@ func (uc *ClassifyTasksUseCase) buildLabelChanges(existingLabels []string, workT
 
 	// Add new work type label
 	addLabels = append(addLabels, string(workType))
+
+	// Add the project's configured real accounting label too, unless one
+	// is already set or the project hasn't configured this mapping.
+	if !hasExistingAccountingLabel {
+		accountingLabel := opExLabel
+		if workType == domain.WorkTypeDevelopment {
+			accountingLabel = capExLabel
+		}
+		if accountingLabel != "" {
+			addLabels = append(addLabels, accountingLabel)
+		}
+	}
 
 	// Add new asset label if available and not preserving existing ones
 	if assetResult != nil && assetResult.Asset != nil && !preserveExistingAsset {

@@ -47,6 +47,8 @@ type TeamConfig struct {
 	confluenceParentPages map[string]string             // project -> confluence parent page ID mapping
 	excludedIssueTypes    map[string][]string           // project -> excluded issue types for sprint allocation
 	boardWorkStreams      map[string]map[int]string     // project -> boardID -> workstream name
+	capExLabels           map[string]string             // project -> real accounting label for capitalizable work (e.g. "IAS38-CapEx")
+	opExLabels            map[string]string              // project -> real accounting label for non-capitalizable work (e.g. "IAS38-OpEx")
 }
 
 // NewTeamConfig creates a new TeamConfig with validation
@@ -61,6 +63,8 @@ func NewTeamConfig(teams map[string][]string) (*TeamConfig, error) {
 		confluenceParentPages: make(map[string]string),
 		excludedIssueTypes:    make(map[string][]string),
 		boardWorkStreams:      make(map[string]map[int]string),
+		capExLabels:           make(map[string]string),
+		opExLabels:            make(map[string]string),
 	}
 
 	for project, members := range teams {
@@ -545,6 +549,67 @@ func (tc *TeamConfig) SetConfluenceParentPage(project, pageID string) error {
 	}
 	tc.confluenceParentPages[trimmedProject] = strings.TrimSpace(pageID)
 	return nil
+}
+
+// GetCapExLabel returns the project's configured real accounting label for
+// capitalizable (development) work, e.g. "IAS38-CapEx". Returns "" when the
+// project hasn't configured one -- this label vocabulary is company-specific
+// configuration, never a framework default.
+func (tc *TeamConfig) GetCapExLabel(project string) string {
+	return tc.capExLabels[project]
+}
+
+// SetCapExLabel sets the project's real accounting label for capitalizable
+// (development) work.
+func (tc *TeamConfig) SetCapExLabel(project, label string) error {
+	trimmedProject := strings.TrimSpace(project)
+	if trimmedProject == "" {
+		return fmt.Errorf("project key cannot be empty")
+	}
+	if _, exists := tc.teams[trimmedProject]; !exists {
+		return fmt.Errorf("project '%s' does not exist", trimmedProject)
+	}
+	tc.capExLabels[trimmedProject] = strings.TrimSpace(label)
+	return nil
+}
+
+// GetOpExLabel returns the project's configured real accounting label for
+// non-capitalizable (discovery/maintenance) work, e.g. "IAS38-OpEx". Returns
+// "" when the project hasn't configured one.
+func (tc *TeamConfig) GetOpExLabel(project string) string {
+	return tc.opExLabels[project]
+}
+
+// SetOpExLabel sets the project's real accounting label for non-capitalizable
+// (discovery/maintenance) work.
+func (tc *TeamConfig) SetOpExLabel(project, label string) error {
+	trimmedProject := strings.TrimSpace(project)
+	if trimmedProject == "" {
+		return fmt.Errorf("project key cannot be empty")
+	}
+	if _, exists := tc.teams[trimmedProject]; !exists {
+		return fmt.Errorf("project '%s' does not exist", trimmedProject)
+	}
+	tc.opExLabels[trimmedProject] = strings.TrimSpace(label)
+	return nil
+}
+
+// GetAllCapExLabels returns a copy of the project -> CapEx label mapping.
+func (tc *TeamConfig) GetAllCapExLabels() map[string]string {
+	result := make(map[string]string, len(tc.capExLabels))
+	for project, label := range tc.capExLabels {
+		result[project] = label
+	}
+	return result
+}
+
+// GetAllOpExLabels returns a copy of the project -> OpEx label mapping.
+func (tc *TeamConfig) GetAllOpExLabels() map[string]string {
+	result := make(map[string]string, len(tc.opExLabels))
+	for project, label := range tc.opExLabels {
+		result[project] = label
+	}
+	return result
 }
 
 // ToCompleteMap returns all six maps including confluence settings

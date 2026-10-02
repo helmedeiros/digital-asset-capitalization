@@ -9,6 +9,7 @@ import (
 	assetsdomain "github.com/helmedeiros/digital-asset-capitalization/internal/assets/domain"
 	sprintusecase "github.com/helmedeiros/digital-asset-capitalization/internal/sprint/application/usecase"
 	sprintdomain "github.com/helmedeiros/digital-asset-capitalization/internal/sprint/domain"
+	tasksusecase "github.com/helmedeiros/digital-asset-capitalization/internal/tasks/application/usecase"
 	tasksdomain "github.com/helmedeiros/digital-asset-capitalization/internal/tasks/domain"
 	taskports "github.com/helmedeiros/digital-asset-capitalization/internal/tasks/domain/ports"
 )
@@ -176,6 +177,10 @@ func (m *MockTaskService) ClassifyTasks(ctx context.Context, input tasksdomain.C
 func (m *MockTaskService) GetLocalRepository() taskports.TaskRepository {
 	args := m.Called()
 	return args.Get(0).(taskports.TaskRepository)
+}
+
+func (m *MockTaskService) SetCapitalizationLabelProvider(provider tasksusecase.CapitalizationLabelProvider) {
+	m.Called(provider)
 }
 
 // MockSprintService is a mock implementation of SprintService

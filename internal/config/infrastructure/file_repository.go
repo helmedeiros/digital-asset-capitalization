@@ -113,6 +113,8 @@ func (r *FileRepository) LoadTeamConfig() (*domain.TeamConfig, error) {
 		ConfluenceParentPage string            `json:"confluence_parent_page,omitempty"`
 		ExcludedIssueTypes   []string          `json:"excluded_issue_types,omitempty"`
 		BoardWorkStreams     map[string]string `json:"board_work_streams,omitempty"`
+		CapExLabel           string            `json:"capex_label,omitempty"`
+		OpExLabel            string            `json:"opex_label,omitempty"`
 	}
 
 	if err := json.Unmarshal(data, &fileFormat); err != nil {
@@ -129,6 +131,8 @@ func (r *FileRepository) LoadTeamConfig() (*domain.TeamConfig, error) {
 	confluenceParentPages := make(map[string]string)
 	excludedIssueTypes := make(map[string][]string)
 	boardWorkStreams := make(map[string]map[int]string)
+	capExLabels := make(map[string]string)
+	opExLabels := make(map[string]string)
 
 	for project, teamInfo := range fileFormat {
 		teams[project] = teamInfo.Team
@@ -173,6 +177,12 @@ func (r *FileRepository) LoadTeamConfig() (*domain.TeamConfig, error) {
 		if len(teamInfo.ExcludedIssueTypes) > 0 {
 			excludedIssueTypes[project] = teamInfo.ExcludedIssueTypes
 		}
+		if teamInfo.CapExLabel != "" {
+			capExLabels[project] = teamInfo.CapExLabel
+		}
+		if teamInfo.OpExLabel != "" {
+			opExLabels[project] = teamInfo.OpExLabel
+		}
 		if len(teamInfo.BoardWorkStreams) > 0 {
 			mapping := make(map[int]string, len(teamInfo.BoardWorkStreams))
 			for boardIDStr, workStream := range teamInfo.BoardWorkStreams {
@@ -188,7 +198,23 @@ func (r *FileRepository) LoadTeamConfig() (*domain.TeamConfig, error) {
 		}
 	}
 
-	return domain.NewTeamConfigWithTimelines(teams, nicknames, tribes, companies, confluenceSpaces, confluenceParentPages, excludedIssueTypes, boardWorkStreams, teamTimelines)
+	config, err := domain.NewTeamConfigWithTimelines(teams, nicknames, tribes, companies, confluenceSpaces, confluenceParentPages, excludedIssueTypes, boardWorkStreams, teamTimelines)
+	if err != nil {
+		return nil, err
+	}
+
+	for project, label := range capExLabels {
+		if err := config.SetCapExLabel(project, label); err != nil {
+			return nil, fmt.Errorf("failed to set capex label for %s: %w", project, err)
+		}
+	}
+	for project, label := range opExLabels {
+		if err := config.SetOpExLabel(project, label); err != nil {
+			return nil, fmt.Errorf("failed to set opex label for %s: %w", project, err)
+		}
+	}
+
+	return config, nil
 }
 
 // SaveTeamConfig saves team configuration to file with format transformation
@@ -198,6 +224,8 @@ func (r *FileRepository) SaveTeamConfig(config *domain.TeamConfig) error {
 	// Transform from domain format to file format
 	teams, nicknames, tribes, companies, confluenceSpaces, confluenceParentPages, excludedIssueTypes, boardWorkStreams := config.ToCompleteMapWithBoardWorkStreams()
 	allTimelines := config.GetAllTeamTimelines()
+	capExLabels := config.GetAllCapExLabels()
+	opExLabels := config.GetAllOpExLabels()
 
 	type timelineEntry struct {
 		Member string `json:"member"`
@@ -215,6 +243,8 @@ func (r *FileRepository) SaveTeamConfig(config *domain.TeamConfig) error {
 		ConfluenceParentPage string            `json:"confluence_parent_page,omitempty"`
 		ExcludedIssueTypes   []string          `json:"excluded_issue_types,omitempty"`
 		BoardWorkStreams     map[string]string `json:"board_work_streams,omitempty"`
+		CapExLabel           string            `json:"capex_label,omitempty"`
+		OpExLabel            string            `json:"opex_label,omitempty"`
 	})
 
 	for project, members := range teams {
@@ -234,6 +264,8 @@ func (r *FileRepository) SaveTeamConfig(config *domain.TeamConfig) error {
 			ConfluenceParentPage string            `json:"confluence_parent_page,omitempty"`
 			ExcludedIssueTypes   []string          `json:"excluded_issue_types,omitempty"`
 			BoardWorkStreams     map[string]string `json:"board_work_streams,omitempty"`
+			CapExLabel           string            `json:"capex_label,omitempty"`
+			OpExLabel            string            `json:"opex_label,omitempty"`
 		}{
 			Team: activeMembers,
 		}
@@ -277,6 +309,14 @@ func (r *FileRepository) SaveTeamConfig(config *domain.TeamConfig) error {
 		// Add confluence parent page if it exists for this project
 		if pageID, exists := confluenceParentPages[project]; exists && pageID != "" {
 			entry.ConfluenceParentPage = pageID
+		}
+
+		// Add capex/opex labels if configured for this project
+		if label, exists := capExLabels[project]; exists && label != "" {
+			entry.CapExLabel = label
+		}
+		if label, exists := opExLabels[project]; exists && label != "" {
+			entry.OpExLabel = label
 		}
 
 		// Add excluded issue types if they exist for this project

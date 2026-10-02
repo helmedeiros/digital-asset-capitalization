@@ -78,6 +78,18 @@ func (s *stubTeamConfigService) GetExcludedIssueTypesForProject(string) ([]strin
 	return nil, nil
 }
 
+// SetCapExLabelForProject/GetCapExLabelForProject/SetOpExLabelForProject/
+// GetOpExLabelForProject satisfy the TeamConfigService interface with zero
+// values; no Action test under this stub exercises capitalization labels.
+func (s *stubTeamConfigService) SetCapExLabelForProject(string, string) error { return nil }
+func (s *stubTeamConfigService) GetCapExLabelForProject(string) (string, error) {
+	return "", nil
+}
+func (s *stubTeamConfigService) SetOpExLabelForProject(string, string) error { return nil }
+func (s *stubTeamConfigService) GetOpExLabelForProject(string) (string, error) {
+	return "", nil
+}
+
 // teamConfigWith creates a real *TeamConfig with the supplied per-
 // project tribe and company assignments. Empty maps are fine; the
 // resulting config has projects but no annotations.

@@ -14,6 +14,7 @@ COMMANDS:
    team-company                 Manage team companies (organization ownership)
    team-confluence              Manage team Confluence spaces (asset documentation source)
    team-confluence-parent-page  Manage team Confluence parent page IDs (asset hierarchy root)
+   team-capitalization-labels   Manage the real accounting labels (e.g. an IAS38-style CapEx/OpEx tag) a project writes to JIRA on classification
    board-work-streams           Manage board-to-workstream mappings per project
    excluded-issue-types         Manage excluded issue types for sprint allocation per project
    team-timeline                Manage team member timeline (join/leave dates) for time-aware sprint allocation
