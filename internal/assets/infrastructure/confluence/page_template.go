@@ -146,6 +146,16 @@ func generateOverviewSection(asset *domain.Asset, tribe, company, teamName strin
 	statusValue := generateStatusMacro(statusBadge)
 	sb.WriteString(generateOverviewTableRow("Status", statusValue))
 
+	// Tag row - the cap-asset-* identifier, in a copy-pasteable <code> block.
+	// Mirrors the Confluence page label of the same name, but the label
+	// itself isn't visible in the page body, so it's repeated here as plain
+	// text for anyone who needs to reference or search for it.
+	tagValue := "-"
+	if asset.ID != "" {
+		tagValue = fmt.Sprintf("<code>%s</code>", escapeHTML(asset.ID))
+	}
+	sb.WriteString(generateOverviewTableRow("Tag", tagValue))
+
 	sb.WriteString(`</tbody>`)
 	sb.WriteString(`</table>`)
 
