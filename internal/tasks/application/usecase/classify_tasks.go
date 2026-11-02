@@ -66,6 +66,33 @@ func (uc *ClassifyTasksUseCase) SetCapitalizationLabelProvider(provider Capitali
 	uc.capLabelProvider = provider
 }
 
+// honourExistingOpExLabel treats a task's own OpEx accounting label as ground
+// truth: development work on a ticket the project's finance label already
+// marks as OpEx (e.g. operational/support tickets) is reclassified as
+// maintenance, so the cap-* work-type label never contradicts the accounting
+// one. Discovery is left alone since it is OpEx too. The label is looked up
+// per project from the configured provider, never hardcoded.
+func (uc *ClassifyTasksUseCase) honourExistingOpExLabel(results []*ports.ComprehensiveClassificationResult) {
+	if uc.capLabelProvider == nil {
+		return
+	}
+	for _, result := range results {
+		if result.WorkType != domain.WorkTypeDevelopment {
+			continue
+		}
+		opExLabel := uc.capLabelProvider.GetOpExLabel(result.Task.Project)
+		if opExLabel == "" {
+			continue
+		}
+		for _, label := range result.Task.Labels {
+			if label == opExLabel {
+				result.WorkType = domain.WorkTypeMaintenance
+				break
+			}
+		}
+	}
+}
+
 // Execute runs the task classification process
 func (uc *ClassifyTasksUseCase) Execute(ctx context.Context, input domain.ClassifyTasksInput) error {
 	// First, try to find existing tasks for the project/sprint
@@ -169,6 +196,8 @@ func (uc *ClassifyTasksUseCase) Execute(ctx context.Context, input domain.Classi
 			classificationResults = append(classificationResults, result)
 		}
 	}
+
+	uc.honourExistingOpExLabel(classificationResults)
 
 	// Phase 1: stamp every task with its new work type in memory.
 	updatedTasks := make([]*domain.Task, 0, len(classificationResults))
@@ -298,6 +327,7 @@ func (uc *ClassifyTasksUseCase) previewClassificationsWithRetry(tasks []*domain.
 		if err != nil {
 			return fmt.Errorf("failed to classify tasks comprehensively: %w", err)
 		}
+		uc.honourExistingOpExLabel(results)
 
 		// Group results by work type for better organization
 		workTypeGroups := make(map[domain.WorkType][]*ports.ComprehensiveClassificationResult)
