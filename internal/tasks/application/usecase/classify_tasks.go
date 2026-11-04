@@ -66,6 +66,24 @@ func (uc *ClassifyTasksUseCase) SetCapitalizationLabelProvider(provider Capitali
 	uc.capLabelProvider = provider
 }
 
+// honourOperationalLabel classifies development work on operational tasks
+// (label "operational", e.g. operator rotation tickets) as maintenance:
+// keeping the lights on is never capitalizable development. Discovery is
+// left alone.
+func (uc *ClassifyTasksUseCase) honourOperationalLabel(results []*ports.ComprehensiveClassificationResult) {
+	for _, result := range results {
+		if result.WorkType != domain.WorkTypeDevelopment {
+			continue
+		}
+		for _, label := range result.Task.Labels {
+			if label == OperationalLabel {
+				result.WorkType = domain.WorkTypeMaintenance
+				break
+			}
+		}
+	}
+}
+
 // honourExistingOpExLabel treats a task's own OpEx accounting label as ground
 // truth: development work on a ticket the project's finance label already
 // marks as OpEx (e.g. operational/support tickets) is reclassified as
@@ -198,6 +216,7 @@ func (uc *ClassifyTasksUseCase) Execute(ctx context.Context, input domain.Classi
 	}
 
 	uc.honourExistingOpExLabel(classificationResults)
+	uc.honourOperationalLabel(classificationResults)
 
 	// Phase 1: stamp every task with its new work type in memory.
 	updatedTasks := make([]*domain.Task, 0, len(classificationResults))
@@ -328,6 +347,7 @@ func (uc *ClassifyTasksUseCase) previewClassificationsWithRetry(tasks []*domain.
 			return fmt.Errorf("failed to classify tasks comprehensively: %w", err)
 		}
 		uc.honourExistingOpExLabel(results)
+		uc.honourOperationalLabel(results)
 
 		// Group results by work type for better organization
 		workTypeGroups := make(map[domain.WorkType][]*ports.ComprehensiveClassificationResult)

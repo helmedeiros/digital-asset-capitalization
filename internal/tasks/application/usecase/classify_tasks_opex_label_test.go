@@ -57,3 +57,29 @@ func TestHonourExistingOpExLabel(t *testing.T) {
 		assert.Equal(t, domain.WorkTypeDevelopment, noProvider.WorkType)
 	})
 }
+
+func TestHonourOperationalLabel(t *testing.T) {
+	t.Parallel()
+
+	uc := NewClassifyTasksUseCase(new(MockTaskRepository), new(MockTaskRepository), new(MockTaskClassifier), new(MockUserInput), testutil.NewMockAssetService(), nil)
+	result := func(wt domain.WorkType, labels ...string) *ports.ComprehensiveClassificationResult {
+		task, err := domain.NewTask("PRI-1", "summary", "PRI", "S1", "jira")
+		assert.NoError(t, err)
+		task.Labels = labels
+		return &ports.ComprehensiveClassificationResult{Task: task, WorkType: wt}
+	}
+
+	tests := []struct {
+		name   string
+		in     *ports.ComprehensiveClassificationResult
+		expect domain.WorkType
+	}{
+		{"development becomes maintenance", result(domain.WorkTypeDevelopment, "operational"), domain.WorkTypeMaintenance},
+		{"discovery untouched", result(domain.WorkTypeDiscovery, "operational"), domain.WorkTypeDiscovery},
+		{"unlabelled development untouched", result(domain.WorkTypeDevelopment, "other"), domain.WorkTypeDevelopment},
+	}
+	for _, tt := range tests {
+		uc.honourOperationalLabel([]*ports.ComprehensiveClassificationResult{tt.in})
+		assert.Equal(t, tt.expect, tt.in.WorkType, tt.name)
+	}
+}
