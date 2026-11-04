@@ -2170,8 +2170,10 @@ type stubCapitalizationLabelProvider struct {
 	opEx  map[string]string
 }
 
-func (s stubCapitalizationLabelProvider) GetCapExLabel(project string) string { return s.capEx[project] }
-func (s stubCapitalizationLabelProvider) GetOpExLabel(project string) string  { return s.opEx[project] }
+func (s stubCapitalizationLabelProvider) GetCapExLabel(project string) string {
+	return s.capEx[project]
+}
+func (s stubCapitalizationLabelProvider) GetOpExLabel(project string) string { return s.opEx[project] }
 
 func TestSortingAndDisplayLogic(t *testing.T) {
 	t.Parallel()

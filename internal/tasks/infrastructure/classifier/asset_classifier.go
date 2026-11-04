@@ -3,8 +3,8 @@ package classifier
 import (
 	"fmt"
 	"strings"
-	"unicode"
 	"sync"
+	"unicode"
 
 	assetdomain "github.com/helmedeiros/digital-asset-capitalization/internal/assets/domain"
 	assetports "github.com/helmedeiros/digital-asset-capitalization/internal/assets/domain/ports"
