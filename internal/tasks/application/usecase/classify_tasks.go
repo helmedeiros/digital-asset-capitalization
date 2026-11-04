@@ -66,6 +66,9 @@ func (uc *ClassifyTasksUseCase) SetCapitalizationLabelProvider(provider Capitali
 	uc.capLabelProvider = provider
 }
 
+// OperationalLabel marks operational work such as operator rotations.
+const OperationalLabel = "operational"
+
 // honourOperationalLabel classifies development work on operational tasks
 // (label "operational", e.g. operator rotation tickets) as maintenance:
 // keeping the lights on is never capitalizable development. Discovery is

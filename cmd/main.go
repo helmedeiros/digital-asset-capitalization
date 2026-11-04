@@ -467,6 +467,14 @@ func initializeApp() (*App, error) {
 	// configured one simply get no extra label on classification.
 	taskService.SetCapitalizationLabelProvider(capitalizationLabelProviderAdapter{configService: sharedConfigService})
 
+	// Sprint fetches also include the issues of the project's configured
+	// boards (`config board-work-streams`), the same ones sprint allocate uses.
+	if withBoards, ok := taskService.(interface {
+		SetBoardIssueSource(taskports.BoardIssueSource)
+	}); ok {
+		withBoards.SetBoardIssueSource(boardIssueSourceAdapter{configService: sharedConfigService, sprintJira: jiraAdapter})
+	}
+
 	// Initialize config service for CLI
 	configService := &configServiceImpl{
 		initializeConfig: initializeConfigUseCase,

@@ -31,6 +31,12 @@ func (s *TaskServiceImpl) SetCapitalizationLabelProvider(provider usecase.Capita
 	s.classifyTasksUseCase.SetCapitalizationLabelProvider(provider)
 }
 
+// SetBoardIssueSource makes sprint fetches also include the issues of the
+// project's configured boards (e.g. kanban work).
+func (s *TaskServiceImpl) SetBoardIssueSource(source ports.BoardIssueSource) {
+	s.fetchTasksUseCase.SetBoardIssueSource(source)
+}
+
 // FetchTasks fetches tasks from a platform
 func (s *TaskServiceImpl) FetchTasks(ctx context.Context, project, sprint, platform string) error {
 	return s.fetchTasksUseCase.Execute(ctx, project, sprint, platform)
