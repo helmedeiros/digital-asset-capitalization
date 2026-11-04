@@ -103,8 +103,8 @@ type TeamConfigService interface {
 	GetExcludedIssueTypesForProject(project string) ([]string, error)
 	SetBoardWorkStream(project string, boardID int, workStream string) error
 	SetCapExLabelForProject(project, label string) error
-	SetOperationalLabelForProject(project, label string) error
-	GetOperationalLabelForProject(project string) (string, error)
+	SetOperationalLabelsForProject(project string, labels []string) error
+	GetOperationalLabelsForProject(project string) ([]string, error)
 	GetCapExLabelForProject(project string) (string, error)
 	SetOpExLabelForProject(project, label string) error
 	GetOpExLabelForProject(project string) (string, error)
@@ -165,6 +165,14 @@ func (a capitalizationLabelProviderAdapter) GetCapExLabel(project string) string
 		return ""
 	}
 	return label
+}
+
+func (a capitalizationLabelProviderAdapter) GetOperationalLabels(project string) []string {
+	labels, err := a.configService.GetOperationalLabelsForProject(project)
+	if err != nil {
+		return nil
+	}
+	return labels
 }
 
 func (a capitalizationLabelProviderAdapter) GetOpExLabel(project string) string {

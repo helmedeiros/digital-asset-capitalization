@@ -49,7 +49,7 @@ type TeamConfig struct {
 	boardWorkStreams      map[string]map[int]string     // project -> boardID -> workstream name
 	capExLabels           map[string]string             // project -> real accounting label for capitalizable work (e.g. "IAS38-CapEx")
 	opExLabels            map[string]string             // project -> real accounting label for non-capitalizable work (e.g. "IAS38-OpEx")
-	operationalLabels     map[string]string             // project -> JIRA label marking operational work (e.g. "operational")
+	operationalLabels     map[string][]string           // project -> JIRA labels marking operational work (e.g. "operational")
 }
 
 // NewTeamConfig creates a new TeamConfig with validation
@@ -66,7 +66,7 @@ func NewTeamConfig(teams map[string][]string) (*TeamConfig, error) {
 		boardWorkStreams:      make(map[string]map[int]string),
 		capExLabels:           make(map[string]string),
 		opExLabels:            make(map[string]string),
-		operationalLabels:     make(map[string]string),
+		operationalLabels:     make(map[string][]string),
 	}
 
 	for project, members := range teams {
@@ -596,15 +596,21 @@ func (tc *TeamConfig) SetOpExLabel(project, label string) error {
 	return nil
 }
 
-// GetOperationalLabel returns the JIRA label the project uses to mark
-// operational work (e.g. operator rotations, bugs), or "" when not configured.
-func (tc *TeamConfig) GetOperationalLabel(project string) string {
-	return tc.operationalLabels[project]
+// GetOperationalLabels returns the JIRA labels the project uses to mark
+// operational work (e.g. operator rotations, escalated support bugs), or nil
+// when none are configured.
+func (tc *TeamConfig) GetOperationalLabels(project string) []string {
+	labels := tc.operationalLabels[project]
+	if len(labels) == 0 {
+		return nil
+	}
+	return append([]string(nil), labels...)
 }
 
-// SetOperationalLabel sets the JIRA label marking the project's operational
-// work. An empty label clears the setting.
-func (tc *TeamConfig) SetOperationalLabel(project, label string) error {
+// SetOperationalLabels sets the JIRA labels marking the project's operational
+// work. Blank and duplicate labels are dropped; an empty result clears the
+// setting.
+func (tc *TeamConfig) SetOperationalLabels(project string, labels []string) error {
 	trimmedProject := strings.TrimSpace(project)
 	if trimmedProject == "" {
 		return fmt.Errorf("project key cannot be empty")
@@ -612,20 +618,29 @@ func (tc *TeamConfig) SetOperationalLabel(project, label string) error {
 	if _, exists := tc.teams[trimmedProject]; !exists {
 		return fmt.Errorf("project '%s' does not exist", trimmedProject)
 	}
-	trimmedLabel := strings.TrimSpace(label)
-	if trimmedLabel == "" {
+	var cleaned []string
+	seen := make(map[string]bool, len(labels))
+	for _, label := range labels {
+		label = strings.TrimSpace(label)
+		if label == "" || seen[label] {
+			continue
+		}
+		seen[label] = true
+		cleaned = append(cleaned, label)
+	}
+	if len(cleaned) == 0 {
 		delete(tc.operationalLabels, trimmedProject)
 		return nil
 	}
-	tc.operationalLabels[trimmedProject] = trimmedLabel
+	tc.operationalLabels[trimmedProject] = cleaned
 	return nil
 }
 
-// GetAllOperationalLabels returns a copy of the project -> operational label mapping.
-func (tc *TeamConfig) GetAllOperationalLabels() map[string]string {
-	result := make(map[string]string, len(tc.operationalLabels))
-	for project, label := range tc.operationalLabels {
-		result[project] = label
+// GetAllOperationalLabels returns a copy of the project -> operational labels mapping.
+func (tc *TeamConfig) GetAllOperationalLabels() map[string][]string {
+	result := make(map[string][]string, len(tc.operationalLabels))
+	for project, labels := range tc.operationalLabels {
+		result[project] = append([]string(nil), labels...)
 	}
 	return result
 }

@@ -3,6 +3,7 @@ package usecase
 import (
 	"context"
 	"fmt"
+	"slices"
 	"sort"
 	"strings"
 
@@ -25,6 +26,9 @@ type CapitalizationLabelProvider interface {
 	// GetOpExLabel returns the label for non-capitalizable (discovery and
 	// maintenance) work.
 	GetOpExLabel(project string) string
+	// GetOperationalLabels returns the labels marking operational work
+	// (e.g. operator rotations, escalated support bugs) for the project.
+	GetOperationalLabels(project string) []string
 }
 
 // ClassifyTasksUseCase handles the classification of tasks for a project/sprint
@@ -66,20 +70,24 @@ func (uc *ClassifyTasksUseCase) SetCapitalizationLabelProvider(provider Capitali
 	uc.capLabelProvider = provider
 }
 
-// OperationalLabel marks operational work such as operator rotations.
-const OperationalLabel = "operational"
-
 // honourOperationalLabel classifies development work on operational tasks
-// (label "operational", e.g. operator rotation tickets) as maintenance:
-// keeping the lights on is never capitalizable development. Discovery is
-// left alone.
+// (tasks carrying one of the project's configured operational labels, e.g.
+// operator rotations or escalated support bugs) as maintenance: keeping the
+// lights on is never capitalizable development. Discovery is left alone.
 func (uc *ClassifyTasksUseCase) honourOperationalLabel(results []*ports.ComprehensiveClassificationResult) {
+	if uc.capLabelProvider == nil {
+		return
+	}
 	for _, result := range results {
 		if result.WorkType != domain.WorkTypeDevelopment {
 			continue
 		}
+		operational := uc.capLabelProvider.GetOperationalLabels(result.Task.Project)
+		if len(operational) == 0 {
+			continue
+		}
 		for _, label := range result.Task.Labels {
-			if label == OperationalLabel {
+			if slices.Contains(operational, label) {
 				result.WorkType = domain.WorkTypeMaintenance
 				break
 			}

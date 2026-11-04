@@ -450,11 +450,12 @@ func sprintWindowClause(start, end time.Time) string {
 	)
 }
 
-// GetLabelledIssuesForSprint retrieves the project's issues carrying a label
-// (e.g. an "operational" tag) that were active in the sprint's date window.
+// GetLabelledIssuesForSprint retrieves the project's issues carrying any of
+// the labels (e.g. an "operational" tag) that were active in the sprint's date
+// window.
 // Unlike board lookups it only needs the project, so it works whether or not
 // the team has a kanban board.
-func (a *JiraAdapter) GetLabelledIssuesForSprint(project, sprintName, label string) ([]ports.JiraIssue, error) {
+func (a *JiraAdapter) GetLabelledIssuesForSprint(project, sprintName string, labels []string) ([]ports.JiraIssue, error) {
 	sprintDetails, err := a.GetSprintByName(project, sprintName)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get sprint details for date range: %w", err)
@@ -468,13 +469,17 @@ func (a *JiraAdapter) GetLabelledIssuesForSprint(project, sprintName, label stri
 		return nil, fmt.Errorf("failed to parse end date: %w", err)
 	}
 
-	query := fmt.Sprintf("project = %s AND labels = \"%s\" AND %s", project, label, sprintWindowClause(start, end))
+	quoted := make([]string, len(labels))
+	for i, label := range labels {
+		quoted[i] = fmt.Sprintf("\"%s\"", strings.ReplaceAll(label, "\"", ""))
+	}
+	query := fmt.Sprintf("project = %s AND labels in (%s) AND %s", project, strings.Join(quoted, ", "), sprintWindowClause(start, end))
 	jiraURL := fmt.Sprintf("%s/rest/api/3/search/jql?jql=%s&expand=changelog&fields=%s",
 		a.config.GetBaseURL(), url.QueryEscape(query), a.buildFieldsParam())
 
 	issues, err := a.httpClient.GetJiraIssues(jiraURL)
 	if err != nil {
-		return nil, fmt.Errorf("failed to fetch issues labelled %q: %w", label, err)
+		return nil, fmt.Errorf("failed to fetch issues labelled %v: %w", labels, err)
 	}
 	a.enrichIssues(issues)
 	return a.convertToPortIssues(issues), nil

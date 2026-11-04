@@ -273,16 +273,16 @@ func (s *ConfigService) GetCapExLabelForProject(project string) (string, error) 
 	return config.GetCapExLabel(project), nil
 }
 
-// SetOperationalLabelForProject sets the JIRA label marking a project's
-// operational work (empty clears it) and saves
-func (s *ConfigService) SetOperationalLabelForProject(project, label string) error {
+// SetOperationalLabelsForProject sets the JIRA labels marking a project's
+// operational work (none clears them) and saves
+func (s *ConfigService) SetOperationalLabelsForProject(project string, labels []string) error {
 	config, err := s.GetTeamConfig()
 	if err != nil {
 		return fmt.Errorf("failed to load team configuration: %w", err)
 	}
 
-	if err := config.SetOperationalLabel(project, label); err != nil {
-		return fmt.Errorf("failed to set operational label: %w", err)
+	if err := config.SetOperationalLabels(project, labels); err != nil {
+		return fmt.Errorf("failed to set operational labels: %w", err)
 	}
 
 	if err := s.SaveTeamConfig(config); err != nil {
@@ -292,14 +292,14 @@ func (s *ConfigService) SetOperationalLabelForProject(project, label string) err
 	return nil
 }
 
-// GetOperationalLabelForProject returns the operational label for a project
-func (s *ConfigService) GetOperationalLabelForProject(project string) (string, error) {
+// GetOperationalLabelsForProject returns the operational labels for a project
+func (s *ConfigService) GetOperationalLabelsForProject(project string) ([]string, error) {
 	config, err := s.GetTeamConfig()
 	if err != nil {
-		return "", fmt.Errorf("failed to load team configuration: %w", err)
+		return nil, fmt.Errorf("failed to load team configuration: %w", err)
 	}
 
-	return config.GetOperationalLabel(project), nil
+	return config.GetOperationalLabels(project), nil
 }
 
 // SetOpExLabelForProject sets the real accounting label for non-capitalizable

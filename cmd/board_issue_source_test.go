@@ -20,10 +20,10 @@ func configServiceWith(t *testing.T, config *domain.TeamConfig) *service.ConfigS
 	return service.NewConfigService(repo)
 }
 
-type stubLabelled struct{ gotLabel string }
+type stubLabelled struct{ gotLabels []string }
 
-func (s *stubLabelled) GetLabelledIssuesForSprint(_, _, label string) ([]sprintports.JiraIssue, error) {
-	s.gotLabel = label
+func (s *stubLabelled) GetLabelledIssuesForSprint(_, _ string, labels []string) ([]sprintports.JiraIssue, error) {
+	s.gotLabels = labels
 	return []sprintports.JiraIssue{{Key: "PRI-9"}}, nil
 }
 
@@ -32,7 +32,7 @@ func TestBoardIssueSourceAdapter_OperationalLabelOnly(t *testing.T) {
 
 	config, err := domain.NewTeamConfig(map[string][]string{"PRI": {"Ann"}})
 	require.NoError(t, err)
-	require.NoError(t, config.SetOperationalLabel("PRI", "operational"))
+	require.NoError(t, config.SetOperationalLabels("PRI", []string{"operational", "support"}))
 	configService := configServiceWith(t, config)
 	labelled := &stubLabelled{}
 
@@ -42,7 +42,7 @@ func TestBoardIssueSourceAdapter_OperationalLabelOnly(t *testing.T) {
 
 	require.NoError(t, err)
 	assert.Equal(t, []string{"PRI-9"}, keys)
-	assert.Equal(t, "operational", labelled.gotLabel)
+	assert.Equal(t, []string{"operational", "support"}, labelled.gotLabels)
 }
 
 func TestBoardIssueSourceAdapter_NothingConfigured(t *testing.T) {
@@ -57,5 +57,5 @@ func TestBoardIssueSourceAdapter_NothingConfigured(t *testing.T) {
 
 	require.NoError(t, err)
 	assert.Empty(t, keys)
-	assert.Empty(t, labelled.gotLabel)
+	assert.Empty(t, labelled.gotLabels)
 }

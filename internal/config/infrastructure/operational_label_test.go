@@ -15,12 +15,12 @@ func TestFileRepository_OperationalLabelRoundTrip(t *testing.T) {
 	repo := NewFileRepository(t.TempDir())
 	config, err := domain.NewTeamConfig(map[string][]string{"PRI": {"Ann"}, "OTH": {"Bob"}})
 	require.NoError(t, err)
-	require.NoError(t, config.SetOperationalLabel("PRI", "operational"))
+	require.NoError(t, config.SetOperationalLabels("PRI", []string{"operational", "support"}))
 
 	require.NoError(t, repo.SaveTeamConfig(config))
 	loaded, err := repo.LoadTeamConfig()
 
 	require.NoError(t, err)
-	assert.Equal(t, "operational", loaded.GetOperationalLabel("PRI"))
-	assert.Equal(t, "", loaded.GetOperationalLabel("OTH"))
+	assert.Equal(t, []string{"operational", "support"}, loaded.GetOperationalLabels("PRI"))
+	assert.Empty(t, loaded.GetOperationalLabels("OTH"))
 }

@@ -115,7 +115,7 @@ func (r *FileRepository) LoadTeamConfig() (*domain.TeamConfig, error) {
 		BoardWorkStreams     map[string]string `json:"board_work_streams,omitempty"`
 		CapExLabel           string            `json:"capex_label,omitempty"`
 		OpExLabel            string            `json:"opex_label,omitempty"`
-		OperationalLabel     string            `json:"operational_label,omitempty"`
+		OperationalLabels    []string          `json:"operational_labels,omitempty"`
 	}
 
 	if err := json.Unmarshal(data, &fileFormat); err != nil {
@@ -134,7 +134,7 @@ func (r *FileRepository) LoadTeamConfig() (*domain.TeamConfig, error) {
 	boardWorkStreams := make(map[string]map[int]string)
 	capExLabels := make(map[string]string)
 	opExLabels := make(map[string]string)
-	operationalLabels := make(map[string]string)
+	operationalLabels := make(map[string][]string)
 
 	for project, teamInfo := range fileFormat {
 		teams[project] = teamInfo.Team
@@ -185,8 +185,8 @@ func (r *FileRepository) LoadTeamConfig() (*domain.TeamConfig, error) {
 		if teamInfo.OpExLabel != "" {
 			opExLabels[project] = teamInfo.OpExLabel
 		}
-		if teamInfo.OperationalLabel != "" {
-			operationalLabels[project] = teamInfo.OperationalLabel
+		if len(teamInfo.OperationalLabels) > 0 {
+			operationalLabels[project] = teamInfo.OperationalLabels
 		}
 		if len(teamInfo.BoardWorkStreams) > 0 {
 			mapping := make(map[int]string, len(teamInfo.BoardWorkStreams))
@@ -219,9 +219,9 @@ func (r *FileRepository) LoadTeamConfig() (*domain.TeamConfig, error) {
 		}
 	}
 
-	for project, label := range operationalLabels {
-		if err := config.SetOperationalLabel(project, label); err != nil {
-			return nil, fmt.Errorf("failed to set operational label for %s: %w", project, err)
+	for project, labels := range operationalLabels {
+		if err := config.SetOperationalLabels(project, labels); err != nil {
+			return nil, fmt.Errorf("failed to set operational labels for %s: %w", project, err)
 		}
 	}
 
@@ -257,7 +257,7 @@ func (r *FileRepository) SaveTeamConfig(config *domain.TeamConfig) error {
 		BoardWorkStreams     map[string]string `json:"board_work_streams,omitempty"`
 		CapExLabel           string            `json:"capex_label,omitempty"`
 		OpExLabel            string            `json:"opex_label,omitempty"`
-		OperationalLabel     string            `json:"operational_label,omitempty"`
+		OperationalLabels    []string          `json:"operational_labels,omitempty"`
 	})
 
 	for project, members := range teams {
@@ -279,7 +279,7 @@ func (r *FileRepository) SaveTeamConfig(config *domain.TeamConfig) error {
 			BoardWorkStreams     map[string]string `json:"board_work_streams,omitempty"`
 			CapExLabel           string            `json:"capex_label,omitempty"`
 			OpExLabel            string            `json:"opex_label,omitempty"`
-			OperationalLabel     string            `json:"operational_label,omitempty"`
+			OperationalLabels    []string          `json:"operational_labels,omitempty"`
 		}{
 			Team: activeMembers,
 		}
@@ -332,8 +332,8 @@ func (r *FileRepository) SaveTeamConfig(config *domain.TeamConfig) error {
 		if label, exists := opExLabels[project]; exists && label != "" {
 			entry.OpExLabel = label
 		}
-		if label, exists := operationalLabels[project]; exists && label != "" {
-			entry.OperationalLabel = label
+		if labels, exists := operationalLabels[project]; exists && len(labels) > 0 {
+			entry.OperationalLabels = labels
 		}
 
 		// Add excluded issue types if they exist for this project

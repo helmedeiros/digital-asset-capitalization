@@ -11,14 +11,14 @@ import (
 
 // labelledIssueLister is implemented by the sprint JIRA adapter.
 type labelledIssueLister interface {
-	GetLabelledIssuesForSprint(project, sprintName, label string) ([]sprintports.JiraIssue, error)
+	GetLabelledIssuesForSprint(project, sprintName string, labels []string) ([]sprintports.JiraIssue, error)
 }
 
 // boardIssueSourceAdapter implements taskports.BoardIssueSource by reusing
 // the sprint allocation fetch, so `tasks fetch` and `sprint allocate` see the
 // same issues per sprint. Both sources are optional and may be combined:
 // configured boards (`config board-work-streams`) and the project's
-// operational label (`config operational-label`).
+// operational labels (`config operational-labels`).
 type boardIssueSourceAdapter struct {
 	configService *service.ConfigService
 	sprintJira    sprintports.JiraPort
@@ -48,10 +48,10 @@ func (a boardIssueSourceAdapter) FindIssueKeysForSprint(_ context.Context, proje
 		}
 	}
 
-	if label := teamConfig.GetOperationalLabel(project); label != "" && a.labelled != nil {
-		issues, err := a.labelled.GetLabelledIssuesForSprint(project, sprint, label)
+	if labels := teamConfig.GetOperationalLabels(project); len(labels) > 0 && a.labelled != nil {
+		issues, err := a.labelled.GetLabelledIssuesForSprint(project, sprint, labels)
 		if err != nil {
-			return nil, fmt.Errorf("label %q: %w", label, err)
+			return nil, fmt.Errorf("labels %v: %w", labels, err)
 		}
 		for _, issue := range issues {
 			keys = append(keys, issue.Key)

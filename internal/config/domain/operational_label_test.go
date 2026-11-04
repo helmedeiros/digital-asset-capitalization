@@ -7,21 +7,25 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestTeamConfig_OperationalLabel(t *testing.T) {
+func TestTeamConfig_OperationalLabels(t *testing.T) {
 	t.Parallel()
 
 	config, err := NewTeamConfig(map[string][]string{"PRI": {"Ann"}})
 	require.NoError(t, err)
 
-	assert.Equal(t, "", config.GetOperationalLabel("PRI"), "optional: unset by default")
+	assert.Empty(t, config.GetOperationalLabels("PRI"), "optional: unset by default")
 
-	require.NoError(t, config.SetOperationalLabel("PRI", " operational "))
-	assert.Equal(t, "operational", config.GetOperationalLabel("PRI"))
-	assert.Equal(t, map[string]string{"PRI": "operational"}, config.GetAllOperationalLabels())
+	require.NoError(t, config.SetOperationalLabels("PRI", []string{" operational ", "", "support", "operational"}))
+	assert.Equal(t, []string{"operational", "support"}, config.GetOperationalLabels("PRI"), "trimmed, deduplicated")
+	assert.Equal(t, map[string][]string{"PRI": {"operational", "support"}}, config.GetAllOperationalLabels())
 
-	require.NoError(t, config.SetOperationalLabel("PRI", ""))
-	assert.Equal(t, "", config.GetOperationalLabel("PRI"), "empty label clears it")
+	got := config.GetOperationalLabels("PRI")
+	got[0] = "mutated"
+	assert.Equal(t, "operational", config.GetOperationalLabels("PRI")[0], "returns a copy")
 
-	assert.Error(t, config.SetOperationalLabel("MISSING", "operational"))
-	assert.Error(t, config.SetOperationalLabel("", "operational"))
+	require.NoError(t, config.SetOperationalLabels("PRI", nil))
+	assert.Empty(t, config.GetOperationalLabels("PRI"), "empty clears")
+
+	assert.Error(t, config.SetOperationalLabels("MISSING", []string{"operational"}))
+	assert.Error(t, config.SetOperationalLabels("", []string{"operational"}))
 }

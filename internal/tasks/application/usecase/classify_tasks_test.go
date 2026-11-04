@@ -2166,8 +2166,13 @@ func TestAdditionalErrorHandlingAndEdgeCases(t *testing.T) {
 // stubCapitalizationLabelProvider is a minimal CapitalizationLabelProvider
 // for tests, keyed by project.
 type stubCapitalizationLabelProvider struct {
-	capEx map[string]string
-	opEx  map[string]string
+	capEx       map[string]string
+	opEx        map[string]string
+	operational map[string][]string
+}
+
+func (s stubCapitalizationLabelProvider) GetOperationalLabels(project string) []string {
+	return s.operational[project]
 }
 
 func (s stubCapitalizationLabelProvider) GetCapExLabel(project string) string {

@@ -90,9 +90,9 @@ func (s *stubTeamConfigService) GetOpExLabelForProject(string) (string, error) {
 	return "", nil
 }
 
-func (s *stubTeamConfigService) SetOperationalLabelForProject(string, string) error { return nil }
-func (s *stubTeamConfigService) GetOperationalLabelForProject(string) (string, error) {
-	return "", nil
+func (s *stubTeamConfigService) SetOperationalLabelsForProject(string, []string) error { return nil }
+func (s *stubTeamConfigService) GetOperationalLabelsForProject(string) ([]string, error) {
+	return nil, nil
 }
 
 // teamConfigWith creates a real *TeamConfig with the supplied per-

@@ -61,9 +61,16 @@ func TestHonourExistingOpExLabel(t *testing.T) {
 func TestHonourOperationalLabel(t *testing.T) {
 	t.Parallel()
 
-	uc := NewClassifyTasksUseCase(new(MockTaskRepository), new(MockTaskRepository), new(MockTaskClassifier), new(MockUserInput), testutil.NewMockAssetService(), nil)
-	result := func(wt domain.WorkType, labels ...string) *ports.ComprehensiveClassificationResult {
-		task, err := domain.NewTask("PRI-1", "summary", "PRI", "S1", "jira")
+	provider := stubCapitalizationLabelProvider{operational: map[string][]string{"PRI": {"operational", "support"}}}
+	newUseCase := func(p CapitalizationLabelProvider) *ClassifyTasksUseCase {
+		uc := NewClassifyTasksUseCase(new(MockTaskRepository), new(MockTaskRepository), new(MockTaskClassifier), new(MockUserInput), testutil.NewMockAssetService(), nil)
+		if p != nil {
+			uc.SetCapitalizationLabelProvider(p)
+		}
+		return uc
+	}
+	result := func(project string, wt domain.WorkType, labels ...string) *ports.ComprehensiveClassificationResult {
+		task, err := domain.NewTask("PRI-1", "summary", project, "S1", "jira")
 		assert.NoError(t, err)
 		task.Labels = labels
 		return &ports.ComprehensiveClassificationResult{Task: task, WorkType: wt}
@@ -71,15 +78,19 @@ func TestHonourOperationalLabel(t *testing.T) {
 
 	tests := []struct {
 		name   string
+		uc     *ClassifyTasksUseCase
 		in     *ports.ComprehensiveClassificationResult
 		expect domain.WorkType
 	}{
-		{"development becomes maintenance", result(domain.WorkTypeDevelopment, "operational"), domain.WorkTypeMaintenance},
-		{"discovery untouched", result(domain.WorkTypeDiscovery, "operational"), domain.WorkTypeDiscovery},
-		{"unlabelled development untouched", result(domain.WorkTypeDevelopment, "other"), domain.WorkTypeDevelopment},
+		{"development with an operational label becomes maintenance", newUseCase(provider), result("PRI", domain.WorkTypeDevelopment, "operational"), domain.WorkTypeMaintenance},
+		{"any configured operational label counts", newUseCase(provider), result("PRI", domain.WorkTypeDevelopment, "support"), domain.WorkTypeMaintenance},
+		{"discovery untouched", newUseCase(provider), result("PRI", domain.WorkTypeDiscovery, "operational"), domain.WorkTypeDiscovery},
+		{"unlabelled development untouched", newUseCase(provider), result("PRI", domain.WorkTypeDevelopment, "other"), domain.WorkTypeDevelopment},
+		{"project without operational labels untouched", newUseCase(provider), result("OTHER", domain.WorkTypeDevelopment, "operational"), domain.WorkTypeDevelopment},
+		{"no provider untouched", newUseCase(nil), result("PRI", domain.WorkTypeDevelopment, "operational"), domain.WorkTypeDevelopment},
 	}
 	for _, tt := range tests {
-		uc.honourOperationalLabel([]*ports.ComprehensiveClassificationResult{tt.in})
+		tt.uc.honourOperationalLabel([]*ports.ComprehensiveClassificationResult{tt.in})
 		assert.Equal(t, tt.expect, tt.in.WorkType, tt.name)
 	}
 }
