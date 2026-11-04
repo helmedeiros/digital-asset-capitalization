@@ -16,9 +16,20 @@ func TestJiraChangeItem_IsStatusChange(t *testing.T) {
 		{
 			name: "status change",
 			item: JiraChangeItem{
-				Field: "status",
+				Field:      "status",
+				FromString: "In Progress",
+				ToString:   "Done",
 			},
 			want: true,
+		},
+		{
+			name: "status to itself is not a change",
+			item: JiraChangeItem{
+				Field:      "status",
+				FromString: "Done",
+				ToString:   "Done",
+			},
+			want: false,
 		},
 		{
 			name: "non-status change",

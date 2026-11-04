@@ -34,9 +34,12 @@ type JiraChangeItem struct {
 	ToString   string `json:"toString"`
 }
 
-// IsStatusChange checks if this change item represents a status change
+// IsStatusChange checks if this change item represents a status change. A
+// transition from a status to itself (e.g. Done -> Done, written when an issue
+// is converted or bulk edited) moves nothing and is not a status change, or it
+// would restamp when the work started or finished.
 func (i *JiraChangeItem) IsStatusChange() bool {
-	return i.Field == "status"
+	return i.Field == "status" && i.FromString != i.ToString
 }
 
 // JiraChangeHistory represents a historical change in a Jira issue
