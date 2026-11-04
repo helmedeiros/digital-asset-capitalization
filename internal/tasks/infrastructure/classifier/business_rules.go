@@ -197,8 +197,14 @@ func (c *BusinessRulesClassifier) isWithinDevelopmentPeriod(asset *assetdomain.A
 	return asset.LaunchDate.After(sixMonthsAgo)
 }
 
-// addsNewAPIOrInventory checks if task adds new API or inventory
+// addsNewAPIOrInventory checks if task adds new API or inventory. A bug fixes
+// existing behaviour, so it never adds anything new, however many API or
+// "add" words its report happens to contain.
 func (c *BusinessRulesClassifier) addsNewAPIOrInventory(task *taskdomain.Task) bool {
+	if task.Type == taskdomain.TaskTypeBug {
+		return false
+	}
+
 	content := strings.ToLower(task.Summary + " " + task.Description)
 
 	// API keywords

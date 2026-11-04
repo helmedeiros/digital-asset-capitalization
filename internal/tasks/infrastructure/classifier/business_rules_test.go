@@ -610,6 +610,15 @@ func TestBusinessRulesClassifier_AddsNewAPIOrInventory(t *testing.T) {
 			},
 			expected: false,
 		},
+		{
+			name: "bug report mentioning add, product and options is not new inventory",
+			task: &taskdomain.Task{
+				Type:        taskdomain.TaskTypeBug,
+				Summary:     "Saved product and options appear blank when editing offers",
+				Description: "The supplier should be able to add other options or remove existing ones",
+			},
+			expected: false,
+		},
 	}
 
 	for _, tt := range tests {
