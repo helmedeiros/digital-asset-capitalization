@@ -302,6 +302,23 @@ The `migrate` command helps upgrade task data format:
 - `--rollback`: Rollback previous migration using backup file
 - `--file`: Specify custom tasks.json file path (default: .assetcap/tasks.json)
 
+### Operational and Kanban Work
+
+Some teams run a scrum board plus a kanban board (bugs, operator rotations, other operational work). Kanban work has no sprints, so a plain sprint query never sees it. `tasks fetch --sprint` also picks it up when the project configures **either, both, or neither** of:
+
+```bash
+# A JIRA label that marks operational work (works with or without a kanban board)
+./assetcap config operational-label set --project FN --label operational
+
+# Board-to-workstream mapping (also used by sprint allocate --work-streams)
+./assetcap config board-work-streams set --project FN --board 5119 --work-stream operational
+```
+
+- Both sources use the sprint's date window (activity, resolution or a status change inside the window), the same one `sprint allocate` uses, so fetch and allocation see the same issues per sprint. Fetched tasks are tagged with the sprint and classified like any other.
+- Development work on tasks labelled `operational` classifies as maintenance (OpEx); discovery is unchanged.
+- The label is independent of any board filter. A board's own JIRA filter can hide old tickets (for example one limited to recently resolved tickets), so prefer the label when the kanban board filter is limited.
+- With neither configured, fetching behaves as before.
+
 ### Time Allocation
 
 Automatically calculate time allocation for tasks in sprints:

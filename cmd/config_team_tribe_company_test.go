@@ -90,6 +90,11 @@ func (s *stubTeamConfigService) GetOpExLabelForProject(string) (string, error) {
 	return "", nil
 }
 
+func (s *stubTeamConfigService) SetOperationalLabelForProject(string, string) error { return nil }
+func (s *stubTeamConfigService) GetOperationalLabelForProject(string) (string, error) {
+	return "", nil
+}
+
 // teamConfigWith creates a real *TeamConfig with the supplied per-
 // project tribe and company assignments. Empty maps are fine; the
 // resulting config has projects but no annotations.

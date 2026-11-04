@@ -103,6 +103,8 @@ type TeamConfigService interface {
 	GetExcludedIssueTypesForProject(project string) ([]string, error)
 	SetBoardWorkStream(project string, boardID int, workStream string) error
 	SetCapExLabelForProject(project, label string) error
+	SetOperationalLabelForProject(project, label string) error
+	GetOperationalLabelForProject(project string) (string, error)
 	GetCapExLabelForProject(project string) (string, error)
 	SetOpExLabelForProject(project, label string) error
 	GetOpExLabelForProject(project string) (string, error)
@@ -472,7 +474,7 @@ func initializeApp() (*App, error) {
 	if withBoards, ok := taskService.(interface {
 		SetBoardIssueSource(taskports.BoardIssueSource)
 	}); ok {
-		withBoards.SetBoardIssueSource(boardIssueSourceAdapter{configService: sharedConfigService, sprintJira: jiraAdapter})
+		withBoards.SetBoardIssueSource(boardIssueSourceAdapter{configService: sharedConfigService, sprintJira: jiraAdapter, labelled: jiraAdapter})
 	}
 
 	// Initialize config service for CLI

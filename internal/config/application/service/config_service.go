@@ -273,6 +273,35 @@ func (s *ConfigService) GetCapExLabelForProject(project string) (string, error) 
 	return config.GetCapExLabel(project), nil
 }
 
+// SetOperationalLabelForProject sets the JIRA label marking a project's
+// operational work (empty clears it) and saves
+func (s *ConfigService) SetOperationalLabelForProject(project, label string) error {
+	config, err := s.GetTeamConfig()
+	if err != nil {
+		return fmt.Errorf("failed to load team configuration: %w", err)
+	}
+
+	if err := config.SetOperationalLabel(project, label); err != nil {
+		return fmt.Errorf("failed to set operational label: %w", err)
+	}
+
+	if err := s.SaveTeamConfig(config); err != nil {
+		return fmt.Errorf("failed to save team configuration: %w", err)
+	}
+
+	return nil
+}
+
+// GetOperationalLabelForProject returns the operational label for a project
+func (s *ConfigService) GetOperationalLabelForProject(project string) (string, error) {
+	config, err := s.GetTeamConfig()
+	if err != nil {
+		return "", fmt.Errorf("failed to load team configuration: %w", err)
+	}
+
+	return config.GetOperationalLabel(project), nil
+}
+
 // SetOpExLabelForProject sets the real accounting label for non-capitalizable
 // (discovery/maintenance) work for a project and saves
 func (s *ConfigService) SetOpExLabelForProject(project, label string) error {

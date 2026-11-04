@@ -227,6 +227,37 @@ func (a *App) createConfigCommand() *cli.Command {
 				},
 			},
 			{
+				Name:  "operational-label",
+				Usage: "Manage the JIRA label that marks a project's operational work (optional, alternative or addition to a kanban board mapping)",
+				Subcommands: []*cli.Command{
+					{
+						Name:   "set",
+						Usage:  "Set the operational label for a project (e.g. 'operational')",
+						Action: a.configOperationalLabelSetAction,
+						Flags: []cli.Flag{
+							&cli.StringFlag{Name: "project", Aliases: []string{"p"}, Usage: "Project key (e.g., FN)", Required: true},
+							&cli.StringFlag{Name: "label", Aliases: []string{"l"}, Usage: "JIRA label marking operational work", Required: true},
+						},
+					},
+					{
+						Name:   "show",
+						Usage:  "Show the operational label for a project",
+						Action: a.configOperationalLabelShowAction,
+						Flags: []cli.Flag{
+							&cli.StringFlag{Name: "project", Aliases: []string{"p"}, Usage: "Project key (e.g., FN)", Required: true},
+						},
+					},
+					{
+						Name:   "clear",
+						Usage:  "Remove the operational label for a project",
+						Action: a.configOperationalLabelClearAction,
+						Flags: []cli.Flag{
+							&cli.StringFlag{Name: "project", Aliases: []string{"p"}, Usage: "Project key (e.g., FN)", Required: true},
+						},
+					},
+				},
+			},
+			{
 				Name:  "board-work-streams",
 				Usage: "Manage board-to-workstream mappings per project",
 				Subcommands: []*cli.Command{
@@ -890,6 +921,54 @@ func (a *App) configTeamCapitalizationLabelsShowAction(ctx *cli.Context) error {
 	} else {
 		fmt.Printf("Project '%s' capitalization labels: capex=%q opex=%q\n", project, capExLabel, opExLabel)
 	}
+	return nil
+}
+
+// configOperationalLabelSetAction backs `assetcap config operational-label set`.
+func (a *App) configOperationalLabelSetAction(ctx *cli.Context) error {
+	project := ctx.String("project")
+	label := ctx.String("label")
+	if project == "" || label == "" {
+		return fmt.Errorf("project and label are required")
+	}
+	a.ensureTeamConfigService()
+	if err := a.teamConfigService.SetOperationalLabelForProject(project, label); err != nil {
+		return fmt.Errorf("failed to set operational label: %v", err)
+	}
+	fmt.Printf("✅ Set operational label '%s' for project '%s'\n", label, project)
+	return nil
+}
+
+// configOperationalLabelShowAction backs `assetcap config operational-label show`.
+func (a *App) configOperationalLabelShowAction(ctx *cli.Context) error {
+	project := ctx.String("project")
+	if project == "" {
+		return fmt.Errorf("project is required")
+	}
+	a.ensureTeamConfigService()
+	label, err := a.teamConfigService.GetOperationalLabelForProject(project)
+	if err != nil {
+		return fmt.Errorf("failed to get operational label: %v", err)
+	}
+	if label == "" {
+		fmt.Printf("Project '%s' has no operational label configured\n", project)
+	} else {
+		fmt.Printf("Project '%s' operational label: %q\n", project, label)
+	}
+	return nil
+}
+
+// configOperationalLabelClearAction backs `assetcap config operational-label clear`.
+func (a *App) configOperationalLabelClearAction(ctx *cli.Context) error {
+	project := ctx.String("project")
+	if project == "" {
+		return fmt.Errorf("project is required")
+	}
+	a.ensureTeamConfigService()
+	if err := a.teamConfigService.SetOperationalLabelForProject(project, ""); err != nil {
+		return fmt.Errorf("failed to clear operational label: %v", err)
+	}
+	fmt.Printf("✅ Cleared operational label for project '%s'\n", project)
 	return nil
 }
 

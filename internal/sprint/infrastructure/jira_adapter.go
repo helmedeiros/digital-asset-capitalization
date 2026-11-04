@@ -435,6 +435,51 @@ func (a *JiraAdapter) GetIssuesForSprintOnBoard(project, sprintName string, boar
 	return a.convertToPortIssues(issues), nil
 }
 
+// sprintWindowClause is the JQL predicate for "had activity, was resolved, or
+// changed status during the sprint window". Keeping all three signals keeps
+// tickets in the window even when a later touch (e.g. a label change) pushes
+// their updatedDate past the sprint end, or when a "Done" workflow does not
+// populate resolutiondate. Shared by board and label based lookups so both see
+// the same issues per sprint.
+func sprintWindowClause(start, end time.Time) string {
+	startStr := start.Format("2006-01-02")
+	endStr := end.Format("2006-01-02")
+	return fmt.Sprintf(
+		"((updatedDate >= '%s' AND updatedDate <= '%s') OR (resolved >= '%s' AND resolved <= '%s') OR (status changed DURING ('%s', '%s')))",
+		startStr, endStr, startStr, endStr, startStr, endStr,
+	)
+}
+
+// GetLabelledIssuesForSprint retrieves the project's issues carrying a label
+// (e.g. an "operational" tag) that were active in the sprint's date window.
+// Unlike board lookups it only needs the project, so it works whether or not
+// the team has a kanban board.
+func (a *JiraAdapter) GetLabelledIssuesForSprint(project, sprintName, label string) ([]ports.JiraIssue, error) {
+	sprintDetails, err := a.GetSprintByName(project, sprintName)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get sprint details for date range: %w", err)
+	}
+	start, err := time.Parse(time.RFC3339, sprintDetails.StartDate)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse start date: %w", err)
+	}
+	end, err := time.Parse(time.RFC3339, sprintDetails.EndDate)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse end date: %w", err)
+	}
+
+	query := fmt.Sprintf("project = %s AND labels = \"%s\" AND %s", project, label, sprintWindowClause(start, end))
+	jiraURL := fmt.Sprintf("%s/rest/api/3/search/jql?jql=%s&expand=changelog&fields=%s",
+		a.config.GetBaseURL(), url.QueryEscape(query), a.buildFieldsParam())
+
+	issues, err := a.httpClient.GetJiraIssues(jiraURL)
+	if err != nil {
+		return nil, fmt.Errorf("failed to fetch issues labelled %q: %w", label, err)
+	}
+	a.enrichIssues(issues)
+	return a.convertToPortIssues(issues), nil
+}
+
 // getIssuesForBoardByDateRange fetches issues from a board that were updated within the given date range.
 func (a *JiraAdapter) getIssuesForBoardByDateRange(project string, boardID int, startDate, endDate string) ([]ports.JiraIssue, error) {
 	// Parse dates to extract just the date portion for JQL
@@ -447,17 +492,7 @@ func (a *JiraAdapter) getIssuesForBoardByDateRange(project string, boardID int, 
 		return nil, fmt.Errorf("failed to parse end date: %w", err)
 	}
 
-	startStr := start.Format("2006-01-02")
-	endStr := end.Format("2006-01-02")
-
-	// Query issues that had activity, were resolved, or changed status during the sprint period,
-	// filtered by board membership. Using OR on resolved and status-changed keeps tickets in the window
-	// even when a later touch (e.g. a label change) pushes their updatedDate past the sprint end, or when
-	// a "Done" workflow does not populate resolutiondate.
-	query := fmt.Sprintf(
-		"project = %s AND ((updatedDate >= '%s' AND updatedDate <= '%s') OR (resolved >= '%s' AND resolved <= '%s') OR (status changed DURING ('%s', '%s')))",
-		project, startStr, endStr, startStr, endStr, startStr, endStr,
-	)
+	query := fmt.Sprintf("project = %s AND %s", project, sprintWindowClause(start, end))
 	encodedQuery := url.QueryEscape(query)
 	fields := a.buildFieldsParam()
 

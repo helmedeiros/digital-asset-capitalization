@@ -48,7 +48,8 @@ type TeamConfig struct {
 	excludedIssueTypes    map[string][]string           // project -> excluded issue types for sprint allocation
 	boardWorkStreams      map[string]map[int]string     // project -> boardID -> workstream name
 	capExLabels           map[string]string             // project -> real accounting label for capitalizable work (e.g. "IAS38-CapEx")
-	opExLabels            map[string]string              // project -> real accounting label for non-capitalizable work (e.g. "IAS38-OpEx")
+	opExLabels            map[string]string             // project -> real accounting label for non-capitalizable work (e.g. "IAS38-OpEx")
+	operationalLabels     map[string]string             // project -> JIRA label marking operational work (e.g. "operational")
 }
 
 // NewTeamConfig creates a new TeamConfig with validation
@@ -65,6 +66,7 @@ func NewTeamConfig(teams map[string][]string) (*TeamConfig, error) {
 		boardWorkStreams:      make(map[string]map[int]string),
 		capExLabels:           make(map[string]string),
 		opExLabels:            make(map[string]string),
+		operationalLabels:     make(map[string]string),
 	}
 
 	for project, members := range teams {
@@ -592,6 +594,40 @@ func (tc *TeamConfig) SetOpExLabel(project, label string) error {
 	}
 	tc.opExLabels[trimmedProject] = strings.TrimSpace(label)
 	return nil
+}
+
+// GetOperationalLabel returns the JIRA label the project uses to mark
+// operational work (e.g. operator rotations, bugs), or "" when not configured.
+func (tc *TeamConfig) GetOperationalLabel(project string) string {
+	return tc.operationalLabels[project]
+}
+
+// SetOperationalLabel sets the JIRA label marking the project's operational
+// work. An empty label clears the setting.
+func (tc *TeamConfig) SetOperationalLabel(project, label string) error {
+	trimmedProject := strings.TrimSpace(project)
+	if trimmedProject == "" {
+		return fmt.Errorf("project key cannot be empty")
+	}
+	if _, exists := tc.teams[trimmedProject]; !exists {
+		return fmt.Errorf("project '%s' does not exist", trimmedProject)
+	}
+	trimmedLabel := strings.TrimSpace(label)
+	if trimmedLabel == "" {
+		delete(tc.operationalLabels, trimmedProject)
+		return nil
+	}
+	tc.operationalLabels[trimmedProject] = trimmedLabel
+	return nil
+}
+
+// GetAllOperationalLabels returns a copy of the project -> operational label mapping.
+func (tc *TeamConfig) GetAllOperationalLabels() map[string]string {
+	result := make(map[string]string, len(tc.operationalLabels))
+	for project, label := range tc.operationalLabels {
+		result[project] = label
+	}
+	return result
 }
 
 // GetAllCapExLabels returns a copy of the project -> CapEx label mapping.
