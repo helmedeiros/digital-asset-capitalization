@@ -416,6 +416,100 @@ func (p *SprintTimeAllocationUseCase) fetchIssues() ([]domain.JiraIssue, error) 
 // fetchIssuesByWorkStreams fetches issues using board-to-workstream mapping when work streams are specified.
 // When no work streams are configured or no board mapping exists, falls back to the default sprint query.
 func (p *SprintTimeAllocationUseCase) fetchIssuesByWorkStreams() ([]ports.JiraIssue, error) {
+	if p.onlyOperationalWithoutBoards() {
+		// Asking for operational work alone must not return the sprint's
+		// product issues through the no-board-mapping fallback.
+		return p.addOperationalIssues(nil), nil
+	}
+	issues, err := p.fetchBoardAndSprintIssues()
+	if err != nil {
+		return nil, err
+	}
+	return p.addOperationalIssues(issues), nil
+}
+
+// onlyOperationalWithoutBoards reports whether only the operational work
+// stream was requested and no board is mapped to it, so its issues can only
+// come from the project's operational labels.
+func (p *SprintTimeAllocationUseCase) onlyOperationalWithoutBoards() bool {
+	if len(p.workStreams) == 0 || p.configSvc == nil {
+		return false
+	}
+	for _, ws := range p.workStreams {
+		if !strings.EqualFold(strings.TrimSpace(ws), operationalWorkStream) {
+			return false
+		}
+	}
+	for _, ws := range p.workStreams {
+		if boards, err := p.configSvc.GetBoardsForWorkStream(p.project, ws); err != nil || len(boards) > 0 {
+			return false
+		}
+	}
+	return true
+}
+
+// operationalIssueLister is implemented by the JIRA adapter.
+type operationalIssueLister interface {
+	GetLabelledIssuesForSprint(project, sprintName string, labels []string) ([]ports.JiraIssue, error)
+}
+
+// operationalWorkStream is the work stream operational issues belong to.
+const operationalWorkStream = "operational"
+
+// includesOperationalWork reports whether the requested work streams cover
+// operational work: no filter means everything, otherwise "operational" must
+// be listed.
+func (p *SprintTimeAllocationUseCase) includesOperationalWork() bool {
+	if len(p.workStreams) == 0 {
+		return true
+	}
+	for _, ws := range p.workStreams {
+		if strings.EqualFold(strings.TrimSpace(ws), operationalWorkStream) {
+			return true
+		}
+	}
+	return false
+}
+
+// addOperationalIssues adds the issues carrying one of the project's
+// operational labels (`config operational-labels`) that were active in the
+// sprint window and are not already present, so allocation sees the same
+// issues per sprint as `tasks fetch`. Unlike a kanban board, labels do not
+// depend on the board's own JIRA filter, which can hide older tickets. The
+// added issues are tagged with the operational work stream unless JIRA's own
+// work stream field says otherwise.
+func (p *SprintTimeAllocationUseCase) addOperationalIssues(issues []ports.JiraIssue) []ports.JiraIssue {
+	lister, ok := p.jiraPort.(operationalIssueLister)
+	if !ok || p.configSvc == nil || !p.includesOperationalWork() {
+		return issues
+	}
+	labels, err := p.configSvc.GetOperationalLabelsForProject(p.project)
+	if err != nil || len(labels) == 0 {
+		return issues
+	}
+	labelled, err := lister.GetLabelledIssuesForSprint(p.project, p.sprint, labels)
+	if err != nil {
+		fmt.Printf("Warning: failed to fetch operational issues: %v\n", err)
+		return issues
+	}
+	seen := make(map[string]bool, len(issues))
+	for _, issue := range issues {
+		seen[issue.Key] = true
+	}
+	for _, issue := range labelled {
+		if seen[issue.Key] {
+			continue
+		}
+		seen[issue.Key] = true
+		if issue.BoardWorkStream == "" {
+			issue.BoardWorkStream = operationalWorkStream
+		}
+		issues = append(issues, issue)
+	}
+	return issues
+}
+
+func (p *SprintTimeAllocationUseCase) fetchBoardAndSprintIssues() ([]ports.JiraIssue, error) {
 	if len(p.workStreams) == 0 || p.configSvc == nil {
 		issues, err := p.jiraPort.GetIssuesForSprint(p.project, p.sprint)
 		if err != nil {

@@ -620,6 +620,11 @@ func (s *TestableTaskServiceImpl) ClassifyTasks(ctx context.Context, input domai
 	return s.classifyTasksUseCase.Execute(ctx, input)
 }
 
+// SetCapitalizationLabelProvider satisfies the TaskService interface; no
+// test using TestableTaskServiceImpl exercises this wiring.
+func (s *TestableTaskServiceImpl) SetCapitalizationLabelProvider(usecase.CapitalizationLabelProvider) {
+}
+
 func (s *TestableTaskServiceImpl) GetTasks(ctx context.Context, project, sprint string) ([]*domain.Task, error) {
 	return s.classifyTasksUseCase.GetTasks(ctx, project, sprint)
 }

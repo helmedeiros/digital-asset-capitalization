@@ -149,7 +149,7 @@ Field content:`, asset.Name, asset.Why, asset.Benefits, asset.How, asset.Metrics
 	fmt.Printf("=====================================\n\n")
 
 	requestBody := map[string]interface{}{
-		"model":  "llama4",
+		"model":  "llama3",
 		"prompt": prompt,
 		"stream": false,
 	}

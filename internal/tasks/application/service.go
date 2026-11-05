@@ -25,6 +25,18 @@ func NewTasksService(remoteRepo, localRepo ports.TaskRepository, classifier port
 	}
 }
 
+// SetCapitalizationLabelProvider configures the per-project real accounting
+// label lookup used when classifying with --apply.
+func (s *TaskServiceImpl) SetCapitalizationLabelProvider(provider usecase.CapitalizationLabelProvider) {
+	s.classifyTasksUseCase.SetCapitalizationLabelProvider(provider)
+}
+
+// SetBoardIssueSource makes sprint fetches also include the issues of the
+// project's configured boards (e.g. kanban work).
+func (s *TaskServiceImpl) SetBoardIssueSource(source ports.BoardIssueSource) {
+	s.fetchTasksUseCase.SetBoardIssueSource(source)
+}
+
 // FetchTasks fetches tasks from a platform
 func (s *TaskServiceImpl) FetchTasks(ctx context.Context, project, sprint, platform string) error {
 	return s.fetchTasksUseCase.Execute(ctx, project, sprint, platform)

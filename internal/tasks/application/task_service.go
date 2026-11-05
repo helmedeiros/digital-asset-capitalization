@@ -3,6 +3,7 @@ package application
 import (
 	"context"
 
+	"github.com/helmedeiros/digital-asset-capitalization/internal/tasks/application/usecase"
 	"github.com/helmedeiros/digital-asset-capitalization/internal/tasks/domain"
 	"github.com/helmedeiros/digital-asset-capitalization/internal/tasks/domain/ports"
 )
@@ -29,4 +30,11 @@ type TaskService interface {
 
 	// GetLocalRepository returns the local task repository
 	GetLocalRepository() ports.TaskRepository
+
+	// SetCapitalizationLabelProvider configures the per-project real
+	// accounting label lookup (e.g. an IAS38-style CapEx/OpEx label) used
+	// when classifying with --apply. Optional: when never called, no
+	// project has a configured label and only the internal
+	// cap-development/cap-maintenance/cap-discovery label is written.
+	SetCapitalizationLabelProvider(provider usecase.CapitalizationLabelProvider)
 }

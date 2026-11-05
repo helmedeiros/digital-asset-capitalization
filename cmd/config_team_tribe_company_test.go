@@ -25,6 +25,14 @@ type stubTeamConfigService struct {
 	setCompanyErr error
 	company       string
 	companyErr    error
+
+	setConfluenceSpaceErr error
+	confluenceSpace       string
+	confluenceSpaceErr    error
+
+	setConfluenceParentPageErr error
+	confluenceParentPage       string
+	confluenceParentPageErr    error
 }
 
 func (s *stubTeamConfigService) GetTeamConfig() (*configdomain.TeamConfig, error) {
@@ -44,6 +52,18 @@ func (s *stubTeamConfigService) GetCompanyForProject(string) (string, error) {
 func (s *stubTeamConfigService) SetBoardWorkStream(string, int, string) error {
 	return nil
 }
+func (s *stubTeamConfigService) SetConfluenceSpaceForProject(string, string) error {
+	return s.setConfluenceSpaceErr
+}
+func (s *stubTeamConfigService) GetConfluenceSpaceForProject(string) (string, error) {
+	return s.confluenceSpace, s.confluenceSpaceErr
+}
+func (s *stubTeamConfigService) SetConfluenceParentPageForProject(string, string) error {
+	return s.setConfluenceParentPageErr
+}
+func (s *stubTeamConfigService) GetConfluenceParentPageForProject(string) (string, error) {
+	return s.confluenceParentPage, s.confluenceParentPageErr
+}
 
 // SetExcludedIssueTypesForProject and GetExcludedIssueTypesForProject
 // satisfy the TeamConfigService interface (their dedicated tests use
@@ -58,16 +78,48 @@ func (s *stubTeamConfigService) GetExcludedIssueTypesForProject(string) ([]strin
 	return nil, nil
 }
 
+// SetCapExLabelForProject/GetCapExLabelForProject/SetOpExLabelForProject/
+// GetOpExLabelForProject satisfy the TeamConfigService interface with zero
+// values; no Action test under this stub exercises capitalization labels.
+func (s *stubTeamConfigService) SetCapExLabelForProject(string, string) error { return nil }
+func (s *stubTeamConfigService) GetCapExLabelForProject(string) (string, error) {
+	return "", nil
+}
+func (s *stubTeamConfigService) SetOpExLabelForProject(string, string) error { return nil }
+func (s *stubTeamConfigService) GetOpExLabelForProject(string) (string, error) {
+	return "", nil
+}
+
+func (s *stubTeamConfigService) SetOperationalLabelsForProject(string, []string) error { return nil }
+func (s *stubTeamConfigService) GetOperationalLabelsForProject(string) ([]string, error) {
+	return nil, nil
+}
+
 // teamConfigWith creates a real *TeamConfig with the supplied per-
 // project tribe and company assignments. Empty maps are fine; the
 // resulting config has projects but no annotations.
 func teamConfigWith(t *testing.T, tribes map[string]string, companies map[string]string) *configdomain.TeamConfig {
+	t.Helper()
+	return teamConfigWithConfluenceSpaces(t, tribes, companies, nil)
+}
+
+func teamConfigWithConfluenceSpaces(
+	t *testing.T,
+	tribes map[string]string,
+	companies map[string]string,
+	confluenceSpaces map[string]string,
+) *configdomain.TeamConfig {
 	t.Helper()
 	teams := map[string][]string{}
 	for proj := range tribes {
 		teams[proj] = []string{"alice"}
 	}
 	for proj := range companies {
+		if _, ok := teams[proj]; !ok {
+			teams[proj] = []string{"alice"}
+		}
+	}
+	for proj := range confluenceSpaces {
 		if _, ok := teams[proj]; !ok {
 			teams[proj] = []string{"alice"}
 		}
@@ -79,6 +131,9 @@ func teamConfigWith(t *testing.T, tribes map[string]string, companies map[string
 	}
 	for proj, company := range companies {
 		require.NoError(t, cfg.SetCompany(proj, company))
+	}
+	for proj, space := range confluenceSpaces {
+		require.NoError(t, cfg.SetConfluenceSpace(proj, space))
 	}
 	return cfg
 }
@@ -303,6 +358,252 @@ func TestApp_configTeamCompanyShowAction_LookupErrorWraps(t *testing.T) {
 	ctx := newContextWithFlags(t, map[string]string{"project": "FN"}, nil)
 	err := a.configTeamCompanyShowAction(ctx)
 	require.Error(t, err)
+}
+
+// team-confluence set
+
+func TestApp_configTeamConfluenceSetAction_RequiresProject(t *testing.T) {
+	t.Parallel()
+	a := &App{teamConfigService: &stubTeamConfigService{}}
+	ctx := newContextWithFlags(t, map[string]string{"space": "MZN"}, nil)
+	err := a.configTeamConfluenceSetAction(ctx)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "project is required")
+}
+
+func TestApp_configTeamConfluenceSetAction_RequiresSpace(t *testing.T) {
+	t.Parallel()
+	a := &App{teamConfigService: &stubTeamConfigService{}}
+	ctx := newContextWithFlags(t, map[string]string{"project": "FN"}, nil)
+	err := a.configTeamConfluenceSetAction(ctx)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "space is required")
+}
+
+func TestApp_configTeamConfluenceSetAction_ServiceErrorWraps(t *testing.T) {
+	t.Parallel()
+	a := &App{teamConfigService: &stubTeamConfigService{setConfluenceSpaceErr: errors.New("disk")}}
+	ctx := newContextWithFlags(t, map[string]string{"project": "FN", "space": "MZN"}, nil)
+	err := a.configTeamConfluenceSetAction(ctx)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "failed to set confluence space")
+}
+
+func TestApp_configTeamConfluenceSetAction_Success(t *testing.T) {
+	// no t.Parallel: prints to stdout
+	a := &App{teamConfigService: &stubTeamConfigService{}}
+	ctx := newContextWithFlags(t, map[string]string{"project": "FN", "space": "MZN"}, nil)
+	out, err := captureStdout(t, func() error { return a.configTeamConfluenceSetAction(ctx) })
+	require.NoError(t, err)
+	assert.Contains(t, out, "Set confluence space 'MZN' for project 'FN'")
+}
+
+// team-confluence list
+
+func TestApp_configTeamConfluenceListAction_LoadErrorWraps(t *testing.T) {
+	t.Parallel()
+	a := &App{teamConfigService: &stubTeamConfigService{teamConfigErr: errors.New("disk")}}
+	err := a.configTeamConfluenceListAction(nil)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "failed to load team config")
+}
+
+func TestApp_configTeamConfluenceListAction_EmptyProjects(t *testing.T) {
+	// no t.Parallel: prints to stdout
+	cfg, err := configdomain.NewTeamConfig(map[string][]string{})
+	require.NoError(t, err)
+	a := &App{teamConfigService: &stubTeamConfigService{teamConfig: cfg}}
+	out, err := captureStdout(t, func() error { return a.configTeamConfluenceListAction(nil) })
+	require.NoError(t, err)
+	assert.Contains(t, out, "No teams configured")
+}
+
+func TestApp_configTeamConfluenceListAction_RendersConfiguredAndSkipsUnassigned(t *testing.T) {
+	// no t.Parallel: prints to stdout
+	cfg := teamConfigWithConfluenceSpaces(t, nil, nil,
+		map[string]string{"FN": "MZN", "PAY": "CAP"},
+	)
+	require.NoError(t, cfg.SetTeam("INF", []string{"infra-alice"}))
+
+	a := &App{teamConfigService: &stubTeamConfigService{teamConfig: cfg}}
+	out, err := captureStdout(t, func() error { return a.configTeamConfluenceListAction(nil) })
+	require.NoError(t, err)
+	assert.Contains(t, out, "Team Confluence Spaces:")
+	assert.Contains(t, out, "FN: MZN")
+	assert.Contains(t, out, "PAY: CAP")
+	assert.NotContains(t, out, "INF")
+}
+
+func TestApp_configTeamConfluenceListAction_NoneConfigured(t *testing.T) {
+	// no t.Parallel: prints to stdout
+	cfg, err := configdomain.NewTeamConfig(map[string][]string{"FN": {"alice"}})
+	require.NoError(t, err)
+	a := &App{teamConfigService: &stubTeamConfigService{teamConfig: cfg}}
+	out, err := captureStdout(t, func() error { return a.configTeamConfluenceListAction(nil) })
+	require.NoError(t, err)
+	assert.Contains(t, out, "No confluence spaces configured for any project")
+}
+
+// team-confluence show
+
+func TestApp_configTeamConfluenceShowAction_RequiresProject(t *testing.T) {
+	t.Parallel()
+	a := &App{teamConfigService: &stubTeamConfigService{}}
+	err := a.configTeamConfluenceShowAction(newContextWithFlags(t, nil, nil))
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "project is required")
+}
+
+func TestApp_configTeamConfluenceShowAction_NoSpacePrintsBlank(t *testing.T) {
+	// no t.Parallel: prints to stdout
+	a := &App{teamConfigService: &stubTeamConfigService{confluenceSpace: ""}}
+	ctx := newContextWithFlags(t, map[string]string{"project": "FN"}, nil)
+	out, err := captureStdout(t, func() error { return a.configTeamConfluenceShowAction(ctx) })
+	require.NoError(t, err)
+	assert.Contains(t, out, "Project 'FN' has no confluence space assigned")
+}
+
+func TestApp_configTeamConfluenceShowAction_WithSpace(t *testing.T) {
+	// no t.Parallel: prints to stdout
+	a := &App{teamConfigService: &stubTeamConfigService{confluenceSpace: "MZN"}}
+	ctx := newContextWithFlags(t, map[string]string{"project": "FN"}, nil)
+	out, err := captureStdout(t, func() error { return a.configTeamConfluenceShowAction(ctx) })
+	require.NoError(t, err)
+	assert.Contains(t, out, "Project 'FN' uses confluence space: MZN")
+}
+
+func TestApp_configTeamConfluenceShowAction_LookupErrorWraps(t *testing.T) {
+	t.Parallel()
+	a := &App{teamConfigService: &stubTeamConfigService{confluenceSpaceErr: errors.New("disk")}}
+	ctx := newContextWithFlags(t, map[string]string{"project": "FN"}, nil)
+	err := a.configTeamConfluenceShowAction(ctx)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "failed to get confluence space")
+}
+
+// team-confluence-parent-page set
+
+func TestApp_configTeamConfluenceParentPageSetAction_RequiresProject(t *testing.T) {
+	t.Parallel()
+	a := &App{teamConfigService: &stubTeamConfigService{}}
+	ctx := newContextWithFlags(t, map[string]string{"page-id": "123456789"}, nil)
+	err := a.configTeamConfluenceParentPageSetAction(ctx)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "project is required")
+}
+
+func TestApp_configTeamConfluenceParentPageSetAction_RequiresPageID(t *testing.T) {
+	t.Parallel()
+	a := &App{teamConfigService: &stubTeamConfigService{}}
+	ctx := newContextWithFlags(t, map[string]string{"project": "FN"}, nil)
+	err := a.configTeamConfluenceParentPageSetAction(ctx)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "page-id is required")
+}
+
+func TestApp_configTeamConfluenceParentPageSetAction_ServiceErrorWraps(t *testing.T) {
+	t.Parallel()
+	a := &App{teamConfigService: &stubTeamConfigService{setConfluenceParentPageErr: errors.New("disk")}}
+	ctx := newContextWithFlags(t, map[string]string{"project": "FN", "page-id": "123456789"}, nil)
+	err := a.configTeamConfluenceParentPageSetAction(ctx)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "failed to set confluence parent page")
+}
+
+func TestApp_configTeamConfluenceParentPageSetAction_Success(t *testing.T) {
+	// no t.Parallel: prints to stdout
+	a := &App{teamConfigService: &stubTeamConfigService{}}
+	ctx := newContextWithFlags(t, map[string]string{"project": "FN", "page-id": "123456789"}, nil)
+	out, err := captureStdout(t, func() error { return a.configTeamConfluenceParentPageSetAction(ctx) })
+	require.NoError(t, err)
+	assert.Contains(t, out, "Set confluence parent page '123456789' for project 'FN'")
+}
+
+// team-confluence-parent-page list
+
+func TestApp_configTeamConfluenceParentPageListAction_LoadErrorWraps(t *testing.T) {
+	t.Parallel()
+	a := &App{teamConfigService: &stubTeamConfigService{teamConfigErr: errors.New("disk")}}
+	err := a.configTeamConfluenceParentPageListAction(nil)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "failed to load team config")
+}
+
+func TestApp_configTeamConfluenceParentPageListAction_EmptyProjects(t *testing.T) {
+	// no t.Parallel: prints to stdout
+	cfg, err := configdomain.NewTeamConfig(map[string][]string{})
+	require.NoError(t, err)
+	a := &App{teamConfigService: &stubTeamConfigService{teamConfig: cfg}}
+	out, err := captureStdout(t, func() error { return a.configTeamConfluenceParentPageListAction(nil) })
+	require.NoError(t, err)
+	assert.Contains(t, out, "No teams configured")
+}
+
+func TestApp_configTeamConfluenceParentPageListAction_RendersConfiguredAndSkipsUnassigned(t *testing.T) {
+	// no t.Parallel: prints to stdout
+	cfg, err := configdomain.NewTeamConfig(map[string][]string{
+		"FN":  {"alice"},
+		"PAY": {"bob"},
+		"INF": {"infra-alice"},
+	})
+	require.NoError(t, err)
+	require.NoError(t, cfg.SetConfluenceParentPage("FN", "111"))
+	require.NoError(t, cfg.SetConfluenceParentPage("PAY", "222"))
+
+	a := &App{teamConfigService: &stubTeamConfigService{teamConfig: cfg}}
+	out, err := captureStdout(t, func() error { return a.configTeamConfluenceParentPageListAction(nil) })
+	require.NoError(t, err)
+	assert.Contains(t, out, "Team Confluence Parent Pages:")
+	assert.Contains(t, out, "FN: 111")
+	assert.Contains(t, out, "PAY: 222")
+	assert.NotContains(t, out, "INF")
+}
+
+func TestApp_configTeamConfluenceParentPageListAction_NoneConfigured(t *testing.T) {
+	// no t.Parallel: prints to stdout
+	cfg, err := configdomain.NewTeamConfig(map[string][]string{"FN": {"alice"}})
+	require.NoError(t, err)
+	a := &App{teamConfigService: &stubTeamConfigService{teamConfig: cfg}}
+	out, err := captureStdout(t, func() error { return a.configTeamConfluenceParentPageListAction(nil) })
+	require.NoError(t, err)
+	assert.Contains(t, out, "No confluence parent pages configured for any project")
+}
+
+// team-confluence-parent-page show
+
+func TestApp_configTeamConfluenceParentPageShowAction_RequiresProject(t *testing.T) {
+	t.Parallel()
+	a := &App{teamConfigService: &stubTeamConfigService{}}
+	err := a.configTeamConfluenceParentPageShowAction(newContextWithFlags(t, nil, nil))
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "project is required")
+}
+
+func TestApp_configTeamConfluenceParentPageShowAction_NonePrintsBlank(t *testing.T) {
+	// no t.Parallel: prints to stdout
+	a := &App{teamConfigService: &stubTeamConfigService{confluenceParentPage: ""}}
+	ctx := newContextWithFlags(t, map[string]string{"project": "FN"}, nil)
+	out, err := captureStdout(t, func() error { return a.configTeamConfluenceParentPageShowAction(ctx) })
+	require.NoError(t, err)
+	assert.Contains(t, out, "Project 'FN' has no confluence parent page assigned")
+}
+
+func TestApp_configTeamConfluenceParentPageShowAction_WithPageID(t *testing.T) {
+	// no t.Parallel: prints to stdout
+	a := &App{teamConfigService: &stubTeamConfigService{confluenceParentPage: "123456789"}}
+	ctx := newContextWithFlags(t, map[string]string{"project": "FN"}, nil)
+	out, err := captureStdout(t, func() error { return a.configTeamConfluenceParentPageShowAction(ctx) })
+	require.NoError(t, err)
+	assert.Contains(t, out, "Project 'FN' uses confluence parent page: 123456789")
+}
+
+func TestApp_configTeamConfluenceParentPageShowAction_LookupErrorWraps(t *testing.T) {
+	t.Parallel()
+	a := &App{teamConfigService: &stubTeamConfigService{confluenceParentPageErr: errors.New("disk")}}
+	ctx := newContextWithFlags(t, map[string]string{"project": "FN"}, nil)
+	err := a.configTeamConfluenceParentPageShowAction(ctx)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "failed to get confluence parent page")
 }
 
 // ensureTeamConfigService lazy init

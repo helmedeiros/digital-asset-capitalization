@@ -35,7 +35,7 @@ func TestLLMAssetClassifier_ValidResponse(t *testing.T) {
 	defer server.Close()
 
 	repo := &mockAssetRepo{assets: newTestAssets()}
-	classifier := NewLLMAssetClassifier(server.URL, "llama4", repo)
+	classifier := NewLLMAssetClassifier(server.URL, "llama3", repo)
 
 	task := &taskdomain.Task{
 		Key:     "COP-123",
@@ -59,7 +59,7 @@ I hope this helps!`
 	defer server.Close()
 
 	repo := &mockAssetRepo{assets: newTestAssets()}
-	classifier := NewLLMAssetClassifier(server.URL, "llama4", repo)
+	classifier := NewLLMAssetClassifier(server.URL, "llama3", repo)
 
 	task := &taskdomain.Task{
 		Key:     "COP-456",
@@ -79,7 +79,7 @@ func TestLLMAssetClassifier_MalformedResponse(t *testing.T) {
 	defer server.Close()
 
 	repo := &mockAssetRepo{assets: newTestAssets()}
-	classifier := NewLLMAssetClassifier(server.URL, "llama4", repo)
+	classifier := NewLLMAssetClassifier(server.URL, "llama3", repo)
 
 	task := &taskdomain.Task{Key: "COP-789", Summary: "Some task"}
 
@@ -92,7 +92,7 @@ func TestLLMAssetClassifier_MalformedResponse(t *testing.T) {
 
 func TestLLMAssetClassifier_OllamaUnreachable(t *testing.T) {
 	repo := &mockAssetRepo{assets: newTestAssets()}
-	classifier := NewLLMAssetClassifier("http://localhost:99999", "llama4", repo)
+	classifier := NewLLMAssetClassifier("http://localhost:99999", "llama3", repo)
 
 	task := &taskdomain.Task{Key: "COP-001", Summary: "Test task"}
 
@@ -106,7 +106,7 @@ func TestLLMAssetClassifier_EmptyAssetList(t *testing.T) {
 	defer server.Close()
 
 	repo := &mockAssetRepo{assets: []*assetdomain.Asset{}}
-	classifier := NewLLMAssetClassifier(server.URL, "llama4", repo)
+	classifier := NewLLMAssetClassifier(server.URL, "llama3", repo)
 
 	task := &taskdomain.Task{Key: "COP-002", Summary: "Test task"}
 
@@ -135,7 +135,7 @@ func TestLLMAssetClassifier_FuzzyNameMatching(t *testing.T) {
 			defer server.Close()
 
 			repo := &mockAssetRepo{assets: newTestAssets()}
-			classifier := NewLLMAssetClassifier(server.URL, "llama4", repo)
+			classifier := NewLLMAssetClassifier(server.URL, "llama3", repo)
 
 			task := &taskdomain.Task{Key: "COP-100", Summary: "Test"}
 			result, err := classifier.ClassifyTaskAsset(task)
@@ -168,7 +168,7 @@ func TestLLMAssetClassifier_ConfidenceClamping(t *testing.T) {
 			defer server.Close()
 
 			repo := &mockAssetRepo{assets: newTestAssets()}
-			classifier := NewLLMAssetClassifier(server.URL, "llama4", repo)
+			classifier := NewLLMAssetClassifier(server.URL, "llama3", repo)
 
 			task := &taskdomain.Task{Key: "COP-200", Summary: "Test"}
 			result, err := classifier.ClassifyTaskAsset(task)
@@ -180,7 +180,7 @@ func TestLLMAssetClassifier_ConfidenceClamping(t *testing.T) {
 
 func TestLLMAssetClassifier_NilTask(t *testing.T) {
 	repo := &mockAssetRepo{assets: newTestAssets()}
-	classifier := NewLLMAssetClassifier("http://localhost:11434", "llama4", repo)
+	classifier := NewLLMAssetClassifier("http://localhost:11434", "llama3", repo)
 
 	_, err := classifier.ClassifyTaskAsset(nil)
 	assert.Error(t, err)
@@ -193,7 +193,7 @@ func TestLLMAssetClassifier_NoneAsset(t *testing.T) {
 	defer server.Close()
 
 	repo := &mockAssetRepo{assets: newTestAssets()}
-	classifier := NewLLMAssetClassifier(server.URL, "llama4", repo)
+	classifier := NewLLMAssetClassifier(server.URL, "llama3", repo)
 
 	task := &taskdomain.Task{Key: "COP-300", Summary: "Team standup meeting"}
 
@@ -210,7 +210,7 @@ func TestLLMAssetClassifier_NoMatchingAssetForSuggestedName(t *testing.T) {
 	defer server.Close()
 
 	repo := &mockAssetRepo{assets: newTestAssets()}
-	classifier := NewLLMAssetClassifier(server.URL, "llama4", repo)
+	classifier := NewLLMAssetClassifier(server.URL, "llama3", repo)
 
 	task := &taskdomain.Task{Key: "COP-400", Summary: "Test"}
 
@@ -227,7 +227,7 @@ func TestLLMAssetClassifier_ClassifyTasksAssets(t *testing.T) {
 	defer server.Close()
 
 	repo := &mockAssetRepo{assets: newTestAssets()}
-	classifier := NewLLMAssetClassifier(server.URL, "llama4", repo)
+	classifier := NewLLMAssetClassifier(server.URL, "llama3", repo)
 
 	tasks := []*taskdomain.Task{
 		{Key: "COP-500", Summary: "Update pricing"},
@@ -293,7 +293,7 @@ func TestFuzzyMatchAsset(t *testing.T) {
 
 func TestLLMAssetClassifier_BuildPrompt(t *testing.T) {
 	repo := &mockAssetRepo{assets: newTestAssets()}
-	c := NewLLMAssetClassifier("http://localhost:11434", "llama4", repo).(*LLMAssetClassifier)
+	c := NewLLMAssetClassifier("http://localhost:11434", "llama3", repo).(*LLMAssetClassifier)
 
 	task := &taskdomain.Task{
 		Key:         "COP-123",
@@ -323,7 +323,7 @@ func TestLLMAssetClassifier_OllamaServerError(t *testing.T) {
 	defer server.Close()
 
 	repo := &mockAssetRepo{assets: newTestAssets()}
-	classifier := NewLLMAssetClassifier(server.URL, "llama4", repo)
+	classifier := NewLLMAssetClassifier(server.URL, "llama3", repo)
 
 	task := &taskdomain.Task{Key: "COP-600", Summary: "Test task"}
 

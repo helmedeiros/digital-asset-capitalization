@@ -3,6 +3,7 @@ package usecase
 import (
 	"context"
 	"fmt"
+	"slices"
 	"sort"
 	"strings"
 
@@ -12,14 +13,33 @@ import (
 	"github.com/helmedeiros/digital-asset-capitalization/internal/tasks/domain/ports"
 )
 
+// CapitalizationLabelProvider looks up the real accounting labels a company
+// configures per project (e.g. "IAS38-CapEx" / "IAS38-OpEx") for the
+// capitalizable/non-capitalizable split. That label vocabulary is company
+// configuration data -- it lives in team config (teams.json), never as a
+// hardcoded string in this framework -- so implementations read it from
+// wherever that configuration is stored. An empty return value means the
+// project hasn't configured one, and no label is written for it.
+type CapitalizationLabelProvider interface {
+	// GetCapExLabel returns the label for capitalizable (development) work.
+	GetCapExLabel(project string) string
+	// GetOpExLabel returns the label for non-capitalizable (discovery and
+	// maintenance) work.
+	GetOpExLabel(project string) string
+	// GetOperationalLabels returns the labels marking operational work
+	// (e.g. operator rotations, escalated support bugs) for the project.
+	GetOperationalLabels(project string) []string
+}
+
 // ClassifyTasksUseCase handles the classification of tasks for a project/sprint
 type ClassifyTasksUseCase struct {
-	localRepo    ports.TaskRepository
-	remoteRepo   ports.TaskRepository
-	classifier   ports.TaskClassifier
-	userInput    ports.UserInput
-	assetService assetsapp.AssetService
-	lockRepo     ports.SprintLockRepository
+	localRepo        ports.TaskRepository
+	remoteRepo       ports.TaskRepository
+	classifier       ports.TaskClassifier
+	userInput        ports.UserInput
+	assetService     assetsapp.AssetService
+	lockRepo         ports.SprintLockRepository
+	capLabelProvider CapitalizationLabelProvider
 }
 
 // NewClassifyTasksUseCase creates a new instance of ClassifyTasksUseCase
@@ -38,6 +58,67 @@ func NewClassifyTasksUseCase(
 		userInput:    userInput,
 		assetService: assetService,
 		lockRepo:     lockRepo,
+	}
+}
+
+// SetCapitalizationLabelProvider configures the per-project real accounting
+// label lookup. Optional: when never called, no project has a configured
+// label and classification behaves exactly as it did before this existed
+// (only the internal cap-development/cap-maintenance/cap-discovery label is
+// written).
+func (uc *ClassifyTasksUseCase) SetCapitalizationLabelProvider(provider CapitalizationLabelProvider) {
+	uc.capLabelProvider = provider
+}
+
+// honourOperationalLabel classifies development work on operational tasks
+// (tasks carrying one of the project's configured operational labels, e.g.
+// operator rotations or escalated support bugs) as maintenance: keeping the
+// lights on is never capitalizable development. Discovery is left alone.
+func (uc *ClassifyTasksUseCase) honourOperationalLabel(results []*ports.ComprehensiveClassificationResult) {
+	if uc.capLabelProvider == nil {
+		return
+	}
+	for _, result := range results {
+		if result.WorkType != domain.WorkTypeDevelopment {
+			continue
+		}
+		operational := uc.capLabelProvider.GetOperationalLabels(result.Task.Project)
+		if len(operational) == 0 {
+			continue
+		}
+		for _, label := range result.Task.Labels {
+			if slices.Contains(operational, label) {
+				result.WorkType = domain.WorkTypeMaintenance
+				break
+			}
+		}
+	}
+}
+
+// honourExistingOpExLabel treats a task's own OpEx accounting label as ground
+// truth: development work on a ticket the project's finance label already
+// marks as OpEx (e.g. operational/support tickets) is reclassified as
+// maintenance, so the cap-* work-type label never contradicts the accounting
+// one. Discovery is left alone since it is OpEx too. The label is looked up
+// per project from the configured provider, never hardcoded.
+func (uc *ClassifyTasksUseCase) honourExistingOpExLabel(results []*ports.ComprehensiveClassificationResult) {
+	if uc.capLabelProvider == nil {
+		return
+	}
+	for _, result := range results {
+		if result.WorkType != domain.WorkTypeDevelopment {
+			continue
+		}
+		opExLabel := uc.capLabelProvider.GetOpExLabel(result.Task.Project)
+		if opExLabel == "" {
+			continue
+		}
+		for _, label := range result.Task.Labels {
+			if label == opExLabel {
+				result.WorkType = domain.WorkTypeMaintenance
+				break
+			}
+		}
 	}
 }
 
@@ -145,6 +226,9 @@ func (uc *ClassifyTasksUseCase) Execute(ctx context.Context, input domain.Classi
 		}
 	}
 
+	uc.honourExistingOpExLabel(classificationResults)
+	uc.honourOperationalLabel(classificationResults)
+
 	// Phase 1: stamp every task with its new work type in memory.
 	updatedTasks := make([]*domain.Task, 0, len(classificationResults))
 	for _, result := range classificationResults {
@@ -165,15 +249,25 @@ func (uc *ClassifyTasksUseCase) Execute(ctx context.Context, input domain.Classi
 	}
 
 	// Phase 3: apply label updates to JIRA (or just narrate when in
-	// local-only mode). Errors here abort the run; previously persisted
+	// local-only mode). A single task's JIRA update can fail for reasons
+	// specific to that one issue (e.g. its screen configuration rejects
+	// the labels field) that have nothing to do with the rest of the
+	// batch, so a failure here is recorded and the loop continues rather
+	// than abandoning every task still to come. Previously persisted
 	// local state stays correct because of phase 2.
 	successCount := 0
+	var failures []string
 	for _, result := range classificationResults {
 		task := result.Task
 		workType := result.WorkType
 
 		if input.Apply {
-			addLabels, removeLabels := uc.buildLabelChanges(task.Labels, workType, result.Asset)
+			var capExLabel, opExLabel string
+			if uc.capLabelProvider != nil {
+				capExLabel = uc.capLabelProvider.GetCapExLabel(input.Project)
+				opExLabel = uc.capLabelProvider.GetOpExLabel(input.Project)
+			}
+			addLabels, removeLabels := uc.buildLabelChanges(task.Labels, workType, result.Asset, capExLabel, opExLabel)
 
 			fmt.Printf("  🏷️  %s → %s", task.Key, workType)
 			if result.Asset != nil && result.Asset.Asset != nil {
@@ -181,8 +275,9 @@ func (uc *ClassifyTasksUseCase) Execute(ctx context.Context, input domain.Classi
 			}
 
 			if err := uc.remoteRepo.UpdateLabels(ctx, task.Key, addLabels, removeLabels); err != nil {
-				fmt.Printf(" ❌ Failed to update JIRA\n")
-				return fmt.Errorf("failed to apply labels to task %s: %w", task.Key, err)
+				fmt.Printf(" ❌ Failed to update JIRA: %v\n", err)
+				failures = append(failures, fmt.Sprintf("%s: %v", task.Key, err))
+				continue
 			}
 			fmt.Printf(" ✅ Applied to JIRA\n")
 		} else {
@@ -192,10 +287,23 @@ func (uc *ClassifyTasksUseCase) Execute(ctx context.Context, input domain.Classi
 	}
 
 	fmt.Printf("\n✅ Successfully processed %d tasks\n", successCount)
+	if len(failures) > 0 {
+		fmt.Printf("⚠️  %d task(s) failed to update in JIRA:\n", len(failures))
+		for _, f := range failures {
+			fmt.Printf("    - %s\n", f)
+		}
+	}
 	if input.Apply {
-		fmt.Printf("🎯 All work type and asset labels have been written to JIRA\n")
+		if len(failures) > 0 {
+			fmt.Printf("🎯 Work type and asset labels have been written to JIRA for %d of %d tasks\n", successCount, len(classificationResults))
+		} else {
+			fmt.Printf("🎯 All work type and asset labels have been written to JIRA\n")
+		}
 
-		// Save sprint lock after successful apply
+		// Save sprint lock after apply, even with partial failures: the
+		// tasks that did succeed are already live on JIRA, and a locked
+		// sprint can still be revisited with --force once the few
+		// failures are investigated.
 		if uc.lockRepo != nil {
 			lock := domain.NewSprintLock(input.Project, input.Sprint, successCount)
 			if lockErr := uc.lockRepo.SaveLock(ctx, lock); lockErr != nil {
@@ -204,6 +312,10 @@ func (uc *ClassifyTasksUseCase) Execute(ctx context.Context, input domain.Classi
 		}
 	} else {
 		fmt.Printf("💾 Classifications saved locally (use --apply to write to JIRA)\n")
+	}
+
+	if len(failures) > 0 {
+		return fmt.Errorf("failed to apply labels to %d task(s): %s", len(failures), strings.Join(failures, "; "))
 	}
 
 	return nil
@@ -245,6 +357,8 @@ func (uc *ClassifyTasksUseCase) previewClassificationsWithRetry(tasks []*domain.
 		if err != nil {
 			return fmt.Errorf("failed to classify tasks comprehensively: %w", err)
 		}
+		uc.honourExistingOpExLabel(results)
+		uc.honourOperationalLabel(results)
 
 		// Group results by work type for better organization
 		workTypeGroups := make(map[domain.WorkType][]*ports.ComprehensiveClassificationResult)
@@ -462,10 +576,31 @@ func formatWorkType(workType domain.WorkType) string {
 	}
 }
 
-// buildLabelChanges computes which cap-prefixed labels to add and remove
-// so that JIRA's update operations only touch cap-prefixed labels
-func (uc *ClassifyTasksUseCase) buildLabelChanges(existingLabels []string, workType domain.WorkType, assetResult *ports.AssetClassificationResult) (addLabels, removeLabels []string) {
+// buildLabelChanges computes which cap-prefixed labels (and, when the
+// project has configured one, a real accounting label) to add and remove so
+// that JIRA's update operations only touch labels this tool owns.
+//
+// capExLabel/opExLabel are the project's configured real accounting labels
+// (e.g. "IAS38-CapEx" / "IAS38-OpEx") for capitalizable/non-capitalizable
+// work, looked up from team configuration -- never hardcoded here, since
+// that vocabulary is company-specific data, not framework behavior. Pass ""
+// for either when the project hasn't configured one; no label is added for
+// an empty value.
+func (uc *ClassifyTasksUseCase) buildLabelChanges(existingLabels []string, workType domain.WorkType, assetResult *ports.AssetClassificationResult, capExLabel, opExLabel string) (addLabels, removeLabels []string) {
 	preserveExistingAsset := assetResult != nil && assetResult.Reason == "existing asset label preserved" && assetResult.Confidence >= 0.95
+
+	// A human/finance-reviewed accounting label is treated as final: once
+	// one of the project's configured labels is present, this tool never
+	// adds, removes, or replaces it, even on re-classification.
+	hasExistingAccountingLabel := false
+	if capExLabel != "" || opExLabel != "" {
+		for _, label := range existingLabels {
+			if label == capExLabel || label == opExLabel {
+				hasExistingAccountingLabel = true
+				break
+			}
+		}
+	}
 
 	// Collect old cap work-type and asset labels to remove
 	for _, label := range existingLabels {
@@ -479,6 +614,18 @@ func (uc *ClassifyTasksUseCase) buildLabelChanges(existingLabels []string, workT
 
 	// Add new work type label
 	addLabels = append(addLabels, string(workType))
+
+	// Add the project's configured real accounting label too, unless one
+	// is already set or the project hasn't configured this mapping.
+	if !hasExistingAccountingLabel {
+		accountingLabel := opExLabel
+		if workType == domain.WorkTypeDevelopment {
+			accountingLabel = capExLabel
+		}
+		if accountingLabel != "" {
+			addLabels = append(addLabels, accountingLabel)
+		}
+	}
 
 	// Add new asset label if available and not preserving existing ones
 	if assetResult != nil && assetResult.Asset != nil && !preserveExistingAsset {

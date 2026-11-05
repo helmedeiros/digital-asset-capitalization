@@ -142,6 +142,122 @@ func (a *App) createConfigCommand() *cli.Command {
 				},
 			},
 			{
+				Name:  "team-confluence",
+				Usage: "Manage team Confluence spaces (asset documentation source)",
+				Subcommands: []*cli.Command{
+					{
+						Name:   "set",
+						Usage:  "Set the Confluence space key for a project/team",
+						Action: a.configTeamConfluenceSetAction,
+						Flags: []cli.Flag{
+							&cli.StringFlag{Name: "project", Aliases: []string{"p"}, Usage: "Project key (e.g., FN, COP)", Required: true},
+							&cli.StringFlag{Name: "space", Aliases: []string{"s"}, Usage: "Confluence space key (e.g., 'MZN', 'CAP')", Required: true},
+						},
+					},
+					{
+						Name:   "list",
+						Usage:  "List all team Confluence spaces",
+						Action: a.configTeamConfluenceListAction,
+					},
+					{
+						Name:   "show",
+						Usage:  "Show the Confluence space for a specific project",
+						Action: a.configTeamConfluenceShowAction,
+						Flags: []cli.Flag{
+							&cli.StringFlag{Name: "project", Aliases: []string{"p"}, Usage: "Project key (e.g., FN)", Required: true},
+						},
+					},
+				},
+			},
+			{
+				Name:  "team-confluence-parent-page",
+				Usage: "Manage team Confluence parent page IDs (asset hierarchy root)",
+				Subcommands: []*cli.Command{
+					{
+						Name:   "set",
+						Usage:  "Set the Confluence parent page ID for a project/team",
+						Action: a.configTeamConfluenceParentPageSetAction,
+						Flags: []cli.Flag{
+							&cli.StringFlag{Name: "project", Aliases: []string{"p"}, Usage: "Project key (e.g., FN, COP)", Required: true},
+							&cli.StringFlag{Name: "page-id", Aliases: []string{"id"}, Usage: "Confluence page ID (e.g., '123456789')", Required: true},
+						},
+					},
+					{
+						Name:   "list",
+						Usage:  "List all team Confluence parent page IDs",
+						Action: a.configTeamConfluenceParentPageListAction,
+					},
+					{
+						Name:   "show",
+						Usage:  "Show the Confluence parent page ID for a specific project",
+						Action: a.configTeamConfluenceParentPageShowAction,
+						Flags: []cli.Flag{
+							&cli.StringFlag{Name: "project", Aliases: []string{"p"}, Usage: "Project key (e.g., FN)", Required: true},
+						},
+					},
+				},
+			},
+			{
+				Name:  "team-capitalization-labels",
+				Usage: "Manage the real accounting labels (e.g. an IAS38-style CapEx/OpEx tag) a project writes to JIRA on classification",
+				Subcommands: []*cli.Command{
+					{
+						Name:   "set",
+						Usage:  "Set the CapEx and/or OpEx accounting label for a project/team",
+						Action: a.configTeamCapitalizationLabelsSetAction,
+						Flags: []cli.Flag{
+							&cli.StringFlag{Name: "project", Aliases: []string{"p"}, Usage: "Project key (e.g., FN, COP)", Required: true},
+							&cli.StringFlag{Name: "capex-label", Usage: "Label written for capitalizable (development) work, e.g. 'IAS38-CapEx'"},
+							&cli.StringFlag{Name: "opex-label", Usage: "Label written for non-capitalizable (discovery/maintenance) work, e.g. 'IAS38-OpEx'"},
+						},
+					},
+					{
+						Name:   "list",
+						Usage:  "List all configured capitalization labels",
+						Action: a.configTeamCapitalizationLabelsListAction,
+					},
+					{
+						Name:   "show",
+						Usage:  "Show the capitalization labels for a specific project",
+						Action: a.configTeamCapitalizationLabelsShowAction,
+						Flags: []cli.Flag{
+							&cli.StringFlag{Name: "project", Aliases: []string{"p"}, Usage: "Project key (e.g., FN)", Required: true},
+						},
+					},
+				},
+			},
+			{
+				Name:  "operational-labels",
+				Usage: "Manage the JIRA labels that mark a project's operational work (optional, alternative or addition to a kanban board mapping)",
+				Subcommands: []*cli.Command{
+					{
+						Name:   "set",
+						Usage:  "Set the operational labels for a project (comma-separated, e.g. 'operational,support')",
+						Action: a.configOperationalLabelsSetAction,
+						Flags: []cli.Flag{
+							&cli.StringFlag{Name: "project", Aliases: []string{"p"}, Usage: "Project key (e.g., FN)", Required: true},
+							&cli.StringFlag{Name: "labels", Aliases: []string{"l"}, Usage: "Comma-separated JIRA labels marking operational work", Required: true},
+						},
+					},
+					{
+						Name:   "show",
+						Usage:  "Show the operational labels for a project",
+						Action: a.configOperationalLabelsShowAction,
+						Flags: []cli.Flag{
+							&cli.StringFlag{Name: "project", Aliases: []string{"p"}, Usage: "Project key (e.g., FN)", Required: true},
+						},
+					},
+					{
+						Name:   "clear",
+						Usage:  "Remove the operational labels for a project",
+						Action: a.configOperationalLabelsClearAction,
+						Flags: []cli.Flag{
+							&cli.StringFlag{Name: "project", Aliases: []string{"p"}, Usage: "Project key (e.g., FN)", Required: true},
+						},
+					},
+				},
+			},
+			{
 				Name:  "board-work-streams",
 				Usage: "Manage board-to-workstream mappings per project",
 				Subcommands: []*cli.Command{
@@ -584,6 +700,275 @@ func (a *App) configTeamCompanyShowAction(ctx *cli.Context) error {
 	} else {
 		fmt.Printf("Project '%s' belongs to company: %s\n", project, company)
 	}
+	return nil
+}
+
+// configTeamConfluenceSetAction backs `assetcap config team-confluence set`.
+func (a *App) configTeamConfluenceSetAction(ctx *cli.Context) error {
+	project := ctx.String("project")
+	space := ctx.String("space")
+	if project == "" {
+		return fmt.Errorf("project is required")
+	}
+	if space == "" {
+		return fmt.Errorf("space is required")
+	}
+	a.ensureTeamConfigService()
+	if err := a.teamConfigService.SetConfluenceSpaceForProject(project, space); err != nil {
+		return fmt.Errorf("failed to set confluence space: %v", err)
+	}
+	fmt.Printf("✅ Set confluence space '%s' for project '%s'\n", space, project)
+	return nil
+}
+
+// configTeamConfluenceListAction backs `assetcap config team-confluence list`.
+func (a *App) configTeamConfluenceListAction(_ *cli.Context) error {
+	a.ensureTeamConfigService()
+	teamConfig, err := a.teamConfigService.GetTeamConfig()
+	if err != nil {
+		return fmt.Errorf("failed to load team config: %v", err)
+	}
+
+	projects := teamConfig.GetProjects()
+	if len(projects) == 0 {
+		fmt.Println("No teams configured")
+		return nil
+	}
+
+	fmt.Println("Team Confluence Spaces:")
+	fmt.Println("=======================")
+
+	found := false
+	for _, project := range projects {
+		space := teamConfig.GetConfluenceSpace(project)
+		if space != "" {
+			fmt.Printf("  %s: %s\n", project, space)
+			found = true
+		}
+	}
+
+	if !found {
+		fmt.Println("  No confluence spaces configured for any project")
+	}
+	return nil
+}
+
+// configTeamConfluenceShowAction backs `assetcap config team-confluence show`.
+func (a *App) configTeamConfluenceShowAction(ctx *cli.Context) error {
+	project := ctx.String("project")
+	if project == "" {
+		return fmt.Errorf("project is required")
+	}
+	a.ensureTeamConfigService()
+	space, err := a.teamConfigService.GetConfluenceSpaceForProject(project)
+	if err != nil {
+		return fmt.Errorf("failed to get confluence space: %v", err)
+	}
+	if space == "" {
+		fmt.Printf("Project '%s' has no confluence space assigned\n", project)
+	} else {
+		fmt.Printf("Project '%s' uses confluence space: %s\n", project, space)
+	}
+	return nil
+}
+
+// configTeamConfluenceParentPageSetAction backs `assetcap config team-confluence-parent-page set`.
+func (a *App) configTeamConfluenceParentPageSetAction(ctx *cli.Context) error {
+	project := ctx.String("project")
+	pageID := ctx.String("page-id")
+	if project == "" {
+		return fmt.Errorf("project is required")
+	}
+	if pageID == "" {
+		return fmt.Errorf("page-id is required")
+	}
+	a.ensureTeamConfigService()
+	if err := a.teamConfigService.SetConfluenceParentPageForProject(project, pageID); err != nil {
+		return fmt.Errorf("failed to set confluence parent page: %v", err)
+	}
+	fmt.Printf("✅ Set confluence parent page '%s' for project '%s'\n", pageID, project)
+	return nil
+}
+
+// configTeamConfluenceParentPageListAction backs `assetcap config team-confluence-parent-page list`.
+func (a *App) configTeamConfluenceParentPageListAction(_ *cli.Context) error {
+	a.ensureTeamConfigService()
+	teamConfig, err := a.teamConfigService.GetTeamConfig()
+	if err != nil {
+		return fmt.Errorf("failed to load team config: %v", err)
+	}
+
+	projects := teamConfig.GetProjects()
+	if len(projects) == 0 {
+		fmt.Println("No teams configured")
+		return nil
+	}
+
+	fmt.Println("Team Confluence Parent Pages:")
+	fmt.Println("==============================")
+
+	found := false
+	for _, project := range projects {
+		pageID := teamConfig.GetConfluenceParentPage(project)
+		if pageID != "" {
+			fmt.Printf("  %s: %s\n", project, pageID)
+			found = true
+		}
+	}
+
+	if !found {
+		fmt.Println("  No confluence parent pages configured for any project")
+	}
+	return nil
+}
+
+// configTeamConfluenceParentPageShowAction backs `assetcap config team-confluence-parent-page show`.
+func (a *App) configTeamConfluenceParentPageShowAction(ctx *cli.Context) error {
+	project := ctx.String("project")
+	if project == "" {
+		return fmt.Errorf("project is required")
+	}
+	a.ensureTeamConfigService()
+	pageID, err := a.teamConfigService.GetConfluenceParentPageForProject(project)
+	if err != nil {
+		return fmt.Errorf("failed to get confluence parent page: %v", err)
+	}
+	if pageID == "" {
+		fmt.Printf("Project '%s' has no confluence parent page assigned\n", project)
+	} else {
+		fmt.Printf("Project '%s' uses confluence parent page: %s\n", project, pageID)
+	}
+	return nil
+}
+
+// configTeamCapitalizationLabelsSetAction backs `assetcap config team-capitalization-labels set`.
+func (a *App) configTeamCapitalizationLabelsSetAction(ctx *cli.Context) error {
+	project := ctx.String("project")
+	capExLabel := ctx.String("capex-label")
+	opExLabel := ctx.String("opex-label")
+	if project == "" {
+		return fmt.Errorf("project is required")
+	}
+	if capExLabel == "" && opExLabel == "" {
+		return fmt.Errorf("at least one of capex-label or opex-label is required")
+	}
+	a.ensureTeamConfigService()
+	if capExLabel != "" {
+		if err := a.teamConfigService.SetCapExLabelForProject(project, capExLabel); err != nil {
+			return fmt.Errorf("failed to set capex label: %v", err)
+		}
+		fmt.Printf("✅ Set CapEx label '%s' for project '%s'\n", capExLabel, project)
+	}
+	if opExLabel != "" {
+		if err := a.teamConfigService.SetOpExLabelForProject(project, opExLabel); err != nil {
+			return fmt.Errorf("failed to set opex label: %v", err)
+		}
+		fmt.Printf("✅ Set OpEx label '%s' for project '%s'\n", opExLabel, project)
+	}
+	return nil
+}
+
+// configTeamCapitalizationLabelsListAction backs `assetcap config team-capitalization-labels list`.
+func (a *App) configTeamCapitalizationLabelsListAction(_ *cli.Context) error {
+	a.ensureTeamConfigService()
+	teamConfig, err := a.teamConfigService.GetTeamConfig()
+	if err != nil {
+		return fmt.Errorf("failed to load team config: %v", err)
+	}
+
+	projects := teamConfig.GetProjects()
+	if len(projects) == 0 {
+		fmt.Println("No teams configured")
+		return nil
+	}
+
+	fmt.Println("Team Capitalization Labels:")
+	fmt.Println("============================")
+
+	found := false
+	for _, project := range projects {
+		capExLabel := teamConfig.GetCapExLabel(project)
+		opExLabel := teamConfig.GetOpExLabel(project)
+		if capExLabel != "" || opExLabel != "" {
+			fmt.Printf("  %s: capex=%q opex=%q\n", project, capExLabel, opExLabel)
+			found = true
+		}
+	}
+
+	if !found {
+		fmt.Println("  No capitalization labels configured for any project")
+	}
+	return nil
+}
+
+// configTeamCapitalizationLabelsShowAction backs `assetcap config team-capitalization-labels show`.
+func (a *App) configTeamCapitalizationLabelsShowAction(ctx *cli.Context) error {
+	project := ctx.String("project")
+	if project == "" {
+		return fmt.Errorf("project is required")
+	}
+	a.ensureTeamConfigService()
+	capExLabel, err := a.teamConfigService.GetCapExLabelForProject(project)
+	if err != nil {
+		return fmt.Errorf("failed to get capex label: %v", err)
+	}
+	opExLabel, err := a.teamConfigService.GetOpExLabelForProject(project)
+	if err != nil {
+		return fmt.Errorf("failed to get opex label: %v", err)
+	}
+	if capExLabel == "" && opExLabel == "" {
+		fmt.Printf("Project '%s' has no capitalization labels configured\n", project)
+	} else {
+		fmt.Printf("Project '%s' capitalization labels: capex=%q opex=%q\n", project, capExLabel, opExLabel)
+	}
+	return nil
+}
+
+// configOperationalLabelsSetAction backs `assetcap config operational-labels set`.
+func (a *App) configOperationalLabelsSetAction(ctx *cli.Context) error {
+	project := ctx.String("project")
+	labels := parseCommaSeparated(ctx.String("labels"))
+	if project == "" || len(labels) == 0 {
+		return fmt.Errorf("project and labels are required")
+	}
+	a.ensureTeamConfigService()
+	if err := a.teamConfigService.SetOperationalLabelsForProject(project, labels); err != nil {
+		return fmt.Errorf("failed to set operational labels: %v", err)
+	}
+	fmt.Printf("✅ Set operational labels %v for project '%s'\n", labels, project)
+	return nil
+}
+
+// configOperationalLabelsShowAction backs `assetcap config operational-labels show`.
+func (a *App) configOperationalLabelsShowAction(ctx *cli.Context) error {
+	project := ctx.String("project")
+	if project == "" {
+		return fmt.Errorf("project is required")
+	}
+	a.ensureTeamConfigService()
+	labels, err := a.teamConfigService.GetOperationalLabelsForProject(project)
+	if err != nil {
+		return fmt.Errorf("failed to get operational labels: %v", err)
+	}
+	if len(labels) == 0 {
+		fmt.Printf("Project '%s' has no operational labels configured\n", project)
+	} else {
+		fmt.Printf("Project '%s' operational labels: %v\n", project, labels)
+	}
+	return nil
+}
+
+// configOperationalLabelsClearAction backs `assetcap config operational-labels clear`.
+func (a *App) configOperationalLabelsClearAction(ctx *cli.Context) error {
+	project := ctx.String("project")
+	if project == "" {
+		return fmt.Errorf("project is required")
+	}
+	a.ensureTeamConfigService()
+	if err := a.teamConfigService.SetOperationalLabelsForProject(project, nil); err != nil {
+		return fmt.Errorf("failed to clear operational labels: %v", err)
+	}
+	fmt.Printf("✅ Cleared operational labels for project '%s'\n", project)
 	return nil
 }
 

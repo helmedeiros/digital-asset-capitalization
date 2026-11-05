@@ -47,6 +47,9 @@ type TeamConfig struct {
 	confluenceParentPages map[string]string             // project -> confluence parent page ID mapping
 	excludedIssueTypes    map[string][]string           // project -> excluded issue types for sprint allocation
 	boardWorkStreams      map[string]map[int]string     // project -> boardID -> workstream name
+	capExLabels           map[string]string             // project -> real accounting label for capitalizable work (e.g. "IAS38-CapEx")
+	opExLabels            map[string]string             // project -> real accounting label for non-capitalizable work (e.g. "IAS38-OpEx")
+	operationalLabels     map[string][]string           // project -> JIRA labels marking operational work (e.g. "operational")
 }
 
 // NewTeamConfig creates a new TeamConfig with validation
@@ -61,6 +64,9 @@ func NewTeamConfig(teams map[string][]string) (*TeamConfig, error) {
 		confluenceParentPages: make(map[string]string),
 		excludedIssueTypes:    make(map[string][]string),
 		boardWorkStreams:      make(map[string]map[int]string),
+		capExLabels:           make(map[string]string),
+		opExLabels:            make(map[string]string),
+		operationalLabels:     make(map[string][]string),
 	}
 
 	for project, members := range teams {
@@ -545,6 +551,116 @@ func (tc *TeamConfig) SetConfluenceParentPage(project, pageID string) error {
 	}
 	tc.confluenceParentPages[trimmedProject] = strings.TrimSpace(pageID)
 	return nil
+}
+
+// GetCapExLabel returns the project's configured real accounting label for
+// capitalizable (development) work, e.g. "IAS38-CapEx". Returns "" when the
+// project hasn't configured one -- this label vocabulary is company-specific
+// configuration, never a framework default.
+func (tc *TeamConfig) GetCapExLabel(project string) string {
+	return tc.capExLabels[project]
+}
+
+// SetCapExLabel sets the project's real accounting label for capitalizable
+// (development) work.
+func (tc *TeamConfig) SetCapExLabel(project, label string) error {
+	trimmedProject := strings.TrimSpace(project)
+	if trimmedProject == "" {
+		return fmt.Errorf("project key cannot be empty")
+	}
+	if _, exists := tc.teams[trimmedProject]; !exists {
+		return fmt.Errorf("project '%s' does not exist", trimmedProject)
+	}
+	tc.capExLabels[trimmedProject] = strings.TrimSpace(label)
+	return nil
+}
+
+// GetOpExLabel returns the project's configured real accounting label for
+// non-capitalizable (discovery/maintenance) work, e.g. "IAS38-OpEx". Returns
+// "" when the project hasn't configured one.
+func (tc *TeamConfig) GetOpExLabel(project string) string {
+	return tc.opExLabels[project]
+}
+
+// SetOpExLabel sets the project's real accounting label for non-capitalizable
+// (discovery/maintenance) work.
+func (tc *TeamConfig) SetOpExLabel(project, label string) error {
+	trimmedProject := strings.TrimSpace(project)
+	if trimmedProject == "" {
+		return fmt.Errorf("project key cannot be empty")
+	}
+	if _, exists := tc.teams[trimmedProject]; !exists {
+		return fmt.Errorf("project '%s' does not exist", trimmedProject)
+	}
+	tc.opExLabels[trimmedProject] = strings.TrimSpace(label)
+	return nil
+}
+
+// GetOperationalLabels returns the JIRA labels the project uses to mark
+// operational work (e.g. operator rotations, escalated support bugs), or nil
+// when none are configured.
+func (tc *TeamConfig) GetOperationalLabels(project string) []string {
+	labels := tc.operationalLabels[project]
+	if len(labels) == 0 {
+		return nil
+	}
+	return append([]string(nil), labels...)
+}
+
+// SetOperationalLabels sets the JIRA labels marking the project's operational
+// work. Blank and duplicate labels are dropped; an empty result clears the
+// setting.
+func (tc *TeamConfig) SetOperationalLabels(project string, labels []string) error {
+	trimmedProject := strings.TrimSpace(project)
+	if trimmedProject == "" {
+		return fmt.Errorf("project key cannot be empty")
+	}
+	if _, exists := tc.teams[trimmedProject]; !exists {
+		return fmt.Errorf("project '%s' does not exist", trimmedProject)
+	}
+	var cleaned []string
+	seen := make(map[string]bool, len(labels))
+	for _, label := range labels {
+		label = strings.TrimSpace(label)
+		if label == "" || seen[label] {
+			continue
+		}
+		seen[label] = true
+		cleaned = append(cleaned, label)
+	}
+	if len(cleaned) == 0 {
+		delete(tc.operationalLabels, trimmedProject)
+		return nil
+	}
+	tc.operationalLabels[trimmedProject] = cleaned
+	return nil
+}
+
+// GetAllOperationalLabels returns a copy of the project -> operational labels mapping.
+func (tc *TeamConfig) GetAllOperationalLabels() map[string][]string {
+	result := make(map[string][]string, len(tc.operationalLabels))
+	for project, labels := range tc.operationalLabels {
+		result[project] = append([]string(nil), labels...)
+	}
+	return result
+}
+
+// GetAllCapExLabels returns a copy of the project -> CapEx label mapping.
+func (tc *TeamConfig) GetAllCapExLabels() map[string]string {
+	result := make(map[string]string, len(tc.capExLabels))
+	for project, label := range tc.capExLabels {
+		result[project] = label
+	}
+	return result
+}
+
+// GetAllOpExLabels returns a copy of the project -> OpEx label mapping.
+func (tc *TeamConfig) GetAllOpExLabels() map[string]string {
+	result := make(map[string]string, len(tc.opExLabels))
+	for project, label := range tc.opExLabels {
+		result[project] = label
+	}
+	return result
 }
 
 // ToCompleteMap returns all six maps including confluence settings

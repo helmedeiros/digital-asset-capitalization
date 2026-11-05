@@ -656,6 +656,8 @@ func TestBuildLabelChanges(t *testing.T) {
 		existingLabels []string
 		workType       domain.WorkType
 		assetResult    *ports.AssetClassificationResult
+		capExLabel     string
+		opExLabel      string
 		expectedAdd    []string
 		expectedRemove []string
 	}{
@@ -795,11 +797,61 @@ func TestBuildLabelChanges(t *testing.T) {
 			expectedAdd:    []string{"cap-maintenance", "cap-asset-infrastructure"},
 			expectedRemove: []string{"cap-discovery", "cap-asset-payments"},
 		},
+		{
+			name:           "should write the project's configured accounting label for development work",
+			existingLabels: []string{},
+			workType:       domain.WorkTypeDevelopment,
+			assetResult:    nil,
+			capExLabel:     "IAS38-CapEx",
+			opExLabel:      "IAS38-OpEx",
+			expectedAdd:    []string{"cap-development", "IAS38-CapEx"},
+			expectedRemove: nil,
+		},
+		{
+			name:           "should write the project's configured accounting label for discovery/maintenance work",
+			existingLabels: []string{},
+			workType:       domain.WorkTypeMaintenance,
+			assetResult:    nil,
+			capExLabel:     "IAS38-CapEx",
+			opExLabel:      "IAS38-OpEx",
+			expectedAdd:    []string{"cap-maintenance", "IAS38-OpEx"},
+			expectedRemove: nil,
+		},
+		{
+			name:           "should not write any accounting label when the project hasn't configured one",
+			existingLabels: []string{},
+			workType:       domain.WorkTypeDevelopment,
+			assetResult:    nil,
+			capExLabel:     "",
+			opExLabel:      "",
+			expectedAdd:    []string{"cap-development"},
+			expectedRemove: nil,
+		},
+		{
+			name:           "should preserve an existing human-set accounting label",
+			existingLabels: []string{"IAS38-CapEx", "other-label"},
+			workType:       domain.WorkTypeMaintenance,
+			assetResult:    nil,
+			capExLabel:     "IAS38-CapEx",
+			opExLabel:      "IAS38-OpEx",
+			expectedAdd:    []string{"cap-maintenance"},
+			expectedRemove: nil,
+		},
+		{
+			name:           "should not add a new accounting label when one already exists, even if the cap-* work type changes",
+			existingLabels: []string{"cap-maintenance", "IAS38-OpEx"},
+			workType:       domain.WorkTypeDevelopment,
+			assetResult:    nil,
+			capExLabel:     "IAS38-CapEx",
+			opExLabel:      "IAS38-OpEx",
+			expectedAdd:    []string{"cap-development"},
+			expectedRemove: []string{"cap-maintenance"},
+		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			addLabels, removeLabels := uc.buildLabelChanges(tt.existingLabels, tt.workType, tt.assetResult)
+			addLabels, removeLabels := uc.buildLabelChanges(tt.existingLabels, tt.workType, tt.assetResult, tt.capExLabel, tt.opExLabel)
 			assert.ElementsMatch(t, tt.expectedAdd, addLabels, "add labels mismatch")
 			if tt.expectedRemove == nil {
 				assert.Empty(t, removeLabels, "remove labels should be empty")
@@ -1282,7 +1334,59 @@ func TestClassifyTasksEdgeCases(t *testing.T) {
 
 		// Assert
 		assert.Error(t, err)
-		assert.Contains(t, err.Error(), "failed to apply labels to task TEST-1")
+		assert.Contains(t, err.Error(), "TEST-1")
+		assert.Contains(t, err.Error(), "update error")
+		localRepo.AssertExpectations(t)
+		remoteRepo.AssertExpectations(t)
+		classifier.AssertExpectations(t)
+	})
+
+	t.Run("should continue applying remaining tasks after one JIRA update fails", func(t *testing.T) {
+		// A single task's JIRA update can fail for reasons specific to
+		// that one issue (e.g. a screen configuration that rejects the
+		// labels field) with no bearing on the rest of the batch, so the
+		// loop must still apply every other task rather than abandoning
+		// them.
+		localRepo := new(MockTaskRepository)
+		remoteRepo := new(MockTaskRepository)
+		classifier := new(MockTaskClassifier)
+		userInput := new(MockUserInput)
+
+		assetService := testutil.NewMockAssetService()
+		uc := NewClassifyTasksUseCase(localRepo, remoteRepo, classifier, userInput, assetService, nil)
+
+		input := domain.ClassifyTasksInput{
+			Project: testProject,
+			Sprint:  testSprint,
+			DryRun:  false,
+			Apply:   true,
+		}
+
+		tasks := []*domain.Task{
+			{Key: "TEST-1", Summary: "Task 1"},
+			{Key: "TEST-2", Summary: "Task 2"},
+			{Key: "TEST-3", Summary: "Task 3"},
+		}
+		workTypes := map[string]domain.WorkType{
+			"TEST-1": domain.WorkTypeDevelopment,
+			"TEST-2": domain.WorkTypeDevelopment,
+			"TEST-3": domain.WorkTypeDevelopment,
+		}
+
+		localRepo.On("FindByProjectAndSprint", ctx, testProject, testSprint).Return(tasks, nil)
+		classifier.On("ClassifyTasks", tasks).Return(workTypes, nil)
+		localRepo.On("Save", ctx, mock.Anything).Return(nil)
+		remoteRepo.On("UpdateLabels", ctx, "TEST-1", []string{"cap-development"}, []string(nil)).Return(nil)
+		remoteRepo.On("UpdateLabels", ctx, "TEST-2", []string{"cap-development"}, []string(nil)).
+			Return(fmt.Errorf("status 400: labels field not on screen"))
+		remoteRepo.On("UpdateLabels", ctx, "TEST-3", []string{"cap-development"}, []string(nil)).Return(nil)
+
+		err := uc.Execute(ctx, input)
+
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "TEST-2")
+		// TEST-1 and TEST-3 must still have been attempted despite TEST-2's
+		// failure landing between them.
 		localRepo.AssertExpectations(t)
 		remoteRepo.AssertExpectations(t)
 		classifier.AssertExpectations(t)
@@ -2016,7 +2120,65 @@ func TestAdditionalErrorHandlingAndEdgeCases(t *testing.T) {
 		remoteRepo.AssertExpectations(t)
 		comprehensiveClassifier.AssertExpectations(t)
 	})
+
+	t.Run("should write the project's configured accounting label via the capitalization label provider", func(t *testing.T) {
+		localRepo := new(MockTaskRepository)
+		remoteRepo := new(MockTaskRepository)
+		comprehensiveClassifier := new(MockComprehensiveTaskClassifier)
+		userInput := new(MockUserInput)
+		assetService := testutil.NewMockAssetService()
+
+		uc := NewClassifyTasksUseCase(localRepo, remoteRepo, comprehensiveClassifier, userInput, assetService, nil)
+		uc.SetCapitalizationLabelProvider(stubCapitalizationLabelProvider{
+			capEx: map[string]string{testProject: "IAS38-CapEx"},
+			opEx:  map[string]string{testProject: "IAS38-OpEx"},
+		})
+
+		input := domain.ClassifyTasksInput{
+			Project: testProject,
+			Sprint:  testSprint,
+			DryRun:  false,
+			Apply:   true,
+		}
+
+		task := &domain.Task{Key: "TEST-1", Summary: "Task 1"}
+		results := []*ports.ComprehensiveClassificationResult{
+			{Task: task, WorkType: domain.WorkTypeDevelopment, WorkTypeReason: "Development pattern"},
+		}
+
+		localRepo.On("FindByProjectAndSprint", ctx, testProject, testSprint).Return([]*domain.Task{task}, nil)
+		comprehensiveClassifier.On("ClassifyTasksComprehensive", []*domain.Task{task}).Return(results, nil)
+		localRepo.On("Save", ctx, mock.Anything).Return(nil)
+		remoteRepo.On("UpdateLabels", ctx, "TEST-1",
+			[]string{"cap-development", "IAS38-CapEx"},
+			[]string(nil),
+		).Return(nil)
+
+		err := uc.Execute(ctx, input)
+
+		assert.NoError(t, err)
+		localRepo.AssertExpectations(t)
+		remoteRepo.AssertExpectations(t)
+		comprehensiveClassifier.AssertExpectations(t)
+	})
 }
+
+// stubCapitalizationLabelProvider is a minimal CapitalizationLabelProvider
+// for tests, keyed by project.
+type stubCapitalizationLabelProvider struct {
+	capEx       map[string]string
+	opEx        map[string]string
+	operational map[string][]string
+}
+
+func (s stubCapitalizationLabelProvider) GetOperationalLabels(project string) []string {
+	return s.operational[project]
+}
+
+func (s stubCapitalizationLabelProvider) GetCapExLabel(project string) string {
+	return s.capEx[project]
+}
+func (s stubCapitalizationLabelProvider) GetOpExLabel(project string) string { return s.opEx[project] }
 
 func TestSortingAndDisplayLogic(t *testing.T) {
 	t.Parallel()

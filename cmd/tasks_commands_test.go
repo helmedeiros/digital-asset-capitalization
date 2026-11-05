@@ -11,6 +11,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	assetdomain "github.com/helmedeiros/digital-asset-capitalization/internal/assets/domain"
+	tasksusecase "github.com/helmedeiros/digital-asset-capitalization/internal/tasks/application/usecase"
 	taskdomain "github.com/helmedeiros/digital-asset-capitalization/internal/tasks/domain"
 	taskports "github.com/helmedeiros/digital-asset-capitalization/internal/tasks/domain/ports"
 )
@@ -51,6 +52,9 @@ func (s *stubTaskService) GetTaskByKey(context.Context, string) (*taskdomain.Tas
 	return s.getTaskByKey, s.getTaskByKeyErr
 }
 func (s *stubTaskService) GetLocalRepository() taskports.TaskRepository { panic("not used") }
+func (s *stubTaskService) SetCapitalizationLabelProvider(tasksusecase.CapitalizationLabelProvider) {
+	panic("not used")
+}
 
 // stubAssetServiceForTasks implements only the AssetService method
 // that the tasks Actions read (GetAsset, used by tasks show --asset).

@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/helmedeiros/digital-asset-capitalization/internal/tasks/domain"
 	"github.com/helmedeiros/digital-asset-capitalization/internal/tasks/domain/ports"
 )
 
@@ -12,6 +13,48 @@ type FetchTasksUseCase struct {
 	remoteRepo     ports.TaskRepository
 	localRepo      ports.TaskRepository
 	sprintResolver *SprintResolver
+	boardSource    ports.BoardIssueSource
+}
+
+// SetBoardIssueSource adds the issues of the project's configured boards
+// (e.g. a kanban board) to what a sprint fetch returns. Optional.
+func (u *FetchTasksUseCase) SetBoardIssueSource(source ports.BoardIssueSource) {
+	u.boardSource = source
+}
+
+// addBoardTasks fetches issues that sit on the project's configured boards
+// for the sprint but were not returned by the sprint query, and tags them
+// with the sprint so classification treats them like any other sprint task.
+func (u *FetchTasksUseCase) addBoardTasks(ctx context.Context, project, sprint string, tasks []*domain.Task) ([]*domain.Task, error) {
+	if u.boardSource == nil {
+		return tasks, nil
+	}
+	keys, err := u.boardSource.FindIssueKeysForSprint(ctx, project, sprint)
+	if err != nil {
+		return nil, fmt.Errorf("failed to list board issues: %w", err)
+	}
+	seen := make(map[string]bool, len(tasks))
+	for _, task := range tasks {
+		seen[task.Key] = true
+	}
+	for _, key := range keys {
+		if seen[key] {
+			continue
+		}
+		seen[key] = true
+		task, err := u.remoteRepo.FindByKey(ctx, key)
+		if err != nil {
+			return nil, fmt.Errorf("failed to fetch board task %s: %w", key, err)
+		}
+		if task == nil {
+			continue
+		}
+		if !task.HasSprint(sprint) {
+			task.AddSprint(sprint)
+		}
+		tasks = append(tasks, task)
+	}
+	return tasks, nil
 }
 
 // NewFetchTasksUseCase creates a new fetch tasks use case
@@ -51,6 +94,11 @@ func (u *FetchTasksUseCase) Execute(ctx context.Context, project, sprint, platfo
 	tasks, err := u.remoteRepo.FindByProjectAndSprint(ctx, project, resolvedSprintID)
 	if err != nil {
 		return fmt.Errorf("failed to fetch tasks: %w", err)
+	}
+
+	tasks, err = u.addBoardTasks(ctx, project, resolvedSprintID, tasks)
+	if err != nil {
+		return err
 	}
 
 	// Save tasks to local storage in one batch -- per-task Save would
