@@ -6,6 +6,7 @@ USAGE:
 
 COMMANDS:
    list      List sprints for a project and time period
+   export    Export the allocation of every sprint of a period into one .xlsx workbook
    allocate  Calculate time allocation for JIRA issues in a sprint
    help, h   Shows a list of commands or help for one command
 

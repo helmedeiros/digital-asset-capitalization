@@ -355,6 +355,23 @@ The tool:
 3. Generates a formatted output for JIRA's "Time Allocation %" field
 4. Supports integration with Google Spreadsheets for team-wide tracking
 
+### Exporting Allocations to One Workbook
+
+`sprint export` writes the allocation of every sprint of a period into a single `.xlsx` file (importable into Google Sheets), using the same rules as `sprint allocate --sprint-bounded`, including excluded cards and work streams:
+
+```bash
+# one tab per month, sprints stacked with blank rows between them
+./assetcap sprint export --project FN --period 2026 --group-by month
+
+# one tab per quarter, or per year, or everything in a single tab
+./assetcap sprint export --project FN --period 2026 --group-by quarter --output fn-2026.xlsx
+./assetcap sprint export --project FN --period "Q4 2026" --group-by none --with-hours
+```
+
+- A sprint is placed by its **start date only**: a sprint that starts in October and ends in November sits in the October tab (or the Q4 tab), and `--period` only includes sprints that start inside it.
+- Each sprint appears under its own title row, followed by its table; two blank rows separate sprints in a tab. Unfinished sprints are marked in the title, e.g. `(active)`, because their allocation is not final.
+- Percentages and hours are real numeric cells.
+
 ### Sprint Management
 
 List and manage sprints for projects:
