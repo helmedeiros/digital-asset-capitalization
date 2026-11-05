@@ -5,6 +5,8 @@ import (
 	"encoding/csv"
 	"encoding/json"
 	"fmt"
+	"os"
+	"slices"
 	"sort"
 	"strings"
 	"time"
@@ -35,6 +37,7 @@ type SprintTimeAllocationUseCase struct {
 	configSvc      *configService.ConfigService
 	workStreams    []string
 	withHours      bool
+	excludedKeys   []string
 }
 
 // SprintAllocationOption is a functional option for the sprint time allocation use case
@@ -51,6 +54,14 @@ func WithWorkStreams(workStreams []string) SprintAllocationOption {
 func WithHours(withHours bool) SprintAllocationOption {
 	return func(uc *SprintTimeAllocationUseCase) {
 		uc.withHours = withHours
+	}
+}
+
+// WithExcludedKeys leaves the given issue keys out of this allocation run, on
+// top of whatever the project's excluded labels already remove.
+func WithExcludedKeys(keys []string) SprintAllocationOption {
+	return func(uc *SprintTimeAllocationUseCase) {
+		uc.excludedKeys = keys
 	}
 }
 
@@ -410,7 +421,46 @@ func (p *SprintTimeAllocationUseCase) fetchIssues() ([]domain.JiraIssue, error) 
 		domainIssues = append(domainIssues, domainIssue)
 	}
 
-	return domainIssues, nil
+	return p.dropExcludedIssues(domainIssues), nil
+}
+
+// dropExcludedIssues removes the issues carrying one of the project's
+// excluded labels (`config excluded-labels`), e.g. umbrella tickets whose work
+// is already counted through their child tickets, and the keys given with
+// --exclude. Excluded keys are reported
+// on stderr so the CSV on stdout stays clean.
+func (p *SprintTimeAllocationUseCase) dropExcludedIssues(issues []domain.JiraIssue) []domain.JiraIssue {
+	var labels []string
+	if p.configSvc != nil {
+		if configured, err := p.configSvc.GetExcludedLabelsForProject(p.project); err == nil {
+			labels = configured
+		}
+	}
+	if len(labels) == 0 && len(p.excludedKeys) == 0 {
+		return issues
+	}
+	kept := make([]domain.JiraIssue, 0, len(issues))
+	var excluded []string
+	for _, issue := range issues {
+		if slices.Contains(p.excludedKeys, issue.Key) || hasAnyLabel(issue.Fields.Labels, labels) {
+			excluded = append(excluded, issue.Key)
+			continue
+		}
+		kept = append(kept, issue)
+	}
+	if len(excluded) > 0 {
+		fmt.Fprintf(os.Stderr, "Excluded from allocation: %s\n", strings.Join(excluded, ", "))
+	}
+	return kept
+}
+
+func hasAnyLabel(have, want []string) bool {
+	for _, label := range have {
+		if slices.Contains(want, label) {
+			return true
+		}
+	}
+	return false
 }
 
 // fetchIssuesByWorkStreams fetches issues using board-to-workstream mapping when work streams are specified.

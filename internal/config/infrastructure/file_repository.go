@@ -116,6 +116,7 @@ func (r *FileRepository) LoadTeamConfig() (*domain.TeamConfig, error) {
 		CapExLabel           string            `json:"capex_label,omitempty"`
 		OpExLabel            string            `json:"opex_label,omitempty"`
 		OperationalLabels    []string          `json:"operational_labels,omitempty"`
+		ExcludedLabels       []string          `json:"excluded_labels,omitempty"`
 	}
 
 	if err := json.Unmarshal(data, &fileFormat); err != nil {
@@ -135,6 +136,7 @@ func (r *FileRepository) LoadTeamConfig() (*domain.TeamConfig, error) {
 	capExLabels := make(map[string]string)
 	opExLabels := make(map[string]string)
 	operationalLabels := make(map[string][]string)
+	excludedLabels := make(map[string][]string)
 
 	for project, teamInfo := range fileFormat {
 		teams[project] = teamInfo.Team
@@ -188,6 +190,9 @@ func (r *FileRepository) LoadTeamConfig() (*domain.TeamConfig, error) {
 		if len(teamInfo.OperationalLabels) > 0 {
 			operationalLabels[project] = teamInfo.OperationalLabels
 		}
+		if len(teamInfo.ExcludedLabels) > 0 {
+			excludedLabels[project] = teamInfo.ExcludedLabels
+		}
 		if len(teamInfo.BoardWorkStreams) > 0 {
 			mapping := make(map[int]string, len(teamInfo.BoardWorkStreams))
 			for boardIDStr, workStream := range teamInfo.BoardWorkStreams {
@@ -225,6 +230,12 @@ func (r *FileRepository) LoadTeamConfig() (*domain.TeamConfig, error) {
 		}
 	}
 
+	for project, labels := range excludedLabels {
+		if err := config.SetExcludedLabels(project, labels); err != nil {
+			return nil, fmt.Errorf("failed to set excluded labels for %s: %w", project, err)
+		}
+	}
+
 	return config, nil
 }
 
@@ -238,6 +249,7 @@ func (r *FileRepository) SaveTeamConfig(config *domain.TeamConfig) error {
 	capExLabels := config.GetAllCapExLabels()
 	opExLabels := config.GetAllOpExLabels()
 	operationalLabels := config.GetAllOperationalLabels()
+	excludedLabels := config.GetAllExcludedLabels()
 
 	type timelineEntry struct {
 		Member string `json:"member"`
@@ -258,6 +270,7 @@ func (r *FileRepository) SaveTeamConfig(config *domain.TeamConfig) error {
 		CapExLabel           string            `json:"capex_label,omitempty"`
 		OpExLabel            string            `json:"opex_label,omitempty"`
 		OperationalLabels    []string          `json:"operational_labels,omitempty"`
+		ExcludedLabels       []string          `json:"excluded_labels,omitempty"`
 	})
 
 	for project, members := range teams {
@@ -280,6 +293,7 @@ func (r *FileRepository) SaveTeamConfig(config *domain.TeamConfig) error {
 			CapExLabel           string            `json:"capex_label,omitempty"`
 			OpExLabel            string            `json:"opex_label,omitempty"`
 			OperationalLabels    []string          `json:"operational_labels,omitempty"`
+			ExcludedLabels       []string          `json:"excluded_labels,omitempty"`
 		}{
 			Team: activeMembers,
 		}
@@ -334,6 +348,9 @@ func (r *FileRepository) SaveTeamConfig(config *domain.TeamConfig) error {
 		}
 		if labels, exists := operationalLabels[project]; exists && len(labels) > 0 {
 			entry.OperationalLabels = labels
+		}
+		if labels, exists := excludedLabels[project]; exists && len(labels) > 0 {
+			entry.ExcludedLabels = labels
 		}
 
 		// Add excluded issue types if they exist for this project

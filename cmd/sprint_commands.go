@@ -71,6 +71,10 @@ func (a *App) createSprintCommand() *cli.Command {
 						Aliases: []string{"ws"},
 						Usage:   "Comma-separated work streams to include (e.g., 'product,operational')",
 					},
+					&cli.StringFlag{
+						Name:  "exclude",
+						Usage: "Comma-separated issue keys to leave out of this allocation run (e.g., 'FN-12,FN-13')",
+					},
 					&cli.BoolFlag{
 						Name:  "with-hours",
 						Usage: "Include engineering hours column in CSV output",
@@ -150,6 +154,9 @@ func (a *App) sprintAllocateAction(ctx *cli.Context) error {
 	var opts []sprintusecase.SprintAllocationOption
 	if len(workStreams) > 0 {
 		opts = append(opts, sprintusecase.WithWorkStreams(workStreams))
+	}
+	if excludeKeys := parseCommaSeparated(ctx.String("exclude")); len(excludeKeys) > 0 {
+		opts = append(opts, sprintusecase.WithExcludedKeys(excludeKeys))
 	}
 	if withHours {
 		opts = append(opts, sprintusecase.WithHours(true))

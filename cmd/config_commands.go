@@ -258,6 +258,37 @@ func (a *App) createConfigCommand() *cli.Command {
 				},
 			},
 			{
+				Name:  "excluded-labels",
+				Usage: "Manage the JIRA labels that exclude a card from allocation and capitalization reporting (e.g. umbrella tickets)",
+				Subcommands: []*cli.Command{
+					{
+						Name:   "set",
+						Usage:  "Set the excluded labels for a project (comma-separated, e.g. 'assetcap-exclude')",
+						Action: a.configExcludedLabelsSetAction,
+						Flags: []cli.Flag{
+							&cli.StringFlag{Name: "project", Aliases: []string{"p"}, Usage: "Project key (e.g., FN)", Required: true},
+							&cli.StringFlag{Name: "labels", Aliases: []string{"l"}, Usage: "Comma-separated JIRA labels marking excluded cards", Required: true},
+						},
+					},
+					{
+						Name:   "show",
+						Usage:  "Show the excluded labels for a project",
+						Action: a.configExcludedLabelsShowAction,
+						Flags: []cli.Flag{
+							&cli.StringFlag{Name: "project", Aliases: []string{"p"}, Usage: "Project key (e.g., FN)", Required: true},
+						},
+					},
+					{
+						Name:   "clear",
+						Usage:  "Remove the excluded labels for a project",
+						Action: a.configExcludedLabelsClearAction,
+						Flags: []cli.Flag{
+							&cli.StringFlag{Name: "project", Aliases: []string{"p"}, Usage: "Project key (e.g., FN)", Required: true},
+						},
+					},
+				},
+			},
+			{
 				Name:  "board-work-streams",
 				Usage: "Manage board-to-workstream mappings per project",
 				Subcommands: []*cli.Command{
@@ -969,6 +1000,54 @@ func (a *App) configOperationalLabelsClearAction(ctx *cli.Context) error {
 		return fmt.Errorf("failed to clear operational labels: %v", err)
 	}
 	fmt.Printf("✅ Cleared operational labels for project '%s'\n", project)
+	return nil
+}
+
+// configExcludedLabelsSetAction backs `assetcap config excluded-labels set`.
+func (a *App) configExcludedLabelsSetAction(ctx *cli.Context) error {
+	project := ctx.String("project")
+	labels := parseCommaSeparated(ctx.String("labels"))
+	if project == "" || len(labels) == 0 {
+		return fmt.Errorf("project and labels are required")
+	}
+	a.ensureTeamConfigService()
+	if err := a.teamConfigService.SetExcludedLabelsForProject(project, labels); err != nil {
+		return fmt.Errorf("failed to set excluded labels: %v", err)
+	}
+	fmt.Printf("✅ Set excluded labels %v for project '%s'\n", labels, project)
+	return nil
+}
+
+// configExcludedLabelsShowAction backs `assetcap config excluded-labels show`.
+func (a *App) configExcludedLabelsShowAction(ctx *cli.Context) error {
+	project := ctx.String("project")
+	if project == "" {
+		return fmt.Errorf("project is required")
+	}
+	a.ensureTeamConfigService()
+	labels, err := a.teamConfigService.GetExcludedLabelsForProject(project)
+	if err != nil {
+		return fmt.Errorf("failed to get excluded labels: %v", err)
+	}
+	if len(labels) == 0 {
+		fmt.Printf("Project '%s' has no excluded labels configured\n", project)
+	} else {
+		fmt.Printf("Project '%s' excluded labels: %v\n", project, labels)
+	}
+	return nil
+}
+
+// configExcludedLabelsClearAction backs `assetcap config excluded-labels clear`.
+func (a *App) configExcludedLabelsClearAction(ctx *cli.Context) error {
+	project := ctx.String("project")
+	if project == "" {
+		return fmt.Errorf("project is required")
+	}
+	a.ensureTeamConfigService()
+	if err := a.teamConfigService.SetExcludedLabelsForProject(project, nil); err != nil {
+		return fmt.Errorf("failed to clear excluded labels: %v", err)
+	}
+	fmt.Printf("✅ Cleared excluded labels for project '%s'\n", project)
 	return nil
 }
 

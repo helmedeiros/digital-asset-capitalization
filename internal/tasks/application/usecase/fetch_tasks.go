@@ -3,6 +3,7 @@ package usecase
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	"github.com/helmedeiros/digital-asset-capitalization/internal/tasks/domain"
 	"github.com/helmedeiros/digital-asset-capitalization/internal/tasks/domain/ports"
@@ -14,12 +15,19 @@ type FetchTasksUseCase struct {
 	localRepo      ports.TaskRepository
 	sprintResolver *SprintResolver
 	boardSource    ports.BoardIssueSource
+	excludedLabels ports.ExcludedLabelProvider
 }
 
 // SetBoardIssueSource adds the issues of the project's configured boards
 // (e.g. a kanban board) to what a sprint fetch returns. Optional.
 func (u *FetchTasksUseCase) SetBoardIssueSource(source ports.BoardIssueSource) {
 	u.boardSource = source
+}
+
+// SetExcludedLabelProvider makes fetches skip the cards carrying one of the
+// project's excluded labels. Optional.
+func (u *FetchTasksUseCase) SetExcludedLabelProvider(provider ports.ExcludedLabelProvider) {
+	u.excludedLabels = provider
 }
 
 // addBoardTasks fetches issues that sit on the project's configured boards
@@ -99,6 +107,11 @@ func (u *FetchTasksUseCase) Execute(ctx context.Context, project, sprint, platfo
 	tasks, err = u.addBoardTasks(ctx, project, resolvedSprintID, tasks)
 	if err != nil {
 		return err
+	}
+
+	tasks, excluded := dropExcludedTasks(u.excludedLabels, project, tasks)
+	if len(excluded) > 0 {
+		fmt.Printf("Skipped %d excluded task(s): %s\n", len(excluded), strings.Join(excluded, ", "))
 	}
 
 	// Save tasks to local storage in one batch -- per-task Save would
