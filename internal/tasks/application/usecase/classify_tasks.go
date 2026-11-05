@@ -33,6 +33,7 @@ type CapitalizationLabelProvider interface {
 
 // ClassifyTasksUseCase handles the classification of tasks for a project/sprint
 type ClassifyTasksUseCase struct {
+	excludedLabels   ports.ExcludedLabelProvider
 	localRepo        ports.TaskRepository
 	remoteRepo       ports.TaskRepository
 	classifier       ports.TaskClassifier
@@ -122,6 +123,13 @@ func (uc *ClassifyTasksUseCase) honourExistingOpExLabel(results []*ports.Compreh
 	}
 }
 
+// SetExcludedLabelProvider makes classification and listing ignore the cards
+// carrying one of the project's excluded labels, including ones fetched
+// before the label was added. Optional.
+func (uc *ClassifyTasksUseCase) SetExcludedLabelProvider(provider ports.ExcludedLabelProvider) {
+	uc.excludedLabels = provider
+}
+
 // Execute runs the task classification process
 func (uc *ClassifyTasksUseCase) Execute(ctx context.Context, input domain.ClassifyTasksInput) error {
 	// First, try to find existing tasks for the project/sprint
@@ -155,6 +163,11 @@ func (uc *ClassifyTasksUseCase) Execute(ctx context.Context, input domain.Classi
 		} else {
 			return fmt.Errorf("no tasks available for classification")
 		}
+	}
+
+	tasks, _ = dropExcludedTasks(uc.excludedLabels, input.Project, tasks)
+	if len(tasks) == 0 {
+		return fmt.Errorf("no tasks available for classification")
 	}
 
 	// Check sprint lock before applying to remote
@@ -534,6 +547,8 @@ func (uc *ClassifyTasksUseCase) GetTasks(ctx context.Context, project, sprint st
 	if err != nil {
 		return nil, fmt.Errorf("failed to find existing tasks: %w", err)
 	}
+
+	tasks, _ = dropExcludedTasks(uc.excludedLabels, project, tasks)
 
 	// If no tasks found locally, try to fetch from remote
 	if len(tasks) == 0 {

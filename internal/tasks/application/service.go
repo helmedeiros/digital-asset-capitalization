@@ -31,6 +31,13 @@ func (s *TaskServiceImpl) SetCapitalizationLabelProvider(provider usecase.Capita
 	s.classifyTasksUseCase.SetCapitalizationLabelProvider(provider)
 }
 
+// SetExcludedLabelProvider configures the per-project labels that exclude a
+// card from fetching, classification and listing.
+func (s *TaskServiceImpl) SetExcludedLabelProvider(provider ports.ExcludedLabelProvider) {
+	s.fetchTasksUseCase.SetExcludedLabelProvider(provider)
+	s.classifyTasksUseCase.SetExcludedLabelProvider(provider)
+}
+
 // SetBoardIssueSource makes sprint fetches also include the issues of the
 // project's configured boards (e.g. kanban work).
 func (s *TaskServiceImpl) SetBoardIssueSource(source ports.BoardIssueSource) {

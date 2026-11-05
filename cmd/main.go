@@ -177,6 +177,14 @@ func (a capitalizationLabelProviderAdapter) GetOperationalLabels(project string)
 	return labels
 }
 
+func (a capitalizationLabelProviderAdapter) GetExcludedLabels(project string) []string {
+	labels, err := a.configService.GetExcludedLabelsForProject(project)
+	if err != nil {
+		return nil
+	}
+	return labels
+}
+
 func (a capitalizationLabelProviderAdapter) GetOpExLabel(project string) string {
 	label, err := a.configService.GetOpExLabelForProject(project)
 	if err != nil {
@@ -478,6 +486,14 @@ func initializeApp() (*App, error) {
 	// `config team-capitalization-labels`. Projects that haven't
 	// configured one simply get no extra label on classification.
 	taskService.SetCapitalizationLabelProvider(capitalizationLabelProviderAdapter{configService: sharedConfigService})
+
+	// Cards labelled with one of the project's excluded labels
+	// (`config excluded-labels`) are skipped by fetch and classification.
+	if withExclusions, ok := taskService.(interface {
+		SetExcludedLabelProvider(taskports.ExcludedLabelProvider)
+	}); ok {
+		withExclusions.SetExcludedLabelProvider(capitalizationLabelProviderAdapter{configService: sharedConfigService})
+	}
 
 	// Sprint fetches also include the issues of the project's configured
 	// boards (`config board-work-streams`), the same ones sprint allocate uses.
