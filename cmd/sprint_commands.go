@@ -7,6 +7,8 @@ import (
 	"github.com/urfave/cli/v2"
 
 	sprintusecase "github.com/helmedeiros/digital-asset-capitalization/internal/sprint/application/usecase"
+	sprintdomain "github.com/helmedeiros/digital-asset-capitalization/internal/sprint/domain"
+	sprintinfra "github.com/helmedeiros/digital-asset-capitalization/internal/sprint/infrastructure"
 	"github.com/helmedeiros/digital-asset-capitalization/internal/sprint/infrastructure/formatting"
 )
 
@@ -36,6 +38,20 @@ func (a *App) createSprintCommand() *cli.Command {
 						Usage:    "Time period (e.g., Q2 2025, 2025, 2025-01-01:2025-03-31)",
 						Required: true,
 					},
+				},
+			},
+			{
+				Name:   "export",
+				Usage:  "Export the allocation of every sprint of a period into one .xlsx workbook",
+				Action: a.sprintExportAction,
+				Flags: []cli.Flag{
+					&cli.StringFlag{Name: "project", Aliases: []string{"p"}, Usage: "Project key (e.g., FN)", Required: true},
+					&cli.StringFlag{Name: "period", Usage: "Period whose sprints to export, by start date (e.g., 'Q4 2026' or '2026')", Required: true},
+					&cli.StringFlag{Name: "group-by", Aliases: []string{"g"}, Usage: "Tab grouping by sprint start: month, quarter, year or none (one tab)", Value: "month"},
+					&cli.StringFlag{Name: "output", Aliases: []string{"o"}, Usage: "Workbook path (default: allocations-<project>-<period>.xlsx)"},
+					&cli.StringFlag{Name: "work-streams", Aliases: []string{"ws"}, Usage: "Comma-separated work streams to include (e.g., 'product,operational')"},
+					&cli.StringFlag{Name: "exclude", Usage: "Comma-separated issue keys to leave out"},
+					&cli.BoolFlag{Name: "with-hours", Usage: "Include the engineering hours column"},
 				},
 			},
 			{
@@ -197,4 +213,51 @@ func parseCommaSeparated(s string) []string {
 		}
 	}
 	return out
+}
+
+// sprintExportAction backs `assetcap sprint export`: one workbook with the
+// allocation of every sprint that starts in the period, grouped into tabs.
+func (a *App) sprintExportAction(ctx *cli.Context) error {
+	project := ctx.String("project")
+	period := ctx.String("period")
+
+	if a.teamResolver != nil && project != "" {
+		resolvedProject, err := a.teamResolver.ResolveProjectIdentifier(project)
+		if err != nil {
+			return fmt.Errorf("unknown project or team nickname: %s", project)
+		}
+		project = resolvedProject
+	}
+
+	grouping, err := sprintdomain.ParseTabGrouping(ctx.String("group-by"))
+	if err != nil {
+		return err
+	}
+	output := ctx.String("output")
+	if output == "" {
+		output = fmt.Sprintf("allocations-%s-%s.xlsx", project, strings.ReplaceAll(strings.ToLower(period), " ", "-"))
+	}
+
+	var opts []sprintusecase.SprintAllocationOption
+	if workStreams := parseCommaSeparated(ctx.String("work-streams")); len(workStreams) > 0 {
+		opts = append(opts, sprintusecase.WithWorkStreams(workStreams))
+	}
+	if excludeKeys := parseCommaSeparated(ctx.String("exclude")); len(excludeKeys) > 0 {
+		opts = append(opts, sprintusecase.WithExcludedKeys(excludeKeys))
+	}
+	if ctx.Bool("with-hours") {
+		opts = append(opts, sprintusecase.WithHours(true))
+	}
+
+	result, err := sprintusecase.NewExportAllocationsUseCase(a.sprintService, sprintinfra.NewXlsxWorkbookWriter()).Execute(sprintusecase.ExportAllocationsInput{
+		Project: project, Period: period, Grouping: grouping, Output: output, Options: opts,
+	})
+	if err != nil {
+		return err
+	}
+	fmt.Printf("✅ Wrote %d sprint(s) in %d tab(s) to %s\n", len(result.Sprints), len(result.Tabs), output)
+	for _, tab := range result.Tabs {
+		fmt.Printf("   tab %s\n", tab)
+	}
+	return nil
 }
