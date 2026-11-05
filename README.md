@@ -320,6 +320,22 @@ Some teams run a scrum board plus a kanban board (bugs, operator rotations, othe
 - The labels are independent of any board filter. A board's own JIRA filter can hide old tickets (for example one limited to recently resolved tickets), so prefer labels when the kanban board filter is limited.
 - With neither configured, fetching behaves as before.
 
+### Excluding Cards
+
+Some cards must not count at all, typically an umbrella ticket (for example a "Operator" rotation card) whose work is already tracked by weekly child tickets, which would otherwise be counted twice. Mark them with a JIRA label and tell the tool about it:
+
+```bash
+./assetcap config excluded-labels set --project FN --labels assetcap-exclude
+./assetcap config excluded-labels show --project FN
+```
+
+Cards carrying an excluded label are left out of:
+
+- `sprint allocate` (hours and percentages; the excluded keys are listed on stderr)
+- `tasks fetch` (never stored), and `tasks classify` / `tasks show` (ignored, also for tasks stored earlier)
+
+For a one-off run without touching JIRA or config, use `sprint allocate --exclude FN-12,FN-13`. Unlike `--override '{"FN-12":0}'`, which only zeroes the hours, the card disappears from the report.
+
 ### Time Allocation
 
 Automatically calculate time allocation for tasks in sprints:
