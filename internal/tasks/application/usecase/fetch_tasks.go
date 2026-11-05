@@ -112,6 +112,11 @@ func (u *FetchTasksUseCase) Execute(ctx context.Context, project, sprint, platfo
 	tasks, excluded := dropExcludedTasks(u.excludedLabels, project, tasks)
 	if len(excluded) > 0 {
 		fmt.Printf("Skipped %d excluded task(s): %s\n", len(excluded), strings.Join(excluded, ", "))
+		// A copy stored before the label was added must not linger and keep
+		// feeding classification and listings; not being stored is fine.
+		for _, key := range excluded {
+			_ = u.localRepo.Delete(ctx, key)
+		}
 	}
 
 	// Save tasks to local storage in one batch -- per-task Save would

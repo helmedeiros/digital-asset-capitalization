@@ -1,9 +1,12 @@
 package usecase
 
 import (
+	"context"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/mock"
+	"github.com/stretchr/testify/require"
 
 	"github.com/helmedeiros/digital-asset-capitalization/internal/tasks/domain"
 )
@@ -32,4 +35,28 @@ func TestDropExcludedTasks(t *testing.T) {
 	kept, excluded = dropExcludedTasks(nil, "T", tasks)
 	assert.Len(t, kept, 3, "no provider")
 	assert.Empty(t, excluded)
+}
+
+func TestFetchTasks_RemovesStoredCopiesOfExcludedTasks(t *testing.T) {
+	t.Parallel()
+
+	kept, err := domain.NewTaskWithSprints("PRI-1", "work", "PRI", []string{"S1"}, "JIRA")
+	require.NoError(t, err)
+	umbrella, err := domain.NewTaskWithSprints("PRI-2", "Operator", "PRI", []string{"S1"}, "JIRA")
+	require.NoError(t, err)
+	umbrella.Labels = []string{"assetcap-exclude"}
+
+	remote := new(MockTaskRepository)
+	remote.On("FindByProjectAndSprint", mock.Anything, "PRI", "S1").Return([]*domain.Task{kept, umbrella}, nil)
+	local := new(MockTaskRepository)
+	local.On("Save", mock.Anything, kept).Return(nil)
+	local.On("Delete", mock.Anything, "PRI-2").Return(nil)
+
+	uc := NewFetchTasksUseCase(remote, local, nil)
+	uc.SetExcludedLabelProvider(stubExcludedLabels{"assetcap-exclude"})
+
+	require.NoError(t, uc.Execute(context.Background(), "PRI", "S1", "jira"))
+
+	local.AssertCalled(t, "Delete", mock.Anything, "PRI-2")
+	local.AssertExpectations(t)
 }
