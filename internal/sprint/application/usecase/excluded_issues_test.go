@@ -51,6 +51,15 @@ func TestDropExcludedIssues(t *testing.T) {
 		assert.Len(t, p.dropExcludedIssues(issues), 3)
 	})
 
+	t.Run("drops explicitly excluded keys without any label config", func(t *testing.T) {
+		p := &SprintTimeAllocationUseCase{project: "TEST", excludedKeys: []string{"TEST-3"}}
+
+		got := p.dropExcludedIssues(issues)
+
+		require.Len(t, got, 2)
+		assert.Equal(t, "TEST-2", got[1].Key)
+	})
+
 	t.Run("keeps everything without a config service", func(t *testing.T) {
 		p := &SprintTimeAllocationUseCase{project: "TEST"}
 
