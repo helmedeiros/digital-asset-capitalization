@@ -50,6 +50,7 @@ type TeamConfig struct {
 	capExLabels           map[string]string             // project -> real accounting label for capitalizable work (e.g. "IAS38-CapEx")
 	opExLabels            map[string]string             // project -> real accounting label for non-capitalizable work (e.g. "IAS38-OpEx")
 	operationalLabels     map[string][]string           // project -> JIRA labels marking operational work (e.g. "operational")
+	excludedLabels        map[string][]string           // project -> JIRA labels marking cards excluded from capitalization reporting
 }
 
 // NewTeamConfig creates a new TeamConfig with validation
@@ -67,6 +68,7 @@ func NewTeamConfig(teams map[string][]string) (*TeamConfig, error) {
 		capExLabels:           make(map[string]string),
 		opExLabels:            make(map[string]string),
 		operationalLabels:     make(map[string][]string),
+		excludedLabels:        make(map[string][]string),
 	}
 
 	for project, members := range teams {
@@ -640,6 +642,55 @@ func (tc *TeamConfig) SetOperationalLabels(project string, labels []string) erro
 func (tc *TeamConfig) GetAllOperationalLabels() map[string][]string {
 	result := make(map[string][]string, len(tc.operationalLabels))
 	for project, labels := range tc.operationalLabels {
+		result[project] = append([]string(nil), labels...)
+	}
+	return result
+}
+
+// GetExcludedLabels returns the JIRA labels marking cards the project
+// excludes from capitalization reporting (e.g. umbrella tickets whose work is
+// tracked by child tickets), or nil when none are configured.
+func (tc *TeamConfig) GetExcludedLabels(project string) []string {
+	labels := tc.excludedLabels[project]
+	if len(labels) == 0 {
+		return nil
+	}
+	return append([]string(nil), labels...)
+}
+
+// SetExcludedLabels sets the JIRA labels marking the project's excluded
+// cards. Blank and duplicate labels are dropped; an empty result clears the
+// setting.
+func (tc *TeamConfig) SetExcludedLabels(project string, labels []string) error {
+	trimmedProject := strings.TrimSpace(project)
+	if trimmedProject == "" {
+		return fmt.Errorf("project key cannot be empty")
+	}
+	if _, exists := tc.teams[trimmedProject]; !exists {
+		return fmt.Errorf("project '%s' does not exist", trimmedProject)
+	}
+	var cleaned []string
+	seen := make(map[string]bool, len(labels))
+	for _, label := range labels {
+		label = strings.TrimSpace(label)
+		if label == "" || seen[label] {
+			continue
+		}
+		seen[label] = true
+		cleaned = append(cleaned, label)
+	}
+	if len(cleaned) == 0 {
+		delete(tc.excludedLabels, trimmedProject)
+		return nil
+	}
+	tc.excludedLabels[trimmedProject] = cleaned
+	return nil
+}
+
+// GetAllExcludedLabels returns a copy of the project -> excluded labels mapping.
+func (tc *TeamConfig) GetAllExcludedLabels() map[string][]string {
+	result := make(map[string][]string, len(tc.excludedLabels))
+	for project, labels := range tc.excludedLabels {
 		result[project] = append([]string(nil), labels...)
 	}
 	return result

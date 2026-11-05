@@ -105,6 +105,8 @@ type TeamConfigService interface {
 	SetCapExLabelForProject(project, label string) error
 	SetOperationalLabelsForProject(project string, labels []string) error
 	GetOperationalLabelsForProject(project string) ([]string, error)
+	SetExcludedLabelsForProject(project string, labels []string) error
+	GetExcludedLabelsForProject(project string) ([]string, error)
 	GetCapExLabelForProject(project string) (string, error)
 	SetOpExLabelForProject(project, label string) error
 	GetOpExLabelForProject(project string) (string, error)

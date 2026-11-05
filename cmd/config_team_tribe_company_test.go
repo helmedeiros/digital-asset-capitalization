@@ -94,6 +94,10 @@ func (s *stubTeamConfigService) SetOperationalLabelsForProject(string, []string)
 func (s *stubTeamConfigService) GetOperationalLabelsForProject(string) ([]string, error) {
 	return nil, nil
 }
+func (s *stubTeamConfigService) SetExcludedLabelsForProject(string, []string) error { return nil }
+func (s *stubTeamConfigService) GetExcludedLabelsForProject(string) ([]string, error) {
+	return nil, nil
+}
 
 // teamConfigWith creates a real *TeamConfig with the supplied per-
 // project tribe and company assignments. Empty maps are fine; the

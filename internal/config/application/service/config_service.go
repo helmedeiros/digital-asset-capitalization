@@ -302,6 +302,35 @@ func (s *ConfigService) GetOperationalLabelsForProject(project string) ([]string
 	return config.GetOperationalLabels(project), nil
 }
 
+// SetExcludedLabelsForProject sets the JIRA labels marking a project's
+// excluded cards (none clears them) and saves
+func (s *ConfigService) SetExcludedLabelsForProject(project string, labels []string) error {
+	config, err := s.GetTeamConfig()
+	if err != nil {
+		return fmt.Errorf("failed to load team configuration: %w", err)
+	}
+
+	if err := config.SetExcludedLabels(project, labels); err != nil {
+		return fmt.Errorf("failed to set excluded labels: %w", err)
+	}
+
+	if err := s.SaveTeamConfig(config); err != nil {
+		return fmt.Errorf("failed to save team configuration: %w", err)
+	}
+
+	return nil
+}
+
+// GetExcludedLabelsForProject returns the excluded labels for a project
+func (s *ConfigService) GetExcludedLabelsForProject(project string) ([]string, error) {
+	config, err := s.GetTeamConfig()
+	if err != nil {
+		return nil, fmt.Errorf("failed to load team configuration: %w", err)
+	}
+
+	return config.GetExcludedLabels(project), nil
+}
+
 // SetOpExLabelForProject sets the real accounting label for non-capitalizable
 // (discovery/maintenance) work for a project and saves
 func (s *ConfigService) SetOpExLabelForProject(project, label string) error {
