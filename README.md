@@ -371,6 +371,7 @@ The tool:
 - A sprint is placed by its **start date only**: a sprint that starts in October and ends in November sits in the October tab (or the Q4 tab), and `--period` only includes sprints that start inside it.
 - Each sprint appears under its own title row, followed by its table; two blank rows separate sprints in a tab. Unfinished sprints are marked in the title, e.g. `(active)`, because their allocation is not final.
 - Percentages and hours are real numeric cells.
+- The first tab, `Assets`, summarises all sprints per asset: investment in person-sprints (1.0 = one person for one whole sprint, split by development/maintenance/discovery), when implementation started and completed (first/last `cap-development` activity; blank while still being implemented), days running since the first activity, and the top contributor with their share.
 
 ### Sprint Management
 

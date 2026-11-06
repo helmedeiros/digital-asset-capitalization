@@ -58,14 +58,15 @@ func TestExportAllocations(t *testing.T) {
 
 	require.NoError(t, err)
 	assert.Equal(t, []string{"S1", "S2"}, alloc.called)
-	assert.Equal(t, []string{"2026-Q4"}, res.Tabs)
+	assert.Equal(t, []string{"Assets", "2026-Q4"}, res.Tabs)
 	assert.Equal(t, "out.xlsx", w.path)
-	require.Len(t, w.tabs, 1)
+	require.Len(t, w.tabs, 2)
+	assert.Equal(t, "Assets", w.tabs[0].Name)
 	assert.Equal(t, [][]string{
 		{"S1"}, {"issueKey", "status"}, {"A-1", "Done"},
 		{}, {},
 		{"S2 (active)"}, {"issueKey", "status"}, {"A-2", "Done"},
-	}, w.tabs[0].Rows)
+	}, w.tabs[1].Rows)
 }
 
 func TestExportAllocations_Errors(t *testing.T) {
