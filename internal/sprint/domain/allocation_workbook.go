@@ -51,6 +51,8 @@ type SprintAllocation struct {
 	Name  string
 	Start time.Time
 	Rows  [][]string
+	// Active marks a sprint that is not finished, so its work is still running.
+	Active bool
 }
 
 // SheetTab is a worksheet: its name and the rows to write.

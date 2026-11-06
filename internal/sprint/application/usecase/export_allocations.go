@@ -75,7 +75,7 @@ func (u *ExportAllocationsUseCase) Execute(in ExportAllocationsInput) (*ExportAl
 		if err != nil {
 			return nil, fmt.Errorf("failed to read allocation of %s: %w", sprint.Name, err)
 		}
-		allocs = append(allocs, domain.SprintAllocation{Name: sprintTitle(sprint), Start: start, Rows: rows})
+		allocs = append(allocs, domain.SprintAllocation{Name: sprintTitle(sprint), Start: start, Rows: rows, Active: !strings.EqualFold(sprint.State, "closed")})
 		names = append(names, sprint.Name)
 	}
 	if len(allocs) == 0 {
@@ -83,6 +83,7 @@ func (u *ExportAllocationsUseCase) Execute(in ExportAllocationsInput) (*ExportAl
 	}
 
 	tabs := domain.BuildWorkbook(allocs, in.Grouping)
+	tabs = append([]domain.SheetTab{{Name: domain.AssetSummaryTab, Rows: domain.BuildAssetSummary(allocs, time.Now())}}, tabs...)
 	if err := u.writer.Write(in.Output, tabs); err != nil {
 		return nil, err
 	}
