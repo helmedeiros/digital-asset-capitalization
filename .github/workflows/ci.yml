@@ -45,7 +45,7 @@ jobs:
           go test -v -race -coverprofile=coverage.out ./...
           grep -v "testutil" coverage.out > coverage.filtered.out
           go tool cover -func=coverage.filtered.out | tee coverage.txt
-          COVERAGE=$(go tool cover -func=coverage.filtered.out | grep total | awk '{print $3}' | sed 's/%//')
+          COVERAGE=$(go tool cover -func=coverage.filtered.out | grep '^total:' | awk '{print $3}' | sed 's/%//')
           echo "coverage=$COVERAGE" >> $GITHUB_OUTPUT
 
       - name: Upload coverage report

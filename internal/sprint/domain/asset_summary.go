@@ -91,7 +91,7 @@ func BuildAssetSummary(allocs []SprintAllocation, now time.Time) [][]string {
 		names = append(names, n)
 	}
 	sort.Slice(names, func(i, j int) bool {
-		a, b := stats[names[i]].total(), stats[names[j]].total()
+		a, b := stats[names[i]].sum(), stats[names[j]].sum()
 		if a != b {
 			return a > b
 		}
@@ -104,7 +104,7 @@ func BuildAssetSummary(allocs []SprintAllocation, now time.Time) [][]string {
 		st := stats[n]
 		top, topVal := st.topPerson()
 		share := 0.0
-		if t := st.total(); t > 0 {
+		if t := st.sum(); t > 0 {
 			share = topVal / t
 		}
 		status := "stable"
@@ -120,13 +120,13 @@ func BuildAssetSummary(allocs []SprintAllocation, now time.Time) [][]string {
 		if st.devActive {
 			completed = ""
 		}
-		rows = append(rows, []string{n, f2(st.total()), f2(st.dev), f2(st.maint), f2(st.disc), f2(st.other), strconv.Itoa(st.issues),
+		rows = append(rows, []string{n, f2(st.sum()), f2(st.dev), f2(st.maint), f2(st.disc), f2(st.other), strconv.Itoa(st.issues),
 			st.firstActivity, st.devStart, completed, days(st.firstActivity, end), status, top, f2(topVal), fmt.Sprintf("%.2f%%", share*100)})
 	}
 	return rows
 }
 
-func (s *assetStats) total() float64 { return s.dev + s.maint + s.disc + s.other }
+func (s *assetStats) sum() float64 { return s.dev + s.maint + s.disc + s.other }
 
 func (s *assetStats) topPerson() (string, float64) {
 	var best string
