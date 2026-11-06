@@ -98,8 +98,9 @@ func BuildAssetSummary(allocs []SprintAllocation, now time.Time) [][]string {
 		return names[i] < names[j]
 	})
 
-	rows := [][]string{{"asset", "investment (person-sprints)", "development", "maintenance", "discovery", "other", "issues",
-		"first activity", "implementation started", "implementation completed", "running (days)", "status", "top contributor", "top contributor (person-sprints)", "top contributor share"}}
+	rows := make([][]string, 0, len(names)+1)
+	rows = append(rows, []string{"asset", "investment (person-sprints)", "development", "maintenance", "discovery", "other", "issues",
+		"first activity", "implementation started", "implementation completed", "running (days)", "status", "top contributor", "top contributor (person-sprints)", "top contributor share"})
 	for _, n := range names {
 		st := stats[n]
 		top, topVal := st.topPerson()
