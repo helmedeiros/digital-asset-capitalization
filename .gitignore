@@ -9,6 +9,7 @@ teams.json
 .assetcap/
 allocations/
 completions/
+/dist/
 
 # Commit message temporary files
 commit_*.txt
