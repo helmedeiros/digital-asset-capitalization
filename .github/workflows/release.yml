@@ -15,23 +15,21 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           fetch-depth: 0
 
       - name: Verify release is from main branch
         run: |
-          # Check if the current commit is on main branch
-          git branch --contains ${{ github.sha }} | grep -q "main" || git branch -r --contains ${{ github.sha }} | grep -q "origin/main"
-          if [ $? -ne 0 ]; then
+          if ! git branch -r --contains "$GITHUB_SHA" | grep -Eq '^[[:space:]]*origin/main$'; then
             echo "❌ Release tags must be created from main branch"
-            echo "Current commit ${{ github.sha }} is not on main branch"
+            echo "Current commit $GITHUB_SHA is not on main branch"
             exit 1
           fi
           echo "✅ Release tag created from main branch"
 
       - name: Set up Go
-        uses: actions/setup-go@v5
+        uses: actions/setup-go@v7
         with:
           go-version: "1.26.0"
           check-latest: true
@@ -40,7 +38,7 @@ jobs:
         run: go test -v ./...
 
       - name: Run GoReleaser
-        uses: goreleaser/goreleaser-action@v5
+        uses: goreleaser/goreleaser-action@v7
         with:
           distribution: goreleaser
           version: ~> v2

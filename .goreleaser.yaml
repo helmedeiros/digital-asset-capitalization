@@ -29,7 +29,7 @@ archives:
   - name_template: "assetcap_{{ .Os }}_{{ .Arch }}"
     format_overrides:
       - goos: windows
-        format: zip
+        formats: [zip]
     files:
       - README.md
       - LICENSE
@@ -95,7 +95,6 @@ brews:
     repository:
       owner: helmedeiros
       name: homebrew-tap
-      # Token is now referenced without quotes in v2
       token: "{{ .Env.HOMEBREW_TAP_GITHUB_TOKEN }}"
     directory: Formula
     homepage: https://github.com/helmedeiros/digital-asset-capitalization
