@@ -21,11 +21,9 @@ jobs:
 
       - name: Verify release is from main branch
         run: |
-          # Check if the current commit is on main branch
-          git branch --contains ${{ github.sha }} | grep -q "main" || git branch -r --contains ${{ github.sha }} | grep -q "origin/main"
-          if [ $? -ne 0 ]; then
+          if ! git branch -r --contains "$GITHUB_SHA" | grep -Eq '^[[:space:]]*origin/main$'; then
             echo "❌ Release tags must be created from main branch"
-            echo "Current commit ${{ github.sha }} is not on main branch"
+            echo "Current commit $GITHUB_SHA is not on main branch"
             exit 1
           fi
           echo "✅ Release tag created from main branch"
