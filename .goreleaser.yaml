@@ -29,7 +29,7 @@ archives:
   - name_template: "assetcap_{{ .Os }}_{{ .Arch }}"
     format_overrides:
       - goos: windows
-        format: zip
+        formats: [zip]
     files:
       - README.md
       - LICENSE
